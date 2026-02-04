@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+env/
+.env
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# MacOS
+.DS_Store
+
+# F1 Data Cache
+*.ff1pkl
+*.sqlite
+backend/data/cache/
+data/cache/
+
+# Large Datasets (CSV)
+# Assuming source code doesn't require these to run if they are fetched/generated
+f1_dataset/
+backend/data/
+data/
+
+# Node
+node_modules/
+npm-debug.log

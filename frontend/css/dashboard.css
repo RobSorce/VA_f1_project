@@ -1,0 +1,797 @@
+/* ==========================================================================
+   F1 Analytics Platform - Dashboard Layout
+   F1 TV Broadcast Graphics Style
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   App Container
+   -------------------------------------------------------------------------- */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    background: linear-gradient(180deg, #0d0d0f 0%, #15151e 100%);
+}
+
+/* --------------------------------------------------------------------------
+   Header - F1 Style
+   -------------------------------------------------------------------------- */
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--header-height);
+    padding: 0 var(--spacing-lg);
+    background: linear-gradient(180deg, rgba(21, 21, 30, 0.98) 0%, rgba(21, 21, 30, 0.95) 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+    backdrop-filter: blur(10px);
+}
+
+.header-left,
+.header-center,
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.header-left {
+    flex: 0 0 auto;
+}
+
+.header-center {
+    flex: 1;
+    justify-content: center;
+}
+
+.header-right {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+}
+
+/* F1 Logo */
+.logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.logo svg {
+    color: var(--color-f1-red);
+}
+
+.logo-text {
+    font-family: var(--font-display);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-black);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, var(--color-f1-red) 0%, #ff4444 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Session Selector */
+.session-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.session-selector .select-control {
+    width: auto;
+    min-width: 100px;
+    background: rgba(26, 31, 51, 0.9);
+}
+
+.session-selector .select-control:last-of-type {
+    min-width: 200px;
+}
+
+/* Header Status */
+.app-shell__status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.status-pill {
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    background: linear-gradient(135deg, var(--color-f1-red) 0%, var(--color-f1-red-dark) 100%);
+    color: #fff;
+    border-radius: var(--radius-full);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.screen-label {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   Dashboard Carousel (Multi-Screen Navigation)
+   -------------------------------------------------------------------------- */
+.dashboard-carousel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    padding-bottom: 0;
+}
+
+.dashboard-carousel__viewport {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: var(--spacing-lg);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.dashboard-carousel__viewport::-webkit-scrollbar {
+    display: none;
+}
+
+.dashboard-screen {
+    flex: 0 0 100%;
+    min-height: 0;
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Screen Grids */
+.dashboard-screen__grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    gap: var(--panel-gap);
+}
+
+/* Screen 1: Race Overview - F1 TV Layout */
+.dashboard-screen__grid--overview {
+    grid-template-columns: 1.5fr 320px;
+    grid-template-rows: 1fr auto;
+}
+
+.dashboard-screen__grid--overview .panel--track {
+    grid-row: 1 / 3;
+    min-height: 400px;
+}
+
+.dashboard-screen__grid--overview .panel--laps {
+    grid-row: 1 / 2;
+    min-height: 500px;
+}
+
+.dashboard-screen__grid--overview .panel--conditions {
+    grid-row: 2 / 3;
+}
+
+/* Screen 2: Strategy & Timing */
+.dashboard-screen__grid--strategy {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.dashboard-screen__grid--strategy .panel--lap-times {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+}
+
+.dashboard-screen__grid--strategy .panel--tyre-strategy {
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
+}
+
+.dashboard-screen__grid--strategy .panel--telemetry {
+    grid-column: 1 / 3;
+    grid-row: 2 / 3;
+}
+
+/* Screen 3: Analytics */
+.dashboard-screen__grid--analytics {
+    grid-template-columns: 1fr 1.5fr;
+    grid-template-rows: 1fr;
+}
+
+.dashboard-screen__grid--analytics .panel--strategy-sim {
+    grid-column: 1 / 2;
+}
+
+.dashboard-screen__grid--analytics .panel--predictions {
+    grid-column: 2 / 3;
+}
+
+/* --------------------------------------------------------------------------
+   Carousel Navigation Controls - F1 Style
+   -------------------------------------------------------------------------- */
+.dashboard-carousel__controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) 0;
+}
+
+.carousel-arrow {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    background: rgba(225, 6, 0, 0.15);
+    border: 1px solid rgba(225, 6, 0, 0.4);
+    border-radius: 50%;
+    color: var(--color-f1-red);
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.carousel-arrow:hover:not(:disabled) {
+    background: rgba(225, 6, 0, 0.3);
+    border-color: var(--color-f1-red);
+    color: #fff;
+}
+
+.carousel-arrow:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.dashboard-carousel__breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.breadcrumb {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.breadcrumb:hover {
+    border-color: var(--color-f1-red);
+    color: var(--color-text-primary);
+}
+
+.breadcrumb--active {
+    background: var(--color-f1-red);
+    border-color: var(--color-f1-red);
+    color: #fff;
+}
+
+/* --------------------------------------------------------------------------
+   Panels - F1 TV Broadcast Style
+   -------------------------------------------------------------------------- */
+.panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg-panel);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-panel);
+    backdrop-filter: blur(10px);
+}
+
+.panel:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-bg-panel-header);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+
+.panel-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.panel-icon {
+    font-size: var(--font-size-base);
+}
+
+.panel-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.panel-content {
+    flex: 1;
+    padding: var(--spacing-md);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --------------------------------------------------------------------------
+   Visualization Containers
+   -------------------------------------------------------------------------- */
+.visualization-container {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.visualization-container svg {
+    width: 100%;
+    height: 100%;
+}
+
+.visualization-sm {
+    flex: 0 0 120px;
+    min-height: 120px;
+}
+
+/* --------------------------------------------------------------------------
+   Track Map Panel - F1 Style
+   -------------------------------------------------------------------------- */
+#track-map-container {
+    background: radial-gradient(ellipse at center, rgba(26, 31, 51, 0.6) 0%, rgba(21, 21, 30, 0.9) 100%);
+    border-radius: var(--radius-md);
+}
+
+.track-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    font-size: var(--font-size-xs);
+}
+
+.track-legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.track-legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Lap Tower Panel - F1 Style
+   -------------------------------------------------------------------------- */
+.panel--laps {
+    padding: 0;
+}
+
+.panel--laps .panel-header {
+    display: none;
+    /* Header is built into the visualization */
+}
+
+.panel--laps .panel-content {
+    padding: 0;
+}
+
+#lap-tower-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   Strategy Simulator Panel
+   -------------------------------------------------------------------------- */
+.strategy-form {
+    flex: 0 0 auto;
+    margin-bottom: var(--spacing-md);
+}
+
+.prediction-results {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-sm);
+    background: rgba(26, 31, 51, 0.6);
+    border-radius: var(--radius-md);
+}
+
+.prediction-result-card {
+    padding: var(--spacing-md);
+    background: rgba(21, 21, 30, 0.8);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-sm);
+    border-left: 3px solid var(--color-f1-red);
+}
+
+.prediction-result-card:last-child {
+    margin-bottom: 0;
+}
+
+.prediction-position {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-black);
+    color: var(--color-f1-red);
+}
+
+.prediction-confidence {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+
+/* --------------------------------------------------------------------------
+   Conditions Panel - F1 Style
+   -------------------------------------------------------------------------- */
+.conditions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+.condition-card {
+    display: flex;
+    flex-direction: column;
+    padding: var(--spacing-sm);
+    background: rgba(26, 31, 51, 0.8);
+    border-radius: var(--radius-md);
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.condition-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: var(--font-weight-semibold);
+}
+
+.condition-value {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    font-family: var(--font-mono);
+    color: var(--color-text-primary);
+}
+
+.race-flags {
+    display: flex;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: rgba(26, 31, 51, 0.6);
+    border-radius: var(--radius-md);
+    margin-top: var(--spacing-sm);
+}
+
+.flag-indicator {
+    opacity: 0.3;
+    font-size: var(--font-size-lg);
+    transition: opacity var(--transition-fast);
+    cursor: default;
+}
+
+.flag-indicator.active {
+    opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Predictions Panel - F1 Style
+   -------------------------------------------------------------------------- */
+.predictions-grid {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.prediction-card {
+    flex: 1;
+    padding: var(--spacing-md);
+    background: rgba(26, 31, 51, 0.8);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.prediction-card h3 {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: var(--spacing-sm);
+}
+
+.prediction-main {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-sm);
+}
+
+.predicted-driver {
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-black);
+}
+
+.confidence-value {
+    font-size: var(--font-size-sm);
+    font-family: var(--font-mono);
+    color: var(--color-accent-success);
+}
+
+.confidence-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-full);
+    margin-top: var(--spacing-sm);
+    overflow: hidden;
+}
+
+.confidence-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-accent-success), var(--color-f1-red));
+    border-radius: var(--radius-full);
+    transition: width var(--transition-slow);
+}
+
+.podium-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.podium-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: rgba(21, 21, 30, 0.8);
+    border-radius: var(--radius-sm);
+}
+
+.podium-item .position {
+    font-weight: var(--font-weight-black);
+    color: var(--color-f1-red);
+    min-width: 24px;
+}
+
+.podium-item .driver {
+    flex: 1;
+    font-weight: var(--font-weight-bold);
+}
+
+.podium-item .probability {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Footer with Time Controls - F1 Style
+   -------------------------------------------------------------------------- */
+.app-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--footer-height);
+    padding: 0 var(--spacing-lg);
+    background: linear-gradient(180deg, rgba(21, 21, 30, 0.95) 0%, rgba(21, 21, 30, 0.98) 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+    backdrop-filter: blur(10px);
+}
+
+.footer-left,
+.footer-center,
+.footer-right {
+    flex: 1;
+}
+
+.footer-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+}
+
+.footer-right {
+    text-align: right;
+}
+
+/* Time Controls - F1 Style */
+.time-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.time-btn {
+    padding: var(--spacing-xs);
+    min-width: 32px;
+    font-size: var(--font-size-sm);
+    background: rgba(26, 31, 51, 0.9);
+}
+
+.time-btn--play {
+    background: linear-gradient(135deg, var(--color-f1-red) 0%, var(--color-f1-red-dark) 100%);
+    border-color: var(--color-f1-red);
+    color: #fff;
+}
+
+.time-btn--play:hover {
+    background: linear-gradient(135deg, #ff2222 0%, var(--color-f1-red) 100%);
+    box-shadow: var(--shadow-glow-red);
+}
+
+.time-btn--play.playing {
+    background: linear-gradient(135deg, var(--color-accent-warning) 0%, #cc9900 100%);
+    border-color: var(--color-accent-warning);
+    color: #000;
+}
+
+.time-slider-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.time-slider {
+    width: 200px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-full);
+    outline: none;
+    cursor: pointer;
+}
+
+.time-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--color-f1-red);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform var(--transition-fast);
+}
+
+.time-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.time-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--color-f1-red);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.time-slider:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.time-display {
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+    min-width: 100px;
+}
+
+.race-time-display {
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-f1-red);
+    background: rgba(225, 6, 0, 0.15);
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(225, 6, 0, 0.3);
+    font-size: var(--font-size-sm);
+    letter-spacing: 0.05em;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Adjustments
+   -------------------------------------------------------------------------- */
+@media (max-width: 1400px) {
+    .dashboard-screen__grid--overview {
+        grid-template-columns: 1fr 280px;
+    }
+}
+
+@media (max-width: 1200px) {
+    .time-slider {
+        width: 150px;
+    }
+
+    .header-right {
+        flex: 0 0 auto;
+    }
+
+    .dashboard-screen__grid--overview {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .dashboard-screen__grid--overview .panel--track {
+        grid-row: 1 / 2;
+    }
+
+    .dashboard-screen__grid--overview .panel--laps {
+        grid-row: 1 / 2;
+    }
+
+    .dashboard-screen__grid--overview .panel--conditions {
+        grid-column: 1 / 3;
+        grid-row: 2 / 3;
+    }
+}
+
+@media (max-width: 900px) {
+
+    .dashboard-screen__grid--overview,
+    .dashboard-screen__grid--strategy,
+    .dashboard-screen__grid--analytics {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
+
+    .dashboard-screen__grid .panel {
+        grid-column: 1 !important;
+        grid-row: auto !important;
+        min-height: 300px;
+    }
+
+    .time-slider-container {
+        display: none;
+    }
+
+    .carousel-arrow {
+        width: 36px;
+        height: 36px;
+    }
+
+    .breadcrumb {
+        width: 32px;
+        height: 32px;
+    }
+}
