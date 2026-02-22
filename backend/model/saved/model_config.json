@@ -1,0 +1,11 @@
+{
+  "n_features": 12,
+  "seq_len": 10,
+  "pred_len": 6,
+  "hidden1": 64,
+  "hidden2": 32,
+  "best_val_loss": 0.37807602900654874,
+  "epochs_trained": 58,
+  "y_time_mean": 85.00867462158203,
+  "y_time_std": 9.27066421508789
+}

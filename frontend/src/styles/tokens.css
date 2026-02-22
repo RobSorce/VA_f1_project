@@ -1,0 +1,205 @@
+/* ==========================================================================
+   F1 Race Control - Design Tokens
+   Official F1 TV Broadcast Graphics Style
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Formula1';
+  src: url('/fonts/Formula1-Regular-1.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Formula1';
+  src: url('/fonts/Formula1-Bold-4.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Formula1';
+  src: url('/fonts/Formula1-Wide.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+}
+
+:root {
+  /* Colors - PS5/F1 Glassmorphism Dark Theme */
+  --color-bg-primary: #0f0f1e;
+  --color-bg-secondary: #15152a;
+  --color-bg-tertiary: #1a1f33;
+  --color-bg-elevated: #242938;
+  --color-bg-panel: rgba(20, 20, 40, 0.75);
+  --color-bg-panel-header: rgba(26, 31, 51, 0.85);
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.6);
+  --color-text-muted: rgba(255, 255, 255, 0.35);
+  --color-text-interval: #00ff00;
+
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-light: rgba(255, 255, 255, 0.12);
+  --color-border-hover: rgba(255, 255, 255, 0.2);
+
+  /* F1 Accent Colors */
+  --color-f1-red: #e10600;
+  --color-f1-red-dark: #b80500;
+  --color-accent-primary: #e10600;
+  --color-accent-secondary: #15151e;
+  --color-accent-success: #00ff00;
+  --color-accent-warning: #ffd700;
+  --color-accent-danger: #ff4444;
+  --color-accent-info: #4cc9f0;
+
+  /* F1 Team Colors - 2024 Official */
+  --team-redbull: #3671C6;
+  --team-ferrari: #E8002D;
+  --team-mercedes: #27F4D2;
+  --team-mclaren: #FF8000;
+  --team-aston: #229971;
+  --team-alpine: #FF87BC;
+  --team-williams: #64C4FF;
+  --team-rb: #6692FF;
+  --team-sauber: #52E252;
+  --team-haas: #B6BABD;
+
+  /* Tyre Compound Colors */
+  --tyre-soft: #e10600;
+  --tyre-medium: #ffd700;
+  --tyre-hard: #ffffff;
+  --tyre-intermediate: #00e676;
+  --tyre-wet: #2196f3;
+
+  /* Session State Colors */
+  --state-green-flag: #00ff00;
+  --state-yellow-flag: #ffcc00;
+  --state-red-flag: #ff0000;
+  --state-safety-car: #ffcc00;
+  --state-in-pit: #00bfff;
+
+  /* Sector Timing Colors */
+  --sector-purple: #a855f7;   /* session best */
+  --sector-green: #22c55e;    /* personal best */
+  --sector-yellow: #fbbf24;   /* slower */
+
+  /* Gemini / AI accent */
+  --color-gemini: #f5a623;
+  --color-gemini-ghost: rgba(245, 166, 35, 0.25);
+
+  /* Typography */
+  --font-primary: 'Formula1', 'Titillium Web', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-display: 'Formula1', 'Titillium Web', system-ui, sans-serif;
+
+  --font-size-xs: 0.6875rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.9375rem;
+  --font-size-lg: 1.0625rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 2rem;
+  --font-size-4xl: 2.5rem;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-black: 900;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.6);
+  --shadow-glow-red: 0 0 20px rgba(225, 6, 0, 0.4);
+  --shadow-panel: 0 4px 30px rgba(0, 0, 0, 0.3);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.25), inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+
+  /* Glassmorphism (iOS 26 style) */
+  --glass-bg: rgba(18, 18, 36, 0.55);
+  --glass-bg-heavy: rgba(16, 16, 32, 0.72);
+  --glass-bg-light: rgba(24, 24, 48, 0.42);
+  --glass-blur: 24px;
+  --glass-blur-heavy: 40px;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.12);
+  --glass-border-light: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-highlight: inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+
+  /* Transitions */
+  --transition-fast: 200ms ease;
+  --transition-base: 300ms ease;
+  --transition-slow: 400ms ease;
+
+  /* Z-Index Scale */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-tooltip: 500;
+
+  /* Layout */
+  --header-height: 52px;
+  --weather-bar-height: 44px;
+  --tab-bar-height: 40px;
+  --footer-height: 48px;
+  --bottom-tab-height: 48px;
+  --sidebar-width: 300px;
+  --panel-gap: 12px;
+}
+
+/* ==========================================================================
+   Light Theme Overrides
+   ========================================================================== */
+[data-theme="light"] {
+  /* Backgrounds */
+  --color-bg-primary: #f2f2f7;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #e5e5ea;
+  --color-bg-elevated: #ffffff;
+  --color-bg-panel: rgba(255, 255, 255, 0.82);
+  --color-bg-panel-header: rgba(245, 245, 247, 0.9);
+
+  /* Text */
+  --color-text-primary: #1d1d1f;
+  --color-text-secondary: rgba(0, 0, 0, 0.55);
+  --color-text-muted: rgba(0, 0, 0, 0.35);
+
+  /* Borders */
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-light: rgba(0, 0, 0, 0.06);
+  --color-border-hover: rgba(0, 0, 0, 0.15);
+
+  /* Hard tyre visibility on light bg */
+  --tyre-hard: #c8c8cc;
+
+  /* Shadows (lighter) */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.12);
+  --shadow-panel: 0 2px 16px rgba(0, 0, 0, 0.06);
+  --shadow-glass: 0 4px 20px rgba(0, 0, 0, 0.08), inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+
+  /* Glassmorphism (light) */
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-bg-heavy: rgba(255, 255, 255, 0.78);
+  --glass-bg-light: rgba(255, 255, 255, 0.45);
+  --glass-border: 1px solid rgba(0, 0, 0, 0.08);
+  --glass-border-light: 1px solid rgba(0, 0, 0, 0.05);
+  --glass-highlight: inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+}

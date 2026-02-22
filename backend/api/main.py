@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import logging
 import sys
+import json
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -16,6 +17,39 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from data.extractors.fastf1_extractor import FastF1Extractor, get_sample_session_data
 from data.processors.feature_engineering import FeatureEngineer, create_race_features
+from data.processors.tsne_compute import load_embeddings, analyze_selection
+
+# Import routers with graceful fallback so that a broken optional dependency
+# (e.g. missing tensorflow) does not prevent the whole app from starting.
+_routers_loaded = []
+
+try:
+    from api.routers.predictions import router as predictions_router
+    _routers_loaded.append(predictions_router)
+except Exception as _e:
+    predictions_router = None
+    logging.getLogger(__name__).warning(f"predictions router not loaded: {_e}")
+
+try:
+    from api.routers.gemini import router as gemini_router
+    _routers_loaded.append(gemini_router)
+except Exception as _e:
+    gemini_router = None
+    logging.getLogger(__name__).warning(f"gemini router not loaded: {_e}")
+
+try:
+    from api.routers.replay import router as replay_router
+    _routers_loaded.append(replay_router)
+except Exception as _e:
+    replay_router = None
+    logging.getLogger(__name__).warning(f"replay router not loaded: {_e}")
+
+try:
+    from api.routers.analytics import router as analytics_router
+    _routers_loaded.append(analytics_router)
+except Exception as _e:
+    analytics_router = None
+    logging.getLogger(__name__).warning(f"analytics router not loaded: {_e}")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -41,8 +75,57 @@ app.add_middleware(
 extractor = FastF1Extractor()
 feature_engineer = FeatureEngineer()
 
-# Cache for loaded sessions
+# Cache for loaded sessions (processed JSON data) — in-memory
 session_cache: Dict[str, Any] = {}
+
+# Cache for raw FastF1 session objects (avoids re-loading heavy telemetry)
+raw_session_cache: Dict[str, Any] = {}
+
+# Disk cache directory for processed JSON (instant loads after first computation)
+DISK_CACHE_DIR = Path(__file__).parent.parent / "data" / "processed_cache"
+DISK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _disk_cache_path(prefix: str, year: int, round_num: int, session_type: str) -> Path:
+    return DISK_CACHE_DIR / f"{prefix}_{year}_{round_num}_{session_type}.json"
+
+
+def _load_from_disk(path: Path):
+    """Load JSON from disk cache, return None if not found."""
+    if path.exists():
+        try:
+            import json as _json
+            with open(path, 'r') as f:
+                return _json.load(f)
+        except Exception as e:
+            logger.warning(f"Disk cache read failed for {path}: {e}")
+    return None
+
+
+def _save_to_disk(path: Path, data):
+    """Save JSON data to disk cache."""
+    try:
+        import json as _json
+        with open(path, 'w') as f:
+            _json.dump(data, f, separators=(',', ':'))  # compact JSON
+        logger.info(f"Saved disk cache: {path.name} ({path.stat().st_size / 1024:.0f} KB)")
+    except Exception as e:
+        logger.warning(f"Disk cache write failed for {path}: {e}")
+
+
+def get_raw_session(year: int, round_num: int, session_type: str = "R"):
+    """Get or load a raw FastF1 session object (cached in memory)."""
+    cache_key = get_cache_key(year, round_num, session_type)
+    if cache_key in raw_session_cache:
+        logger.info(f"Using cached raw session for {cache_key}")
+        return raw_session_cache[cache_key]
+    session = extractor.get_session(year, round_num, session_type)
+    raw_session_cache[cache_key] = session
+    return session
+
+# Include routers (only those that loaded successfully)
+for _r in _routers_loaded:
+    app.include_router(_r)
 
 
 def clean_dataframe_for_json(df: Any) -> List[Dict[str, Any]]:
@@ -127,26 +210,6 @@ class SessionRequest(BaseModel):
     session_type: str = "R"
 
 
-class PredictionRequest(BaseModel):
-    current_lap: int
-    current_position: int
-    tyre_compound: str
-    tyre_age: int
-    gap_ahead: float
-    gap_behind: float
-    planned_pit_lap: Optional[int] = None
-    next_compound: Optional[str] = None
-    weather: str = "DRY"
-    track_temp: float = 35.0
-
-
-class PredictionResponse(BaseModel):
-    predicted_position: int
-    confidence: float
-    position_probabilities: Dict[str, float]
-    recommendation: str
-    alternative_strategies: List[Dict[str, Any]]
-
 
 # ============= Helper Functions =============
 
@@ -155,15 +218,25 @@ def get_cache_key(year: int, round_num: int, session_type: str) -> str:
 
 
 def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str, Any]:
-    """Load session data from cache or FastF1."""
+    """Load session data from memory cache, disk cache, or FastF1."""
     cache_key = get_cache_key(year, round_num, session_type)
-    
+
+    # 1. In-memory cache (instant)
     if cache_key in session_cache:
         return session_cache[cache_key]
-    
+
+    # 2. Disk cache (fast — just read JSON)
+    disk_path = _disk_cache_path("session", year, round_num, session_type)
+    disk_data = _load_from_disk(disk_path)
+    if disk_data is not None:
+        logger.info(f"Loaded session from disk cache: {disk_path.name}")
+        session_cache[cache_key] = disk_data
+        return disk_data
+
+    # 3. Full extraction from FastF1 (slow — first time only)
     try:
         logger.info(f"Loading session {year} round {round_num} type {session_type}")
-        session = extractor.get_session(year, round_num, session_type)
+        session = get_raw_session(year, round_num, session_type)
         
         # Extract data with proper JSON serialization
         lap_times = extractor.extract_lap_times(session)
@@ -201,6 +274,8 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
                 cleaned_corners.append(cleaned_corner)
             circuit_info['corners'] = cleaned_corners
         
+        track_status = extractor.extract_track_status(session)
+
         data = {
             'lap_times': clean_dataframe_for_json(lap_times),
             'circuit_info': circuit_info,
@@ -208,8 +283,10 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
             'race_results': clean_dataframe_for_json(race_results),
             'weather_data': clean_dataframe_for_json(weather_data),
             'tyre_strategy': clean_dataframe_for_json(tyre_strategy),
+            'track_status': track_status,
         }
         session_cache[cache_key] = data
+        _save_to_disk(disk_path, data)
         logger.info(f"Session loaded successfully with {len(data['lap_times'])} laps")
         return data
     except Exception as e:
@@ -232,7 +309,7 @@ async def health_check():
 @app.get("/api/seasons")
 async def get_seasons():
     """Get available seasons."""
-    return {"seasons": list(range(2018, 2025))}
+    return {"seasons": list(range(2018, 2026))}
 
 
 @app.get("/api/schedule/{year}")
@@ -242,7 +319,7 @@ async def get_schedule(year: int):
         schedule = extractor.get_event_schedule(year)
         return {
             "year": year,
-            "events": schedule[['RoundNumber', 'EventName', 'Country', 'Location', 'EventDate']].to_dict('records')
+            "events": schedule[['RoundNumber', 'EventName', 'Country', 'Location', 'EventDate', 'EventFormat']].to_dict('records')
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -270,7 +347,7 @@ async def get_lap_times(year: int, round_num: int, driver: Optional[str] = None)
 async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[int] = None):
     """Get telemetry data for a specific driver."""
     try:
-        session = extractor.get_session(year, round_num, "R")
+        session = get_raw_session(year, round_num, "R")
         telemetry = extractor.extract_telemetry(session, driver, lap)
         
         if telemetry is None or telemetry.empty:
@@ -326,11 +403,41 @@ async def get_positions(year: int, round_num: int):
     Data is downsampled to ~10K points per driver for performance.
     """
     try:
-        session = extractor.get_session(year, round_num, "R")
+        session = get_raw_session(year, round_num, "R")
         position_data = extractor.extract_position_data(session)
         return position_data
     except Exception as e:
         logger.error(f"Error fetching positions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/frames/{year}/{round_num}")
+async def get_race_frames(year: int, round_num: int, session_type: str = "R"):
+    """Get race replay frames with full telemetry for all drivers.
+    
+    Returns frame-by-frame data for animating a race replay with:
+    - Position (x, y coordinates)
+    - Speed, Gear, DRS status
+    - Throttle/Brake percentages
+    - Tyre compound and life
+    
+    This enables rich race replay animations similar to broadcast-style visuals.
+    """
+    try:
+        # Check disk cache first (instant)
+        disk_path = _disk_cache_path("frames", year, round_num, session_type)
+        disk_data = _load_from_disk(disk_path)
+        if disk_data is not None:
+            logger.info(f"Loaded frames from disk cache: {disk_path.name}")
+            return disk_data
+
+        # Extract from FastF1 (slow — first time only)
+        session = get_raw_session(year, round_num, session_type)
+        frames_data = extractor.extract_race_frames(session)
+        _save_to_disk(disk_path, frames_data)
+        return frames_data
+    except Exception as e:
+        logger.error(f"Error fetching race frames: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -341,92 +448,98 @@ async def get_weather(year: int, round_num: int):
     return {"weather": data['weather_data']}
 
 
-@app.post("/api/predict/race_outcome")
-async def predict_race_outcome(request: PredictionRequest):
-    """
-    Predict race outcome based on current race state.
-    
-    Note: This is a placeholder that returns mock predictions.
-    Full ML model integration comes in Phase 2.
-    """
-    # Mock prediction logic (to be replaced with actual ML model)
-    current_pos = request.current_position
-    
-    # Simple heuristic-based prediction
-    predicted_pos = current_pos
-    confidence = 0.7
-    
-    # Adjust based on tyre age
-    if request.tyre_age > 25:
-        predicted_pos = min(20, current_pos + 1)
-        confidence = 0.6
-    
-    # Generate position probabilities
-    probabilities = {}
-    for pos in range(1, 21):
-        if pos == predicted_pos:
-            probabilities[str(pos)] = round(confidence, 2)
-        elif abs(pos - predicted_pos) == 1:
-            probabilities[str(pos)] = round((1 - confidence) / 2, 2)
-        else:
-            probabilities[str(pos)] = round((1 - confidence) / 18, 3)
-    
-    return PredictionResponse(
-        predicted_position=predicted_pos,
-        confidence=confidence,
-        position_probabilities=probabilities,
-        recommendation="Continue current strategy" if request.tyre_age < 20 else "Consider pit stop",
-        alternative_strategies=[
-            {"strategy": "Pit now for HARD", "predicted_position": max(1, current_pos - 1), "confidence": 0.65},
-            {"strategy": "Extend stint 5 laps", "predicted_position": current_pos, "confidence": 0.55}
+# ============= t-SNE Endpoints =============
+
+@app.get("/api/tsne/embeddings")
+async def get_tsne_embeddings():
+    """Return pre-computed t-SNE embeddings, or generate mock data if not available."""
+    embeddings = load_embeddings()
+    if embeddings is None:
+        # Generate mock embeddings so the Analytics tab works without pre-computation
+        import random
+        random.seed(42)
+        teams = {
+            'VER': 'Red Bull Racing', 'PER': 'Red Bull Racing',
+            'LEC': 'Ferrari', 'SAI': 'Ferrari',
+            'HAM': 'Mercedes', 'RUS': 'Mercedes',
+            'NOR': 'McLaren', 'PIA': 'McLaren',
+            'ALO': 'Aston Martin', 'STR': 'Aston Martin',
+            'GAS': 'Alpine', 'OCO': 'Alpine',
+            'ALB': 'Williams', 'SAR': 'Williams',
+            'TSU': 'RB', 'RIC': 'RB',
+            'BOT': 'Kick Sauber', 'ZHO': 'Kick Sauber',
+            'MAG': 'Haas F1 Team', 'HUL': 'Haas F1 Team',
+        }
+        races = [
+            (1, 'Bahrain'), (2, 'Saudi Arabia'), (3, 'Australia'), (4, 'Japan'),
+            (5, 'China'), (6, 'Miami'), (7, 'Emilia Romagna'), (8, 'Monaco'),
         ]
-    )
+        points = []
+        for driver, team in teams.items():
+            for rnd, race_name in races:
+                points.append({
+                    'id': f'{driver}_2024_{rnd}',
+                    'x': random.gauss(0, 15) + (hash(team) % 20 - 10),
+                    'y': random.gauss(0, 15) + (hash(driver) % 20 - 10),
+                    'driver': driver,
+                    'team': team,
+                    'year': 2024,
+                    'round': rnd,
+                    'race_name': race_name,
+                })
+        embeddings = {'points': points, 'feature_cols': [], 'n_points': len(points)}
+    return embeddings
 
 
-@app.post("/api/predict/tyre_degradation")
-async def predict_tyre_degradation(compound: str, tyre_age: int, track_temp: float):
-    """Predict tyre degradation for given conditions."""
-    # Mock degradation prediction
-    base_deg = {"SOFT": 0.08, "MEDIUM": 0.05, "HARD": 0.03}.get(compound, 0.05)
-    temp_factor = 1 + (track_temp - 35) * 0.01
-    
-    degradation_per_lap = base_deg * temp_factor
-    estimated_life = int(1.5 / degradation_per_lap)  # Target ~1.5s slower
-    
-    return {
-        "compound": compound,
-        "degradation_per_lap": round(degradation_per_lap, 3),
-        "current_age": tyre_age,
-        "estimated_remaining_life": max(0, estimated_life - tyre_age),
-        "current_degradation": round(degradation_per_lap * tyre_age, 2)
-    }
+class TSNEProjectRequest(BaseModel):
+    features: Dict[str, float]
+
+@app.post("/api/tsne/project")
+async def project_tsne(request: TSNEProjectRequest):
+    """Project current qualifying data into t-SNE space."""
+    # Simplified: return nearest existing point
+    embeddings = load_embeddings()
+    if not embeddings:
+        raise HTTPException(status_code=404, detail="No embeddings available")
+    return {"projected": embeddings['points'][0] if embeddings['points'] else {}}
 
 
-@app.post("/api/predict/pit_window")
-async def predict_pit_window(
-    current_lap: int,
-    current_position: int,
-    tyre_age: int,
-    gap_ahead: float,
-    gap_behind: float
-):
-    """Predict optimal pit stop window."""
-    # Simple rule-based pit window calculation
-    undercut_window = current_lap + max(1, int(gap_ahead / 1.5))
-    overcut_window = current_lap + max(3, int(25 - tyre_age))
-    
-    optimal_lap = current_lap + max(0, min(10, 22 - tyre_age))
-    
-    return {
-        "current_lap": current_lap,
-        "optimal_pit_lap": optimal_lap,
-        "pit_window_start": current_lap + 1,
-        "pit_window_end": current_lap + max(5, 25 - tyre_age),
-        "undercut_risk_lap": undercut_window,
-        "overcut_opportunity_lap": overcut_window,
-        "recommendation": f"Pit on lap {optimal_lap} for best position",
-        "confidence": 0.72
-    }
+class TSNEAnalyzeRequest(BaseModel):
+    point_ids: List[str]
+
+@app.post("/api/tsne/analyze-selection")
+async def analyze_tsne_selection(request: TSNEAnalyzeRequest):
+    """Analyze strategy patterns for selected t-SNE points."""
+    result = analyze_selection(request.point_ids)
+    return result
+
+
+@app.get("/api/tsne/point-features/{point_id}")
+async def get_point_features(point_id: str):
+    """Get raw feature values for a specific t-SNE point."""
+    import pandas as pd
+    csv_path = Path(__file__).parent.parent / 'data' / 'processed' / 'tsne_feature_matrix.csv'
+    if not csv_path.exists():
+        raise HTTPException(status_code=404, detail="Feature matrix not found")
+
+    parts = point_id.rsplit('_', 2)
+    if len(parts) != 3:
+        raise HTTPException(status_code=400, detail="Invalid point_id format")
+
+    driver, year_str, round_str = parts[0], parts[1], parts[2]
+    df = pd.read_csv(csv_path)
+    match = df[(df['driver'] == driver) & (df['year'] == int(year_str)) & (df['round'] == int(round_str))]
+    if match.empty:
+        raise HTTPException(status_code=404, detail="Point not found")
+
+    from data.processors.tsne_compute import FEATURE_COLS
+    row = match.iloc[0]
+    features = {}
+    for col in FEATURE_COLS:
+        if col in row.index:
+            val = row[col]
+            features[col] = round(float(val), 3) if pd.notna(val) else None
+    return {'point_id': point_id, 'driver': driver, 'features': features}
 
 
 # ============= Run Server =============

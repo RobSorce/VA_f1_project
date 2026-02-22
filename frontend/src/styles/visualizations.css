@@ -1,0 +1,1380 @@
+/* ==========================================================================
+   F1 Race Control - D3 Visualization Styles
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Track Map
+   -------------------------------------------------------------------------- */
+.track-outline {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 24;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.track-surface {
+  fill: none;
+  stroke: rgba(20, 20, 40, 0.9);
+  stroke-width: 22;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.track-edge {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sector-1 { stroke: #8B1A2F; }
+.sector-2 { stroke: #8B7000; }
+.sector-3 { stroke: #1E3A8A; }
+
+.drs-zone {
+  fill: none;
+  stroke: #00ff00;
+  stroke-width: 22;
+  stroke-opacity: 0.4;
+  stroke-linecap: round;
+}
+
+.drs-zone-inner {
+  fill: none;
+  stroke: #00FF88;
+  stroke-width: 4;
+  stroke-opacity: 0.8;
+  stroke-linecap: round;
+}
+
+.drs-zone-outer {
+  fill: none;
+  stroke: #00ff00;
+  stroke-width: 5;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px rgba(0, 255, 0, 0.5));
+}
+
+.drs-zone-outer--active {
+  animation: drs-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes drs-pulse {
+  0%, 100% { stroke-opacity: 0.7; filter: drop-shadow(0 0 4px rgba(0, 255, 0, 0.3)); }
+  50% { stroke-opacity: 1; filter: drop-shadow(0 0 10px rgba(0, 255, 0, 0.8)); }
+}
+
+.flag-border-left,
+.flag-border-right {
+  transition: stroke 0.3s ease, stroke-width 0.3s ease;
+}
+
+.car-marker.highlighted .car-glow {
+  opacity: 0.5;
+}
+
+.corner-marker {
+  fill: rgba(20, 20, 40, 0.8);
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1;
+}
+
+.corner-label {
+  font-size: 10px;
+  font-family: 'Titillium Web', var(--font-mono);
+  font-weight: 700;
+  fill: var(--color-text-secondary);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* Car Markers */
+.car-marker {
+  cursor: pointer;
+}
+
+.car-glow {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.car-marker.leader .car-glow {
+  opacity: 0.6;
+  animation: leader-pulse 2s ease-in-out infinite;
+}
+
+@keyframes leader-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.car-dot {
+  stroke: rgba(0, 0, 0, 0.8);
+  stroke-width: 2;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.car-label {
+  font-size: 10px;
+  font-family: 'Titillium Web', var(--font-mono);
+  font-weight: 700;
+  fill: #ffffff;
+  text-anchor: start;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+.car-marker.selected .car-dot {
+  stroke: var(--color-f1-red);
+  stroke-width: 3;
+}
+
+.car-marker.dimmed {
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.car-marker:hover .car-dot {
+  transform: scale(1.2);
+  transition: transform 0.1s ease;
+}
+
+/* Enhanced car dot interactions — selected pulsing glow */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.3; r: 14; }
+  50% { opacity: 0.6; r: 18; }
+}
+
+.car-glow--selected {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.car-glow--highlighted {
+  opacity: 0.5;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+/* Focus driver car marker — larger dot with pulsing glow */
+.car-marker--focused .car-dot {
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px currentColor);
+}
+
+.car-glow--focused {
+  animation: focus-car-pulse 2s ease-in-out infinite;
+}
+
+@keyframes focus-car-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* Focus driver label is always visible and slightly larger */
+.car-label--focused {
+  font-size: 12px;
+  font-weight: 900;
+  fill: #ffffff;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
+}
+
+/* Driver trail dots */
+.trail-dot {
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   Telemetry HUD Overlay (fixed in bottom-left of TrackMap)
+   -------------------------------------------------------------------------- */
+/* HUD container — holds one or more driver HUD cards stacked horizontally */
+.track-telemetry-hud-container {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 10;
+  pointer-events: none;
+  max-width: calc(100% - 20px);
+  overflow-x: auto;
+}
+
+.track-telemetry-hud {
+  min-width: 148px;
+  padding: 8px 10px;
+  background: var(--glass-bg-heavy);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-glass);
+}
+
+.track-telemetry-hud--focused {
+  border-width: 2px;
+}
+
+.track-telemetry-hud__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.track-telemetry-hud__driver {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  font-family: 'Formula1', 'Titillium Web', sans-serif;
+}
+
+.track-telemetry-hud__lap {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.track-telemetry-hud__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 1.5px 0;
+}
+
+.track-telemetry-hud__label {
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  min-width: 30px;
+}
+
+.track-telemetry-hud__value {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.track-telemetry-hud__unit {
+  font-size: 8px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.track-telemetry-hud__gear {
+  font-size: 16px;
+  font-weight: 900;
+  color: #fff;
+}
+
+/* Throttle/Brake bar indicators */
+.track-telemetry-hud__bar-track {
+  width: 40px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.track-telemetry-hud__bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.1s ease;
+}
+
+.track-telemetry-hud__bar-fill--throttle {
+  background: #22c55e;
+}
+
+.track-telemetry-hud__bar-fill--brake {
+  background: #e10600;
+}
+
+/* DRS status colors */
+.hud-drs--off {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.hud-drs--avail {
+  color: #00ff00;
+}
+
+.hud-drs--on {
+  color: #00ff00;
+  text-shadow: 0 0 6px rgba(0, 255, 0, 0.5);
+}
+
+/* Tyre compound dot */
+.track-telemetry-hud__tyre-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.track-telemetry-hud__tyre-life {
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Compact mode overrides */
+.track-map-compact .track-outline {
+  stroke-width: 16;
+}
+
+.track-map-compact .sector-path {
+  stroke-width: 10;
+}
+
+.track-map-compact .track-edge {
+  stroke-width: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Lap Time Chart
+   -------------------------------------------------------------------------- */
+.lap-times-chart .axis path,
+.lap-times-chart .axis line {
+  stroke: rgba(255, 255, 255, 0.4);
+}
+
+.lap-times-chart .axis text {
+  fill: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+.lap-times-chart .grid line {
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-opacity: 1;
+  stroke-dasharray: 2, 4;
+}
+
+.lap-line {
+  fill: none;
+  stroke-width: 2;
+  opacity: 0.8;
+}
+
+.lap-line.highlighted {
+  stroke-width: 3;
+  opacity: 1;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.lap-line.dimmed {
+  opacity: 0.15;
+}
+
+/* Focus driver line — thicker, full opacity, drawn on top */
+.lap-line--focused {
+  stroke-width: 3;
+  opacity: 1;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+/* Non-focus drivers when a focus driver is active */
+.lap-line--unfocused {
+  opacity: 0.3;
+}
+
+.lap-line.prediction {
+  stroke-dasharray: 6, 4;
+  opacity: 0.7;
+}
+
+.lap-point.pit-stop {
+  r: 5;
+  stroke-width: 2;
+  stroke: var(--color-accent-warning);
+}
+
+/* Brush */
+.brush .selection {
+  fill: var(--color-accent-primary);
+  fill-opacity: 0.15;
+  stroke: var(--color-accent-primary);
+  stroke-width: 1;
+}
+
+.brush .handle {
+  fill: var(--color-accent-primary);
+}
+
+/* Crosshair */
+.crosshair line {
+  stroke: var(--color-text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3, 3;
+}
+
+/* Regression overlay */
+.regression-line {
+  fill: none;
+  stroke: var(--color-accent-warning);
+  stroke-width: 2;
+  stroke-dasharray: 8, 4;
+  opacity: 0.8;
+}
+
+/* --------------------------------------------------------------------------
+   Strategy Timeline (Gantt)
+   -------------------------------------------------------------------------- */
+.stint-bar {
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.stint-bar:hover {
+  opacity: 0.85;
+}
+
+.stint-bar-label {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  fill: #000;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.stint-bar--predicted {
+  opacity: 0.6;
+}
+
+.stint-bar--gemini {
+  opacity: 0.5;
+  stroke: var(--color-gemini);
+  stroke-width: 1;
+  stroke-dasharray: 4, 2;
+}
+
+.stint-bar--tsne-ghost {
+  opacity: 0.35;
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-width: 1;
+  stroke-dasharray: 3, 3;
+}
+
+/* Hatched pattern for predicted stints */
+.pattern-predicted line {
+  stroke-width: 2;
+}
+
+/* --------------------------------------------------------------------------
+   t-SNE Scatterplot
+   -------------------------------------------------------------------------- */
+.tsne-point {
+  cursor: pointer;
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+
+.tsne-point:hover {
+  opacity: 1 !important;
+}
+
+.tsne-point.selected {
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.tsne-point.dimmed {
+  opacity: 0.15;
+}
+
+.tsne-point--current {
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+/* Lasso */
+.lasso-path {
+  fill: rgba(225, 6, 0, 0.08);
+  stroke: var(--color-f1-red);
+  stroke-width: 1.5;
+  stroke-dasharray: 4, 4;
+}
+
+/* --------------------------------------------------------------------------
+   Tyre Degradation Chart — F1 Manager Style
+   -------------------------------------------------------------------------- */
+.deg-manager {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #1a1d2e 0%, #141622 100%);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.deg-manager svg {
+  flex: 1;
+  min-height: 0;
+}
+
+.deg-pit-window {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.6);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.deg-pit-window__label {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.deg-pit-window__range {
+  color: #00e5ff;
+  font-family: var(--font-mono);
+}
+
+/* --------------------------------------------------------------------------
+   Tyre Health Chart
+   -------------------------------------------------------------------------- */
+.tyre-health-chart {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #1a1d2e 0%, #141622 100%);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.tyre-health-chart svg {
+  flex: 1;
+  min-height: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Tyre Management Chart (Pace Retention)
+   -------------------------------------------------------------------------- */
+.tyre-management-chart {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #1a1d2e 0%, #141622 100%);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.tyre-management-chart svg {
+  flex: 1;
+  min-height: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Leaderboard / Lap Tower — Broadcast TV Style
+   -------------------------------------------------------------------------- */
+
+/* ── Broadcast Header ───────────────────────────────────────────────── */
+.tower-broadcast-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #e10600 0%, #b80500 50%, rgba(20, 20, 40, 0.95) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.tower-broadcast-header__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tower-broadcast-header__accent {
+  width: 3px;
+  height: 18px;
+  background: #fff;
+  border-radius: 1px;
+}
+
+.tower-broadcast-header__title {
+  font-size: 16px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--font-display, 'Titillium Web', sans-serif);
+}
+
+.tower-broadcast-header__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tower-broadcast-header__lap {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.tower-broadcast-header__lap-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.tower-broadcast-header__lap-current {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+
+.tower-broadcast-header__lap-total {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+
+/* ── Column mode toggle button ──────────────────────────────────────── */
+.tower-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.6;
+  user-select: none;
+}
+
+.tower-mode-toggle:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+
+/* ── Flag banner ────────────────────────────────────────────────────── */
+.tower-flag-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 8px;
+  animation: flag-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.tower-flag-banner__label {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ── Column sub-header ──────────────────────────────────────────────── */
+.tower-col-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  background: rgba(26, 31, 51, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.tower-col-header__pos {
+  width: 34px;
+  text-align: right;
+  padding-right: 1px;
+}
+
+.tower-col-header__change {
+  width: 4px;
+}
+
+.tower-col-header__driver {
+  flex: 1;
+  padding-left: 10px;
+}
+
+.tower-col-header__value {
+  width: 68px;
+  text-align: right;
+}
+
+.tower-col-header__tyre-dot {
+  width: 16px;
+}
+
+/* ── Tower body (row container) ─────────────────────────────────────── */
+.tower-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Driver row (absolute positioned for D3 translateY animation) ──── */
+.tower-row {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 2px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  background: transparent;
+  transition: transform 500ms cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease;
+  will-change: transform;
+  box-sizing: border-box;
+}
+
+
+/* Alternating shade for readability */
+.tower-row--odd {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* P1 row — slightly brighter */
+.tower-row--leader {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Hover */
+.tower-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* Selected driver */
+.tower-row--selected {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Highlighted (hovered from another view) */
+.tower-row--highlighted {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+/* During animation — brief glow (only for drivers changing position) */
+.tower-row--animating {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.06);
+}
+
+/* Position change flash — gained position (green) */
+.tower-row--gained {
+  background: rgba(34, 197, 94, 0.22) !important;
+  box-shadow: inset 0 0 14px rgba(34, 197, 94, 0.14);
+  animation: position-gained-flash 1.2s ease-out forwards !important;
+}
+
+@keyframes position-gained-flash {
+  0% { background: rgba(34, 197, 94, 0.32); box-shadow: inset 0 0 18px rgba(34, 197, 94, 0.20); }
+  50% { background: rgba(34, 197, 94, 0.14); box-shadow: inset 0 0 8px rgba(34, 197, 94, 0.08); }
+  100% { background: transparent; box-shadow: none; }
+}
+
+/* Position change flash — lost position (red) */
+.tower-row--lost {
+  background: rgba(239, 68, 68, 0.22) !important;
+  box-shadow: inset 0 0 14px rgba(239, 68, 68, 0.14);
+  animation: position-lost-flash 1.2s ease-out forwards !important;
+}
+
+@keyframes position-lost-flash {
+  0% { background: rgba(239, 68, 68, 0.32); box-shadow: inset 0 0 18px rgba(239, 68, 68, 0.20); }
+  50% { background: rgba(239, 68, 68, 0.14); box-shadow: inset 0 0 8px rgba(239, 68, 68, 0.08); }
+  100% { background: transparent; box-shadow: none; }
+}
+
+/* Focus driver row — enhanced visual treatment (double-click to set) */
+.tower-row--focused {
+  background: rgba(255, 255, 255, 0.14);
+  animation: focus-row-pulse 2.5s ease-in-out infinite;
+  z-index: 2;
+}
+
+@keyframes focus-row-pulse {
+  0%, 100% { background: rgba(255, 255, 255, 0.12); }
+  50% { background: rgba(255, 255, 255, 0.18); }
+}
+
+/* ── Position group (arrows + number) ──────────────────────────────── */
+.tower-row__pos-group {
+  display: flex;
+  align-items: center;
+  width: 34px;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: 1px;
+}
+
+.tower-row__pos {
+  width: 20px;
+  text-align: center;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-weight: 800;
+  font-size: 11px;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ── Persistent grid-vs-current arrows (F1 TV style) ─────────────── */
+.tower-row__grid-arrows {
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.tower-row__grid-arrows--up {
+  color: #22c55e;
+}
+
+.tower-row__grid-arrows--down {
+  color: #ef4444;
+}
+
+/* ── Position change spacer ───────────────────────────────────────── */
+.tower-row__change {
+  width: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tower-row__arrow {
+  font-size: 7px;
+  line-height: 1;
+}
+
+.tower-row__arrow--up {
+  color: #22c55e;
+}
+
+.tower-row__arrow--down {
+  color: #ef4444;
+}
+
+/* ── Driver cell (team bar + name) ──────────────────────────────────── */
+.tower-row__driver-cell {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+
+.tower-row__team-bar {
+  width: 3px;
+  height: 18px;
+  border-radius: 1.5px;
+  flex-shrink: 0;
+}
+
+.tower-row__driver-number {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-weight: 700;
+  font-size: 10px;
+  min-width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+  margin-right: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tower-row__driver-name {
+  font-weight: 800;
+  font-size: 11px;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-display, 'Titillium Web', sans-serif);
+}
+
+/* ── Value column (interval / gap / tyre info) ──────────────────────── */
+.tower-row__value {
+  width: 68px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.tower-col-value {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.tower-col-value--leader {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.tower-col-value--pit {
+  color: #e040fb;
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  animation: pit-blink 1s ease-in-out infinite;
+}
+
+@keyframes pit-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.tower-col-value--tyre {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.tower-tyre-age {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 8px;
+  font-weight: 600;
+}
+
+/* ── Tyre compound dot (far right) ──────────────────────────────────── */
+.tower-row__tyre-dot {
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tower-tyre-circle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: block;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Retired / DNF driver styles ───────────────────────────────────── */
+.tower-row--retired {
+  opacity: 0.4;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.tower-row--retired:hover {
+  opacity: 0.6;
+}
+
+.tower-row__pos--retired {
+  color: #e10600 !important;
+  font-size: 8px !important;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.tower-col-value--retired {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 9px;
+  font-style: italic;
+}
+
+/* Retired car marker on track map */
+.car-marker--retired {
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.car-marker--retired .car-dot {
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 1;
+  filter: grayscale(0.6);
+}
+
+.car-marker--retired .car-label {
+  opacity: 0.4;
+}
+
+/* ── Winner row — golden glow + pulse ──────────────────────────────── */
+.tower-row--winner {
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.15), rgba(255, 215, 0, 0.05)) !important;
+  box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.1);
+  animation: winner-row-pulse 2s ease-in-out infinite;
+}
+
+@keyframes winner-row-pulse {
+  0%, 100% { background: linear-gradient(90deg, rgba(255, 215, 0, 0.12), rgba(255, 215, 0, 0.04)); }
+  50% { background: linear-gradient(90deg, rgba(255, 215, 0, 0.22), rgba(255, 215, 0, 0.08)); }
+}
+
+/* Winner banner glow */
+@keyframes winner-banner-glow {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 1; }
+}
+
+/* ── Green flag flash animation ─────────────────────────────────────── */
+@keyframes green-flash-fade {
+  0% { border-color: #00e676; box-shadow: 0 0 16px rgba(0, 230, 118, 0.3); }
+  70% { border-color: #00e676; box-shadow: 0 0 8px rgba(0, 230, 118, 0.15); }
+  100% { border-color: transparent; box-shadow: none; }
+}
+
+/* ── Hazard border pulse (leaderboard + track map during flags) ────── */
+/* Only animate border-color and box-shadow — not opacity/brightness which flash the entire panel */
+@keyframes hazard-border-pulse {
+  0%, 100% { border-color: var(--hazard-color); box-shadow: 0 0 12px var(--hazard-color-dim); }
+  50% { border-color: var(--hazard-color-bright); box-shadow: 0 0 24px var(--hazard-color); }
+}
+
+
+.tower-sector-bar {
+  width: 14px;
+  height: 4px;
+  border-radius: 1px;
+}
+
+/* ── Track map hazard border container ─────────────────────────────── */
+.track-map-hazard {
+  border: 3px solid transparent;
+  border-radius: 16px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.track-map-hazard--active {
+  animation: hazard-border-pulse 1.5s ease-in-out infinite;
+}
+
+/* --------------------------------------------------------------------------
+   Gemini Chat
+   -------------------------------------------------------------------------- */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.chat-message {
+  max-width: 85%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.chat-message--user {
+  align-self: flex-end;
+  background: rgba(225, 6, 0, 0.15);
+  border: 1px solid rgba(225, 6, 0, 0.3);
+}
+
+.chat-message--ai {
+  align-self: flex-start;
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px solid rgba(245, 166, 35, 0.2);
+}
+
+.chat-message--ai .message-label {
+  color: var(--color-gemini);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  margin-bottom: var(--spacing-xs);
+}
+
+.chat-input-area {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.chat-input {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  outline: none;
+}
+
+.chat-input:focus {
+  border-color: var(--color-gemini);
+}
+
+.scenario-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  background: rgba(245, 166, 35, 0.15);
+  border: 1px solid rgba(245, 166, 35, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--color-gemini);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.scenario-btn:hover {
+  background: rgba(245, 166, 35, 0.25);
+}
+
+.scenario-btn.active {
+  background: rgba(245, 166, 35, 0.3);
+  border-color: var(--color-gemini);
+}
+
+/* --------------------------------------------------------------------------
+   Telemetry Strip Charts
+   -------------------------------------------------------------------------- */
+.telem-chart-label {
+  font-size: 8px;
+  font-weight: 700;
+  fill: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+}
+
+.telem-sector-line {
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1;
+  stroke-dasharray: 4, 3;
+}
+
+.telem-sector-label {
+  font-size: 8px;
+  font-weight: 700;
+  fill: rgba(255, 255, 255, 0.35);
+  text-anchor: middle;
+  font-family: var(--font-mono);
+}
+
+.telem-grid-line {
+  stroke: rgba(255, 255, 255, 0.04);
+  stroke-width: 1;
+}
+
+/* Speed chart */
+.telem-speed-line {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.55;
+}
+
+.telem-speed-line--focus {
+  stroke-width: 2.5;
+  opacity: 1;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+.telem-speed-area--focus {
+  opacity: 0.06;
+}
+
+/* Throttle chart */
+.telem-throttle-area {
+  opacity: 0.4;
+}
+
+.telem-throttle-area--focus {
+  opacity: 0.7;
+}
+
+.telem-throttle-line {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.55;
+}
+
+.telem-throttle-line--focus {
+  stroke-width: 2;
+  opacity: 1;
+}
+
+/* Brake chart */
+.telem-brake-area {
+  opacity: 0.4;
+}
+
+.telem-brake-area--focus {
+  opacity: 0.7;
+}
+
+.telem-brake-line {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.55;
+}
+
+.telem-brake-line--focus {
+  stroke-width: 2;
+  opacity: 1;
+}
+
+/* Gear chart */
+.telem-gear-line {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.55;
+}
+
+.telem-gear-line--focus {
+  stroke-width: 2.5;
+  opacity: 1;
+}
+
+/* Axes */
+.telem-axis text {
+  fill: rgba(255, 255, 255, 0.3);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.telem-axis path,
+.telem-axis line {
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+/* Delta / GAP chart */
+.telem-delta-zero {
+  stroke: rgba(255, 255, 255, 0.25);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.telem-delta-line {
+  fill: none;
+  stroke-width: 1.5;
+  opacity: 0.9;
+}
+
+.telem-delta-area--positive {
+  fill: rgba(239, 68, 68, 0.2);
+}
+
+.telem-delta-area--negative {
+  fill: rgba(34, 197, 94, 0.2);
+}
+
+/* RPM chart */
+.telem-rpm-line {
+  fill: none;
+  stroke-width: 1.2;
+  opacity: 0.7;
+}
+
+.telem-rpm-line--focus {
+  stroke-width: 2;
+  opacity: 1;
+}
+
+/* Speed annotations */
+.telem-annot-bg {
+  fill: rgba(10, 10, 20, 0.75);
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 0.5;
+}
+
+.telem-annot-text {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+/* Right-aligned chart label */
+.telem-chart-label--right {
+  fill: rgba(255, 255, 255, 0.2);
+  font-size: 7px;
+}
+
+/* --------------------------------------------------------------------------
+   D3 Chart Global Glass Styles
+   -------------------------------------------------------------------------- */
+
+/* D3 chart backgrounds should be transparent — panel glass provides the bg */
+.viz-container svg {
+  background: transparent;
+}
+
+/* Global D3 axis styling for glass panels */
+.axis path,
+.axis line {
+  stroke: rgba(255, 255, 255, 0.4);
+  shape-rendering: crispEdges;
+}
+
+.axis text {
+  fill: rgba(255, 255, 255, 0.4);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.grid line {
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-dasharray: 2, 4;
+}
+
+.grid path {
+  stroke: none;
+}
+
+/* --------------------------------------------------------------------------
+   Animations
+   -------------------------------------------------------------------------- */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.chart-enter {
+  animation: fade-in var(--transition-base) ease-out;
+}

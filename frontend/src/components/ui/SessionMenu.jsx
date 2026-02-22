@@ -1,0 +1,272 @@
+import React, { useEffect, useRef, useCallback } from 'react';
+import { useF1Store } from '../../store/useF1Store';
+
+const SESSION_TYPES = [
+  { value: 'FP1', label: 'FP1' },
+  { value: 'FP2', label: 'FP2' },
+  { value: 'FP3', label: 'FP3' },
+  { value: 'Q', label: 'Qualifying' },
+  { value: 'S', label: 'Sprint' },
+  { value: 'R', label: 'Race' },
+];
+
+const YEARS = [2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018];
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
+function isSprintWeekend(event) {
+  if (!event) return false;
+  const fmt = (event.EventFormat || '').toLowerCase();
+  return fmt.includes('sprint') || fmt === 'sprint_shootout' || fmt === 'sprint_qualifying';
+}
+
+export default function SessionMenu({ isOpen, onClose }) {
+  const menuRef = useRef(null);
+
+  const year = useF1Store((s) => s.year);
+  const round = useF1Store((s) => s.round);
+  const sessionType = useF1Store((s) => s.sessionType);
+  const schedule = useF1Store((s) => s.schedule);
+  const isLoading = useF1Store((s) => s.isLoading);
+  const error = useF1Store((s) => s.error);
+
+  const setYear = useF1Store((s) => s.setYear);
+  const setRound = useF1Store((s) => s.setRound);
+  const setSessionType = useF1Store((s) => s.setSessionType);
+  const fetchSchedule = useF1Store((s) => s.fetchSchedule);
+  const loadSession = useF1Store((s) => s.loadSession);
+
+  // Close on Escape key
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    },
+    [isOpen, onClose]
+  );
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  // Prevent body scroll when menu is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  // Scroll selected race into view when menu opens
+  useEffect(() => {
+    if (isOpen && round && menuRef.current) {
+      const selected = menuRef.current.querySelector('.session-menu__race-item--selected');
+      if (selected) {
+        selected.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+  }, [isOpen, round]);
+
+  const handleYearChange = (e) => {
+    const newYear = Number(e.target.value);
+    setYear(newYear);
+    setRound(null);
+    fetchSchedule(newYear);
+  };
+
+  const handleRaceSelect = (roundNumber) => {
+    setRound(roundNumber);
+  };
+
+  const handleSessionTypeSelect = (type) => {
+    setSessionType(type);
+  };
+
+  const handleLoad = () => {
+    if (round) {
+      loadSession();
+      onClose();
+    }
+  };
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  const selectedEvent = schedule.find((evt) => evt.RoundNumber === round);
+  const hasSprint = selectedEvent ? isSprintWeekend(selectedEvent) : false;
+  const availableSessionTypes = hasSprint
+    ? SESSION_TYPES
+    : SESSION_TYPES.filter((st) => st.value !== 'S');
+
+  return (
+    <>
+      {/* Overlay backdrop */}
+      <div
+        className={`session-menu-overlay${isOpen ? ' open' : ''}`}
+        onClick={handleOverlayClick}
+        aria-hidden={!isOpen}
+      />
+
+      {/* Slide-out menu */}
+      <nav
+        ref={menuRef}
+        className={`session-menu${isOpen ? ' open' : ''}`}
+        role="dialog"
+        aria-label="Session selector menu"
+        aria-hidden={!isOpen}
+      >
+        {/* Title area */}
+        <div className="session-menu__header">
+          <div className="session-menu__title">
+            <span className="session-menu__title-accent" />
+            <span className="session-menu__title-text">Race Control</span>
+          </div>
+          <button
+            className="session-menu__close-btn"
+            onClick={onClose}
+            aria-label="Close menu"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="session-menu__error">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Season selector */}
+        <div className="session-menu__section">
+          <label className="session-menu__label">Season</label>
+          <select
+            className="session-menu__select"
+            value={year}
+            onChange={handleYearChange}
+          >
+            {YEARS.map((y) => (
+              <option key={y} value={y}>
+                {y} Season
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Race calendar */}
+        <div className="session-menu__section session-menu__section--flex">
+          <label className="session-menu__label">Race Calendar</label>
+          <div className="session-menu__race-list">
+            {schedule.length === 0 && (
+              <div className="session-menu__empty">
+                No races available for {year}
+              </div>
+            )}
+            {schedule.map((evt) => {
+              const isSprint = isSprintWeekend(evt);
+              const isSelected = evt.RoundNumber === round;
+              return (
+                <button
+                  key={evt.RoundNumber}
+                  className={`session-menu__race-item${isSelected ? ' session-menu__race-item--selected' : ''}`}
+                  onClick={() => handleRaceSelect(evt.RoundNumber)}
+                >
+                  <span className="session-menu__race-round">
+                    {evt.RoundNumber}
+                  </span>
+                  <div className="session-menu__race-info">
+                    <span className="session-menu__race-name">
+                      {evt.EventName}
+                      {isSprint && (
+                        <span className="session-menu__sprint-badge">SPRINT</span>
+                      )}
+                    </span>
+                    <span className="session-menu__race-detail">
+                      {evt.Country}{evt.EventDate ? ` \u2022 ${formatDate(evt.EventDate)}` : ''}
+                    </span>
+                  </div>
+                  {isSelected && (
+                    <svg className="session-menu__check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Session type selector */}
+        {round && (
+          <div className="session-menu__section">
+            <label className="session-menu__label">Session Type</label>
+            <div className="session-menu__pills">
+              {availableSessionTypes.map((st) => (
+                <button
+                  key={st.value}
+                  className={`session-menu__pill${sessionType === st.value ? ' session-menu__pill--active' : ''}`}
+                  onClick={() => handleSessionTypeSelect(st.value)}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Load session button */}
+        <div className="session-menu__section session-menu__section--footer">
+          <button
+            className="session-menu__load-btn"
+            onClick={handleLoad}
+            disabled={!round || isLoading}
+          >
+            {isLoading ? (
+              <>
+                <span className="session-menu__spinner" />
+                Loading Session...
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                Load Session
+              </>
+            )}
+          </button>
+          {round && selectedEvent && (
+            <div className="session-menu__selection-summary">
+              {year} R{round} &mdash; {selectedEvent.EventName} &mdash; {sessionType}
+            </div>
+          )}
+        </div>
+      </nav>
+    </>
+  );
+}

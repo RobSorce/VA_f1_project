@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Analytics Platform - Race Strategy Dashboard</title>
+    <meta name="description" content="Real-time F1 strategy analytics and race outcome prediction platform">
+
+    <!-- Fonts - F1 Style -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/visualizations.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header - F1 Style -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo">
+                    <!-- F1 Logo SVG -->
+                    <svg viewBox="0 0 80 20" width="60" height="15" fill="currentColor" style="color: #e10600;">
+                        <path
+                            d="M5.5,0.5 L0.5,19.5 L10.5,19.5 L12.8,10 L25,10 L27.3,0.5 L5.5,0.5 Z M14.5,0.5 L12.2,10 L17.2,10 L19.5,0.5 L14.5,0.5 Z"
+                            fill="#e10600" />
+                        <path
+                            d="M32,0.5 L30,10 L40,0.5 L32,0.5 Z M40,0.5 L30,10 L28,19.5 L38,19.5 L40,10 L50,19.5 L58,19.5 L40,0.5 Z"
+                            fill="#e10600" transform="translate(18,0)" />
+                    </svg>
+                    <span class="logo-text">Analytics</span>
+                </div>
+            </div>
+            <div class="header-center">
+                <div class="session-selector">
+                    <select id="season-select" class="select-control">
+                        <option value="2024">2024</option>
+                        <option value="2023">2023</option>
+                        <option value="2022">2022</option>
+                    </select>
+                    <select id="round-select" class="select-control">
+                        <option value="">Select Grand Prix</option>
+                    </select>
+                    <select id="session-type-select" class="select-control">
+                        <option value="R">Race</option>
+                        <option value="Q">Qualifying</option>
+                        <option value="S">Sprint</option>
+                        <option value="SQ">Sprint Quali</option>
+                        <option value="FP1">FP1</option>
+                        <option value="FP2">FP2</option>
+                        <option value="FP3">FP3</option>
+                    </select>
+                    <button id="load-session-btn" class="btn btn-primary">
+                        <span class="btn-icon">▶</span>
+                        Load Session
+                    </button>
+                    <button id="session-menu-btn" class="btn btn-secondary" title="Session Menu"
+                        style="padding: 8px 12px;">
+                        ☰
+                    </button>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="app-shell__status">
+                    <span class="status-pill" id="live-status">RACE</span>
+                    <span class="screen-label" id="current-screen-label">Race Overview</span>
+                </div>
+                <div class="status-indicator" id="connection-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Carousel -->
+        <main class="dashboard-carousel">
+            <div class="dashboard-carousel__viewport" id="carousel-viewport">
+
+                <!-- Screen 1: Race Overview -->
+                <section class="dashboard-screen" data-screen-id="overview" data-screen-label="Race Overview">
+                    <div class="dashboard-screen__grid dashboard-screen__grid--overview">
+                        <!-- Track Map -->
+                        <section class="panel panel--track" id="panel-track-map">
+                            <header class="panel-header">
+                                <h2 class="panel-title">
+                                    <span class="panel-icon">🏎️</span>
+                                    Live Track Map
+                                </h2>
+                                <div class="panel-controls">
+                                    <button class="btn btn-sm" id="track-zoom-in" title="Zoom In">+</button>
+                                    <button class="btn btn-sm" id="track-zoom-out" title="Zoom Out">−</button>
+                                    <button class="btn btn-sm" id="track-reset" title="Reset View">⟲</button>
+                                </div>
+                            </header>
+                            <div class="panel-content">
+                                <div id="track-map-container" class="visualization-container">
+                                    <div class="loading-placeholder">
+                                        <div class="spinner"></div>
+                                        <span>Load a session to view track map</span>
+                                    </div>
+                                </div>
+                                <div class="track-legend" id="track-legend"></div>
+                            </div>
+                        </section>
+
+                        <!-- Lap Tower -->
+                        <section class="panel panel--laps" id="panel-lap-tower">
+                            <header class="panel-header">
+                                <h2 class="panel-title">
+                                    <span class="panel-icon">🏁</span>
+                                    Lap Tower
+                                </h2>
+                            </header>
+                            <div class="panel-content">
+                                <div id="lap-tower-container" class="visualization-container">
+                                    <div class="loading-placeholder">
+                                        <div class="spinner"></div>
+                                        <span>Load a session to view standings</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Race Conditions -->
+                        <section class="panel panel--conditions" id="panel-conditions">
+                            <header class="panel-header">
+                                <h2 class="panel-title">
+                                    <svg class="panel-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                                        stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="5"></circle>
+                                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                                    </svg>
+                                    Weather
+                                </h2>
+                            </header>
+                            <div class="panel-content">
+                                <div class="conditions-grid conditions-grid--enhanced">
+                                    <div class="condition-card condition-card--track">
+                                        <div class="condition-icon">
+                                            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#ff8800"
+                                                stroke-width="2">
+                                                <path d="M14 14.76V3.5a2.5 2.5 0 1 0-5 0v11.26a4.5 4.5 0 1 0 5 0z">
+                                                </path>
+                                            </svg>
+                                        </div>
+                                        <span class="condition-label">Track</span>
+                                        <span class="condition-value" id="track-temp">--°C</span>
+                                    </div>
+                                    <div class="condition-card condition-card--air">
+                                        <div class="condition-icon">
+                                            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#4cc9f0"
+                                                stroke-width="2">
+                                                <path d="M14 14.76V3.5a2.5 2.5 0 1 0-5 0v11.26a4.5 4.5 0 1 0 5 0z">
+                                                </path>
+                                            </svg>
+                                        </div>
+                                        <span class="condition-label">Air</span>
+                                        <span class="condition-value" id="air-temp">--°C</span>
+                                    </div>
+                                    <div class="condition-card condition-card--humidity">
+                                        <div class="condition-icon">
+                                            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#00bcd4"
+                                                stroke-width="2">
+                                                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+                                            </svg>
+                                        </div>
+                                        <span class="condition-label">Humidity</span>
+                                        <span class="condition-value" id="humidity">--%</span>
+                                    </div>
+                                    <div class="condition-card condition-card--wind">
+                                        <div class="condition-icon">
+                                            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#9ca3af"
+                                                stroke-width="2">
+                                                <path
+                                                    d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2">
+                                                </path>
+                                            </svg>
+                                        </div>
+                                        <span class="condition-label">Wind</span>
+                                        <span class="condition-value" id="wind-speed">-- km/h</span>
+                                        <span class="condition-direction" id="wind-direction"></span>
+                                    </div>
+                                </div>
+                                <div class="race-status-bar">
+                                    <div class="status-flag" id="flag-status">
+                                        <span class="flag-dot flag-green"></span>
+                                        <span class="flag-text">GREEN FLAG</span>
+                                    </div>
+                                    <div class="rain-indicator" id="rain-status">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+                                            stroke="currentColor" stroke-width="2">
+                                            <path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"></path>
+                                        </svg>
+                                        <span id="rain-text">Dry</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </section>
+
+                <!-- Screen 2: Strategy & Timing -->
+                <section class="dashboard-screen" data-screen-id="strategy" data-screen-label="Strategy & Timing">
+                    <div class="dashboard-screen__grid dashboard-screen__grid--strategy">
+                        <!-- Lap Times -->
+                        <section class="panel panel--lap-times" id="panel-lap-times">
+                            <header class="panel-header">
+                                <h2 class="panel-title">
+                                    <svg class="panel-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                                        stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                    Lap Time Analysis
+                                </h2>
+                                <div class="panel-controls">
+                                    <select id="laptimes-mode" class="select-control select-sm">
+                                        <option value="all">All Drivers</option>
+                                        <option value="top5">Top 5</option>
+                                        <option value="compare">Compare Selected</option>
+                                    </select>
+                                </div>
+                            </header>
+                            <div class="panel-content">
+                                <div id="lap-times-container" class="visualization-container">
+                                    <div class="loading-placeholder">
+                                        <div class="spinner"></div>
+                                        <span>Load a session to view lap times</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Tyre Strategy -->
+                        <section class="panel panel--tyre-strategy" id="panel-tyre-strategy">
+                            <header class="panel-header">
+                                <h2 class="panel-title">
+                                    <svg class="panel-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                                        stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <circle cx="12" cy="12" r="4"></circle>
+                                    </svg>
+                                    Tyre Strategy
+                                </h2>
+                                <div class="panel-controls">
+                                    <select id="strategy-driver-filter" class="select-control select-sm">
+                                        <option value="all">All Drivers</option>
+                                    </select>
+                                </div>
+                            </header>
+                            <div class="panel-content">
+                                <div id="tyre-strategy-container" class="visualization-container">
+                                    <div class="loading-placeholder">
+                                        <div class="spinner"></div>
+                                        <span>Load a session to view strategy</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Telemetry -->
+                        <section class="panel panel--telemetry" id="panel-telemetry">
+                            <header class="panel-header">
+                                <h2 class="panel-title">
+                                    <svg class="panel-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                                        stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                                    </svg>
+                                    Telemetry Deep Dive
+                                </h2>
+                                <div class="panel-controls">
+                                    <select id="telemetry-driver" class="select-control select-sm">
+                                        <option value="">Select Driver</option>
+                                    </select>
+                                    <select id="telemetry-lap" class="select-control select-sm">
+                                        <option value="fastest">Fastest Lap</option>
+                                    </select>
+                                </div>
+                            </header>
+                            <div class="panel-content">
+                                <div id="telemetry-container" class="visualization-container">
+                                    <div class="loading-placeholder">
+                                        <div class="spinner"></div>
+                                        <span>Select a driver to view telemetry</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </section>
+
+                <!-- Screen 3: Analytics -->
+                <section class="dashboard-screen" data-screen-id="analytics" data-screen-label="Analytics">
+                    <div class="dashboard-screen__grid dashboard-screen__grid--analytics">
+                        <!-- Strategy Simulator -->
+                        <section class="panel panel--strategy-sim" id="panel-strategy-sim">
+                            <header class="panel-header">
+                                <h2 class="panel-title">
+                                    <svg class="panel-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                                        stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <circle cx="12" cy="12" r="6"></circle>
+                                        <circle cx="12" cy="12" r="2"></circle>
+                                    </svg>
+                                    Strategy Simulator
+                                </h2>
+                            </header>
+                            <div class="panel-content">
+                                <div class="strategy-form">
+                                    <div class="form-group">
+                                        <label>Current Lap</label>
+                                        <input type="number" id="sim-current-lap" class="input-control" value="25"
+                                            min="1" max="70">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Current Position</label>
+                                        <input type="number" id="sim-current-pos" class="input-control" value="5"
+                                            min="1" max="20">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Tyre Compound</label>
+                                        <select id="sim-tyre-compound" class="select-control">
+                                            <option value="SOFT">Soft</option>
+                                            <option value="MEDIUM" selected>Medium</option>
+                                            <option value="HARD">Hard</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Tyre Age (laps)</label>
+                                        <input type="number" id="sim-tyre-age" class="input-control" value="12" min="0"
+                                            max="50">
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Gap Ahead (s)</label>
+                                            <input type="number" id="sim-gap-ahead" class="input-control" value="3.2"
+                                                step="0.1">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Gap Behind (s)</label>
+                                            <input type="number" id="sim-gap-behind" class="input-control" value="1.8"
+                                                step="0.1">
+                                        </div>
+                                    </div>
+                                    <button id="run-prediction-btn" class="btn btn-primary btn-block">
+                                        Run Prediction
+                                    </button>
+                                </div>
+                                <div id="prediction-results" class="prediction-results">
+                                    <!-- Results will be populated here -->
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Predictions Dashboard -->
+                        <section class="panel panel--predictions" id="panel-predictions">
+                            <header class="panel-header">
+                                <h2 class="panel-title">
+                                    <svg class="panel-icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                                        stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                    </svg>
+                                    Predictive Analytics
+                                </h2>
+                            </header>
+                            <div class="panel-content">
+                                <div class="predictions-grid">
+                                    <div class="prediction-card">
+                                        <h3>Race Winner</h3>
+                                        <div class="prediction-main">
+                                            <span class="predicted-driver" id="pred-winner">--</span>
+                                            <span class="confidence-value" id="pred-winner-conf">--%</span>
+                                        </div>
+                                        <div class="confidence-bar">
+                                            <div class="confidence-fill" id="pred-winner-bar" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="prediction-card">
+                                        <h3>Podium Probability</h3>
+                                        <div id="podium-predictions" class="podium-list">
+                                            <div class="podium-item">
+                                                <span class="position">P1</span>
+                                                <span class="driver">--</span>
+                                                <span class="probability">--%</span>
+                                            </div>
+                                            <div class="podium-item">
+                                                <span class="position">P2</span>
+                                                <span class="driver">--</span>
+                                                <span class="probability">--%</span>
+                                            </div>
+                                            <div class="podium-item">
+                                                <span class="position">P3</span>
+                                                <span class="driver">--</span>
+                                                <span class="probability">--%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="position-probabilities" class="visualization-container visualization-sm">
+                                    <!-- Position probability chart -->
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- Carousel Navigation Controls -->
+            <div class="dashboard-carousel__controls" aria-label="Screen navigation">
+                <button type="button" class="carousel-arrow carousel-arrow--prev" id="carousel-prev"
+                    aria-label="Previous screen" disabled>
+                    ‹
+                </button>
+                <div class="dashboard-carousel__breadcrumbs" role="tablist" id="carousel-breadcrumbs">
+                    <button type="button" role="tab" aria-selected="true" aria-label="Go to Race Overview"
+                        class="breadcrumb breadcrumb--active" data-screen="0">
+                        <span>1</span>
+                    </button>
+                    <button type="button" role="tab" aria-selected="false" aria-label="Go to Strategy & Timing"
+                        class="breadcrumb" data-screen="1">
+                        <span>2</span>
+                    </button>
+                    <button type="button" role="tab" aria-selected="false" aria-label="Go to Analytics"
+                        class="breadcrumb" data-screen="2">
+                        <span>3</span>
+                    </button>
+                </div>
+                <button type="button" class="carousel-arrow carousel-arrow--next" id="carousel-next"
+                    aria-label="Next screen">
+                    ›
+                </button>
+            </div>
+        </main>
+
+        <!-- Footer with Time Controls -->
+        <footer class="app-footer">
+            <div class="footer-left">
+                <span>F1 Analytics Platform v1.0</span>
+            </div>
+            <div class="footer-center time-controls">
+                <button class="btn btn-sm time-btn" id="time-step-back" title="Previous Lap">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                        <line x1="5" y1="19" x2="5" y2="5"></line>
+                    </svg>
+                </button>
+                <button class="btn btn-sm time-btn time-btn--play" id="time-play-pause" title="Play/Pause">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                </button>
+                <button class="btn btn-sm time-btn" id="time-step-forward" title="Next Lap">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                        <line x1="19" y1="5" x2="19" y2="19"></line>
+                    </svg>
+                </button>
+                <div class="time-slider-container">
+                    <input type="range" id="time-slider" class="time-slider" min="1" max="70" value="1" disabled>
+                    <span id="current-lap-display" class="time-display">Lap 1 / --</span>
+                </div>
+                <span id="race-elapsed-time" class="race-time-display">00:00:00</span>
+                <select id="play-speed" class="select-control select-sm">
+                    <option value="realtime">Real-Time</option>
+                    <option value="0.1">0.1x</option>
+                    <option value="0.25">0.25x</option>
+                    <option value="0.5">0.5x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="2">2x</option>
+                    <option value="5">5x</option>
+                    <option value="10">10x</option>
+                </select>
+            </div>
+            <div class="footer-right">
+                <span id="last-updated">Last updated: --:--:--</span>
+            </div>
+        </footer>
+
+        <!-- Session Menu Modal -->
+        <div id="session-menu-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-content session-menu-content">
+                <div class="modal-header">
+                    <h2>
+                        <svg viewBox="0 0 80 20" style="height: 24px; fill: #e10600; margin-right: 8px;">
+                            <path
+                                d="M5.5,0 L0,20 L10,20 L12.5,10 L25,10 L27.5,0 L5.5,0 Z M15,0 L12.5,10 L17.5,10 L20,0 L15,0 Z" />
+                            <path d="M30,0 L35,0 L42.5,12.5 L45,0 L50,0 L45,20 L40,20 L32.5,7.5 L30,20 L25,20 L30,0 Z"
+                                transform="translate(20,0)" />
+                        </svg>
+                        Session Selector
+                    </h2>
+                    <button class="modal-close" id="close-session-menu">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Event Selection -->
+                    <div class="menu-section">
+                        <h3>Grand Prix</h3>
+                        <div class="menu-row">
+                            <select id="menu-season-select" class="select-control menu-select">
+                                <option value="2024">2024</option>
+                                <option value="2023">2023</option>
+                                <option value="2022">2022</option>
+                            </select>
+                            <select id="menu-round-select" class="select-control menu-select">
+                                <option value="">Select Grand Prix</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Session Type Buttons -->
+                    <div class="menu-section">
+                        <h3>Session Type</h3>
+                        <div class="session-type-grid">
+                            <button class="session-type-btn" data-session="R">
+                                <span class="session-icon">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                                        <line x1="4" y1="22" x2="4" y2="15"></line>
+                                    </svg>
+                                </span>
+                                <span class="session-label">Race</span>
+                            </button>
+                            <button class="session-type-btn" data-session="Q">
+                                <span class="session-icon">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                </span>
+                                <span class="session-label">Qualifying</span>
+                            </button>
+                            <button class="session-type-btn" data-session="S">
+                                <span class="session-icon">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                                    </svg>
+                                </span>
+                                <span class="session-label">Sprint</span>
+                            </button>
+                            <button class="session-type-btn" data-session="SQ">
+                                <span class="session-icon">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                        <path
+                                            d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z">
+                                        </path>
+                                    </svg>
+                                </span>
+                                <span class="session-label">Sprint Quali</span>
+                            </button>
+                            <button class="session-type-btn" data-session="FP1">
+                                <span class="session-icon" style="font-weight: 900; font-style: italic;">P1</span>
+                                <span class="session-label">FP1</span>
+                            </button>
+                            <button class="session-type-btn" data-session="FP2">
+                                <span class="session-icon" style="font-weight: 900; font-style: italic;">P2</span>
+                                <span class="session-label">FP2</span>
+                            </button>
+                            <button class="session-type-btn" data-session="FP3">
+                                <span class="session-icon" style="font-weight: 900; font-style: italic;">P3</span>
+                                <span class="session-label">FP3</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/api-client.js"></script>
+    <script src="js/visualizations/track-map.js"></script>
+    <script src="js/visualizations/lap-times.js"></script>
+    <script src="js/visualizations/tyre-strategy.js"></script>
+    <script src="js/visualizations/telemetry.js"></script>
+    <script src="js/visualizations/predictions.js"></script>
+    <script src="js/visualizations/lap-tower.js"></script>
+    <script src="js/visualizations/qualifying-viewer.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>
