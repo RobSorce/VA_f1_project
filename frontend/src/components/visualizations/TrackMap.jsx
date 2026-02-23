@@ -48,10 +48,12 @@ const TRAIL_LENGTH = TRAIL_CONFIG.length;
 export default function TrackMap({ compact = false }) {
   const svgRef = useRef(null);
   const gRef = useRef(null);
+  const zoomRef = useRef(null);
   const trailPositionsRef = useRef({}); // { driverAbbr: [{x, y}, ...] } — most recent first
   const isInitialRenderRef = useRef(true);
   const prevFrameIndexRef = useRef(-1); // Track previous frame to detect changes
 
+  const focusedView = useF1Store((s) => s.focusedView);
   const circuitInfo = useF1Store((s) => s.circuitInfo);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -71,12 +73,52 @@ export default function TrackMap({ compact = false }) {
   const maxLap = useF1Store((s) => s.maxLap);
   const drivers = useF1Store((s) => s.drivers);
 
-  // Toggle states for sectors and DRS
+  // Track overlay toggles — synced with store for keyboard shortcuts
+  const showTrackSectors = useF1Store((s) => s.showTrackSectors);
+  const showTrackDRS = useF1Store((s) => s.showTrackDRS);
+
+  // Track rotation
+  const trackRotationOffset = useF1Store((s) => s.trackRotationOffset);
+  const rotateTrackCW = useF1Store((s) => s.rotateTrackCW);
+  const rotateTrackCCW = useF1Store((s) => s.rotateTrackCCW);
+  const resetTrackRotation = useF1Store((s) => s.resetTrackRotation);
+
+  // Individual sector toggles (local refinement)
   const [showSector1, setShowSector1] = useState(true);
   const [showSector2, setShowSector2] = useState(true);
   const [showSector3, setShowSector3] = useState(true);
   const [showDRS, setShowDRS] = useState(true);
   const [showCorners, setShowCorners] = useState(true);
+
+  // Sync store toggles → local state
+  useEffect(() => {
+    setShowSector1(showTrackSectors);
+    setShowSector2(showTrackSectors);
+    setShowSector3(showTrackSectors);
+  }, [showTrackSectors]);
+
+  useEffect(() => {
+    setShowDRS(showTrackDRS);
+  }, [showTrackDRS]);
+
+  // Zoom controls
+  const handleZoomIn = useCallback(() => {
+    if (!svgRef.current || !zoomRef.current) return;
+    d3.select(svgRef.current).transition().duration(300)
+      .call(zoomRef.current.scaleBy, 1.5);
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    if (!svgRef.current || !zoomRef.current) return;
+    d3.select(svgRef.current).transition().duration(300)
+      .call(zoomRef.current.scaleBy, 1 / 1.5);
+  }, []);
+
+  const handleZoomReset = useCallback(() => {
+    if (!svgRef.current || !zoomRef.current) return;
+    d3.select(svgRef.current).transition().duration(300)
+      .call(zoomRef.current.transform, d3.zoomIdentity);
+  }, []);
 
   // Radii for compact vs normal mode
   const dotRadius = compact ? 4 : 7;
@@ -189,6 +231,7 @@ export default function TrackMap({ compact = false }) {
       .scaleExtent([0.5, 8])
       .on('zoom', (event) => g.attr('transform', event.transform));
     svg.call(zoom);
+    zoomRef.current = zoom;
 
     if (!d3.select('body').select('.track-tooltip').size()) {
       d3.select('body').append('div').attr('class', 'tooltip track-tooltip');
@@ -210,7 +253,23 @@ export default function TrackMap({ compact = false }) {
     svg.attr('viewBox', `0 0 ${width} ${height}`);
 
     const g = gRef.current;
-    const coords = circuitInfo.track_coordinates;
+    const rawCoords = circuitInfo.track_coordinates;
+
+    // Apply FastF1 rotation to match official track map orientation
+    const rotationDeg = (circuitInfo.rotation || 0) + trackRotationOffset;
+    const rotationRad = (rotationDeg * Math.PI) / 180;
+    const cosR = Math.cos(rotationRad);
+    const sinR = Math.sin(rotationRad);
+
+    // Compute centroid for rotation pivot
+    const cx = rawCoords.reduce((s, d) => s + d.X, 0) / rawCoords.length;
+    const cy = rawCoords.reduce((s, d) => s + d.Y, 0) / rawCoords.length;
+
+    const coords = rawCoords.map((d) => {
+      const dx = d.X - cx;
+      const dy = d.Y - cy;
+      return { ...d, X: cx + dx * cosR - dy * sinR, Y: cy + dx * sinR + dy * cosR };
+    });
 
     const xExtent = d3.extent(coords, (d) => d.X);
     const yExtent = d3.extent(coords, (d) => d.Y);
@@ -230,6 +289,7 @@ export default function TrackMap({ compact = false }) {
       .range([(height + trackH * scale) / 2, (height - trackH * scale) / 2]);
 
     gRef.current.__scales = { xScale, yScale };
+    gRef.current.__rotation = { cosR, sinR, cx, cy };
     gRef.current.__coords = coords;
 
     const line = d3.line()
@@ -344,7 +404,7 @@ export default function TrackMap({ compact = false }) {
         .attr('d', line(edge));
     });
 
-    // ── DRS Zones — green dashed lines outside the track (broadcast TV style) ──
+    // ── DRS Zones — filled overlay on track surface ──
     const drsOuterLayer = g.select('.drs-outer-layer');
     drsOuterLayer.selectAll('*').remove();
     const drsDetectionLayer = g.select('.drs-detection-layer');
@@ -352,61 +412,87 @@ export default function TrackMap({ compact = false }) {
 
     const drsZones = circuitInfo.drs_zones || [];
     if (drsZones.length > 0 && !compact) {
-      drsZones.forEach((zone, zoneIdx) => {
+      drsZones.forEach((zone) => {
         const startIdx = zone.start_idx;
         const endIdx = Math.min(zone.end_idx, coords.length - 1);
         const detIdx = zone.detection_idx;
 
-        // DRS activation zone — green dashed line running parallel outside the track
-        const outerSegment = [];
+        // Build polygon between left and right track edges
+        const leftPts = [];
+        const rightPts = [];
         for (let i = startIdx; i <= endIdx; i++) {
-          outerSegment.push(drsOuter[i]);
+          leftPts.push(leftEdge[i]);
+          rightPts.push(rightEdge[i]);
         }
-        if (outerSegment.length > 1) {
-          drsOuterLayer.append('path')
-            .attr('class', 'drs-zone-outer')
-            .attr('d', line(outerSegment))
-            .attr('fill', 'none')
-            .attr('stroke', '#00ff00')
-            .attr('stroke-width', 4)
-            .attr('stroke-linecap', 'round')
-            .attr('stroke-dasharray', '10,5')
-            .attr('opacity', 0.9);
 
-          // "DRS" label positioned further outside the DRS line
-          const midIdx = Math.floor(outerSegment.length / 2);
-          const labelIdx = startIdx + midIdx;
-          if (labelIdx < coords.length) {
-            const labelOffset = 14 * pxToCoord;
-            const lx = xScale(drsOuter[labelIdx].X - tangents[labelIdx].nx * labelOffset);
-            const ly = yScale(drsOuter[labelIdx].Y - tangents[labelIdx].ny * labelOffset);
+        if (leftPts.length > 1) {
+          // Filled DRS zone on track surface
+          const rightReversed = [...rightPts].reverse();
+          const polygonPts = [...leftPts, ...rightReversed];
+          drsOuterLayer.append('path')
+            .attr('class', 'drs-zone-fill')
+            .attr('d', line(polygonPts) + 'Z')
+            .attr('fill', 'rgba(0, 200, 0, 0.18)')
+            .attr('stroke', 'none');
+
+          // Thin edge lines on both sides
+          drsOuterLayer.append('path')
+            .attr('d', line(leftPts))
+            .attr('fill', 'none')
+            .attr('stroke', '#00cc00')
+            .attr('stroke-width', 1.5)
+            .attr('opacity', 0.6);
+          drsOuterLayer.append('path')
+            .attr('d', line(rightPts))
+            .attr('fill', 'none')
+            .attr('stroke', '#00cc00')
+            .attr('stroke-width', 1.5)
+            .attr('opacity', 0.6);
+
+          // Tick marks at start and end boundaries
+          [startIdx, endIdx].forEach(idx => {
+            if (idx < coords.length) {
+              drsOuterLayer.append('line')
+                .attr('x1', xScale(leftEdge[idx].X))
+                .attr('y1', yScale(leftEdge[idx].Y))
+                .attr('x2', xScale(rightEdge[idx].X))
+                .attr('y2', yScale(rightEdge[idx].Y))
+                .attr('stroke', '#00cc00')
+                .attr('stroke-width', 2)
+                .attr('opacity', 0.8);
+            }
+          });
+
+          // Small "DRS" label on the outer side of the track at midpoint
+          const midIdx = Math.floor((startIdx + endIdx) / 2);
+          if (midIdx < arrowOuter.length) {
+            const labelPt = arrowOuter[midIdx];
+            const labelOffset = 10 * pxToCoord;
             drsOuterLayer.append('text')
-              .attr('x', lx)
-              .attr('y', ly)
-              .attr('fill', '#00ff00')
-              .attr('font-size', '9px')
+              .attr('x', xScale(labelPt.X + tangents[midIdx].nx * labelOffset))
+              .attr('y', yScale(labelPt.Y + tangents[midIdx].ny * labelOffset))
+              .attr('fill', '#00cc00')
+              .attr('font-size', '8px')
               .attr('font-weight', '700')
-              .attr('font-family', "'Titillium Web', sans-serif")
+              .attr('font-family', "'Space Grotesk', sans-serif")
               .attr('text-anchor', 'middle')
               .attr('dominant-baseline', 'central')
+              .attr('opacity', 0.8)
               .text('DRS');
           }
         }
 
-        // Detection line — dashed line crossing perpendicular to the track
+        // Detection line — thin dashed crossing the track
         if (detIdx >= 0 && detIdx < coords.length) {
-          const detC = coords[detIdx];
-          const detT = tangents[detIdx];
-          const detExtent = overlayOffset + 6 * pxToCoord;
           drsDetectionLayer.append('line')
-            .attr('x1', xScale(detC.X + detT.nx * detExtent))
-            .attr('y1', yScale(detC.Y + detT.ny * detExtent))
-            .attr('x2', xScale(detC.X - detT.nx * detExtent))
-            .attr('y2', yScale(detC.Y - detT.ny * detExtent))
+            .attr('x1', xScale(leftEdge[detIdx].X))
+            .attr('y1', yScale(leftEdge[detIdx].Y))
+            .attr('x2', xScale(rightEdge[detIdx].X))
+            .attr('y2', yScale(rightEdge[detIdx].Y))
             .attr('stroke', '#00bcd4')
-            .attr('stroke-width', 2)
-            .attr('stroke-dasharray', '4,3')
-            .attr('opacity', 0.7);
+            .attr('stroke-width', 1.5)
+            .attr('stroke-dasharray', '3,2')
+            .attr('opacity', 0.6);
         }
       });
     }
@@ -418,24 +504,27 @@ export default function TrackMap({ compact = false }) {
       const c0 = coords[0];
       const t0 = tangents[0];
 
-      // Perpendicular extent: just beyond the track edges (not as wide as overlay offset)
-      const sfExtent = overlayOffset * 0.8;
+      // Symmetric extent across the track, asymmetric depth along track direction
+      const sfExtent = overlayOffset * 1.1;
 
-      // Thin stripe depth along track direction (~4px in screen space)
+      // Asymmetric stripe depth: longer on one side, shorter on the other
       const nextC = coords[Math.min(3, coords.length - 1)];
       const fdx = nextC.X - c0.X;
       const fdy = nextC.Y - c0.Y;
       const fLen = Math.sqrt(fdx * fdx + fdy * fdy) || 1;
-      const stripeDepth = 3 * pxToCoord;
-      const fx = (fdx / fLen) * stripeDepth;
-      const fy = (fdy / fLen) * stripeDepth;
+      const depthLong = 10 * pxToCoord;
+      const depthShort = 4 * pxToCoord;
+      const fxLong = (fdx / fLen) * depthLong;
+      const fyLong = (fdy / fLen) * depthLong;
+      const fxShort = (fdx / fLen) * depthShort;
+      const fyShort = (fdy / fLen) * depthShort;
 
-      // 4 corners of the thin perpendicular stripe
+      // 4 corners: centered across track, longer forward side, shorter backward side
       const sfPoly = [
-        `${xScale(c0.X + t0.nx * sfExtent - fx)},${yScale(c0.Y + t0.ny * sfExtent - fy)}`,
-        `${xScale(c0.X - t0.nx * sfExtent - fx)},${yScale(c0.Y - t0.ny * sfExtent - fy)}`,
-        `${xScale(c0.X - t0.nx * sfExtent + fx)},${yScale(c0.Y - t0.ny * sfExtent + fy)}`,
-        `${xScale(c0.X + t0.nx * sfExtent + fx)},${yScale(c0.Y + t0.ny * sfExtent + fy)}`,
+        `${xScale(c0.X + t0.nx * sfExtent - fxShort)},${yScale(c0.Y + t0.ny * sfExtent - fyShort)}`,
+        `${xScale(c0.X - t0.nx * sfExtent - fxShort)},${yScale(c0.Y - t0.ny * sfExtent - fyShort)}`,
+        `${xScale(c0.X - t0.nx * sfExtent + fxLong)},${yScale(c0.Y - t0.ny * sfExtent + fyLong)}`,
+        `${xScale(c0.X + t0.nx * sfExtent + fxLong)},${yScale(c0.Y + t0.ny * sfExtent + fyLong)}`,
       ].join(' ');
 
       // White base
@@ -450,43 +539,31 @@ export default function TrackMap({ compact = false }) {
         .attr('stroke', 'rgba(255,255,255,0.6)')
         .attr('stroke-width', 0.5);
 
-      // S/F label outside on the DRS side
-      if (!compact) {
-        const labelDist = sfExtent + 14 * pxToCoord;
-        sfLayer.append('text')
-          .attr('x', xScale(c0.X - t0.nx * labelDist))
-          .attr('y', yScale(c0.Y - t0.ny * labelDist))
-          .attr('fill', '#fff')
-          .attr('font-size', '9px')
-          .attr('font-weight', '700')
-          .attr('font-family', "'Formula1', 'Titillium Web', sans-serif")
-          .attr('text-anchor', 'middle')
-          .attr('dominant-baseline', 'central')
-          .text('S/F');
-      }
+      // S/F label removed — direction arrowhead near S/F serves as the indicator
     }
 
-    // ── Direction arrowhead (filled triangle, no pole) near S/F ──
+    // ── Direction arrowhead alongside S/F line ──
     const dirLayer = g.select('.direction-layer');
     dirLayer.selectAll('*').remove();
 
-    if (!compact && coords.length > 20) {
-      const chevIdx = Math.max(6, Math.floor(coords.length * 0.02));
-      const pt = arrowOuter[Math.min(chevIdx, coords.length - 1)];
-      // Track direction at this point (in screen space)
-      const cPrev = coords[Math.max(0, chevIdx - 3)];
-      const cNext = coords[Math.min(coords.length - 1, chevIdx + 3)];
-      const adx = xScale(cNext.X) - xScale(cPrev.X);
-      const ady = yScale(cNext.Y) - yScale(cPrev.Y);
+    if (!compact && coords.length > 20 && tangents.length > 0) {
+      // Position at S/F line (coords[0]), on the outer side of the track
+      const pt = drsOuter[0];
+      // Track direction at start (in screen space)
+      const cNext = coords[Math.min(5, coords.length - 1)];
+      const adx = xScale(cNext.X) - xScale(coords[0].X);
+      const ady = yScale(cNext.Y) - yScale(coords[0].Y);
       const angleDeg = (Math.atan2(ady, adx) * 180) / Math.PI;
-      const cx = xScale(pt.X);
-      const cy = yScale(pt.Y);
+      // Offset well beyond the S/F line tip so the arrow isn't covered
+      const extraOffset = 16 * pxToCoord;
+      const cx = xScale(pt.X - tangents[0].nx * extraOffset);
+      const cy = yScale(pt.Y - tangents[0].ny * extraOffset);
 
       // Filled triangle arrowhead pointing in track direction
       dirLayer.append('path')
         .attr('d', 'M -7 -5 L 7 0 L -7 5 Z')
         .attr('transform', `translate(${cx},${cy}) rotate(${angleDeg})`)
-        .attr('fill', 'rgba(255,255,255,0.75)')
+        .attr('fill', 'rgba(255,255,255,0.85)')
         .attr('stroke', 'none');
     }
 
@@ -494,10 +571,16 @@ export default function TrackMap({ compact = false }) {
     if (circuitInfo.corners?.length && !compact) {
       const cornersLayer = g.select('.corners-layer');
       cornersLayer.selectAll('*').remove();
+      const rot = gRef.current.__rotation;
       circuitInfo.corners.forEach((corner) => {
         if (corner.X == null || corner.Y == null) return;
-        const cx = xScale(corner.X);
-        const cy = yScale(corner.Y);
+        // Rotate corner position to match track orientation
+        const dx = corner.X - rot.cx;
+        const dy = corner.Y - rot.cy;
+        const rx = rot.cx + dx * rot.cosR - dy * rot.sinR;
+        const ry = rot.cy + dx * rot.sinR + dy * rot.cosR;
+        const cx = xScale(rx);
+        const cy = yScale(ry);
         const cg = cornersLayer.append('g').attr('transform', `translate(${cx}, ${cy})`);
         cg.append('circle').attr('r', 10).attr('class', 'corner-marker');
         cg.append('text')
@@ -507,7 +590,8 @@ export default function TrackMap({ compact = false }) {
     }
 
     isInitialRenderRef.current = true;
-  }, [circuitInfo, compact]);
+    trailPositionsRef.current = {}; // Clear stale screen-space trails on redraw
+  }, [circuitInfo, compact, trackRotationOffset]);
 
   // Update sector visibility
   useEffect(() => {
@@ -636,6 +720,16 @@ export default function TrackMap({ compact = false }) {
   useEffect(() => {
     if (!gRef.current?.__scales || !sessionData) return;
     const { xScale, yScale } = gRef.current.__scales;
+    const rot = gRef.current.__rotation;
+
+    // Rotate a car position to match track orientation
+    const rotatePos = (x, y) => {
+      if (!rot) return { x, y };
+      const dx = x - rot.cx;
+      const dy = y - rot.cy;
+      return { x: rot.cx + dx * rot.cosR - dy * rot.sinR, y: rot.cy + dx * rot.sinR + dy * rot.cosR };
+    };
+
     const carsLayer = gRef.current.select('.cars-layer');
     const trailsLayer = gRef.current.select('.trails-layer');
     const tooltip = d3.select('.track-tooltip');
@@ -701,7 +795,6 @@ export default function TrackMap({ compact = false }) {
     };
 
     const getDimmedOpacity = (abbr) => {
-      if (isDriverRetired(abbr)) return 0.2;
       if (abbr === focusDriver) return 1;
       if (selectedDrivers.length > 0 && !selectedDrivers.includes(abbr)) return 0.7;
       if (focusDriver && abbr !== focusDriver && !selectedDrivers.includes(abbr)) return 0.55;
@@ -727,6 +820,11 @@ export default function TrackMap({ compact = false }) {
       driverEntries = Object.entries(gridPositions);
     }
 
+    // Remove retired drivers from the track entirely
+    if (driverEntries && !isGridMode) {
+      driverEntries = driverEntries.filter(([abbr]) => !isDriverRetired(abbr));
+    }
+
     if (!driverEntries || driverEntries.length === 0) {
       // No data at all — show placeholder
       carsLayer.selectAll('.car-marker').remove();
@@ -737,7 +835,8 @@ export default function TrackMap({ compact = false }) {
     // Update trail positions
     for (const [abbr, pos] of driverEntries) {
       if (pos.x != null && pos.y != null) {
-        updateTrailPositions(abbr, xScale(pos.x), yScale(pos.y));
+        const rp = rotatePos(pos.x, pos.y);
+        updateTrailPositions(abbr, xScale(rp.x), yScale(rp.y));
       }
     }
 
@@ -783,17 +882,17 @@ export default function TrackMap({ compact = false }) {
         .ease(d3.easeLinear)
         .attr('transform', (d) => {
           const pos = d[1];
-          const x = pos.x != null ? xScale(pos.x) : 0;
-          const y = pos.y != null ? yScale(pos.y) : 0;
-          return `translate(${x}, ${y})`;
+          if (pos.x == null || pos.y == null) return 'translate(0,0)';
+          const rp = rotatePos(pos.x, pos.y);
+          return `translate(${xScale(rp.x)}, ${yScale(rp.y)})`;
         });
     } else {
       merged
         .attr('transform', (d) => {
           const pos = d[1];
-          const x = pos.x != null ? xScale(pos.x) : 0;
-          const y = pos.y != null ? yScale(pos.y) : 0;
-          return `translate(${x}, ${y})`;
+          if (pos.x == null || pos.y == null) return 'translate(0,0)';
+          const rp = rotatePos(pos.x, pos.y);
+          return `translate(${xScale(rp.x)}, ${yScale(rp.y)})`;
         });
     }
 
@@ -867,7 +966,7 @@ export default function TrackMap({ compact = false }) {
   }, [circuitInfo, sessionData, currentFrameIndex, frameData, totalFrames, frameDt,
       selectedDrivers, highlightedDriver, focusDriver, gridPositions, dnfMap, currentLap,
       toggleDriver, setHighlightedDriver, isPlaying, compact, dotRadius, glowRadius,
-      updateTrailPositions, renderTrails]);
+      updateTrailPositions, renderTrails, trackRotationOffset]);
 
   // ── Telemetry HUD data for focused + selected drivers ──────────────
   const hudDrivers = useMemo(() => {
@@ -939,12 +1038,54 @@ export default function TrackMap({ compact = false }) {
     lineHeight: '18px',
   });
 
+  const zoomBtnStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    padding: 0,
+    border: '1.5px solid rgba(255,255,255,0.2)',
+    borderRadius: '4px',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.5)',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  };
+
+  const rotateBtnStyle = {
+    ...zoomBtnStyle,
+    fontSize: '11px',
+    fontWeight: 600,
+    fontFamily: "'Space Grotesk', sans-serif",
+  };
+
   const controls = (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+      <button style={zoomBtnStyle} onClick={rotateTrackCW} title="Rotate clockwise (R)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+      </button>
+      <button style={zoomBtnStyle} onClick={rotateTrackCCW} title="Rotate counter-clockwise (Shift+R)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      </button>
+      <button style={{ ...rotateBtnStyle, width: 'auto', padding: '0 6px' }} onClick={resetTrackRotation} title="Reset to default orientation">
+        Auto
+      </button>
+      <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+      <button style={zoomBtnStyle} onClick={handleZoomIn} title="Zoom in">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+      <button style={zoomBtnStyle} onClick={handleZoomOut} title="Zoom out">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14"/></svg>
+      </button>
+      <button style={zoomBtnStyle} onClick={handleZoomReset} title="Reset zoom">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      </button>
+      <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
       <button style={toggleBtnStyle(showSector1, SECTOR_COLORS[1])} onClick={() => setShowSector1(!showSector1)}>S1</button>
       <button style={toggleBtnStyle(showSector2, SECTOR_COLORS[2])} onClick={() => setShowSector2(!showSector2)}>S2</button>
       <button style={toggleBtnStyle(showSector3, SECTOR_COLORS[3])} onClick={() => setShowSector3(!showSector3)}>S3</button>
-      <button style={toggleBtnStyle(showDRS, '#00ff00')} onClick={() => setShowDRS(!showDRS)}>DRS</button>
+      <button style={toggleBtnStyle(showDRS, '#00cc00')} onClick={() => setShowDRS(!showDRS)}>DRS</button>
       <button style={toggleBtnStyle(showCorners, '#aaa')} onClick={() => setShowCorners(!showCorners)}>Corners</button>
       {driverLegendItems.length > 0 && (
         <div style={{ marginLeft: 8, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
@@ -963,8 +1104,6 @@ export default function TrackMap({ compact = false }) {
           borderRadius: '8px',
           width: '100%',
           height: '100%',
-          maxWidth: '300px',
-          maxHeight: '200px',
         }}
       >
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
@@ -1011,7 +1150,7 @@ export default function TrackMap({ compact = false }) {
       };
 
   return (
-    <Panel title="Track Map" controls={controls} style={panelStyle}>
+    <Panel title="Track Map" controls={controls} style={panelStyle} focused={focusedView === 'trackmap'} shortcutKey="1">
       <div className="viz-container" style={{
         background: 'radial-gradient(ellipse at center, rgba(26,31,51,0.6) 0%, rgba(21,21,30,0.9) 100%)',
         borderRadius: '8px',

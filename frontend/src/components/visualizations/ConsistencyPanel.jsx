@@ -20,11 +20,14 @@ const COMPOUND_COLORS = {
 export default function ConsistencyPanel() {
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
+  const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+
+  const replayStarted = currentFrameIndex > 0 || currentLap > 1;
 
   // Compute consistency from lap_times, filtered by currentLap for incremental reveal
   const { drivers, sessionAvg } = useMemo(() => {
     const lapTimes = sessionData?.lap_times || [];
-    if (lapTimes.length === 0) return { drivers: [], sessionAvg: null };
+    if (lapTimes.length === 0 || !replayStarted) return { drivers: [], sessionAvg: null };
 
     const driverLaps = {};
     for (const lt of lapTimes) {
@@ -132,12 +135,14 @@ export default function ConsistencyPanel() {
       : null;
 
     return { drivers: results, sessionAvg: sAvg };
-  }, [sessionData, currentLap]);
+  }, [sessionData, currentLap, replayStarted]);
 
   if (!drivers.length) {
     return (
       <div className="consistency-panel__empty">
-        No consistency data available. Load a session first.
+        {(sessionData?.lap_times?.length > 0) && !replayStarted
+          ? 'Press play to start the race replay'
+          : 'No consistency data available. Load a session first.'}
       </div>
     );
   }

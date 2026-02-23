@@ -1,0 +1,254 @@
+/* ==========================================================================
+   Command Palette — Robinhood Legend Design System
+   ========================================================================== */
+
+/* --- Backdrop --- */
+.cp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  padding-top: 18vh;
+  animation: cp-fade-in var(--rh-transition-slow, 0.3s ease);
+}
+
+@keyframes cp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* --- Modal --- */
+.cp-modal {
+  width: min(480px, 90vw);
+  max-height: 60vh;
+  background: var(--rh-surface, #141414);
+  border: 1px solid var(--rh-border, #2A2A2A);
+  border-radius: var(--rh-radius-2xl, 14px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--rh-shadow-modal, 0 24px 64px rgba(0, 0, 0, 0.6));
+  animation: cp-slide-in 0.2s ease;
+  align-self: flex-start;
+}
+
+@keyframes cp-slide-in {
+  from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* --- Header / Input Area --- */
+.cp-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rh-surface-hover, #222);
+}
+
+.cp-icon {
+  color: var(--rh-text-faint, #555);
+  font-size: 16px;
+  font-family: var(--rh-font-sans);
+  flex-shrink: 0;
+}
+
+.cp-back {
+  background: none;
+  border: none;
+  color: var(--rh-text-muted, #666);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--rh-radius-xs, 5px);
+  transition: color var(--rh-transition-fast, 0.15s ease);
+  flex-shrink: 0;
+}
+
+.cp-back:hover {
+  color: var(--rh-accent, #D5FD51);
+}
+
+.cp-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--rh-text-primary, #E8E8E8);
+  font-size: var(--rh-text-md, 15px);
+  font-family: var(--rh-font-sans);
+  letter-spacing: var(--rh-tracking-subtle, 0.01em);
+  outline: none;
+  caret-color: var(--rh-accent, #D5FD51);
+}
+
+.cp-input::placeholder {
+  color: var(--rh-text-muted, #666);
+}
+
+.cp-shortcut {
+  background: var(--rh-surface-hover, #222);
+  border: 1px solid var(--rh-border-strong, #333);
+  border-radius: var(--rh-radius-sm, 6px);
+  padding: 2px 8px;
+  font-size: var(--rh-text-xs, 11px);
+  color: var(--rh-text-muted, #666);
+  font-family: var(--rh-font-mono);
+  font-weight: 600;
+  box-shadow: var(--rh-shadow-kbd, 0 2px 0 #1A1A1A);
+  line-height: 1.4;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* --- Results --- */
+.cp-results {
+  overflow-y: auto;
+  max-height: calc(60vh - 52px);
+  padding: 6px 0;
+}
+
+.cp-results::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cp-results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cp-results::-webkit-scrollbar-thumb {
+  background: var(--rh-border, #2A2A2A);
+  border-radius: 2px;
+}
+
+/* --- Groups --- */
+.cp-group {
+  padding: 2px 0;
+}
+
+.cp-group-label {
+  padding: 8px 16px 4px;
+  font-size: var(--rh-text-xs, 11px);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--rh-tracking-wide, 0.08em);
+  color: var(--rh-text-dimmed, #444);
+  font-family: var(--rh-font-sans);
+}
+
+/* --- Command Items --- */
+.cp-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background var(--rh-transition-fast, 0.15s ease);
+  user-select: none;
+}
+
+.cp-item:hover {
+  background: var(--rh-surface-hover, #222);
+}
+
+.cp-item--selected {
+  background: var(--rh-surface-active, #1A1A1A);
+}
+
+.cp-item__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cp-item__icon {
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--rh-text-muted, #666);
+}
+
+.cp-item--selected .cp-item__icon {
+  color: var(--rh-text-secondary, #B0B0B0);
+}
+
+.cp-item__label {
+  font-size: var(--rh-text-base, 14px);
+  color: #C8C8C8;
+  font-family: var(--rh-font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cp-item--selected .cp-item__label {
+  color: var(--rh-text-primary, #E8E8E8);
+}
+
+.cp-item__team-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--rh-radius-xs, 5px);
+  flex-shrink: 0;
+}
+
+.cp-item__arrow {
+  color: var(--rh-text-dimmed, #444);
+  flex-shrink: 0;
+}
+
+.cp-item--selected .cp-item__arrow {
+  color: var(--rh-text-muted, #666);
+}
+
+/* --- Kbd badges --- */
+.cp-kbd {
+  background: var(--rh-surface-active, #1A1A1A);
+  border: 1px solid var(--rh-border, #2A2A2A);
+  border-radius: var(--rh-radius-xs, 5px);
+  padding: 2px 7px;
+  font-size: var(--rh-text-xs, 11px);
+  color: var(--rh-text-faint, #555);
+  font-family: var(--rh-font-mono);
+  font-weight: 600;
+  box-shadow: var(--rh-shadow-kbd, 0 2px 0 #1A1A1A);
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.cp-kbd--active {
+  color: var(--rh-accent, #D5FD51);
+}
+
+/* --- Empty state --- */
+.cp-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--rh-text-muted, #666);
+  font-size: var(--rh-text-sm, 12px);
+  font-family: var(--rh-font-sans);
+}
+
+/* --- Light theme (keep the dark command palette, just soften shadow) --- */
+[data-theme="light"] .cp-overlay {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .cp-modal {
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+}
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  .cp-overlay,
+  .cp-modal {
+    animation: none;
+  }
+}

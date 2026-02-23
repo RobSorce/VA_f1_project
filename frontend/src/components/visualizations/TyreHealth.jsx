@@ -25,10 +25,10 @@ export default function TyreHealth() {
     if (!driver || lapTimes.length === 0) return { stints: [], maxLapNum: 1 };
 
     const driverLaps = lapTimes
-      .filter((d) => d.Driver === driver && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
+      .filter((d) => d.Driver === driver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
       .sort((a, b) => a.LapNumber - b.LapNumber);
 
-    if (driverLaps.length === 0) return { stints: [], maxLapNum: 1 };
+    if (driverLaps.length === 0) return { stints: [], maxLapNum: maxLap || 1 };
 
     // Group into stints
     const stints = [];
@@ -88,9 +88,9 @@ export default function TyreHealth() {
       stint.endLap = stint.laps[stint.laps.length - 1].lapNumber;
     });
 
-    const maxLapNum = Math.max(maxLap || 1, d3.max(driverLaps, (d) => d.LapNumber) || 1);
+    const maxLapNum = maxLap || 1;
     return { stints, maxLapNum };
-  }, [driver, lapTimes, maxLap]);
+  }, [driver, lapTimes, maxLap, currentLap]);
 
   const driverBadge = driver ? (
     <div style={{

@@ -7,6 +7,7 @@ import Legend from '../ui/Legend';
 
 export default function StrategyTimeline({ showOverlays = false }) {
   const svgRef = useRef(null);
+  const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
@@ -246,7 +247,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
   }, [highlightedDriver]);
 
   return (
-    <Panel title="Strategy Timeline" controls={<Legend items={legendItems} shape="circle" />}>
+    <Panel title="Strategy Timeline" controls={<Legend items={legendItems} shape="circle" />} focused={focusedView === 'strategy'} shortcutKey="7">
       <div className="viz-container">
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
       </div>

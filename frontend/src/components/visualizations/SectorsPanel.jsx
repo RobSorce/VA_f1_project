@@ -9,6 +9,12 @@ function formatTime(seconds) {
   return mins > 0 ? `${mins}:${secs.padStart(6, '0')}` : secs;
 }
 
+const TIME_COLORS = {
+  overall_best: '#a855f7',
+  personal_best: '#22c55e',
+  normal: 'var(--color-text-primary)',
+};
+
 const SPEED_COLS = [
   { key: 'SpeedI1', label: 'Sector 1' },
   { key: 'SpeedI2', label: 'Sector 2' },
@@ -19,28 +25,130 @@ const SPEED_COLS = [
 export default function SectorsPanel() {
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
+  const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+  const currentTime = useF1Store((s) => s.currentTime);
+  const dnfMap = useF1Store((s) => s.dnfMap);
   const speedUnit = useF1Store((s) => s.speedUnit);
-  const [view, setView] = useState('times');
+  const [view, setView] = useState('live');
 
   const toDisplaySpeed = (kmh) => speedUnit === 'mph' ? Math.round(kmh * 0.6214 * 10) / 10 : kmh;
   const speedLabel = speedUnit === 'mph' ? 'mph' : 'km/h';
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
+  const replayStarted = currentFrameIndex > 0 || currentLap > 1;
 
-  // Sector time rankings
-  const { sectors, sessionBests } = useMemo(() => {
-    if (lapTimes.length === 0) return { sectors: {}, sessionBests: {} };
+  // Session time offset: session times (~3500s) vs frame times (0-based)
+  const sessionTimeOffset = useMemo(() => {
+    for (const d of lapTimes) {
+      if (d.LapStartTime > 0 && d.Time > 0 && d.LapNumber >= 1) {
+        return d.LapStartTime;
+      }
+    }
+    return 0;
+  }, [lapTimes]);
+
+  // Session-wide and personal bests (accumulated up to currentLap) for color coding
+  const { sessionBests, personalBests } = useMemo(() => {
+    const sb = { 1: Infinity, 2: Infinity, 3: Infinity };
+    const pb = {};
+    if (!replayStarted) return { sessionBests: sb, personalBests: pb };
+
+    for (const lt of lapTimes) {
+      if (lt.LapNumber > currentLap) continue;
+      // Skip laps the driver hasn't actually started yet
+      if (lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
+      const drv = lt.Driver;
+      if (!drv) continue;
+      if (!pb[drv]) pb[drv] = { 1: Infinity, 2: Infinity, 3: Infinity };
+      for (const s of [1, 2, 3]) {
+        // Only include sectors that have actually been completed in the timeline
+        const sSessionT = lt[`Sector${s}SessionTime`];
+        if (sSessionT > 0 && currentTime < sSessionT - sessionTimeOffset) continue;
+        const val = lt[`Sector${s}TimeSeconds`];
+        if (val > 0 && val < 300) {
+          if (val < sb[s]) sb[s] = val;
+          if (val < pb[drv][s]) pb[drv][s] = val;
+        }
+      }
+    }
+    return { sessionBests: sb, personalBests: pb };
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayStarted]);
+
+  // Live view: current-lap sector times per driver with progressive reveal
+  const liveRows = useMemo(() => {
+    if (lapTimes.length === 0 || !replayStarted) return [];
+
+    // Get latest lap row per driver (only laps actually started in the timeline)
+    const driverLatest = {};
+    for (const lt of lapTimes) {
+      if (lt.LapNumber > currentLap) continue;
+      // Skip laps the driver hasn't actually started yet
+      if (lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
+      const drv = lt.Driver;
+      if (!drv) continue;
+      if (!driverLatest[drv] || lt.LapNumber > driverLatest[drv].LapNumber) {
+        driverLatest[drv] = lt;
+      }
+    }
+
+    return Object.values(driverLatest)
+      .filter((d) => !(dnfMap[d.Driver] && dnfMap[d.Driver].lastLap <= currentLap))
+      .sort((a, b) => (a.Position || 99) - (b.Position || 99))
+      .map((d) => {
+        const isCurrentLap = d.LapNumber === currentLap;
+        const pb = personalBests[d.Driver] || { 1: Infinity, 2: Infinity, 3: Infinity };
+
+        // Progressive reveal: use session time comparison for current lap
+        const s1SessionT = d.Sector1SessionTime > 0 ? d.Sector1SessionTime - sessionTimeOffset : null;
+        const s2SessionT = d.Sector2SessionTime > 0 ? d.Sector2SessionTime - sessionTimeOffset : null;
+        const s3SessionT = d.Sector3SessionTime > 0 ? d.Sector3SessionTime - sessionTimeOffset : null;
+
+        const showS1 = !isCurrentLap || (s1SessionT != null ? currentTime >= s1SessionT : d.Sector1TimeSeconds > 0);
+        const showS2 = !isCurrentLap || (s2SessionT != null ? currentTime >= s2SessionT : d.Sector2TimeSeconds > 0);
+        const showS3 = !isCurrentLap || (s3SessionT != null ? currentTime >= s3SessionT : d.Sector3TimeSeconds > 0);
+
+        const sectors = [1, 2, 3].map((s) => {
+          const show = s === 1 ? showS1 : s === 2 ? showS2 : showS3;
+          const val = show ? d[`Sector${s}TimeSeconds`] : null;
+          let color = TIME_COLORS.normal;
+          if (val && val > 0) {
+            const tolerance = 0.001;
+            if (Math.abs(val - sessionBests[s]) < tolerance) color = TIME_COLORS.overall_best;
+            else if (Math.abs(val - pb[s]) < tolerance) color = TIME_COLORS.personal_best;
+          }
+          return { val, show, color };
+        });
+
+        return {
+          driver: d.Driver,
+          pos: d.Position || 99,
+          lap: d.LapNumber,
+          sectors,
+        };
+      });
+  }, [lapTimes, currentLap, currentTime, replayStarted, sessionTimeOffset, sessionBests, personalBests, dnfMap]);
+
+  // Best-of-session rankings (accumulated)
+  const { bestRankings, bestSessionBests } = useMemo(() => {
+    if (lapTimes.length === 0 || !replayStarted) return { bestRankings: {}, bestSessionBests: {} };
 
     const driverSectors = {};
     for (const lt of lapTimes) {
       if (lt.LapNumber > currentLap) continue;
+      // Skip laps the driver hasn't actually started yet
+      if (lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
       const drv = lt.Driver;
       if (!drv) continue;
+      // Skip retired drivers' laps past their retirement
+      const dnf = dnfMap[drv];
+      if (dnf && lt.LapNumber > dnf.lastLap) continue;
       if (!driverSectors[drv]) driverSectors[drv] = { 1: [], 2: [], 3: [] };
-
       for (const s of [1, 2, 3]) {
+        // Only include sectors actually completed in the timeline
+        const sSessionT = lt[`Sector${s}SessionTime`];
+        if (sSessionT > 0 && currentTime < sSessionT - sessionTimeOffset) continue;
         const val = lt[`Sector${s}TimeSeconds`];
-        if (val && typeof val === 'number' && val > 0 && val < 300 && !isNaN(val)) {
+        if (val && typeof val === 'number' && val > 0 && val < 300) {
           driverSectors[drv][s].push(val);
         }
       }
@@ -48,7 +156,6 @@ export default function SectorsPanel() {
 
     const sBests = {};
     const sResult = {};
-
     for (const s of [1, 2, 3]) {
       const allTimes = [];
       for (const [drv, secs] of Object.entries(driverSectors)) {
@@ -57,54 +164,61 @@ export default function SectorsPanel() {
           allTimes.push({ driver: drv, best: Math.round(best * 1000) / 1000 });
         }
       }
-
       allTimes.sort((a, b) => a.best - b.best);
       const sessionBest = allTimes.length > 0 ? allTimes[0].best : null;
       sBests[String(s)] = sessionBest;
-
       allTimes.forEach((entry, i) => {
         entry.rank = i + 1;
         entry.is_session_best = entry.best === sessionBest;
       });
-
       sResult[String(s)] = allTimes;
     }
-
-    return { sectors: sResult, sessionBests: sBests };
-  }, [lapTimes, currentLap]);
+    return { bestRankings: sResult, bestSessionBests: sBests };
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayStarted, dnfMap]);
 
   // Speed rankings
   const speedRankings = useMemo(() => {
-    if (lapTimes.length === 0) return {};
-
+    if (lapTimes.length === 0 || !replayStarted) return {};
     const result = {};
     for (const { key } of SPEED_COLS) {
       const driverSpeeds = {};
       for (const lt of lapTimes) {
         if (lt.LapNumber > currentLap) continue;
+        // Skip laps the driver hasn't actually started yet
+        if (lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
+        // Speed traps are recorded at sector boundaries — only include if lap is complete
+        const lapEndT = lt.Time > 0 ? lt.Time - sessionTimeOffset : null;
+        if (lapEndT != null && currentTime < lapEndT) continue;
         const drv = lt.Driver;
         const val = lt[key];
         if (!drv || val == null || typeof val !== 'number' || isNaN(val) || val <= 0) continue;
+        // Skip retired drivers' laps past their retirement
+        const dnf = dnfMap[drv];
+        if (dnf && lt.LapNumber > dnf.lastLap) continue;
         if (!driverSpeeds[drv] || val > driverSpeeds[drv].speed) {
           driverSpeeds[drv] = { speed: val, lap: lt.LapNumber };
         }
       }
-
       const ranked = Object.entries(driverSpeeds)
         .sort(([, a], [, b]) => b.speed - a.speed)
         .map(([driver, { speed, lap }], i) => ({
           driver, speed: Math.round(speed * 10) / 10, lap, rank: i + 1,
         }));
-
       result[key] = ranked;
     }
     return result;
-  }, [lapTimes, currentLap]);
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayStarted, dnfMap]);
 
-  if (!Object.keys(sectors).length) {
+  const hasData = (view === 'live' && liveRows.length > 0)
+    || (view === 'best' && Object.keys(bestRankings).length > 0)
+    || (view === 'speeds' && Object.keys(speedRankings).length > 0);
+
+  if (!hasData && !replayStarted) {
     return (
       <div className="sectors-panel__empty">
-        No sector data available. Load a session first.
+        {lapTimes.length > 0
+          ? 'Press play to start the race replay'
+          : 'No sector data available. Load a session first.'}
       </div>
     );
   }
@@ -114,10 +228,16 @@ export default function SectorsPanel() {
       {/* ── Toggle ── */}
       <div className="sectors-panel__toggle">
         <button
-          className={`sectors-panel__toggle-btn${view === 'times' ? ' sectors-panel__toggle-btn--active' : ''}`}
-          onClick={() => setView('times')}
+          className={`sectors-panel__toggle-btn${view === 'live' ? ' sectors-panel__toggle-btn--active' : ''}`}
+          onClick={() => setView('live')}
         >
-          Sector Times
+          Live
+        </button>
+        <button
+          className={`sectors-panel__toggle-btn${view === 'best' ? ' sectors-panel__toggle-btn--active' : ''}`}
+          onClick={() => setView('best')}
+        >
+          Best
         </button>
         <button
           className={`sectors-panel__toggle-btn${view === 'speeds' ? ' sectors-panel__toggle-btn--active' : ''}`}
@@ -127,18 +247,58 @@ export default function SectorsPanel() {
         </button>
       </div>
 
-      {/* ── Sector Times View ── */}
-      {view === 'times' && (
+      {/* ── Live Sector Times (current lap, chronometer) ── */}
+      {view === 'live' && (
+        <div className="sectors-panel__live">
+          {/* Column header */}
+          <div className="sectors-panel__live-header">
+            <span className="sectors-panel__live-hdr-pos">P</span>
+            <span className="sectors-panel__live-hdr-bar" />
+            <span className="sectors-panel__live-hdr-drv">Driver</span>
+            <span className="sectors-panel__live-hdr-sec">S1</span>
+            <span className="sectors-panel__live-hdr-sec">S2</span>
+            <span className="sectors-panel__live-hdr-sec">S3</span>
+          </div>
+          {/* Driver rows */}
+          <div className="sectors-panel__live-body">
+            {liveRows.map((row) => {
+              const color = getDriverColor(row.driver);
+              return (
+                <div key={row.driver} className="sectors-panel__live-row">
+                  <span className="sectors-panel__live-pos">{row.pos}</span>
+                  <span className="sectors-panel__team-bar" style={{ backgroundColor: color }} />
+                  <span className="sectors-panel__live-drv">{row.driver}</span>
+                  {row.sectors.map((s, i) => (
+                    <span
+                      key={i}
+                      className={`sectors-panel__live-sec${!s.show ? ' sectors-panel__live-sec--pending' : ''}`}
+                      style={s.show && s.val ? { color: s.color } : undefined}
+                    >
+                      {s.show ? formatTime(s.val) : '···'}
+                    </span>
+                  ))}
+                </div>
+              );
+            })}
+            {liveRows.length === 0 && (
+              <div className="sectors-panel__empty">Press play to start</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Best Sector Times (accumulated rankings) ── */}
+      {view === 'best' && (
         <div className="sectors-panel__columns">
           {['1', '2', '3'].map((s) => {
-            const items = sectors[s] || [];
-            const best = sessionBests[s];
+            const items = bestRankings[s] || [];
+            const best = bestSessionBests[s];
             const worst = items.length > 0 ? items[items.length - 1].best : best;
             const range = worst - (best || 0);
             return (
               <div key={s} className="sectors-panel__column">
                 <div className="sectors-panel__col-header">
-                  <span className="sectors-panel__col-title">SECTOR {s}</span>
+                  <span className="sectors-panel__col-title">SECTOR {s} <span style={{ opacity: 0.5, fontSize: '0.8em', fontWeight: 400 }}>Lap {currentLap}</span></span>
                   {best && (
                     <span className="sectors-panel__col-best">{formatTime(best)}</span>
                   )}
@@ -191,7 +351,7 @@ export default function SectorsPanel() {
         </div>
       )}
 
-      {/* ── Top Speeds View (list columns) ── */}
+      {/* ── Top Speeds View ── */}
       {view === 'speeds' && (
         <div className="sectors-panel__columns">
           {SPEED_COLS.map(({ key, label }) => {
@@ -200,7 +360,7 @@ export default function SectorsPanel() {
             return (
               <div key={key} className="sectors-panel__column sectors-panel__column--speed">
                 <div className="sectors-panel__col-header">
-                  <span className="sectors-panel__col-title">{label}</span>
+                  <span className="sectors-panel__col-title">{label} <span style={{ opacity: 0.5, fontSize: '0.8em', fontWeight: 400 }}>Lap {currentLap}</span></span>
                   {fastest > 0 && (
                     <span className="sectors-panel__col-best sectors-panel__col-best--purple">
                       {toDisplaySpeed(fastest)} {speedLabel}

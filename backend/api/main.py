@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+import asyncio
 import logging
 import sys
 import json
@@ -77,6 +78,9 @@ feature_engineer = FeatureEngineer()
 
 # Cache for loaded sessions (processed JSON data) — in-memory
 session_cache: Dict[str, Any] = {}
+
+# Cache for schedule data — avoids re-fetching from FastF1 on every page load
+schedule_cache: Dict[int, Any] = {}
 
 # Cache for raw FastF1 session objects (avoids re-loading heavy telemetry)
 raw_session_cache: Dict[str, Any] = {}
@@ -314,13 +318,18 @@ async def get_seasons():
 
 @app.get("/api/schedule/{year}")
 async def get_schedule(year: int):
-    """Get event schedule for a season."""
+    """Get event schedule for a season (cached in memory after first fetch)."""
+    if year in schedule_cache:
+        return schedule_cache[year]
     try:
-        schedule = extractor.get_event_schedule(year)
-        return {
+        # Run blocking FastF1 call in a thread to avoid blocking the event loop
+        schedule = await asyncio.to_thread(extractor.get_event_schedule, year)
+        result = {
             "year": year,
             "events": schedule[['RoundNumber', 'EventName', 'Country', 'Location', 'EventDate', 'EventFormat']].to_dict('records')
         }
+        schedule_cache[year] = result
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

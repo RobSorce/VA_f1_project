@@ -7,6 +7,8 @@ import WeatherBar from './components/ui/WeatherBar';
 import BottomTabBar from './components/ui/BottomTabBar';
 import TimelinePlayer from './components/ui/TimelinePlayer';
 import DriverMFDCard from './components/ui/DriverMFDCard';
+import FocusDriverWidget from './components/ui/FocusDriverWidget';
+import WelcomeToast from './components/ui/WelcomeToast';
 
 // Layout
 import OverlayPanel from './components/layout/OverlayPanel';
@@ -16,6 +18,8 @@ import Leaderboard from './components/visualizations/Leaderboard';
 import SectorsPanel from './components/visualizations/SectorsPanel';
 import SpeedPanel from './components/visualizations/SpeedPanel';
 import ConsistencyPanel from './components/visualizations/ConsistencyPanel';
+import DriverComparePanel from './components/visualizations/DriverComparePanel';
+import TrackMap from './components/visualizations/TrackMap';
 
 // Tab content
 import ChartsTabContent from './components/tabs/ChartsTabContent';
@@ -23,6 +27,12 @@ import LapTimesTabContent from './components/tabs/LapTimesTabContent';
 import AITabContent from './components/tabs/AITabContent';
 import TyresTabContent from './components/tabs/TyresTabContent';
 import SettingsTabContent from './components/tabs/SettingsTabContent';
+
+// Command Palette & Keyboard
+import CommandPalette from './components/CommandPalette/CommandPalette';
+import ShortcutHints from './components/ShortcutHints/ShortcutHints';
+import ShortcutCheatsheet from './components/ShortcutCheatsheet/ShortcutCheatsheet';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const OVERLAY_TABS = {
   laptimes: { title: 'Lap Times', Component: LapTimesTabContent },
@@ -32,6 +42,7 @@ const OVERLAY_TABS = {
   consistency: { title: 'Consistency', Component: ConsistencyPanel },
   ai: { title: 'AI Assistant', Component: AITabContent },
   settings: { title: 'Settings', Component: SettingsTabContent },
+  compare: { title: 'Driver Comparison', Component: DriverComparePanel },
 };
 
 export default function App() {
@@ -39,6 +50,9 @@ export default function App() {
   const year = useF1Store((s) => s.year);
   const sessionData = useF1Store((s) => s.sessionData);
   const openOverlays = useF1Store((s) => s.openOverlays);
+
+  // Activate global keyboard shortcuts
+  useKeyboardShortcuts();
 
   useEffect(() => {
     fetchSchedule(year);
@@ -55,6 +69,11 @@ export default function App() {
       <div className="app-body">
         <aside className="app-sidebar">
           <Leaderboard />
+          {openOverlays.length > 0 && (
+            <div className="track-minimap">
+              <TrackMap compact />
+            </div>
+          )}
         </aside>
         <div className="app-center">
           {/* Charts tab always renders underneath */}
@@ -78,6 +97,12 @@ export default function App() {
       <TimelinePlayer />
       <BottomTabBar />
       <DriverMFDCard />
+      <FocusDriverWidget />
+      {/* Command Palette & Keyboard Overlays */}
+      <CommandPalette />
+      <ShortcutCheatsheet />
+      <ShortcutHints />
+      <WelcomeToast />
     </div>
   );
 }

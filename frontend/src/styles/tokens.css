@@ -161,6 +161,57 @@
   --bottom-tab-height: 48px;
   --sidebar-width: 300px;
   --panel-gap: 12px;
+
+  /* ── Robinhood Legend — Command UI Tokens ────────────────────── */
+  --rh-accent:           #D5FD51;
+  --rh-gain:             #00C805;
+  --rh-loss:             #FF5000;
+
+  --rh-bg:               #0D0D0D;
+  --rh-surface:          #141414;
+  --rh-surface-active:   #1A1A1A;
+  --rh-surface-hover:    #222222;
+  --rh-surface-deep:     #0D0D0D;
+
+  --rh-border:           #2A2A2A;
+  --rh-border-strong:    #333333;
+  --rh-border-subtle:    #1E1E1E;
+  --rh-border-focus:     rgba(213, 253, 81, 0.27);
+
+  --rh-text-primary:     #E8E8E8;
+  --rh-text-secondary:   #B0B0B0;
+  --rh-text-muted:       #666666;
+  --rh-text-faint:       #555555;
+  --rh-text-dimmed:      #444444;
+
+  --rh-font-sans:        'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+  --rh-font-mono:        'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  --rh-text-xs:          11px;
+  --rh-text-sm:          12px;
+  --rh-text-base:        14px;
+  --rh-text-md:          15px;
+  --rh-text-lg:          16px;
+
+  --rh-tracking-tight:   -0.02em;
+  --rh-tracking-wide:    0.08em;
+  --rh-tracking-subtle:  0.01em;
+
+  --rh-radius-xs:        5px;
+  --rh-radius-sm:        6px;
+  --rh-radius-md:        8px;
+  --rh-radius-lg:        10px;
+  --rh-radius-xl:        12px;
+  --rh-radius-2xl:       14px;
+
+  --rh-shadow-kbd:       0 2px 0 #1A1A1A;
+  --rh-shadow-focus:     0 0 0 3px rgba(213, 253, 81, 0.06), 0 8px 32px rgba(0, 0, 0, 0.4);
+  --rh-shadow-dropdown:  0 16px 48px rgba(0, 0, 0, 0.5);
+  --rh-shadow-modal:     0 24px 64px rgba(0, 0, 0, 0.6);
+
+  --rh-transition-fast:    0.15s ease;
+  --rh-transition-normal:  0.2s ease;
+  --rh-transition-slow:    0.3s ease;
 }
 
 /* ==========================================================================

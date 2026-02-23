@@ -138,6 +138,55 @@ export const useF1Store = create((set, get) => ({
     }
   },
 
+  // ── Command Palette & Keyboard ────────────────────────────────
+  commandPaletteOpen: false,
+  focusedView: null,         // 'trackmap' | 'leaderboard' | 'laptimes' | 'strategy' | 'tires' | null
+  compareMode: false,
+  compareDrivers: [],        // max 2 driver abbreviations
+  leaderboardColumnMode: 0,  // index into ['INT','GAP','TYRE']
+  shortcutHintsVisible: true,
+  cheatsheetOpen: false,
+
+  toggleCommandPalette: () => set(s => ({ commandPaletteOpen: !s.commandPaletteOpen })),
+  openCommandPalette: () => set({ commandPaletteOpen: true }),
+  closeCommandPalette: () => set({ commandPaletteOpen: false }),
+  setFocusedView: (view) => set(s => ({ focusedView: s.focusedView === view ? null : view })),
+  clearFocusedView: () => set({ focusedView: null }),
+  toggleCompareMode: () => set(s => ({
+    compareMode: !s.compareMode,
+    compareDrivers: s.compareMode ? [] : s.compareDrivers,
+  })),
+  cycleLeaderboardColumn: () => set(s => ({ leaderboardColumnMode: (s.leaderboardColumnMode + 1) % 3 })),
+  addCompareDriver: (driver) => set(s => {
+    if (s.compareDrivers.includes(driver)) {
+      return { compareDrivers: s.compareDrivers.filter(d => d !== driver) };
+    }
+    return {
+      compareDrivers: s.compareDrivers.length < 2
+        ? [...s.compareDrivers, driver]
+        : [s.compareDrivers[1], driver],
+    };
+  }),
+  removeCompareDriver: (driver) => set(s => ({
+    compareDrivers: s.compareDrivers.filter(d => d !== driver),
+  })),
+  toggleShortcutHints: () => set(s => ({ shortcutHintsVisible: !s.shortcutHintsVisible })),
+  toggleCheatsheet: () => set(s => ({ cheatsheetOpen: !s.cheatsheetOpen })),
+  openCheatsheet: () => set({ cheatsheetOpen: true }),
+  closeCheatsheet: () => set({ cheatsheetOpen: false }),
+
+  // ── Track Map Overlays ────────────────────────────────────────
+  showTrackSectors: true,   // all 3 sectors
+  showTrackDRS: true,
+  toggleTrackSectors: () => set(s => ({ showTrackSectors: !s.showTrackSectors })),
+  toggleTrackDRS: () => set(s => ({ showTrackDRS: !s.showTrackDRS })),
+
+  // Track rotation (90° steps, 4 clicks = full cycle)
+  trackRotationOffset: 0,
+  rotateTrackCW: () => set(s => ({ trackRotationOffset: (s.trackRotationOffset - 90 + 360) % 360 })),
+  rotateTrackCCW: () => set(s => ({ trackRotationOffset: (s.trackRotationOffset + 90) % 360 })),
+  resetTrackRotation: () => set({ trackRotationOffset: 0 }),
+
   // ── Tab / Panel system (multi-window) ──────────────────────────
   activeTab: 'charts', // kept for compat — 'charts' means no legacy overlay
   openOverlays: [],    // array of tab IDs currently open as windows (max 3)
@@ -166,6 +215,16 @@ export const useF1Store = create((set, get) => ({
   closeOverlay: (tab) => set((s) => {
     const next = s.openOverlays.filter((t) => t !== tab);
     return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts' };
+  }),
+
+  closeAllOverlays: () => set({ openOverlays: [], activeTab: 'charts' }),
+
+  cycleOverlay: (direction = 1) => set((s) => {
+    if (s.openOverlays.length === 0) return s;
+    const idx = s.openOverlays.indexOf(s.activeTab);
+    const len = s.openOverlays.length;
+    const next = s.openOverlays[((idx === -1 ? 0 : idx) + direction + len) % len];
+    return { activeTab: next };
   }),
 
   // ── Settings (persist across sessions) ──────────────────────────
@@ -217,6 +276,7 @@ export const useF1Store = create((set, get) => ({
     lstmPredictions: null,
     degradationRegression: null,
     tsneStrategyAnalysis: null,
+    rivalContext: [],
     geminiMessages: [],
     geminiOverlays: [],
     selectedDrivers: [],
@@ -229,6 +289,11 @@ export const useF1Store = create((set, get) => ({
     previewDrivers: [],
     previewDriversLoading: false,
     preSelectedDrivers: [],
+    commandPaletteOpen: false,
+    focusedView: null,
+    compareMode: false,
+    compareDrivers: [],
+    cheatsheetOpen: false,
   }),
 
   // ── Selection (bidirectional coordination) ─────────────────────
@@ -266,9 +331,12 @@ export const useF1Store = create((set, get) => ({
         lapDeltaBaseDriver: abbreviation,
       };
     });
-    // Trigger LSTM predictions for the newly focused driver
+    // Trigger LSTM predictions and rival context for the newly focused driver
     if (get().focusDriver) {
       get().triggerLSTMPredictions();
+      get().updateRivalContext();
+    } else {
+      set({ rivalContext: [] });
     }
   },
   setLapDeltaBaseDriver: (abbr) => set({ lapDeltaBaseDriver: abbr }),
@@ -366,7 +434,7 @@ export const useF1Store = create((set, get) => ({
 
   // Set frame index and derive currentLap + flag from it
   setCurrentFrameIndex: (idx) => {
-    const { frameData, trackStatus, currentLap: prevLap } = get();
+    const { frameData, trackStatus, currentLap: prevLap, sessionData } = get();
     const updates = { currentFrameIndex: idx };
 
     if (frameData?.frames?.[idx]) {
@@ -392,25 +460,52 @@ export const useF1Store = create((set, get) => ({
         updates.currentFlagStatus = flag;
       }
 
-      // Re-trigger LSTM predictions every 3 laps during replay
-      if (maxLapInFrame !== prevLap && maxLapInFrame % 3 === 0 && maxLapInFrame >= 3) {
-        setTimeout(() => get().triggerLSTMPredictions(), 0);
+      // Re-trigger LSTM predictions every 2 laps during replay
+      if (maxLapInFrame !== prevLap && maxLapInFrame >= 3) {
+        const shouldPredict = maxLapInFrame % 2 === 0;
+
+        // Also trigger after focus driver pits
+        const focusDrv = get().focusDriver;
+        const pitTrigger = focusDrv && sessionData?.lap_times?.some(
+          (lt) => lt.Driver === focusDrv && lt.LapNumber === maxLapInFrame && lt.PitOutTime
+        );
+
+        // Also trigger when flag transitions from SC/VSC back to green
+        const prevFlag = get().currentFlagStatus;
+        const newFlag = updates.currentFlagStatus;
+        const flagTrigger = newFlag === '1' && (prevFlag === '4' || prevFlag === '6' || prevFlag === '7');
+
+        if (shouldPredict || pitTrigger || flagTrigger) {
+          setTimeout(() => {
+            get().triggerLSTMPredictions();
+            get().updateRivalContext();
+          }, 0);
+        } else {
+          // Always update rival context on lap change
+          setTimeout(() => get().updateRivalContext(), 0);
+        }
       }
     }
     set(updates);
   },
 
   setCurrentLap: (lap) => {
-    // When setting lap directly (e.g., seeking), also update frame index
-    const { lapFrameMap } = get();
+    // When setting lap directly (e.g., seeking), also update frame index and currentTime
+    const { lapFrameMap, frameData } = get();
     const updates = { currentLap: lap };
     if (lapFrameMap && lapFrameMap[lap] != null) {
       updates.currentFrameIndex = lapFrameMap[lap];
+      // Sync currentTime from the frame so sector timing comparisons work
+      const frame = frameData?.frames?.[lapFrameMap[lap]];
+      if (frame?.t != null) updates.currentTime = frame.t;
     }
     set(updates);
     get().updateFlagForLap(lap);
-    // Re-trigger predictions on manual seek
-    setTimeout(() => get().triggerLSTMPredictions(), 0);
+    // Re-trigger predictions and rival context on manual seek
+    setTimeout(() => {
+      get().triggerLSTMPredictions();
+      get().updateRivalContext();
+    }, 0);
   },
   setMaxLap: (max) => set({ maxLap: max }),
   setCurrentTime: (t) => set({ currentTime: t }),
@@ -554,6 +649,7 @@ export const useF1Store = create((set, get) => ({
   lstmPredictions: null,
   degradationRegression: null,
   tsneStrategyAnalysis: null,
+  rivalContext: [],
 
   fetchLSTMPrediction: async (params) => {
     try {
@@ -628,6 +724,85 @@ export const useF1Store = create((set, get) => ({
     } catch (e) {
       console.error('LSTM prediction failed', e);
     }
+  },
+
+  updateRivalContext: () => {
+    const { focusDriver, sessionData, currentLap, frameData, currentFrameIndex } = get();
+    if (!focusDriver || !sessionData?.lap_times?.length || currentLap < 1) {
+      set({ rivalContext: [] });
+      return;
+    }
+    const lapTimes = sessionData.lap_times;
+
+    // Find each driver's latest position and data at currentLap
+    const driverLatest = {};
+    for (const lt of lapTimes) {
+      if (lt.LapNumber > currentLap) continue;
+      const drv = lt.Driver;
+      if (!drv) continue;
+      if (!driverLatest[drv] || lt.LapNumber > driverLatest[drv].LapNumber) {
+        driverLatest[drv] = lt;
+      }
+    }
+
+    const focusLt = driverLatest[focusDriver];
+    if (!focusLt || !focusLt.Position) { set({ rivalContext: [] }); return; }
+    const focusPos = focusLt.Position;
+
+    // Get tyre info from frame data
+    const frameDrivers = frameData?.frames?.[Math.min(currentFrameIndex, (frameData?.frames?.length || 1) - 1)]?.drivers || {};
+    const COMPOUND_NAMES = { 0: 'UNKNOWN', 1: 'SOFT', 2: 'MEDIUM', 3: 'HARD', 4: 'INTERMEDIATE', 5: 'WET' };
+
+    // Collect nearby rivals (2 ahead, 2 behind)
+    const rivals = [];
+    for (const [drv, lt] of Object.entries(driverLatest)) {
+      if (drv === focusDriver || !lt.Position) continue;
+      const posDiff = lt.Position - focusPos;
+      if (Math.abs(posDiff) <= 2) {
+        // Gap trend: compare gap over last 3 laps
+        const recentGaps = [];
+        for (let lap = Math.max(1, currentLap - 2); lap <= currentLap; lap++) {
+          const fLap = lapTimes.find((l) => l.Driver === focusDriver && l.LapNumber === lap);
+          const rLap = lapTimes.find((l) => l.Driver === drv && l.LapNumber === lap);
+          if (fLap?.GapToLeader != null && rLap?.GapToLeader != null) {
+            recentGaps.push(rLap.GapToLeader - fLap.GapToLeader);
+          }
+        }
+        let gapTrend = 'stable';
+        if (recentGaps.length >= 2) {
+          const delta = recentGaps[recentGaps.length - 1] - recentGaps[0];
+          if (delta < -0.3) gapTrend = 'closing';
+          else if (delta > 0.3) gapTrend = 'opening';
+        }
+
+        // Tyre info from frame
+        const fd = frameDrivers[drv];
+        const compound = fd ? (COMPOUND_NAMES[fd.tyre] || 'UNKNOWN') : (lt.Compound || 'UNKNOWN');
+        const tyreAge = fd?.tyre_life != null ? Math.round(fd.tyre_life) : (lt.TyreLife || 0);
+
+        // Estimated laps until pit (rough: avg stint for compound - current age)
+        const AVG_STINT = { SOFT: 18, MEDIUM: 28, HARD: 40, INTERMEDIATE: 25, WET: 20, UNKNOWN: 25 };
+        const estPitIn = Math.max(0, (AVG_STINT[compound] || 25) - tyreAge);
+
+        // Gap from focus driver
+        const gap = (lt.GapToLeader != null && focusLt.GapToLeader != null)
+          ? lt.GapToLeader - focusLt.GapToLeader
+          : null;
+
+        rivals.push({
+          driver: drv,
+          position: lt.Position,
+          gap,
+          gapTrend,
+          compound,
+          tyreAge,
+          estPitIn,
+        });
+      }
+    }
+
+    rivals.sort((a, b) => a.position - b.position);
+    set({ rivalContext: rivals });
   },
 
   // ── t-SNE Embeddings ──────────────────────────────────────────

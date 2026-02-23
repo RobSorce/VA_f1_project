@@ -1,0 +1,263 @@
+/* ==========================================================================
+   Search Bar — Robinhood Legend Design System
+   ========================================================================== */
+
+.search-bar {
+  position: relative;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 260px;
+  z-index: 900;
+}
+
+.search-bar--focused {
+  max-width: 360px;
+}
+
+/* --- Input Wrap --- */
+.search-bar__wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 32px;
+  background: var(--rh-surface, #141414);
+  border: 1px solid var(--rh-border, #2A2A2A);
+  border-radius: var(--rh-radius-xl, 12px);
+  transition: all var(--rh-transition-normal, 0.2s ease);
+}
+
+.search-bar--focused .search-bar__wrap {
+  background: var(--rh-surface-active, #1A1A1A);
+  border-color: var(--rh-border-focus, rgba(213, 253, 81, 0.27));
+  box-shadow: var(--rh-shadow-focus, 0 0 0 3px rgba(213, 253, 81, 0.06), 0 8px 32px rgba(0, 0, 0, 0.4));
+}
+
+/* Connected dropdown: flatten bottom radius when dropdown is open */
+.search-bar__wrap--open {
+  border-radius: var(--rh-radius-xl, 12px) var(--rh-radius-xl, 12px) 0 0;
+  border-bottom-color: transparent;
+}
+
+/* --- Search Icon --- */
+.search-bar__icon {
+  flex-shrink: 0;
+  color: var(--rh-text-muted, #666);
+  transition: color var(--rh-transition-fast, 0.15s ease);
+}
+
+.search-bar--focused .search-bar__icon {
+  color: var(--rh-text-secondary, #B0B0B0);
+}
+
+/* --- Breadcrumb (sub-menu) --- */
+.search-bar__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--rh-text-xs, 11px);
+  font-weight: 600;
+  color: var(--rh-accent, #D5FD51);
+  text-transform: capitalize;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: var(--rh-font-sans);
+}
+
+/* --- Input --- */
+.search-bar__input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--rh-text-primary, #E8E8E8);
+  font-size: var(--rh-text-sm, 12px);
+  font-family: var(--rh-font-sans);
+  letter-spacing: var(--rh-tracking-subtle, 0.01em);
+  outline: none;
+  padding: 0;
+  caret-color: var(--rh-accent, #D5FD51);
+}
+
+.search-bar__input::placeholder {
+  color: var(--rh-text-muted, #666);
+  font-size: var(--rh-text-xs, 11px);
+}
+
+/* --- Slash Badge --- */
+.search-bar__kbd {
+  flex-shrink: 0;
+  background: var(--rh-surface-hover, #222);
+  border: 1px solid var(--rh-border-strong, #333);
+  border-radius: var(--rh-radius-sm, 6px);
+  padding: 1px 7px;
+  font-size: var(--rh-text-xs, 11px);
+  font-family: var(--rh-font-mono);
+  font-weight: 600;
+  color: var(--rh-text-muted, #666);
+  box-shadow: var(--rh-shadow-kbd, 0 2px 0 #1A1A1A);
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   Dropdown (portalled to body)
+   ========================================================================== */
+
+.sb-dropdown {
+  position: fixed;
+  z-index: 9990;
+  min-width: 340px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--rh-surface-active, #1A1A1A);
+  border: 1px solid var(--rh-border, #2A2A2A);
+  border-top: none;
+  border-radius: 0 0 var(--rh-radius-xl, 12px) var(--rh-radius-xl, 12px);
+  box-shadow: var(--rh-shadow-dropdown, 0 16px 48px rgba(0, 0, 0, 0.5));
+  padding: 4px 0;
+  animation: sb-drop-in 0.15s ease;
+}
+
+@keyframes sb-drop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sb-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sb-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sb-dropdown::-webkit-scrollbar-thumb {
+  background: var(--rh-border, #2A2A2A);
+  border-radius: 2px;
+}
+
+/* --- Dropdown Items --- */
+.sb-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background var(--rh-transition-fast, 0.15s ease);
+  user-select: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.sb-item:first-child {
+  border-top: none;
+}
+
+.sb-item:hover,
+.sb-item--selected {
+  background: var(--rh-surface-hover, #222);
+}
+
+.sb-item__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sb-item__icon {
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--rh-text-muted, #666);
+}
+
+.sb-item--selected .sb-item__icon {
+  color: var(--rh-text-secondary, #B0B0B0);
+}
+
+.sb-item__label {
+  font-size: var(--rh-text-base, 14px);
+  color: var(--rh-text-primary, #E8E8E8);
+  font-family: var(--rh-font-sans);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-item--selected .sb-item__label {
+  color: #fff;
+}
+
+.sb-item__team-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--rh-radius-md, 8px);
+  flex-shrink: 0;
+}
+
+.sb-item__arrow {
+  color: var(--rh-text-dimmed, #444);
+  flex-shrink: 0;
+}
+
+.sb-item__kbd {
+  background: var(--rh-surface-hover, #222);
+  border: 1px solid var(--rh-border-strong, #333);
+  border-radius: var(--rh-radius-sm, 6px);
+  padding: 2px 7px;
+  font-size: var(--rh-text-xs, 11px);
+  font-family: var(--rh-font-mono);
+  font-weight: 600;
+  color: var(--rh-text-muted, #666);
+  box-shadow: var(--rh-shadow-kbd, 0 2px 0 #1A1A1A);
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+/* --- Light theme (search bar adapts, dropdown stays dark) --- */
+[data-theme="light"] .search-bar__wrap {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .search-bar--focused .search-bar__wrap {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(213, 253, 81, 0.35);
+  box-shadow: 0 0 0 3px rgba(213, 253, 81, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .search-bar__icon {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .search-bar__input {
+  color: #1d1d1f;
+}
+
+[data-theme="light"] .search-bar__input::placeholder {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .search-bar__kbd {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* Dropdown stays dark in light theme */
+[data-theme="light"] .sb-dropdown {
+  background: var(--rh-surface-active, #1A1A1A);
+  border-color: var(--rh-border, #2A2A2A);
+}
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  .sb-dropdown {
+    animation: none;
+  }
+}

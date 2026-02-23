@@ -69,6 +69,7 @@ function fmtGap(gap) {
 }
 
 export default function LapTimeChart() {
+  const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -129,15 +130,22 @@ export default function LapTimeChart() {
 
     if (!replayStarted) return { bestS1, bestS2, bestS3, bestLap, personalBests };
 
-    // Include all laps up to current for bests (sectors gated in timingRows)
+    // Include only laps that have actually started in the replay timeline
     lapTimes.filter((d) => d.LapNumber <= currentLap).forEach((d) => {
+      // Skip laps the driver hasn't started yet
+      if (d.LapStartTime > 0 && currentTime < d.LapStartTime - sessionTimeOffset) return;
       const drv = d.Driver;
       if (!personalBests[drv]) personalBests[drv] = { s1: Infinity, s2: Infinity, s3: Infinity, lap: Infinity };
 
-      const s1 = d.Sector1TimeSeconds;
-      const s2 = d.Sector2TimeSeconds;
-      const s3 = d.Sector3TimeSeconds;
-      const lap = d.LapTimeSeconds;
+      // Only include sector times that have actually been completed
+      const s1ok = !d.Sector1SessionTime || currentTime >= d.Sector1SessionTime - sessionTimeOffset;
+      const s2ok = !d.Sector2SessionTime || currentTime >= d.Sector2SessionTime - sessionTimeOffset;
+      const s3ok = !d.Sector3SessionTime || currentTime >= d.Sector3SessionTime - sessionTimeOffset;
+
+      const s1 = s1ok ? d.Sector1TimeSeconds : 0;
+      const s2 = s2ok ? d.Sector2TimeSeconds : 0;
+      const s3 = s3ok ? d.Sector3TimeSeconds : 0;
+      const lap = s3ok ? d.LapTimeSeconds : 0;
 
       if (s1 > 0 && s1 < 120) {
         if (s1 < bestS1) bestS1 = s1;
@@ -158,7 +166,7 @@ export default function LapTimeChart() {
     });
 
     return { bestS1, bestS2, bestS3, bestLap, personalBests };
-  }, [lapTimes, currentLap, replayStarted]);
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayStarted]);
 
   /* ── Get time color (purple / green / yellow / white) ───────── */
   const getTimeColor = useCallback((value, sessionBest, personalBest, isPit) => {
@@ -178,6 +186,8 @@ export default function LapTimeChart() {
     lapTimes
       .filter((d) => d.LapNumber <= currentLap)
       .forEach((d) => {
+        // Only include laps the driver has actually started in the replay timeline
+        if (d.LapStartTime > 0 && currentTime < d.LapStartTime - sessionTimeOffset) return;
         const existing = drivers.get(d.Driver);
         if (!existing || d.LapNumber > existing.LapNumber) {
           drivers.set(d.Driver, d);
@@ -187,7 +197,11 @@ export default function LapTimeChart() {
     return Array.from(drivers.values())
       .map((d) => {
         const pb = sessionBests.personalBests[d.Driver] || {};
-        const isPit = !!(d.PitInTime || d.PitOutTime);
+        // Pit status: verify pit entry/exit have actually happened in the timeline
+        const pitInAdj = d.PitInTime > 0 ? d.PitInTime - sessionTimeOffset : null;
+        const pitOutAdj = d.PitOutTime > 0 ? d.PitOutTime - sessionTimeOffset : null;
+        const isPit = (pitInAdj != null && currentTime >= pitInAdj) ||
+                      (pitOutAdj != null && currentTime >= pitOutAdj);
         const dnf = dnfMap[d.Driver];
         const isRetired = !!(dnf && dnf.lastLap <= currentLap);
         const info = driverInfoMap[d.Driver] || {};
@@ -200,9 +214,12 @@ export default function LapTimeChart() {
         const s2Time = d.Sector2SessionTime > 0 ? d.Sector2SessionTime - sessionTimeOffset : null;
         const s3Time = d.Sector3SessionTime > 0 ? d.Sector3SessionTime - sessionTimeOffset : null;
 
-        const showS1 = !isCurrentLap || (s1Time != null && currentTime >= s1Time);
-        const showS2 = !isCurrentLap || (s2Time != null && currentTime >= s2Time);
-        const showS3 = !isCurrentLap || (s3Time != null && currentTime >= s3Time);
+        // For current lap: use session time comparison if available, otherwise
+        // fall back to showing sector if its data exists (> 0) — prevents blank sectors
+        // when Sector*SessionTime is null in the data
+        const showS1 = !isCurrentLap || (s1Time != null ? currentTime >= s1Time : d.Sector1TimeSeconds > 0);
+        const showS2 = !isCurrentLap || (s2Time != null ? currentTime >= s2Time : d.Sector2TimeSeconds > 0);
+        const showS3 = !isCurrentLap || (s3Time != null ? currentTime >= s3Time : d.Sector3TimeSeconds > 0);
         const showLapTime = !isCurrentLap || showS3; // lap time available when S3 completes
 
         const s1 = showS1 ? d.Sector1TimeSeconds : null;
@@ -242,7 +259,7 @@ export default function LapTimeChart() {
         if (!a.isRetired && b.isRetired) return -1;
         return (a.pos || 99) - (b.pos || 99);
       });
-  }, [lapTimes, currentLap, currentTime, sessionBests, getTimeColor, dnfMap, replayStarted, driverInfoMap]);
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, sessionBests, getTimeColor, dnfMap, replayStarted, driverInfoMap]);
 
   /* ── All drivers shown; selected ones highlighted (not filtered) ── */
   const displayRows = timingRows;
@@ -328,7 +345,7 @@ export default function LapTimeChart() {
   );
 
   return (
-    <Panel title="Timing Sheet" controls={controls}>
+    <Panel title="Timing Sheet" controls={controls} focused={focusedView === 'laptimes'} shortcutKey="2">
       {/* Column headers with drag-to-resize handles */}
       <div style={headerStyle}>
         {COLUMN_DEFS.map((col, i) => (

@@ -6,6 +6,7 @@ import Panel from '../ui/Panel';
 
 export default function TireDegradation() {
   const svgRef = useRef(null);
+  const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const focusDriver = useF1Store((s) => s.focusDriver);
@@ -25,10 +26,10 @@ export default function TireDegradation() {
     if (!driver || lapTimes.length === 0) return { stints: [], maxLapNum: 1 };
 
     const driverLaps = lapTimes
-      .filter((d) => d.Driver === driver && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
+      .filter((d) => d.Driver === driver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
       .sort((a, b) => a.LapNumber - b.LapNumber);
 
-    if (driverLaps.length === 0) return { stints: [], maxLapNum: 1 };
+    if (driverLaps.length === 0) return { stints: [], maxLapNum: maxLap || 1 };
 
     // Group into stints by compound change or tyre life reset
     const stints = [];
@@ -89,10 +90,10 @@ export default function TireDegradation() {
       stint.endLap = stint.laps[stint.laps.length - 1].lapNumber;
     });
 
-    const maxLapNum = Math.max(maxLap || 1, d3.max(driverLaps, (d) => d.LapNumber) || 1);
+    const maxLapNum = maxLap || 1;
 
     return { stints, maxLapNum };
-  }, [driver, lapTimes, maxLap]);
+  }, [driver, lapTimes, maxLap, currentLap]);
 
   // Pit window info
   const pitWindow = useMemo(() => {
@@ -161,7 +162,7 @@ export default function TireDegradation() {
 
     // Y domain: always 100% at top, bottom adapts to worst degradation
     const allPerf = chartData.stints.flatMap((s) => s.laps.filter((l) => l.performance != null).map((l) => l.performance));
-    const perfMin = Math.max(75, (d3.min(allPerf) || 90) - 2);
+    const perfMin = (d3.min(allPerf) || 90) - 2;
 
     const y = d3.scaleLinear()
       .domain([perfMin, 100])
@@ -392,7 +393,7 @@ export default function TireDegradation() {
   }, [chartData, driver, driverColor, currentLap]);
 
   return (
-    <Panel title="Tyre Degradation" className="panel-degradation" controls={driverBadge}>
+    <Panel title="Tyre Degradation" className="panel-degradation" controls={driverBadge} focused={focusedView === 'tires'} shortcutKey="4">
       <div className="viz-container deg-manager">
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
         {pitWindow && (

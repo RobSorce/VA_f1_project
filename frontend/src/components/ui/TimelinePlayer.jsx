@@ -482,7 +482,7 @@ export default function TimelinePlayer() {
               className={`timeline-player__play-btn ${isPlaying ? 'playing' : ''} ${isLoadingFrames ? 'loading' : ''}`}
               onClick={togglePlayPause}
               disabled={!hasFrames}
-              title={isLoadingFrames ? 'Loading telemetry...' : isPlaying ? 'Pause' : 'Play'}
+              title={isLoadingFrames ? 'Loading telemetry...' : isPlaying ? 'Pause (Space)' : 'Play (Space)'}
             >
               {isLoadingFrames ? '\u23F3' : isPlaying ? '\u23F8' : '\u25B6'}
             </button>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import SessionMenu from './SessionMenu';
+import CommandBar from '../CommandPalette/CommandBar';
 
 /* ── Minimal line-style weather condition icons ── */
 function WeatherIcon({ rainfall, humidity, className }) {
@@ -127,6 +128,9 @@ export default function WeatherBar() {
           <button className="weather-bar__change-btn" onClick={resetSession}>Change</button>
         </div>
 
+        {/* Command Bar — persistent search */}
+        <CommandBar />
+
         {/* Center: Weather pills */}
         <div className="weather-bar__center">
           {latest && (
@@ -173,6 +177,24 @@ export default function WeatherBar() {
             </>
           )}
         </div>
+
+        {/* Elapsed time capsule */}
+        {currentTime > 0 && (
+          <div className="weather-bar__elapsed-capsule">
+            <svg className="weather-bar__elapsed-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="13" r="8" />
+              <path d="M12 9v4l2.5 2.5" />
+              <path d="M5 3l4 2" />
+              <path d="M19 3l-4 2" />
+              <line x1="12" y1="5" x2="12" y2="3" />
+            </svg>
+            <span className="weather-bar__elapsed-value">
+              {Math.floor(currentTime / 3600) > 0
+                ? `${Math.floor(currentTime / 3600)}:${String(Math.floor((currentTime % 3600) / 60)).padStart(2, '0')}:${String(Math.floor(currentTime % 60)).padStart(2, '0')}`
+                : `${Math.floor(currentTime / 60)}:${String(Math.floor(currentTime % 60)).padStart(2, '0')}`}
+            </span>
+          </div>
+        )}
 
         {/* Right: Session info + Flag status */}
         <div className="weather-bar__right">

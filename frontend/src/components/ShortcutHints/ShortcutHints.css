@@ -1,0 +1,91 @@
+/* ==========================================================================
+   Shortcut Hints — Robinhood Legend Design System
+   ========================================================================== */
+
+.shortcut-hints {
+  position: fixed;
+  bottom: 10px;
+  right: 16px;
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: var(--rh-surface, #141414);
+  border: 1px solid var(--rh-border, #2A2A2A);
+  border-radius: var(--rh-radius-lg, 10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: opacity 0.3s ease;
+  pointer-events: auto;
+}
+
+.shortcut-hints--faded {
+  opacity: 0.25;
+}
+
+.shortcut-hints:hover {
+  opacity: 1 !important;
+}
+
+.shortcut-hint {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 3px;
+}
+
+.shortcut-hint-key {
+  padding: 1px 6px;
+  border-radius: var(--rh-radius-xs, 5px);
+  background: var(--rh-surface-hover, #222);
+  border: 1px solid var(--rh-border-strong, #333);
+  font-size: 10px;
+  font-family: var(--rh-font-mono);
+  font-weight: 600;
+  color: var(--rh-text-muted, #666);
+  line-height: 1.4;
+  box-shadow: var(--rh-shadow-kbd, 0 2px 0 #1A1A1A);
+}
+
+.shortcut-hint-label {
+  font-size: 10px;
+  color: var(--rh-text-dimmed, #444);
+  font-family: var(--rh-font-sans);
+  white-space: nowrap;
+}
+
+/* Mobile trigger button */
+.shortcut-hints-trigger {
+  display: none;
+  background: var(--rh-surface-hover, #222);
+  border: 1px solid var(--rh-border-strong, #333);
+  color: var(--rh-text-muted, #666);
+  border-radius: var(--rh-radius-sm, 6px);
+  padding: 3px 8px;
+  font-size: var(--rh-text-xs, 11px);
+  font-family: var(--rh-font-mono);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--rh-transition-fast, 0.15s ease);
+  margin-left: 4px;
+  box-shadow: var(--rh-shadow-kbd, 0 2px 0 #1A1A1A);
+}
+
+.shortcut-hints-trigger:hover {
+  background: var(--rh-surface-active, #1A1A1A);
+  color: var(--rh-accent, #D5FD51);
+}
+
+/* Show trigger on touch devices / small screens */
+@media (hover: none), (max-width: 768px) {
+  .shortcut-hints-trigger {
+    display: block;
+  }
+}
+
+/* --- Light theme (keep dark for consistency) --- */
+[data-theme="light"] .shortcut-hints {
+  background: var(--rh-surface, #141414);
+  border-color: var(--rh-border, #2A2A2A);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}

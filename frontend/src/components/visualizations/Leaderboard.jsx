@@ -44,6 +44,7 @@ const TYRE_DISPLAY_NAMES = {
 };
 
 export default function Leaderboard() {
+  const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
@@ -54,13 +55,17 @@ export default function Leaderboard() {
   const currentFlagStatus = useF1Store((s) => s.currentFlagStatus);
   const focusDriver = useF1Store((s) => s.focusDriver);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
+  const compareMode = useF1Store((s) => s.compareMode);
+  const addCompareDriver = useF1Store((s) => s.addCompareDriver);
   const dnfMap = useF1Store((s) => s.dnfMap);
   const driversInfo = useF1Store((s) => s.drivers);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+  const currentTime = useF1Store((s) => s.currentTime);
+  const columnMode = useF1Store((s) => s.leaderboardColumnMode);
+  const cycleLeaderboardColumn = useF1Store((s) => s.cycleLeaderboardColumn);
 
   /* ── Local state ──────────────────────────────────────────────────── */
-  const [columnMode, setColumnMode] = useState(0); // index into COLUMN_MODES
   const [greenFlash, setGreenFlash] = useState(false);
 
   /* ── Refs ────────────────────────────────────────────────────────── */
@@ -148,11 +153,23 @@ export default function Leaderboard() {
     }
 
     const lapTimes = sessionData.lap_times;
+
+    // Compute time offset: session times are absolute, frame times are 0-based
+    let timeOffset = 0;
+    for (const d of lapTimes) {
+      if (d.LapStartTime > 0 && d.Time > 0 && d.LapNumber >= 1) {
+        timeOffset = d.LapStartTime;
+        break;
+      }
+    }
+
     const drivers = new Map();
 
     lapTimes
       .filter((d) => d.LapNumber <= currentLap)
       .forEach((d) => {
+        // Only include laps the driver has actually started in the replay timeline
+        if (d.LapStartTime > 0 && currentTime < d.LapStartTime - timeOffset) return;
         const existing = drivers.get(d.Driver);
         if (!existing || d.LapNumber > existing.LapNumber) {
           drivers.set(d.Driver, d);
@@ -165,6 +182,12 @@ export default function Leaderboard() {
         const dnf = dnfMap[d.Driver];
         const isRetired = dnf && dnf.lastLap <= currentLap;
 
+        // Pit status: verify the pit entry has actually happened in the timeline
+        const pitInAdjusted = d.PitInTime > 0 ? d.PitInTime - timeOffset : null;
+        const pitOutAdjusted = d.PitOutTime > 0 ? d.PitOutTime - timeOffset : null;
+        const isPitting = pitInAdjusted != null && currentTime >= pitInAdjusted &&
+                          (pitOutAdjusted == null || currentTime < pitOutAdjusted);
+
         return {
           pos: i + 1,
           abbr: d.Driver,
@@ -175,8 +198,7 @@ export default function Leaderboard() {
           bestLap: null,
           interval: d.IntervalToAhead || null,
           gapToLeader: d.GapToLeader || null,
-          isPitting: d.PitOutTime != null && d.PitInTime != null &&
-                     d.LapNumber === currentLap,
+          isPitting,
           isRetired,
           retiredStatus: isRetired ? dnf.status : null,
           retiredLap: isRetired ? dnf.lastLap : null,
@@ -189,7 +211,7 @@ export default function Leaderboard() {
     active.forEach((r, i) => { r.pos = i + 1; });
     retired.forEach((r, i) => { r.pos = active.length + i + 1; });
     return [...active, ...retired];
-  }, [sessionData, currentLap, dnfMap, replayStarted]);
+  }, [sessionData, currentLap, currentTime, dnfMap, replayStarted]);
 
   /* ── Position change computation ──────────────────────────────────── */
   const [displayedChanges, setDisplayedChanges] = useState({});
@@ -264,9 +286,7 @@ export default function Leaderboard() {
   }, [standings, displayedChanges]);
 
   /* ── Column mode toggle ───────────────────────────────────────────── */
-  const cycleColumnMode = useCallback(() => {
-    setColumnMode((prev) => (prev + 1) % COLUMN_MODES.length);
-  }, []);
+  const cycleColumnMode = cycleLeaderboardColumn;
 
   /* ── Formatters ───────────────────────────────────────────────────── */
   const formatTime = (s) => {
@@ -387,6 +407,7 @@ export default function Leaderboard() {
       <div className="tower-broadcast-header__left">
         <div className="tower-broadcast-header__accent" />
         <span className="tower-broadcast-header__title">RACE</span>
+        <kbd className="panel-shortcut-hint" title="Press 2 to focus" style={{ opacity: focusedView === 'leaderboard' ? 1 : undefined }}>2</kbd>
       </div>
       <div className="tower-broadcast-header__right">
         <button
@@ -407,7 +428,7 @@ export default function Leaderboard() {
 
   /* ── Main render ──────────────────────────────────────────────────── */
   return (
-    <Panel className="panel--leaderboard" style={{ padding: 0, ...panelBorderStyle }}>
+    <Panel className="panel--leaderboard" style={{ padding: 0, ...panelBorderStyle }} focused={focusedView === 'leaderboard'}>
       {header}
 
       {/* Winner banner */}
@@ -514,7 +535,7 @@ export default function Leaderboard() {
                   boxShadow: `inset 4px 0 8px -2px ${d.color}44`,
                 } : {}),
               }}
-              onClick={() => toggleDriver(d.abbr)}
+              onClick={() => compareMode ? addCompareDriver(d.abbr) : toggleDriver(d.abbr)}
               onDoubleClick={() => setFocusDriver(d.abbr)}
               onMouseEnter={(e) => handleMouseEnter(d.abbr, e)}
               onMouseLeave={handleMouseLeave}
