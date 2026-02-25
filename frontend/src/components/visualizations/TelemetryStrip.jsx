@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor } from '../../utils/colors';
+import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 
 const LAP_COLORS = ['#a855f7', '#22c55e', '#ff8000', '#e10600'];
 
@@ -37,6 +37,7 @@ export default function TelemetryStrip({ embedded = false }) {
   const telemetryCache = useF1Store((s) => s.telemetryCache);
   const telemetryCompareMode = useF1Store((s) => s.telemetryCompareMode);
   const telemetryCompareLaps = useF1Store((s) => s.telemetryCompareLaps);
+  const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
   const telemetryLoading = useF1Store((s) => s.telemetryLoading);
   const fetchDriverTelemetry = useF1Store((s) => s.fetchDriverTelemetry);
   const setTelemetryCompareMode = useF1Store((s) => s.setTelemetryCompareMode);
@@ -95,26 +96,29 @@ export default function TelemetryStrip({ embedded = false }) {
     }
   }, [selectedDrivers, focusDriver, currentLap, sessionData, telemetryCompareMode, telemetryCompareLaps]);
 
+  // Cache key suffix matches store's fetchDriverTelemetry key format
+  const cacheKeySuffix = isQualifyingReplay ? '-Q' : '-R';
+
   // Debounced telemetry fetching
   useEffect(() => {
     if (fetchTargets.length === 0) return;
     clearTimeout(fetchTimerRef.current);
     fetchTimerRef.current = setTimeout(() => {
       fetchTargets.forEach(({ driver, lap }) => {
-        const key = `${driver}-${lap}`;
+        const key = `${driver}-${lap}${cacheKeySuffix}`;
         if (!telemetryCache[key]) {
           fetchDriverTelemetry(driver, lap);
         }
       });
     }, 300);
     return () => clearTimeout(fetchTimerRef.current);
-  }, [fetchTargets, telemetryCache, fetchDriverTelemetry]);
+  }, [fetchTargets, telemetryCache, fetchDriverTelemetry, cacheKeySuffix]);
 
   // Build resolved trace data
   const traces = useMemo(() => {
     return fetchTargets
       .map(({ driver, lap }, i) => {
-        const key = `${driver}-${lap}`;
+        const key = `${driver}-${lap}${cacheKeySuffix}`;
         const data = telemetryCache[key];
         if (!data || data.length === 0) return null;
         const color = telemetryCompareMode === 'drivers'
@@ -134,7 +138,6 @@ export default function TelemetryStrip({ embedded = false }) {
       currentDistRef.current = null;
       return;
     }
-    if (!circuitInfo?.track_coordinates?.length) return;
 
     const frame = frameData.frames[Math.min(currentFrameIndex, frameData.frames.length - 1)];
     if (!frame?.drivers) { currentDistRef.current = null; return; }
@@ -145,35 +148,38 @@ export default function TelemetryStrip({ embedded = false }) {
     const driverData = frame.drivers[driver];
     if (!driverData) { currentDistRef.current = null; return; }
 
-    // Only clip if driver is on the current lap being displayed
-    if (driverData.lap !== currentLap) { currentDistRef.current = null; return; }
+    // Try to compute distance from track coordinates (most accurate)
+    if (circuitInfo?.track_coordinates?.length) {
+      const dx = driverData.x;
+      const dy = driverData.y;
+      const trackCoords = circuitInfo.track_coordinates;
 
-    const dx = driverData.x;
-    const dy = driverData.y;
-    const trackCoords = circuitInfo.track_coordinates;
-
-    // Find nearest track coordinate by Euclidean distance
-    let minDistSq = Infinity;
-    let nearestDistance = 0;
-    for (const coord of trackCoords) {
-      const ddx = coord.X - dx;
-      const ddy = coord.Y - dy;
-      const distSq = ddx * ddx + ddy * ddy;
-      if (distSq < minDistSq) {
-        minDistSq = distSq;
-        nearestDistance = coord.Distance;
+      let minDistSq = Infinity;
+      let nearestDistance = 0;
+      for (const coord of trackCoords) {
+        const ddx = coord.X - dx;
+        const ddy = coord.Y - dy;
+        const distSq = ddx * ddx + ddy * ddy;
+        if (distSq < minDistSq) {
+          minDistSq = distSq;
+          nearestDistance = coord.Distance;
+        }
       }
+      currentDistRef.current = nearestDistance;
+    } else {
+      // Fallback: no track coordinates — estimate from frame progress
+      currentDistRef.current = null;
     }
-    currentDistRef.current = nearestDistance;
 
     // Update clip rects directly (lightweight — no re-render)
     const xScale = xScaleRef.current;
     if (!xScale || clipRectsRef.current.length === 0) return;
-    const clipX = nearestDistance > 0 ? xScale(nearestDistance) : null;
+    const dist = currentDistRef.current;
+    const clipX = (dist != null && dist > 0) ? xScale(dist) : null;
     clipRectsRef.current.forEach((rect) => {
       if (rect) rect.attr('width', clipX != null ? Math.max(0, clipX) : 9999);
     });
-  }, [frameData, currentFrameIndex, circuitInfo, focusDriver, selectedDrivers, currentLap]);
+  }, [frameData, currentFrameIndex, circuitInfo, focusDriver, selectedDrivers]);
 
   // Sector boundaries from circuit info
   const sectorBoundaries = useMemo(() => {
@@ -207,9 +213,10 @@ export default function TelemetryStrip({ embedded = false }) {
     setZoomDomain(null);
   }, [trackLength]);
 
-  // Driver info for comparison cards
+  // Driver info for comparison cards (enriched with tyre + weather)
   const driverCards = useMemo(() => {
     if (!sessionData?.lap_times) return [];
+    const weather = sessionData.weather_data;
     return fetchTargets.map(({ driver, lap }, i) => {
       const lapData = sessionData.lap_times.find(
         (lt) => lt.Driver === driver && lt.LapNumber === lap
@@ -217,12 +224,31 @@ export default function TelemetryStrip({ embedded = false }) {
       const color = telemetryCompareMode === 'drivers'
         ? getDriverColor(driver)
         : (LAP_COLORS[i] || '#888');
+      const compound = lapData?.Compound || 'UNKNOWN';
+      const tyreLife = lapData?.TyreLife != null ? Math.round(lapData.TyreLife) : null;
+      // Find best sector times across all laps for this driver (for color-coding)
+      let bestS1 = Infinity, bestS2 = Infinity, bestS3 = Infinity;
+      for (const lt of sessionData.lap_times) {
+        if (lt.Driver !== driver) continue;
+        if (lt.Sector1TimeSeconds > 0 && lt.Sector1TimeSeconds < bestS1) bestS1 = lt.Sector1TimeSeconds;
+        if (lt.Sector2TimeSeconds > 0 && lt.Sector2TimeSeconds < bestS2) bestS2 = lt.Sector2TimeSeconds;
+        if (lt.Sector3TimeSeconds > 0 && lt.Sector3TimeSeconds < bestS3) bestS3 = lt.Sector3TimeSeconds;
+      }
+      // Weather for this lap (closest entry)
+      let airTemp = null, trackTemp = null;
+      if (weather?.length) {
+        airTemp = weather[0].AirTemp;
+        trackTemp = weather[0].TrackTemp;
+      }
       return {
-        driver, lap, color,
+        driver, lap, color, compound, tyreLife, airTemp, trackTemp,
         lapTime: lapData?.LapTimeSeconds,
         s1: lapData?.Sector1TimeSeconds,
         s2: lapData?.Sector2TimeSeconds,
         s3: lapData?.Sector3TimeSeconds,
+        bestS1: bestS1 < Infinity ? bestS1 : null,
+        bestS2: bestS2 < Infinity ? bestS2 : null,
+        bestS3: bestS3 < Infinity ? bestS3 : null,
       };
     });
   }, [fetchTargets, sessionData, telemetryCompareMode]);
@@ -253,7 +279,7 @@ export default function TelemetryStrip({ embedded = false }) {
     // Find values at this distance for each trace
     const values = traces.map((t) => {
       // If beyond the progressive clip point, show no value
-      if (clipDist != null && clipDist > 0 && t.lap === currentLap && distance > clipDist) {
+      if (clipDist != null && clipDist > 0 && distance > clipDist) {
         return {
           driver: t.driver, lap: t.lap, color: t.color,
           speed: null, throttle: null, brake: null, gear: null, rpm: null,
@@ -280,7 +306,7 @@ export default function TelemetryStrip({ embedded = false }) {
     });
 
     setCrosshairInfo({ x: mouseX, distance: Math.round(distance), values });
-  }, [traces, effectiveDomain, currentLap]);
+  }, [traces, effectiveDomain]);
 
   const handleMouseLeave = useCallback(() => {
     setCrosshairInfo(null);
@@ -376,8 +402,8 @@ export default function TelemetryStrip({ embedded = false }) {
         .attr('width', clipX != null ? Math.max(0, clipX) : bbox.width)
         .attr('height', bbox.height);
 
-      // Apply clip to all <path> elements (trace lines/areas — not axes/grid/labels)
-      svg.selectAll('path').attr('clip-path', `url(#${clipId})`);
+      // Apply clip to trace paths and annotation groups (not axes/grid/labels)
+      svg.selectAll('path, .telem-clippable').attr('clip-path', `url(#${clipId})`);
 
       return clipRect;
     });
@@ -439,6 +465,13 @@ export default function TelemetryStrip({ embedded = false }) {
     }
   }, [selectedDrivers, toggleDriver]);
 
+  // Handle removing a driver from comparison
+  const handleRemoveDriver = useCallback((abbr) => {
+    if (selectedDrivers.includes(abbr)) {
+      toggleDriver(abbr);
+    }
+  }, [selectedDrivers, toggleDriver]);
+
   const hasData = traces.length > 0;
   const showEmpty = fetchTargets.length === 0 && !telemetryLoading;
 
@@ -484,28 +517,72 @@ export default function TelemetryStrip({ embedded = false }) {
             </select>
           )}
 
-          {/* Driver comparison cards */}
-          {driverCards.map((card) => (
-            <div className="telem-driver-card" key={`${card.driver}-${card.lap}`}>
-              <div className="telem-driver-card__bar" style={{ background: card.color }} />
-              <span className="telem-driver-card__abbr">{card.driver}</span>
-              <span className="telem-driver-card__lap">L{card.lap}</span>
-              <span className="telem-driver-card__time">{formatLapTime(card.lapTime)}</span>
-              {card.s1 != null && (
-                <div className="telem-driver-card__sectors">
-                  <span className="telem-sector-badge" style={{ background: 'rgba(168,85,247,0.25)', color: '#a855f7' }}>
-                    {card.s1?.toFixed(1)}
+          {/* Driver comparison cards — F1 TV MFD style */}
+          {driverCards.map((card) => {
+            const tyreColor = TYRE_COLORS[card.compound] || TYRE_COLORS.UNKNOWN;
+            const isDarkTyre = card.compound === 'HARD' || card.compound === 'MEDIUM';
+            // Sector color: personal best = green, else default
+            const sectorColor = (val, best) => {
+              if (!val || val <= 0) return 'rgba(255,255,255,0.3)';
+              if (best && Math.abs(val - best) < 0.002) return '#a855f7';
+              return 'rgba(255,255,255,0.85)';
+            };
+            return (
+              <div className="telem-mfd-card" key={`${card.driver}-${card.lap}`}>
+                {/* Close/remove button */}
+                <button
+                  className="telem-mfd-card__close"
+                  onClick={() => handleRemoveDriver(card.driver)}
+                  title={`Remove ${card.driver}`}
+                >
+                  &times;
+                </button>
+                {/* Row 1: driver name + tyre + lap badge */}
+                <div className="telem-mfd-card__top">
+                  <div className="telem-mfd-card__driver">
+                    <span className="telem-mfd-card__bar" style={{ background: card.color }} />
+                    <span className="telem-mfd-card__abbr">{card.driver}</span>
+                  </div>
+                  <span className="telem-mfd-card__tyre" style={{ background: tyreColor, color: isDarkTyre ? '#000' : '#fff' }}>
+                    {card.compound?.[0] || '?'}
                   </span>
-                  <span className="telem-sector-badge" style={{ background: 'rgba(34,197,94,0.25)', color: '#22c55e' }}>
-                    {card.s2?.toFixed(1)}
-                  </span>
-                  <span className="telem-sector-badge" style={{ background: 'rgba(251,191,36,0.25)', color: '#fbbf24' }}>
-                    {card.s3?.toFixed(1)}
+                  <span className="telem-mfd-card__lap-badge" style={{ borderColor: card.color }}>
+                    Lap {card.lap}
                   </span>
                 </div>
-              )}
-            </div>
-          ))}
+                {/* Row 2: lap time + tyre life */}
+                <div className="telem-mfd-card__mid">
+                  <span className="telem-mfd-card__laptime">{formatLapTime(card.lapTime)}</span>
+                  {card.tyreLife != null && (
+                    <span className="telem-mfd-card__tyre-life">{card.tyreLife}L</span>
+                  )}
+                </div>
+                {/* Row 3: sectors */}
+                {card.s1 > 0 && (
+                  <div className="telem-mfd-card__sectors">
+                    <span className="telem-mfd-card__sector">
+                      <span className="telem-mfd-card__sector-label">S1</span>
+                      <span className="telem-mfd-card__sector-val" style={{ color: sectorColor(card.s1, card.bestS1) }}>
+                        {card.s1.toFixed(3)}
+                      </span>
+                    </span>
+                    <span className="telem-mfd-card__sector">
+                      <span className="telem-mfd-card__sector-label">S2</span>
+                      <span className="telem-mfd-card__sector-val" style={{ color: sectorColor(card.s2, card.bestS2) }}>
+                        {card.s2?.toFixed(3) || '—'}
+                      </span>
+                    </span>
+                    <span className="telem-mfd-card__sector">
+                      <span className="telem-mfd-card__sector-label">S3</span>
+                      <span className="telem-mfd-card__sector-val" style={{ color: sectorColor(card.s3, card.bestS3) }}>
+                        {card.s3?.toFixed(3) || '—'}
+                      </span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="telemetry-strip__header-right">
@@ -886,18 +963,19 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
       .attr('d', line).attr('stroke', t.color);
   });
 
-  // Speed annotations at local min/max
+  // Speed annotations at local min/max (wrapped in clippable group)
+  const annotsG = g.append('g').attr('class', 'telem-clippable');
   const annots = findSpeedAnnotations(traces, xScale, yScale, width, m);
   annots.forEach((a) => {
     const yOff = a.isMax ? -8 : 12;
-    g.append('rect')
+    annotsG.append('rect')
       .attr('class', 'telem-annot-bg')
       .attr('x', a.px - 14)
       .attr('y', a.py + yOff - 9)
       .attr('width', 28)
       .attr('height', 12)
       .attr('rx', 2);
-    g.append('text')
+    annotsG.append('text')
       .attr('class', 'telem-annot-text')
       .attr('x', a.px)
       .attr('y', a.py + yOff)

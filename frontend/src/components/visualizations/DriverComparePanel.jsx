@@ -1,7 +1,8 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS, TYRE_LABELS, getTyreTextColor } from '../../utils/colors';
+import { exportAsPng } from '../../utils/exportChart';
 
 function formatTime(seconds) {
   if (!seconds || seconds <= 0) return '—';
@@ -90,16 +91,38 @@ function StrategyComparison({ driverA, driverB, strategies, currentLap, maxLap }
 export default function DriverComparePanel() {
   const sessionData = useF1Store((s) => s.sessionData);
   const compareDrivers = useF1Store((s) => s.compareDrivers);
+  const selectedDrivers = useF1Store((s) => s.selectedDrivers);
+  const addCompareDriver = useF1Store((s) => s.addCompareDriver);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
   const driversList = useF1Store((s) => s.drivers);
   const speedUnit = useF1Store((s) => s.speedUnit);
 
+  const panelRef = useRef(null);
   const gapChartRef = useRef(null);
   const lapChartRef = useRef(null);
 
-  const replayStarted = currentFrameIndex > 0 || currentLap > 1;
+  const handleExport = useCallback(() => {
+    if (!panelRef.current) return;
+    exportAsPng(panelRef.current, 'driver_comparison.png');
+  }, []);
+
+  // Auto-populate compareDrivers from selectedDrivers when panel opens empty
+  const hasAutoPopulated = useRef(false);
+  useEffect(() => {
+    if (compareDrivers.length === 0 && selectedDrivers.length >= 2 && !hasAutoPopulated.current) {
+      hasAutoPopulated.current = true;
+      addCompareDriver(selectedDrivers[0]);
+      addCompareDriver(selectedDrivers[1]);
+    }
+    // Reset flag when compareDrivers is manually cleared
+    if (compareDrivers.length > 0) {
+      hasAutoPopulated.current = false;
+    }
+  }, [compareDrivers, selectedDrivers, addCompareDriver]);
+
+  const replayActive = currentFrameIndex > 0 || currentLap > 1;
   const [driverA, driverB] = compareDrivers.length === 2 ? compareDrivers : [null, null];
   const colorA = getDriverColor(driverA);
   const colorB = getDriverColor(driverB);
@@ -110,19 +133,20 @@ export default function DriverComparePanel() {
   const infoA = useMemo(() => driversList?.find((d) => d.Abbreviation === driverA), [driversList, driverA]);
   const infoB = useMemo(() => driversList?.find((d) => d.Abbreviation === driverB), [driversList, driverB]);
 
-  // Filter laps per driver, up to currentLap, valid only
+  // Filter laps per driver, up to currentLap (or all if review mode), valid only
+  const effectiveLap = replayActive ? currentLap : Infinity;
   const { lapsA, lapsB } = useMemo(() => {
-    if (!driverA || !driverB || !replayStarted) return { lapsA: [], lapsB: [] };
+    if (!driverA || !driverB) return { lapsA: [], lapsB: [] };
     const filter = (drv) =>
       lapTimes.filter(
         (lt) =>
           lt.Driver === drv &&
-          lt.LapNumber <= currentLap &&
+          lt.LapNumber <= effectiveLap &&
           lt.LapTimeSeconds > 0 &&
           lt.LapTimeSeconds < 300
       );
     return { lapsA: filter(driverA), lapsB: filter(driverB) };
-  }, [lapTimes, driverA, driverB, currentLap, replayStarted]);
+  }, [lapTimes, driverA, driverB, effectiveLap]);
 
   // Racing laps (exclude pit laps) for stats
   const racingA = useMemo(() => lapsA.filter((l) => !l.PitInTime && !l.PitOutTime), [lapsA]);
@@ -420,25 +444,47 @@ export default function DriverComparePanel() {
     svg.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.08)');
   }, [racingA, racingB, lapsA, lapsB, driverA, driverB, colorA, colorB, currentLap]);
 
-  // ── Empty states ──
+  // ── Empty state ──
   if (!driverA || !driverB) {
     return (
       <div className="compare-panel__empty">
-        Press <kbd>C</kbd> to toggle compare mode, then click 2 drivers on the leaderboard
-      </div>
-    );
-  }
-
-  if (!replayStarted) {
-    return (
-      <div className="compare-panel__empty">
-        Press play to start the race replay
+        <div>Select 2 drivers to compare</div>
+        <div className="compare-panel__empty-selectors">
+          <select
+            className="compare-panel__driver-select"
+            value={compareDrivers[0] || ''}
+            onChange={(e) => {
+              if (e.target.value) addCompareDriver(e.target.value);
+            }}
+          >
+            <option value="">Driver A</option>
+            {(driversList || []).map((d) => (
+              <option key={d.Abbreviation} value={d.Abbreviation}>{d.Abbreviation} — {d.FullName}</option>
+            ))}
+          </select>
+          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px' }}>vs</span>
+          <select
+            className="compare-panel__driver-select"
+            value={compareDrivers[1] || ''}
+            onChange={(e) => {
+              if (e.target.value) addCompareDriver(e.target.value);
+            }}
+          >
+            <option value="">Driver B</option>
+            {(driversList || []).map((d) => (
+              <option key={d.Abbreviation} value={d.Abbreviation}>{d.Abbreviation} — {d.FullName}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
+          Tip: select drivers from the leaderboard, then open this panel
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="compare-panel">
+    <div ref={panelRef} className="compare-panel">
       {/* Header */}
       <div className="compare-panel__header">
         <DriverCard abbr={driverA} info={infoA} color={colorA} />
@@ -447,6 +493,24 @@ export default function DriverComparePanel() {
           <div className="compare-panel__score">{score.winsA} — {score.winsB}</div>
         </div>
         <DriverCard abbr={driverB} info={infoB} color={colorB} />
+        <button
+          onClick={handleExport}
+          title="Export as PNG"
+          style={{
+            position: 'absolute', top: 6, right: 6,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 22, height: 22, borderRadius: 4,
+            border: 'none', background: 'transparent',
+            color: 'rgba(255,255,255,0.3)', cursor: 'pointer',
+            fontSize: '12px', padding: 0, flexShrink: 0,
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
       </div>
 
       {/* Scrollable body */}

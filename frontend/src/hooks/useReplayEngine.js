@@ -36,8 +36,13 @@ export function useReplayEngine() {
   };
 
   // ── Compute race events from trackStatus + strategy data ─────────
+  const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+
   const raceEvents = useMemo(() => {
     const events = [];
+
+    // No race events for qualifying replay
+    if (isQualifyingReplay) return events;
 
     if (!trackStatus?.length && !sessionData) return events;
 
@@ -187,7 +192,7 @@ export function useReplayEngine() {
 
     events.sort((a, b) => a.startLap - b.startLap);
     return events;
-  }, [trackStatus, sessionData, frameData, lapFrameMap, maxLap]);
+  }, [trackStatus, sessionData, frameData, lapFrameMap, maxLap, isQualifyingReplay]);
 
   // ── Tick function: advance one frame ───────────────────────────
   const tick = useCallback(() => {
@@ -200,11 +205,9 @@ export function useReplayEngine() {
     state.setCurrentFrameIndex(idx + 1);
   }, []);
 
-  // ── Playback interval management (frame-based) ───────────────
+  // ── Playback interval management (frame-based only) ──────────
   useEffect(() => {
     if (isPlaying && totalFrames > 1) {
-      // Interval between ticks: frame duration / playback speed
-      // At 2.5 FPS (frameDt=0.4s), 1x speed → 400ms, 5x → 80ms, 20x → 20ms
       const interval = Math.max(16, (frameDt * 1000) / playSpeed);
       intervalRef.current = setInterval(tick, interval);
     }
@@ -220,7 +223,6 @@ export function useReplayEngine() {
   const play = useCallback(() => {
     const state = useF1Store.getState();
     if (state.currentFrameIndex >= state.totalFrames - 1) {
-      // Reset to start if at end
       state.setCurrentFrameIndex(0);
     }
     state.setIsPlaying(true);
@@ -238,7 +240,7 @@ export function useReplayEngine() {
     }
   }, [isPlaying, pause, play]);
 
-  // Seek to a specific lap — maps through lapFrameMap
+  // Seek to a specific lap — maps through lapFrameMap or sets lap directly
   const seekToLap = useCallback(
     (lap) => {
       const clampedLap = Math.max(1, Math.min(maxLap, Math.round(lap)));
@@ -247,16 +249,16 @@ export function useReplayEngine() {
 
       if (lfm && lfm[clampedLap] != null) {
         state.setCurrentFrameIndex(lfm[clampedLap]);
-      } else if (lfm) {
-        // Find closest lap in map
+      } else if (lfm && Object.keys(lfm).length > 0) {
         const available = Object.keys(lfm).map(Number).sort((a, b) => a - b);
-        if (available.length > 0) {
-          const closest = available.reduce((prev, curr) =>
-            Math.abs(curr - clampedLap) < Math.abs(prev - clampedLap) ? curr : prev,
-            available[0]
-          );
-          state.setCurrentFrameIndex(lfm[closest]);
-        }
+        const closest = available.reduce((prev, curr) =>
+          Math.abs(curr - clampedLap) < Math.abs(prev - clampedLap) ? curr : prev,
+          available[0]
+        );
+        state.setCurrentFrameIndex(lfm[closest]);
+      } else {
+        // No frames — set lap directly
+        state.setCurrentLap(clampedLap);
       }
     },
     [maxLap]

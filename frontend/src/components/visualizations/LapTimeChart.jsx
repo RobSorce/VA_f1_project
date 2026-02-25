@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback, useState, useRef } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import { getDriverColor, TYRE_COLORS, countryFlag } from '../../utils/colors';
 import Panel from '../ui/Panel';
 
 /* ── Color codes for sector/lap timing (F1 TV convention) ───────── */
@@ -82,8 +82,40 @@ export default function LapTimeChart() {
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
   const currentTime = useF1Store((s) => s.currentTime);
   const drivers = useF1Store((s) => s.drivers);
+  const maxLap = useF1Store((s) => s.maxLap);
 
+  const sessionType = useF1Store((s) => s.sessionType);
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
+  const raceFinished = currentLap >= maxLap && maxLap > 1;
+  const isQualifying = sessionType === 'Q';
+
+  // Qualifying segment filter
+  const [qualiFilter, setQualiFilter] = useState('ALL');
+
+  // Compute qualifying segments from race_results positions
+  const qualiSegmentMap = useMemo(() => {
+    if (!isQualifying) return {};
+    const map = {};
+    (sessionData?.race_results || []).forEach((r) => {
+      const abbr = r.Abbreviation || r.Driver;
+      const pos = r.Position || r.ClassifiedPosition || 99;
+      if (!abbr) return;
+      if (pos > 15) map[abbr] = 'Q1';
+      else if (pos > 10) map[abbr] = 'Q2';
+      else map[abbr] = 'Q3';
+    });
+    return map;
+  }, [isQualifying, sessionData]);
+
+  /* ── Country code map from race_results ──────────────────────── */
+  const countryCodeMap = useMemo(() => {
+    const map = {};
+    (sessionData?.race_results || []).forEach((r) => {
+      const abbr = r.Abbreviation || r.Driver;
+      if (abbr && r.CountryCode) map[abbr] = r.CountryCode;
+    });
+    return map;
+  }, [sessionData]);
 
   /* ── Driver info lookup: abbreviation → { fullName, firstName, surname, teamName, teamLogo } */
   const driverInfoMap = useMemo(() => {
@@ -104,43 +136,39 @@ export default function LapTimeChart() {
     return map;
   }, [drivers]);
 
-  // Before replay starts (frame 0, lap 1), show nothing — data appears incrementally
-  const replayStarted = currentFrameIndex > 0 || currentLap > 1;
+  // Replay is in progress when frames have advanced — otherwise show full race review
+  const replayActive = currentFrameIndex > 0 || currentLap > 1;
 
   // Compute time offset: session times (e.g. Sector1SessionTime ~3500s) vs frame times (0-based)
-  // offset = sessionTime - frameTime, so frameTime + offset = sessionTime
   const sessionTimeOffset = useMemo(() => {
     if (lapTimes.length === 0) return 0;
-    // Find first lap with valid LapStartTime and Time to compute the offset
     for (const d of lapTimes) {
-      if (d.LapStartTime > 0 && d.Time > 0 && d.LapNumber >= 1) {
-        // Time = session time at lap end; approximate frame offset
-        // Frame t=0 ≈ race start. LapStartTime for lap 1 is session time at lap 1 start
-        // So offset ≈ LapStartTime of first real lap - frame time when that lap starts (~0)
+      if (d.LapStartTime > 0 && (d.Time > 0 || d.LapTimeSeconds > 0) && d.LapNumber >= 1) {
         return d.LapStartTime;
       }
     }
     return 0;
   }, [lapTimes]);
+  const hasTimeOffset = sessionTimeOffset > 0;
 
   /* ── Compute session-wide bests for color coding (incremental) ── */
   const sessionBests = useMemo(() => {
     let bestS1 = Infinity, bestS2 = Infinity, bestS3 = Infinity, bestLap = Infinity;
+    let fastestLapDriver = null;
     const personalBests = {}; // { driver: { s1, s2, s3, lap } }
 
-    if (!replayStarted) return { bestS1, bestS2, bestS3, bestLap, personalBests };
-
-    // Include only laps that have actually started in the replay timeline
-    lapTimes.filter((d) => d.LapNumber <= currentLap).forEach((d) => {
-      // Skip laps the driver hasn't started yet
-      if (d.LapStartTime > 0 && currentTime < d.LapStartTime - sessionTimeOffset) return;
+    // When replay is active, filter progressively; otherwise show all data (review mode)
+    const effectiveLap = replayActive ? currentLap : Infinity;
+    lapTimes.filter((d) => d.LapNumber <= effectiveLap).forEach((d) => {
+      // During replay: skip laps the driver hasn't started yet
+      if (replayActive && hasTimeOffset && d.LapStartTime > 0 && currentTime < d.LapStartTime - sessionTimeOffset) return;
       const drv = d.Driver;
       if (!personalBests[drv]) personalBests[drv] = { s1: Infinity, s2: Infinity, s3: Infinity, lap: Infinity };
 
-      // Only include sector times that have actually been completed
-      const s1ok = !d.Sector1SessionTime || currentTime >= d.Sector1SessionTime - sessionTimeOffset;
-      const s2ok = !d.Sector2SessionTime || currentTime >= d.Sector2SessionTime - sessionTimeOffset;
-      const s3ok = !d.Sector3SessionTime || currentTime >= d.Sector3SessionTime - sessionTimeOffset;
+      // Only include sector times that have actually been completed (during replay)
+      const s1ok = !replayActive || !d.Sector1SessionTime || currentTime >= d.Sector1SessionTime - sessionTimeOffset;
+      const s2ok = !replayActive || !d.Sector2SessionTime || currentTime >= d.Sector2SessionTime - sessionTimeOffset;
+      const s3ok = !replayActive || !d.Sector3SessionTime || currentTime >= d.Sector3SessionTime - sessionTimeOffset;
 
       const s1 = s1ok ? d.Sector1TimeSeconds : 0;
       const s2 = s2ok ? d.Sector2TimeSeconds : 0;
@@ -160,13 +188,13 @@ export default function LapTimeChart() {
         if (s3 < personalBests[drv].s3) personalBests[drv].s3 = s3;
       }
       if (lap > 0 && lap < 300) {
-        if (lap < bestLap) bestLap = lap;
+        if (lap < bestLap) { bestLap = lap; fastestLapDriver = drv; }
         if (lap < personalBests[drv].lap) personalBests[drv].lap = lap;
       }
     });
 
-    return { bestS1, bestS2, bestS3, bestLap, personalBests };
-  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayStarted]);
+    return { bestS1, bestS2, bestS3, bestLap, fastestLapDriver, personalBests };
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayActive, hasTimeOffset]);
 
   /* ── Get time color (purple / green / yellow / white) ───────── */
   const getTimeColor = useCallback((value, sessionBest, personalBest, isPit) => {
@@ -180,14 +208,15 @@ export default function LapTimeChart() {
 
   /* ── Build timing rows for current lap ──────────────────────── */
   const timingRows = useMemo(() => {
-    if (lapTimes.length === 0 || !replayStarted) return [];
+    if (lapTimes.length === 0) return [];
 
+    const effectiveLap = replayActive ? currentLap : Infinity;
     const drivers = new Map();
     lapTimes
-      .filter((d) => d.LapNumber <= currentLap)
+      .filter((d) => d.LapNumber <= effectiveLap)
       .forEach((d) => {
-        // Only include laps the driver has actually started in the replay timeline
-        if (d.LapStartTime > 0 && currentTime < d.LapStartTime - sessionTimeOffset) return;
+        // During replay: skip laps the driver hasn't started yet
+        if (replayActive && hasTimeOffset && d.LapStartTime > 0 && currentTime < d.LapStartTime - sessionTimeOffset) return;
         const existing = drivers.get(d.Driver);
         if (!existing || d.LapNumber > existing.LapNumber) {
           drivers.set(d.Driver, d);
@@ -206,9 +235,9 @@ export default function LapTimeChart() {
         const isRetired = !!(dnf && dnf.lastLap <= currentLap);
         const info = driverInfoMap[d.Driver] || {};
 
-        // Sector-by-sector progressive reveal for the current lap
-        // Completed laps (LapNumber < currentLap) show everything
-        const isCurrentLap = d.LapNumber === currentLap;
+        // Sector-by-sector progressive reveal for the current lap (only during replay)
+        // In review mode (replay not active), show everything
+        const isCurrentLap = replayActive && d.LapNumber === currentLap;
         // Convert session times to frame-relative times by subtracting offset
         const s1Time = d.Sector1SessionTime > 0 ? d.Sector1SessionTime - sessionTimeOffset : null;
         const s2Time = d.Sector2SessionTime > 0 ? d.Sector2SessionTime - sessionTimeOffset : null;
@@ -227,6 +256,22 @@ export default function LapTimeChart() {
         const s3 = showS3 ? d.Sector3TimeSeconds : null;
         const lapTime = showLapTime ? d.LapTimeSeconds : null;
 
+        // Live chronometer: compute running sector time for the current lap
+        let chrono = null; // { sector: 1|2|3, elapsed: seconds }
+        if (isCurrentLap && hasTimeOffset) {
+          const lapStart = d.LapStartTime > 0 ? d.LapStartTime - sessionTimeOffset : null;
+          if (!showS1 && lapStart != null) {
+            // In S1 — counting from lap start
+            chrono = { sector: 1, elapsed: Math.max(0, currentTime - lapStart) };
+          } else if (showS1 && !showS2 && s1Time != null) {
+            // S1 done, in S2 — counting from S1 completion
+            chrono = { sector: 2, elapsed: Math.max(0, currentTime - s1Time) };
+          } else if (showS2 && !showS3 && s2Time != null) {
+            // S2 done, in S3 — counting from S2 completion
+            chrono = { sector: 3, elapsed: Math.max(0, currentTime - s2Time) };
+          }
+        }
+
         return {
           pos: d.Position || 99,
           driver: d.Driver,
@@ -239,6 +284,7 @@ export default function LapTimeChart() {
           s2,
           s3,
           lapTime,
+          chrono,
           gap: showLapTime ? (d.GapToLeader || null) : null,
           interval: showLapTime ? (d.IntervalToAhead || null) : null,
           compound: d.Compound || '',
@@ -251,6 +297,7 @@ export default function LapTimeChart() {
           s2Color: isRetired ? TIME_COLORS.normal : (showS2 ? getTimeColor(d.Sector2TimeSeconds, sessionBests.bestS2, pb.s2, isPit) : TIME_COLORS.normal),
           s3Color: isRetired ? TIME_COLORS.normal : (showS3 ? getTimeColor(d.Sector3TimeSeconds, sessionBests.bestS3, pb.s3, isPit) : TIME_COLORS.normal),
           lapColor: isRetired ? TIME_COLORS.normal : (showLapTime ? getTimeColor(d.LapTimeSeconds, sessionBests.bestLap, pb.lap, isPit) : TIME_COLORS.normal),
+          qualiSegment: qualiSegmentMap[d.Driver] || null,
         };
       })
       .sort((a, b) => {
@@ -259,10 +306,13 @@ export default function LapTimeChart() {
         if (!a.isRetired && b.isRetired) return -1;
         return (a.pos || 99) - (b.pos || 99);
       });
-  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, sessionBests, getTimeColor, dnfMap, replayStarted, driverInfoMap]);
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, sessionBests, getTimeColor, dnfMap, replayActive, hasTimeOffset, driverInfoMap, qualiSegmentMap]);
 
-  /* ── All drivers shown; selected ones highlighted (not filtered) ── */
-  const displayRows = timingRows;
+  /* ── All drivers shown; qualifying filter applied if active ── */
+  const displayRows = useMemo(() => {
+    if (!isQualifying || qualiFilter === 'ALL') return timingRows;
+    return timingRows.filter((r) => r.qualiSegment === qualiFilter);
+  }, [timingRows, isQualifying, qualiFilter]);
 
   /* ── Resizable column widths ────────────────────────────────── */
   const [colWidths, setColWidths] = useState(() => COLUMN_DEFS.map((c) => c.defaultW));
@@ -329,6 +379,23 @@ export default function LapTimeChart() {
 
   const controls = (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '9px' }}>
+      {isQualifying && (
+        <>
+          {['ALL', 'Q1', 'Q2', 'Q3'].map((seg) => (
+            <button
+              key={seg}
+              onClick={() => setQualiFilter(seg)}
+              style={{
+                padding: '2px 6px', borderRadius: 4, border: 'none',
+                fontSize: '9px', fontWeight: 700, cursor: 'pointer',
+                background: qualiFilter === seg ? 'rgba(255,255,255,0.15)' : 'transparent',
+                color: qualiFilter === seg ? '#fff' : 'rgba(255,255,255,0.4)',
+              }}
+            >{seg}</button>
+          ))}
+          <span style={{ width: 1, height: 12, background: 'rgba(255,255,255,0.1)' }} />
+        </>
+      )}
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
         <span style={{ width: 8, height: 8, borderRadius: 2, background: TIME_COLORS.overall_best }} />
         <span style={{ color: 'rgba(255,255,255,0.5)' }}>Best</span>
@@ -391,9 +458,7 @@ export default function LapTimeChart() {
       }}>
         {displayRows.length === 0 && (
           <div className="loading-placeholder">
-            <span>{lapTimes.length > 0 && !replayStarted
-              ? 'Press play to start the race replay'
-              : 'Load a session to see timing data'}</span>
+            <span>Load a session to see timing data</span>
           </div>
         )}
 
@@ -476,7 +541,7 @@ export default function LapTimeChart() {
                 )}
               </span>
 
-              {/* Driver name: firstName (light) + SURNAME (bold) */}
+              {/* Driver name: flag (race end) + firstName (light) + SURNAME (bold) */}
               <span style={{
                 ...cellStyle,
                 justifyContent: 'flex-start',
@@ -487,6 +552,11 @@ export default function LapTimeChart() {
                 textOverflow: 'ellipsis',
                 gap: 3,
               }}>
+                {raceFinished && countryCodeMap[row.driver] && (
+                  <span style={{ fontSize: '11px', lineHeight: 1 }}>
+                    {countryFlag(countryCodeMap[row.driver])}
+                  </span>
+                )}
                 {row.firstName && (
                   <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.55)', fontSize: '9px' }}>
                     {row.firstName}
@@ -495,21 +565,42 @@ export default function LapTimeChart() {
                 <span style={{ fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
                   {row.surname}
                 </span>
+                {sessionBests.fastestLapDriver === row.driver && (
+                  <span style={{
+                    fontSize: '7px', marginLeft: 3, padding: '1px 3px',
+                    borderRadius: 3, background: 'rgba(168,85,247,0.25)',
+                    color: '#a855f7', fontWeight: 800, letterSpacing: '0.04em',
+                  }}>FL</span>
+                )}
+                {isQualifying && row.qualiSegment && (
+                  <span style={{
+                    fontSize: '7px', marginLeft: 3, padding: '1px 3px',
+                    borderRadius: 3, fontWeight: 700, letterSpacing: '0.04em',
+                    background: row.qualiSegment === 'Q3' ? 'rgba(168,85,247,0.2)' : row.qualiSegment === 'Q2' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.08)',
+                    color: row.qualiSegment === 'Q3' ? '#a855f7' : row.qualiSegment === 'Q2' ? '#22c55e' : 'rgba(255,255,255,0.4)',
+                  }}>{row.qualiSegment}</span>
+                )}
               </span>
 
               {/* Sector 1 */}
               <span style={{ ...cellStyle, color: row.s1Color, fontWeight: row.s1Color !== TIME_COLORS.normal ? 700 : 500 }}>
-                {fmtSector(row.s1)}
+                {row.s1 ? fmtSector(row.s1) : row.chrono?.sector === 1 ? (
+                  <span style={{ color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{row.chrono.elapsed.toFixed(1)}</span>
+                ) : '—'}
               </span>
 
               {/* Sector 2 */}
               <span style={{ ...cellStyle, color: row.s2Color, fontWeight: row.s2Color !== TIME_COLORS.normal ? 700 : 500 }}>
-                {fmtSector(row.s2)}
+                {row.s2 ? fmtSector(row.s2) : row.chrono?.sector === 2 ? (
+                  <span style={{ color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{row.chrono.elapsed.toFixed(1)}</span>
+                ) : '—'}
               </span>
 
               {/* Sector 3 */}
               <span style={{ ...cellStyle, color: row.s3Color, fontWeight: row.s3Color !== TIME_COLORS.normal ? 700 : 500 }}>
-                {fmtSector(row.s3)}
+                {row.s3 ? fmtSector(row.s3) : row.chrono?.sector === 3 ? (
+                  <span style={{ color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{row.chrono.elapsed.toFixed(1)}</span>
+                ) : '—'}
               </span>
 
               {/* Lap Time */}

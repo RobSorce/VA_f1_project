@@ -435,10 +435,10 @@
 }
 
 .telemetry-strip__header {
-  height: 30px;
+  min-height: 30px;
   display: flex;
-  align-items: center;
-  padding: 0 12px;
+  align-items: flex-start;
+  padding: 4px 12px;
   gap: 8px;
   background: rgba(20, 22, 40, 0.35);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -449,42 +449,78 @@
 
 .telemetry-strip__header-left {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   flex: 1;
   min-width: 0;
   overflow-x: auto;
+  flex-wrap: wrap;
 }
 
 .telemetry-strip__header-right {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   flex-shrink: 0;
+  padding-top: 2px;
 }
 
 /* Driver comparison cards */
-.telem-driver-card {
+/* ── Telemetry MFD Card (F1 TV style) ── */
+.telem-mfd-card {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 8px 5px 8px;
+  background: rgba(15, 15, 30, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   font-size: 10px;
   flex-shrink: 0;
   font-family: var(--font-mono);
+  min-width: 160px;
+  backdrop-filter: blur(8px);
 }
 
-.telem-driver-card__bar {
+.telem-mfd-card__close {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 3px;
+  line-height: 1;
+  z-index: 1;
+}
+.telem-mfd-card__close:hover {
+  color: #e10600;
+}
+
+.telem-mfd-card__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.telem-mfd-card__driver {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.telem-mfd-card__bar {
   width: 3px;
-  height: 16px;
+  height: 14px;
   border-radius: 1.5px;
   flex-shrink: 0;
 }
 
-.telem-driver-card__abbr {
+.telem-mfd-card__abbr {
   font-weight: 800;
   font-size: 11px;
   color: #fff;
@@ -492,20 +528,69 @@
   font-family: var(--font-display);
 }
 
-.telem-driver-card__lap {
-  color: rgba(255, 255, 255, 0.4);
+.telem-mfd-card__tyre {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 9px;
+  font-weight: 900;
+  flex-shrink: 0;
 }
 
-.telem-driver-card__time {
+.telem-mfd-card__lap-badge {
+  font-size: 8px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  padding: 1px 5px;
+  letter-spacing: 0.02em;
+}
+
+.telem-mfd-card__mid {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.telem-mfd-card__laptime {
+  font-weight: 700;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
   font-variant-numeric: tabular-nums;
 }
 
-.telem-driver-card__sectors {
+.telem-mfd-card__tyre-life {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 600;
+}
+
+.telem-mfd-card__sectors {
   display: flex;
-  gap: 2px;
+  gap: 6px;
+}
+
+.telem-mfd-card__sector {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.telem-mfd-card__sector-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.02em;
+}
+
+.telem-mfd-card__sector-val {
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .telem-sector-badge {
@@ -849,6 +934,73 @@
   border-color: var(--color-f1-red);
   color: var(--color-f1-red);
   box-shadow: 0 0 8px rgba(225, 6, 0, 0.2);
+}
+
+/* ── Qualifying segment pills ── */
+.timeline-player__quali-pills {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.timeline-player__quali-pill {
+  padding: 2px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  line-height: 1.2;
+}
+
+.timeline-player__quali-pill:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-primary);
+}
+
+.timeline-player__quali-pill.active {
+  background: rgba(225, 6, 0, 0.15);
+  border-color: var(--color-f1-red);
+  color: var(--color-f1-red);
+  box-shadow: 0 0 8px rgba(225, 6, 0, 0.2);
+}
+
+.timeline-player__quali-pill:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ── Legend ── */
+.timeline-player__legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 12px 0;
+  flex-wrap: wrap;
+}
+
+.timeline-player__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8px;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+.timeline-player__legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* ── Tooltip ── */
@@ -1313,6 +1465,24 @@
     inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
   z-index: var(--z-sticky);
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bottom-tab-bar--hidden {
+  transform: translateY(calc(100% + 16px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Invisible hover trigger zone at the very bottom of the screen */
+.bottom-tab-bar__trigger {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  z-index: var(--z-sticky);
 }
 
 .bottom-tab-bar__tab {
@@ -1431,13 +1601,102 @@
   max-width: 1100px;
 }
 
-/* Maximized mode — fills the center area */
-.overlay-panel--maximized {
+/* Active panel — raised above siblings */
+.overlay-panel--active {
+  z-index: 12;
+}
+
+/* Floating panel — dragged out of flex flow */
+.overlay-panel--floating {
   position: absolute;
-  inset: 0;
-  max-width: unset;
+  flex: none;
+}
+
+/* Maximized mode — fills the entire overlay container */
+.overlay-panel--maximized {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: unset !important;
   border-radius: 20px;
   z-index: 11;
+}
+
+/* Tiled left half (macOS-style snap) */
+.overlay-panel--tile-left {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 50% !important;
+  height: 100% !important;
+  max-width: unset !important;
+  border-radius: 16px 0 0 16px;
+  z-index: 11;
+  flex: none;
+}
+
+/* Tiled right half */
+.overlay-panel--tile-right {
+  position: absolute !important;
+  right: 0 !important;
+  top: 0 !important;
+  width: 50% !important;
+  height: 100% !important;
+  max-width: unset !important;
+  border-radius: 0 16px 16px 0;
+  z-index: 11;
+  flex: none;
+}
+
+/* Auto-arranged panel (Ctrl+G grid layouts) */
+.overlay-panel--arranged {
+  position: absolute;
+  max-width: unset;
+  flex: none;
+  border-radius: 8px;
+  z-index: 11;
+  transition: left 200ms ease, top 200ms ease, width 200ms ease, height 200ms ease;
+}
+
+/* Resize handle (bottom-right corner) */
+/* ── Resize edges (invisible hit areas along each border) ── */
+.overlay-panel__edge {
+  position: absolute;
+  z-index: 2;
+}
+.overlay-panel__edge--n { top: -3px; left: 6px; right: 6px; height: 6px; cursor: ns-resize; }
+.overlay-panel__edge--s { bottom: -3px; left: 6px; right: 6px; height: 6px; cursor: ns-resize; }
+.overlay-panel__edge--w { left: -3px; top: 6px; bottom: 6px; width: 6px; cursor: ew-resize; }
+.overlay-panel__edge--e { right: -3px; top: 6px; bottom: 6px; width: 6px; cursor: ew-resize; }
+
+/* ── Resize corners (square hit areas at each corner) ── */
+.overlay-panel__corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  z-index: 3;
+}
+.overlay-panel__corner--nw { top: -3px; left: -3px; cursor: nwse-resize; }
+.overlay-panel__corner--ne { top: -3px; right: -3px; cursor: nesw-resize; }
+.overlay-panel__corner--sw { bottom: -3px; left: -3px; cursor: nesw-resize; }
+.overlay-panel__corner--se { bottom: -3px; right: -3px; cursor: nwse-resize; }
+
+/* Visual grip indicator on bottom-right corner */
+.overlay-panel__corner--se::after {
+  content: '';
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+}
+.overlay-panel__corner--se:hover::after,
+.overlay-panel__corner--se:active::after {
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 @keyframes overlayScaleIn {
@@ -1459,8 +1718,11 @@
   background: rgba(28, 28, 44, 0.35);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
-  cursor: default;
+  cursor: grab;
   user-select: none;
+}
+.overlay-panel__header:active {
+  cursor: grabbing;
 }
 
 .overlay-panel__title {
@@ -1527,7 +1789,9 @@
 .tyres-tab__health > .panel,
 .tyres-tab__management > .panel,
 .ai-tab__strategy > .panel,
-.ai-tab__chat > .panel {
+.ai-tab__chat > .panel,
+.championship-tab__chart > .panel,
+.championship-tab__standings > .panel {
   height: 100%;
   max-height: 100%;
 }
@@ -1680,6 +1944,121 @@
 }
 
 .ai-tab__chat {
+  flex: 2;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---------- Analytics (t-SNE) Tab ---------- */
+.analytics-tab {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.analytics-tab__scatterplot {
+  flex: 3;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.analytics-tab__toggle {
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  flex-shrink: 0;
+}
+
+.analytics-tab__toggle-btn {
+  padding: 3px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.analytics-tab__toggle-btn:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-secondary);
+}
+
+.analytics-tab__toggle-btn.active {
+  background: var(--color-f1-red);
+  border-color: var(--color-f1-red);
+  color: #fff;
+}
+
+.analytics-tab__toggle-btn--live.active {
+  background: #00e676;
+  border-color: #00e676;
+  color: #000;
+}
+
+/* Race Situation Map styles */
+@keyframes situation-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 0.3; }
+}
+
+.situation-focus-ring {
+  fill: none;
+  stroke: #ffd700;
+  stroke-width: 2;
+  animation: situation-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.situation-trail {
+  pointer-events: none;
+}
+
+.situation-label {
+  font-size: 7px;
+  font-weight: 700;
+  fill: #fff;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.analytics-tab__analysis {
+  flex: 2;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.analytics-tab__scatterplot > .panel,
+.analytics-tab__analysis > .panel {
+  height: 100%;
+  max-height: 100%;
+}
+
+/* ---------- Championship Tab ---------- */
+.championship-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.championship-tab__chart {
+  flex: 3;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.championship-tab__standings {
   flex: 2;
   min-height: 0;
   overflow: hidden;
@@ -2016,6 +2395,11 @@
   color: rgba(255, 255, 255, 0.15);
   font-weight: var(--font-weight-normal);
   letter-spacing: 0.15em;
+}
+
+.sectors-panel__live-sec--lap {
+  color: var(--color-text-secondary);
+  min-width: 64px;
 }
 
 /* ==========================================================================
@@ -2618,6 +3002,12 @@
   color: var(--color-text-secondary);
 }
 
+.settings-tab__hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+
 .settings-tab__pills {
   display: flex;
   gap: 3px;
@@ -2857,6 +3247,7 @@
 
 .compare-panel__empty {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
@@ -2864,6 +3255,29 @@
   font-size: var(--font-size-sm);
   text-align: center;
   padding: 24px;
+  gap: 10px;
+}
+
+.compare-panel__empty-selectors {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.compare-panel__driver-select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.compare-panel__driver-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
 }
 
 .compare-panel__empty kbd {
@@ -2878,6 +3292,7 @@
 }
 
 .compare-panel__header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3494,4 +3909,69 @@
 
 [data-theme="light"] .focus-widget__section {
   border-bottom-color: rgba(0, 0, 0, 0.04);
+}
+
+/* ==========================================================================
+   Responsive Breakpoints
+   ========================================================================== */
+
+/* Medium screens (laptops, ≤1400px) */
+@media (max-width: 1400px) {
+  .app-sidebar {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+  }
+
+  .bottom-tab-bar__tab {
+    padding: 6px 10px;
+  }
+
+  .bottom-tab-bar__label {
+    font-size: 7px;
+  }
+
+  .overlay-panel {
+    max-width: 100%;
+  }
+}
+
+/* Small screens (≤1280px) */
+@media (max-width: 1280px) {
+  .app-sidebar {
+    width: 180px;
+    min-width: 180px;
+    max-width: 180px;
+  }
+
+  .bottom-tab-bar {
+    gap: 1px;
+    padding: 0 4px;
+    height: 46px;
+  }
+
+  .bottom-tab-bar__tab {
+    padding: 5px 8px;
+  }
+
+  .bottom-tab-bar__label {
+    display: none;
+  }
+
+  .bottom-tab-bar__icon {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Narrow screens (≤1100px) — sidebar hidden */
+@media (max-width: 1100px) {
+  .app-sidebar {
+    display: none;
+  }
+
+  .overlay-container {
+    inset: 4px;
+    gap: 4px;
+  }
 }

@@ -432,6 +432,54 @@
   border-radius: var(--radius-full);
 }
 
+/* Header qualifying segment pills */
+.header-quali-pills {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.header-quali-pill {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.header-quali-pill:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--color-text-primary);
+}
+
+.header-quali-pill.active {
+  background: linear-gradient(135deg, var(--color-f1-red) 0%, var(--color-f1-red-dark) 100%);
+  border-color: var(--color-f1-red);
+  color: white;
+  box-shadow: 0 0 8px rgba(225, 6, 0, 0.3);
+}
+
+.header-quali-pill:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.header-quali-pill.loading:disabled {
+  animation: quali-pill-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes quali-pill-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
 /* --------------------------------------------------------------------------
    Legend
    -------------------------------------------------------------------------- */

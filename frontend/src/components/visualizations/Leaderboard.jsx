@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import { getDriverColor, TYRE_COLORS, countryFlag, F1_POINTS } from '../../utils/colors';
 import Panel from '../ui/Panel';
 
 /* ── Flag constants ─────────────────────────────────────────────────── */
@@ -64,6 +64,8 @@ export default function Leaderboard() {
   const currentTime = useF1Store((s) => s.currentTime);
   const columnMode = useF1Store((s) => s.leaderboardColumnMode);
   const cycleLeaderboardColumn = useF1Store((s) => s.cycleLeaderboardColumn);
+  const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+  const frameData = useF1Store((s) => s.frameData);
 
   /* ── Local state ──────────────────────────────────────────────────── */
   const [greenFlash, setGreenFlash] = useState(false);
@@ -108,6 +110,31 @@ export default function Leaderboard() {
     return map;
   }, [driversInfo]);
 
+  /* ── Country code + points maps from race_results ────────────── */
+  const { countryCodeMap, pointsMap } = useMemo(() => {
+    const cc = {}, pts = {};
+    (sessionData?.race_results || []).forEach((r) => {
+      const abbr = r.Abbreviation || r.Driver;
+      if (!abbr) return;
+      if (r.CountryCode) cc[abbr] = r.CountryCode;
+      if (r.Points != null) pts[abbr] = r.Points;
+    });
+    return { countryCodeMap: cc, pointsMap: pts };
+  }, [sessionData]);
+
+  /* ── Fastest lap driver ──────────────────────────────────────────── */
+  const fastestLapDriver = useMemo(() => {
+    if (!sessionData?.lap_times) return null;
+    let best = Infinity, driver = null;
+    for (const d of sessionData.lap_times) {
+      if (d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300 && d.LapTimeSeconds < best) {
+        best = d.LapTimeSeconds;
+        driver = d.Driver;
+      }
+    }
+    return driver;
+  }, [sessionData]);
+
   /* ── Grid position map (for persistent gained/lost arrows) ─────── */
   const gridPositionMap = useMemo(() => {
     const map = {};
@@ -123,7 +150,74 @@ export default function Leaderboard() {
 
   /* ── Compute standings from lap data ──────────────────────────────── */
   const standings = useMemo(() => {
-    if (!sessionData?.lap_times) return [];
+    if (!sessionData) return [];
+
+    // ── Qualifying mode: use race_results for positions, frame data for telemetry ──
+    if (isQualifyingReplay) {
+      const results = sessionData.race_results || [];
+      // Get current frame for live telemetry
+      const frame = frameData?.frames?.[currentFrameIndex];
+      const frameDrivers = frame?.drivers || {};
+
+      // Build best lap time map from lap_times
+      const bestLapMap = {};
+      (sessionData.lap_times || []).forEach((lt) => {
+        if (lt.LapTimeSeconds > 0 && lt.LapTimeSeconds < 300) {
+          if (!bestLapMap[lt.Driver] || lt.LapTimeSeconds < bestLapMap[lt.Driver].time) {
+            bestLapMap[lt.Driver] = {
+              time: lt.LapTimeSeconds,
+              compound: lt.Compound || 'UNKNOWN',
+            };
+          }
+        }
+      });
+
+      // Only show drivers that are in the current segment's frame data
+      const segDrivers = frameData?.driver_colors ? Object.keys(frameData.driver_colors) : [];
+
+      const filtered = results
+        .filter((r) => {
+          const abbr = r.Abbreviation || r.Driver;
+          return abbr && (segDrivers.length === 0 || segDrivers.includes(abbr));
+        })
+        .sort((a, b) => (a.Position || 99) - (b.Position || 99));
+
+      // Leader is the first driver in the filtered, sorted list
+      const leaderAbbr = filtered.length > 0 ? (filtered[0].Abbreviation || filtered[0].Driver) : null;
+      const leaderTime = leaderAbbr ? bestLapMap[leaderAbbr]?.time : null;
+
+      return filtered.map((r, i) => {
+          const abbr = r.Abbreviation || r.Driver;
+          const fd = frameDrivers[abbr];
+          const best = bestLapMap[abbr];
+          const COMPOUND_NAMES = { 1: 'SOFT', 2: 'MEDIUM', 3: 'HARD', 4: 'INTERMEDIATE', 5: 'WET' };
+
+          return {
+            pos: i + 1,
+            abbr,
+            color: getDriverColor(abbr),
+            compound: fd ? (COMPOUND_NAMES[fd.tyre] || 'UNKNOWN') : (best?.compound || 'UNKNOWN'),
+            tyreLife: fd ? fd.tyre_life : 0,
+            lapTime: best?.time || null,
+            bestLap: best?.time || null,
+            interval: i === 0 ? null : (best?.time && leaderTime
+              ? +(best.time - leaderTime).toFixed(3)
+              : null),
+            gapToLeader: i === 0 ? null : (best?.time && leaderTime
+              ? +(best.time - leaderTime).toFixed(3)
+              : null),
+            isPitting: false,
+            isRetired: false,
+            retiredStatus: null,
+            retiredLap: null,
+            isGrid: false,
+            speed: fd?.speed || null,
+          };
+        });
+    }
+
+    // ── Race/Sprint mode: need lap_times ──
+    if (!sessionData.lap_times?.length) return [];
 
     // Before replay starts, show grid positions if available
     if (!replayStarted) {
@@ -152,6 +246,7 @@ export default function Leaderboard() {
       return [];
     }
 
+    // ── Race mode: use lap_times for progressive positions ──
     const lapTimes = sessionData.lap_times;
 
     // Compute time offset: session times are absolute, frame times are 0-based
@@ -211,7 +306,7 @@ export default function Leaderboard() {
     active.forEach((r, i) => { r.pos = i + 1; });
     retired.forEach((r, i) => { r.pos = active.length + i + 1; });
     return [...active, ...retired];
-  }, [sessionData, currentLap, currentTime, dnfMap, replayStarted]);
+  }, [sessionData, currentLap, currentTime, dnfMap, replayStarted, isQualifyingReplay, frameData, currentFrameIndex]);
 
   /* ── Position change computation ──────────────────────────────────── */
   const [displayedChanges, setDisplayedChanges] = useState({});
@@ -402,11 +497,12 @@ export default function Leaderboard() {
       };
 
   /* ── Header (broadcast style) ─────────────────────────────────────── */
+  const qualiSegment = useF1Store((s) => s.qualiSegment);
   const header = (
     <div className="tower-broadcast-header">
       <div className="tower-broadcast-header__left">
         <div className="tower-broadcast-header__accent" />
-        <span className="tower-broadcast-header__title">RACE</span>
+        <span className="tower-broadcast-header__title">{isQualifyingReplay ? qualiSegment || 'QUALIFYING' : 'RACE'}</span>
         <kbd className="panel-shortcut-hint" title="Press 2 to focus" style={{ opacity: focusedView === 'leaderboard' ? 1 : undefined }}>2</kbd>
       </div>
       <div className="tower-broadcast-header__right">
@@ -417,11 +513,17 @@ export default function Leaderboard() {
         >
           {COLUMN_MODES[columnMode]}
         </button>
-        <div className="tower-broadcast-header__lap">
-          <span className="tower-broadcast-header__lap-label">LAP</span>
-          <span className="tower-broadcast-header__lap-current">{currentLap}</span>
-          <span className="tower-broadcast-header__lap-total">/{maxLap}</span>
-        </div>
+        {isQualifyingReplay ? (
+          <div className="tower-broadcast-header__lap">
+            <span className="tower-broadcast-header__lap-label">QUALIFYING</span>
+          </div>
+        ) : (
+          <div className="tower-broadcast-header__lap">
+            <span className="tower-broadcast-header__lap-label">LAP</span>
+            <span className="tower-broadcast-header__lap-current">{currentLap}</span>
+            <span className="tower-broadcast-header__lap-total">/{maxLap}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -579,6 +681,11 @@ export default function Leaderboard() {
                   className="tower-row__team-bar"
                   style={{ backgroundColor: d.color }}
                 />
+                {raceFinished && countryCodeMap[d.abbr] && (
+                  <span style={{ fontSize: '11px', marginRight: 2, lineHeight: 1 }}>
+                    {countryFlag(countryCodeMap[d.abbr])}
+                  </span>
+                )}
                 <span className="tower-row__driver-name">{d.abbr}</span>
                 {lstmPredictions?.driver_predictions?.[d.abbr] != null && (() => {
                   const pred = lstmPredictions.driver_predictions[d.abbr];
@@ -590,10 +697,28 @@ export default function Leaderboard() {
                     </span>
                   );
                 })()}
+                {raceFinished && fastestLapDriver === d.abbr && (
+                  <span style={{
+                    fontSize: '7px', marginLeft: 4, padding: '1px 3px',
+                    borderRadius: 3, background: 'rgba(168,85,247,0.25)',
+                    color: '#a855f7', fontWeight: 800, letterSpacing: '0.04em',
+                  }}>FL</span>
+                )}
               </span>
 
               <span className="tower-row__value">
-                {renderColumnValue(d)}
+                {raceFinished && !d.isRetired && d.pos <= 10 ? (
+                  <span className="tower-row__points-badge" style={{
+                    color: '#ffd700',
+                    fontWeight: 700,
+                    fontSize: '10px',
+                    letterSpacing: '0.02em',
+                  }}>
+                    +{pointsMap[d.abbr] != null ? pointsMap[d.abbr] : (F1_POINTS[d.pos] || 0)}
+                  </span>
+                ) : (
+                  renderColumnValue(d)
+                )}
               </span>
 
               <span className="tower-row__tyre-dot">

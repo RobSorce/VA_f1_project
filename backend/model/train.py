@@ -126,8 +126,8 @@ def train_model():
         torch.tensor(X_val, dtype=torch.float32),
         torch.tensor(y_val, dtype=torch.float32),
     )
-    train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=32, shuffle=False)
+    train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=64, shuffle=False)
 
     # Build model
     model = F1LapPredictor(n_features=n_features, hidden1=64, hidden2=32, pred_len=pred_len)

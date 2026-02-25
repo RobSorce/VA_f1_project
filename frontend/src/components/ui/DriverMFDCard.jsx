@@ -17,6 +17,7 @@ export default function DriverMFDCard() {
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
 
   const [page, setPage] = useState(0);
+  const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
 
   const driverInfo = useMemo(() => {
     if (!highlightedDriver || !drivers?.length) return null;
@@ -25,13 +26,18 @@ export default function DriverMFDCard() {
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
 
-  // Driver lap data
+  // Driver lap data — for qualifying, show all laps (not filtered by currentLap)
   const driverLaps = useMemo(() => {
     if (!highlightedDriver) return [];
+    if (isQualifyingReplay) {
+      return lapTimes
+        .filter((d) => d.Driver === highlightedDriver && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
+        .sort((a, b) => a.LapNumber - b.LapNumber);
+    }
     return lapTimes
       .filter((d) => d.Driver === highlightedDriver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
       .sort((a, b) => a.LapNumber - b.LapNumber);
-  }, [highlightedDriver, lapTimes, currentLap]);
+  }, [highlightedDriver, lapTimes, currentLap, isQualifyingReplay]);
 
   // Current tyre info from frame data
   const tyreInfo = useMemo(() => {
@@ -58,15 +64,22 @@ export default function DriverMFDCard() {
     return { avg, best, consistency: std };
   }, [driverLaps]);
 
-  // Position history for sparkline
+  // Position history for sparkline — qualifying shows all positions, race filters by currentLap
   const posHistory = useMemo(() => {
     if (!highlightedDriver) return [];
+    if (isQualifyingReplay) {
+      // For qualifying, show the final qualifying position as a single point
+      const result = (sessionData?.race_results || []).find(
+        (r) => (r.Abbreviation || r.Driver) === highlightedDriver
+      );
+      return result?.Position ? [{ lap: 1, pos: result.Position }] : [];
+    }
     const posData = lapTimes
       .filter((d) => d.Driver === highlightedDriver && d.LapNumber <= currentLap && d.Position)
       .sort((a, b) => a.LapNumber - b.LapNumber)
       .map((d) => ({ lap: d.LapNumber, pos: d.Position }));
     return posData;
-  }, [highlightedDriver, lapTimes, currentLap]);
+  }, [highlightedDriver, lapTimes, currentLap, isQualifyingReplay, sessionData]);
 
   const color = highlightedDriver ? getDriverColor(highlightedDriver) : '#888';
 

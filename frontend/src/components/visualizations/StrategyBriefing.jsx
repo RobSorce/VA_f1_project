@@ -1,14 +1,51 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { TYRE_COLORS } from '../../utils/colors';
-import Panel from '../ui/Panel';
+
+// Feature name → display label (fallback if backend doesn't provide it)
+const FEATURE_DISPLAY = {
+  avg_lap_time: 'Avg Lap Time',
+  std_lap_time: 'Consistency',
+  best_lap_time: 'Best Lap',
+  avg_sector1: 'Sector 1',
+  avg_sector2: 'Sector 2',
+  avg_sector3: 'Sector 3',
+  pit_count: 'Pit Stops',
+  stint_count: 'Stints',
+  avg_stint_length: 'Avg Stint',
+  max_stint_length: 'Max Stint',
+  degradation_rate: 'Tyre Deg.',
+  grid_position: 'Grid Pos.',
+  finish_position: 'Finish Pos.',
+  position_change: 'Pos. Gained',
+  fuel_corrected_pace: 'Fuel-Adj Pace',
+  gap_to_leader_mean: 'Gap to Leader',
+  rolling_pace_3: 'Last 3 Pace',
+  rolling_pace_5: 'Last 5 Pace',
+  track_temp: 'Track Temp',
+  air_temp: 'Air Temp',
+};
+
+function featureLabel(fi) {
+  return fi.label || FEATURE_DISPLAY[fi.feature] || fi.feature.replace(/_/g, ' ');
+}
+
+function magnitudeLabel(effectSize) {
+  if (effectSize >= 0.8) return 'large';
+  if (effectSize >= 0.5) return 'medium';
+  return 'small';
+}
+
+function magnitudeColor(effectSize) {
+  if (effectSize >= 0.8) return 'rgba(225,6,0,0.9)';
+  if (effectSize >= 0.5) return 'rgba(255,165,0,0.9)';
+  return 'rgba(255,255,255,0.4)';
+}
 
 export default function StrategyBriefing() {
   const radarRef = useRef(null);
   const barsRef = useRef(null);
   const tsneStrategyAnalysis = useF1Store((s) => s.tsneStrategyAnalysis);
-  const selectedTSNEPoints = useF1Store((s) => s.selectedTSNEPoints);
 
   const featureImportance = useMemo(
     () => tsneStrategyAnalysis?.feature_importance || [],
@@ -44,7 +81,7 @@ export default function StrategyBriefing() {
     const maxEffect = d3.max(topFeatures, (d) => d.effect_size) || 1;
     const rScale = d3.scaleLinear().domain([0, maxEffect]).range([0, radius]);
 
-    // Grid circles
+    // Grid circles with labels
     [0.25, 0.5, 0.75, 1].forEach((level) => {
       g.append('circle')
         .attr('r', radius * level)
@@ -75,7 +112,7 @@ export default function StrategyBriefing() {
         .attr('fill', 'rgba(255,255,255,0.5)')
         .attr('font-size', '7px')
         .attr('font-weight', '600')
-        .text(f.feature.replace(/_/g, ' ').replace(/avg |std /, ''));
+        .text(featureLabel(f));
     });
 
     // Radar polygon
@@ -122,9 +159,9 @@ export default function StrategyBriefing() {
     svg.attr('width', width).attr('height', height);
 
     const maxEffect = d3.max(top6, (d) => d.effect_size) || 1;
-    const xScale = d3.scaleLinear().domain([0, maxEffect]).range([0, width - 120]);
+    const xScale = d3.scaleLinear().domain([0, maxEffect]).range([0, width - 130]);
 
-    const g = svg.append('g').attr('transform', 'translate(110, 4)');
+    const g = svg.append('g').attr('transform', 'translate(120, 4)');
 
     top6.forEach((f, i) => {
       const y = i * (barH + gap);
@@ -132,12 +169,12 @@ export default function StrategyBriefing() {
 
       // Label
       svg.append('text')
-        .attr('x', 106).attr('y', y + barH / 2 + 4)
+        .attr('x', 116).attr('y', y + barH / 2 + 4)
         .attr('text-anchor', 'end')
         .attr('fill', 'rgba(255,255,255,0.6)')
         .attr('font-size', '8px')
         .attr('font-weight', '600')
-        .text(f.feature.replace(/_/g, ' '));
+        .text(featureLabel(f));
 
       // Bar
       g.append('rect')
@@ -148,106 +185,80 @@ export default function StrategyBriefing() {
         .attr('fill', color)
         .attr('opacity', 0.6);
 
-      // Value
+      // Value + magnitude
+      const mag = f.magnitude || magnitudeLabel(f.effect_size);
       g.append('text')
         .attr('x', xScale(f.effect_size) + 4).attr('y', y + barH / 2 + 1)
         .attr('fill', color)
         .attr('font-size', '8px')
         .attr('font-weight', '700')
         .attr('dominant-baseline', 'middle')
-        .text(`${f.effect_size.toFixed(2)} ${f.direction === 'higher' ? '\u2191' : '\u2193'}`);
+        .text(`${f.effect_size.toFixed(2)} ${f.direction === 'higher' ? '\u2191' : '\u2193'} ${mag}`);
     });
   }, [featureImportance]);
 
-  const strategies = tsneStrategyAnalysis?.strategies || [];
-  const patterns = tsneStrategyAnalysis?.common_patterns || [];
+  if (!tsneStrategyAnalysis?.feature_importance?.length) return null;
 
   return (
-    <Panel title="Strategy Briefing">
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
-        {/* Summary */}
-        <div style={{
-          background: 'var(--color-bg-tertiary)',
-          borderRadius: 'var(--radius-md)',
-          padding: 'var(--spacing-sm)',
-          fontSize: 'var(--font-size-xs)',
-        }}>
-          <strong>{selectedTSNEPoints.length}</strong> points selected
-          {patterns.length > 0 && (
-            <span style={{ color: 'var(--color-text-muted)' }}>
-              {' '}| avg stint: {patterns[0]?.avg_stint_length?.toFixed(0)} laps
-            </span>
-          )}
-        </div>
-
-        {/* Radar chart */}
-        {topFeatures.length >= 3 && (
-          <div style={{
-            background: 'var(--color-bg-tertiary)',
-            borderRadius: 'var(--radius-md)',
-            padding: '8px',
-          }}>
-            <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-secondary)', marginBottom: 4, textTransform: 'uppercase' }}>
-              Feature Profile
-            </div>
-            <div ref={radarRef}>
-              <svg />
-            </div>
-          </div>
-        )}
-
-        {/* Feature importance bars */}
-        {featureImportance.length > 0 && (
-          <div style={{
-            background: 'var(--color-bg-tertiary)',
-            borderRadius: 'var(--radius-md)',
-            padding: '8px',
-          }}>
-            <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-secondary)', marginBottom: 4, textTransform: 'uppercase' }}>
-              Feature Importance (Effect Size)
-            </div>
-            <div ref={barsRef}>
-              <svg />
-            </div>
-          </div>
-        )}
-
-        {/* Mini strategy timelines */}
-        {strategies.length > 0 && (
-          <div style={{
-            background: 'var(--color-bg-tertiary)',
-            borderRadius: 'var(--radius-md)',
-            padding: '8px',
-          }}>
-            <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--color-text-secondary)', marginBottom: 4, textTransform: 'uppercase' }}>
-              Common Strategies
-            </div>
-            {strategies.map((strat, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                fontSize: 'var(--font-size-xs)', marginBottom: 4,
-              }}>
-                <span style={{ color: 'var(--color-text-muted)', width: 18, fontSize: '9px' }}>#{i + 1}</span>
-                {(strat.stints || []).map((s, j) => (
-                  <span key={j} style={{
-                    padding: '2px 6px',
-                    borderRadius: 3,
-                    backgroundColor: TYRE_COLORS[s.compound?.toUpperCase()] || '#888',
-                    color: s.compound?.toUpperCase() === 'HARD' || s.compound?.toUpperCase() === 'MEDIUM' ? '#000' : '#fff',
-                    fontSize: 9,
-                    fontWeight: 700,
-                  }}>
-                    {s.compound?.[0]}{s.length}
-                  </span>
-                ))}
-                <span style={{ color: 'var(--color-text-muted)', marginLeft: 'auto', fontSize: '9px' }}>
-                  {(strat.frequency * 100).toFixed(0)}%
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+    <div style={{
+      background: 'var(--color-bg-tertiary)',
+      borderRadius: 'var(--radius-md)',
+      padding: '8px',
+    }}>
+      {/* Section header */}
+      <div style={{
+        fontSize: '9px', fontWeight: 700, color: 'var(--color-text-secondary)',
+        marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em',
+      }}>
+        How This Cluster Differs (Cohen's d)
       </div>
-    </Panel>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#22c55e' }} />
+          <span style={{ color: 'rgba(255,255,255,0.5)' }}>Higher in cluster</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#ef4444' }} />
+          <span style={{ color: 'rgba(255,255,255,0.5)' }}>Lower in cluster</span>
+        </div>
+      </div>
+
+      {/* Radar chart */}
+      {topFeatures.length >= 3 && (
+        <div style={{ marginBottom: 8 }}>
+          <div ref={radarRef}>
+            <svg />
+          </div>
+        </div>
+      )}
+
+      {/* Feature importance bars */}
+      {featureImportance.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{
+            fontSize: '9px', fontWeight: 700, color: 'var(--color-text-secondary)',
+            marginBottom: 4, textTransform: 'uppercase',
+          }}>
+            Feature Importance
+          </div>
+          <div ref={barsRef}>
+            <svg />
+          </div>
+        </div>
+      )}
+
+      {/* Magnitude scale legend */}
+      <div style={{
+        display: 'flex', gap: 8, fontSize: '7px', color: 'rgba(255,255,255,0.35)',
+        borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6,
+      }}>
+        <span>Effect size: </span>
+        <span style={{ color: 'rgba(255,255,255,0.4)' }}>&lt;0.5 = small</span>
+        <span style={{ color: 'rgba(255,165,0,0.7)' }}>0.5–0.8 = medium</span>
+        <span style={{ color: 'rgba(225,6,0,0.7)' }}>&gt;0.8 = large</span>
+      </div>
+    </div>
   );
 }

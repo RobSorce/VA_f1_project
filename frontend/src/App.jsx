@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useF1Store } from './store/useF1Store';
 
 // UI components
@@ -27,6 +27,9 @@ import LapTimesTabContent from './components/tabs/LapTimesTabContent';
 import AITabContent from './components/tabs/AITabContent';
 import TyresTabContent from './components/tabs/TyresTabContent';
 import SettingsTabContent from './components/tabs/SettingsTabContent';
+import ChampionshipTabContent from './components/tabs/ChampionshipTabContent';
+import AnalyticsTabContent from './components/tabs/AnalyticsTabContent';
+import RacePredictionPanel from './components/visualizations/RacePredictionPanel';
 
 // Command Palette & Keyboard
 import CommandPalette from './components/CommandPalette/CommandPalette';
@@ -38,25 +41,22 @@ const OVERLAY_TABS = {
   laptimes: { title: 'Lap Times', Component: LapTimesTabContent },
   sectors: { title: 'Sectors & Speeds', Component: SectorsPanel },
   tyres: { title: 'Tyres', Component: TyresTabContent },
-  speed: { title: 'Speed / Telemetry', Component: SpeedPanel },
+  speed: { title: 'Charts', Component: SpeedPanel },
   consistency: { title: 'Consistency', Component: ConsistencyPanel },
   ai: { title: 'AI Assistant', Component: AITabContent },
+  analytics: { title: 'Analytics', Component: AnalyticsTabContent },
+  prediction: { title: 'Race Prediction', Component: RacePredictionPanel },
+  championship: { title: 'Championship', Component: ChampionshipTabContent },
   settings: { title: 'Settings', Component: SettingsTabContent },
   compare: { title: 'Driver Comparison', Component: DriverComparePanel },
 };
 
 export default function App() {
-  const fetchSchedule = useF1Store((s) => s.fetchSchedule);
-  const year = useF1Store((s) => s.year);
   const sessionData = useF1Store((s) => s.sessionData);
   const openOverlays = useF1Store((s) => s.openOverlays);
 
   // Activate global keyboard shortcuts
   useKeyboardShortcuts();
-
-  useEffect(() => {
-    fetchSchedule(year);
-  }, [year, fetchSchedule]);
 
   // Show startup screen if no session loaded
   if (!sessionData) {

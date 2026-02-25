@@ -19,8 +19,8 @@ export const getLapTimes = (year, round, driver) => {
   const params = driver ? { driver } : {};
   return client.get(`/laptimes/${year}/${round}`, { params }).then((r) => r.data);
 };
-export const getTelemetry = (year, round, driver, lap) => {
-  const params = lap ? { lap } : {};
+export const getTelemetry = (year, round, driver, lap, sessionType = 'R') => {
+  const params = { ...(lap ? { lap } : {}), session_type: sessionType };
   return client.get(`/telemetry/${year}/${round}/${driver}`, { params }).then((r) => r.data);
 };
 export const getCircuit = (year, round) =>
@@ -40,9 +40,11 @@ export const getWeather = (year, round) =>
 export const getReplayData = (year, round, type = 'R') =>
   client.get(`/session/${year}/${round}/${type}/replay`).then((r) => r.data);
 
-// ── t-SNE ───────────────────────────────────────────────────────────
+// ── t-SNE & PCA ────────────────────────────────────────────────────
 export const getTSNEEmbeddings = () =>
   client.get('/tsne/embeddings').then((r) => r.data);
+export const getPCAEmbeddings = () =>
+  client.get('/pca/embeddings').then((r) => r.data);
 export const projectTSNE = (data) =>
   client.post('/tsne/project', data).then((r) => r.data);
 export const analyzeTSNESelection = (pointIds) =>
@@ -67,6 +69,10 @@ export const getConsistency = (year, round) =>
   client.get(`/analytics/consistency/${year}/${round}`).then((r) => r.data);
 export const getSpeedRankings = (year, round) =>
   client.get(`/analytics/speed-rankings/${year}/${round}`).then((r) => r.data);
+
+// ── Championship ──────────────────────────────────────────────────────
+export const getChampionship = (year, loadAll = false) =>
+  client.get(`/championship/${year}`, { params: loadAll ? { load_all: true } : {}, timeout: 600000 }).then((r) => r.data);
 
 // ── Health ──────────────────────────────────────────────────────────
 export const healthCheck = () => client.get('/health').then((r) => r.data);

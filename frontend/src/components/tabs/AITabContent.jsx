@@ -6,7 +6,7 @@ export default function AITabContent() {
   return (
     <div className="ai-tab">
       <div className="ai-tab__strategy">
-        <StrategyTimeline />
+        <StrategyTimeline showOverlays />
       </div>
       <div className="ai-tab__chat">
         <GeminiAssistant />

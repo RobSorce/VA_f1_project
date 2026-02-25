@@ -1,7 +1,88 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import * as api from '../utils/apiClient';
+import { computePCA } from '../utils/livePCA';
+import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
 
-export const useF1Store = create((set, get) => ({
+// Module-level dedup for schedule fetch (immune to store/middleware timing)
+let _schedulePromise = null;
+let _scheduleYear = null;
+
+// ── Auto-arrange layout presets ──────────────────────────────────
+// Each layout is a function: (overlayIds) => { [tabId]: { left, top, width, height } }
+const ARRANGE_LAYOUTS = {
+  1: [
+    (ids) => ({ [ids[0]]: { left: '0%', top: '0%', width: '100%', height: '100%' } }),
+  ],
+  2: [
+    // Side-by-side
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '100%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '100%' },
+    }),
+    // Stacked
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '100%', height: '50%' },
+      [ids[1]]: { left: '0%', top: '50%', width: '100%', height: '50%' },
+    }),
+  ],
+  3: [
+    // 1 left + 2 right stacked
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '100%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '50%' },
+      [ids[2]]: { left: '50%', top: '50%', width: '50%', height: '50%' },
+    }),
+    // 3 equal columns
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '33.33%', height: '100%' },
+      [ids[1]]: { left: '33.33%', top: '0%', width: '33.34%', height: '100%' },
+      [ids[2]]: { left: '66.67%', top: '0%', width: '33.33%', height: '100%' },
+    }),
+    // 2 top + 1 bottom
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '50%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '50%' },
+      [ids[2]]: { left: '0%', top: '50%', width: '100%', height: '50%' },
+    }),
+  ],
+  4: [
+    // 2x2 grid
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '50%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '50%' },
+      [ids[2]]: { left: '0%', top: '50%', width: '50%', height: '50%' },
+      [ids[3]]: { left: '50%', top: '50%', width: '50%', height: '50%' },
+    }),
+    // 1 left + 3 right stacked
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '100%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '33.33%' },
+      [ids[2]]: { left: '50%', top: '33.33%', width: '50%', height: '33.34%' },
+      [ids[3]]: { left: '50%', top: '66.67%', width: '50%', height: '33.33%' },
+    }),
+  ],
+};
+
+function autoGridLayout(ids) {
+  const n = ids.length;
+  const cols = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  const tiles = {};
+  ids.forEach((id, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    tiles[id] = {
+      left: `${(col / cols) * 100}%`,
+      top: `${(row / rows) * 100}%`,
+      width: `${100 / cols}%`,
+      height: `${100 / rows}%`,
+    };
+  });
+  return tiles;
+}
+
+export const useF1Store = create(persist((set, get) => ({
   // ── Session ─────────────────────────────────────────────────────
   year: 2024,
   round: null,
@@ -17,6 +98,11 @@ export const useF1Store = create((set, get) => ({
   currentFlagStatus: '1', // '1'=green, '2'=yellow, '4'=SC, '5'=red, '6'/'7'=VSC
   dnfMap: {},            // { driverAbbr: { status: 'Crash', lastLap: 45 } }
 
+  // ── Qualifying replay ──────────────────────────────────────────
+  qualiSegments: null,     // {Q1: {frames, driver_colors, ...}, Q2: {...}, Q3: {...}}
+  qualiSegment: 'Q3',     // Active segment
+  isQualifyingReplay: false,
+
   // ── Pre-session driver preview (selector screen) ──────────────
   previewDrivers: [],          // drivers fetched before full session load
   previewDriversLoading: false,
@@ -27,12 +113,29 @@ export const useF1Store = create((set, get) => ({
   setSessionType: (sessionType) => set({ sessionType }),
 
   fetchSchedule: async (year) => {
-    try {
-      const data = await api.getSchedule(year);
-      set({ schedule: data.events || [], year });
-    } catch (e) {
-      console.error('Failed to fetch schedule', e);
-    }
+    // Return existing promise if already fetching this year
+    if (_scheduleYear === year && _schedulePromise) return _schedulePromise;
+    // Skip if schedule already loaded for this year
+    const s = get();
+    if (s.schedule.length > 0 && s.year === year) return;
+    _scheduleYear = year;
+    _schedulePromise = (async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const data = await api.getSchedule(year);
+          set({ schedule: data.events || [], year });
+          return;
+        } catch (e) {
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+            continue;
+          }
+          console.error('Failed to fetch schedule', e);
+        }
+      }
+    })();
+    _schedulePromise.finally(() => { _schedulePromise = null; _scheduleYear = null; });
+    return _schedulePromise;
   },
 
   fetchDriversPreview: async (year, round) => {
@@ -100,7 +203,6 @@ export const useF1Store = create((set, get) => ({
         maxLap: computedMaxLap,
         currentLap: 1,
         isPlaying: false,
-        isLoading: false,
         frameData: null,
         lapFrameMap: null,
         currentFrameIndex: 0,
@@ -110,27 +212,40 @@ export const useF1Store = create((set, get) => ({
         sectorRankings: null,
         consistencyData: null,
         speedRankings: null,
+        // Clear qualifying state from previous session
+        qualiSegments: null,
+        qualiSegment: 'Q3',
+        isQualifyingReplay: false,
         ...(preSelected.length > 0 ? { selectedDrivers: preSelected } : {}),
       });
 
-      // Load circuit info
-      const circuit = await api.getCircuit(year, round);
-      set({ circuitInfo: circuit });
+      // Load circuit, strategy, frames, and analytics in parallel
+      // For qualifying: skip strategy (irrelevant), load frames eagerly
+      const parallelTasks = [
+        api.getCircuit(year, round).then((circuit) => set({ circuitInfo: circuit })),
+      ];
 
-      // Load strategy data (for strategy tab)
-      try {
-        const strategy = await api.getStrategy(year, round);
-        set((s) => ({
-          sessionData: { ...s.sessionData, strategies: strategy.strategies || [] },
-        }));
-      } catch (e) {
-        console.warn('Strategy data not available', e);
+      if (sessionType !== 'Q') {
+        parallelTasks.push(
+          api.getStrategy(year, round)
+            .then((strategy) => set((s) => ({
+              sessionData: { ...s.sessionData, strategies: strategy.strategies || [] },
+            })))
+            .catch((e) => console.warn('Strategy data not available', e))
+        );
       }
 
-      // Load frames in background for smooth car animation
-      console.log(`Session loaded: ${computedMaxLap} laps. Loading frames in background...`);
-      get().loadFrames();
-      get().fetchAnalytics();
+      if (sessionType === 'R' || sessionType === 'S' || sessionType === 'Q') {
+        console.log(`Session loaded (${sessionType}): ${computedMaxLap} laps. Loading frames in background...`);
+        parallelTasks.push(get().loadFrames());
+      } else {
+        console.log(`Session loaded (${sessionType}): ${computedMaxLap} laps. Skipping frame loading.`);
+      }
+
+      parallelTasks.push(get().fetchAnalytics());
+
+      await Promise.allSettled(parallelTasks);
+      set({ isLoading: false });
 
     } catch (e) {
       set({ isLoading: false, error: e.message });
@@ -194,30 +309,35 @@ export const useF1Store = create((set, get) => ({
   setActiveTab: (tab) => {
     // Legacy compat: 'charts' closes all overlays, otherwise toggle
     if (tab === 'charts') {
-      set({ activeTab: 'charts', openOverlays: [] });
+      set({ activeTab: 'charts', openOverlays: [], overlayTiles: {}, _arrangeIdx: 0 });
     } else {
       set((s) => {
         const already = s.openOverlays.includes(tab);
         if (already) {
           const next = s.openOverlays.filter((t) => t !== tab);
-          return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts' };
+          const tiles = { ...s.overlayTiles };
+          delete tiles[tab];
+          return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles, _arrangeIdx: 0 };
         }
-        // Max windows — replace oldest if at limit
-        const limit = s.maxOverlays || 3;
-        const next = s.openOverlays.length >= limit
-          ? [...s.openOverlays.slice(1), tab]
-          : [...s.openOverlays, tab];
-        return { openOverlays: next, activeTab: tab };
+        const next = [...s.openOverlays, tab];
+        return { openOverlays: next, activeTab: tab, _arrangeIdx: 0 };
       });
     }
   },
 
-  closeOverlay: (tab) => set((s) => {
-    const next = s.openOverlays.filter((t) => t !== tab);
-    return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts' };
+  focusOverlay: (tab) => set((s) => {
+    if (!s.openOverlays.includes(tab)) return s;
+    return { activeTab: tab };
   }),
 
-  closeAllOverlays: () => set({ openOverlays: [], activeTab: 'charts' }),
+  closeOverlay: (tab) => set((s) => {
+    const next = s.openOverlays.filter((t) => t !== tab);
+    const tiles = { ...s.overlayTiles };
+    delete tiles[tab];
+    return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles };
+  }),
+
+  closeAllOverlays: () => set({ openOverlays: [], activeTab: 'charts', overlayTiles: {}, _arrangeIdx: 0 }),
 
   cycleOverlay: (direction = 1) => set((s) => {
     if (s.openOverlays.length === 0) return s;
@@ -232,7 +352,9 @@ export const useF1Store = create((set, get) => ({
   tempUnit: 'C',         // 'C' | 'F'
   speedUnit: 'kmh',      // 'kmh' | 'mph'
   // playbackSpeed uses existing playSpeed / setPlaySpeed below
-  maxOverlays: 3,        // 1, 2, 3
+  overlayTiles: {},      // { [tabId]: 'left'|'right'|'maximize' | { left, top, width, height } }
+  _arrangeIdx: 0,       // current layout cycle index for Ctrl+G
+  showDashboard: true,   // show/hide bottom tab bar (macOS Dock-style)
   telemetryChannels: { speed: true, delta: true, throttle: true, brake: true, gear: true, rpm: true },
 
   setTheme: (theme) => {
@@ -242,7 +364,42 @@ export const useF1Store = create((set, get) => ({
   setTempUnit: (tempUnit) => set({ tempUnit }),
   setSpeedUnit: (speedUnit) => set({ speedUnit }),
   // playbackSpeed uses setPlaySpeed (see Simulation section)
-  setMaxOverlays: (maxOverlays) => set({ maxOverlays }),
+  tileOverlay: (tabId, tile) => set((s) => ({
+    overlayTiles: { ...s.overlayTiles, [tabId]: tile },
+  })),
+  clearTile: (tabId) => set((s) => {
+    const next = { ...s.overlayTiles };
+    delete next[tabId];
+    return { overlayTiles: next };
+  }),
+  tileActiveOverlay: (tile) => set((s) => {
+    if (s.openOverlays.length === 0) return s;
+    const tabId = s.activeTab;
+    if (!s.openOverlays.includes(tabId)) return s;
+    // If already tiled with the same tile, clear it (toggle behavior)
+    if (s.overlayTiles[tabId] === tile) {
+      const next = { ...s.overlayTiles };
+      delete next[tabId];
+      return { overlayTiles: next };
+    }
+    return { overlayTiles: { ...s.overlayTiles, [tabId]: tile } };
+  }),
+  arrangeOverlays: () => set((s) => {
+    const ids = s.openOverlays;
+    if (ids.length === 0) return s;
+    const presets = ARRANGE_LAYOUTS[ids.length];
+    const totalLayouts = presets ? presets.length : 1; // 1 for auto-grid
+    const nextIdx = (s._arrangeIdx + 1) % (totalLayouts + 1); // +1 for "reset to default"
+    // Index 0 = reset to default flow
+    if (nextIdx === 0) {
+      return { overlayTiles: {}, _arrangeIdx: 0 };
+    }
+    const tiles = presets
+      ? presets[nextIdx - 1](ids)
+      : autoGridLayout(ids);
+    return { overlayTiles: tiles, _arrangeIdx: nextIdx };
+  }),
+  setShowDashboard: (show) => set({ showDashboard: show }),
   setTelemetryChannel: (channel, enabled) => set((s) => ({
     telemetryChannels: { ...s.telemetryChannels, [channel]: enabled },
   })),
@@ -276,6 +433,10 @@ export const useF1Store = create((set, get) => ({
     lstmPredictions: null,
     degradationRegression: null,
     tsneStrategyAnalysis: null,
+    raceSituationData: null,
+    raceSituationLap: null,
+    raceProjection: null,
+    _prevPcaResult: null,
     rivalContext: [],
     geminiMessages: [],
     geminiOverlays: [],
@@ -294,6 +455,9 @@ export const useF1Store = create((set, get) => ({
     compareMode: false,
     compareDrivers: [],
     cheatsheetOpen: false,
+    qualiSegments: null,
+    qualiSegment: 'Q3',
+    isQualifyingReplay: false,
   }),
 
   // ── Selection (bidirectional coordination) ─────────────────────
@@ -331,11 +495,11 @@ export const useF1Store = create((set, get) => ({
         lapDeltaBaseDriver: abbreviation,
       };
     });
-    // Trigger LSTM predictions and rival context for the newly focused driver
-    if (get().focusDriver) {
+    // Trigger LSTM predictions and rival context for the newly focused driver (race only)
+    if (get().focusDriver && !get().isQualifyingReplay) {
       get().triggerLSTMPredictions();
       get().updateRivalContext();
-    } else {
+    } else if (!get().focusDriver) {
       set({ rivalContext: [] });
     }
   },
@@ -460,8 +624,8 @@ export const useF1Store = create((set, get) => ({
         updates.currentFlagStatus = flag;
       }
 
-      // Re-trigger LSTM predictions every 2 laps during replay
-      if (maxLapInFrame !== prevLap && maxLapInFrame >= 3) {
+      // Re-trigger LSTM predictions every 2 laps during replay (skip for qualifying)
+      if (!get().isQualifyingReplay && maxLapInFrame !== prevLap && maxLapInFrame >= 3) {
         const shouldPredict = maxLapInFrame % 2 === 0;
 
         // Also trigger after focus driver pits
@@ -479,10 +643,14 @@ export const useF1Store = create((set, get) => ({
           setTimeout(() => {
             get().triggerLSTMPredictions();
             get().updateRivalContext();
+            get().computeRaceSituation();
           }, 0);
         } else {
-          // Always update rival context on lap change
-          setTimeout(() => get().updateRivalContext(), 0);
+          // Always update rival context and race situation on lap change
+          setTimeout(() => {
+            get().updateRivalContext();
+            get().computeRaceSituation();
+          }, 0);
         }
       }
     }
@@ -501,10 +669,11 @@ export const useF1Store = create((set, get) => ({
     }
     set(updates);
     get().updateFlagForLap(lap);
-    // Re-trigger predictions and rival context on manual seek
+    // Re-trigger predictions, rival context, and race situation on manual seek
     setTimeout(() => {
       get().triggerLSTMPredictions();
       get().updateRivalContext();
+      get().computeRaceSituation();
     }, 0);
   },
   setMaxLap: (max) => set({ maxLap: max }),
@@ -519,7 +688,41 @@ export const useF1Store = create((set, get) => ({
     try {
       const data = await api.getFrames(year, round, sessionType);
 
-      // Build lap → frame index map
+      // ── Qualifying: response has { segments: { Q1: {...}, Q2: {...}, Q3: {...} } }
+      if (data.segments) {
+        const segments = data.segments;
+        const defaultSeg = segments.Q3 ? 'Q3' : segments.Q2 ? 'Q2' : 'Q1';
+        const activeData = segments[defaultSeg];
+
+        if (!activeData?.frames?.length) {
+          set({ isLoadingFrames: false, qualiSegments: segments, isQualifyingReplay: true });
+          console.warn('Qualifying frames: no frames in default segment');
+          return;
+        }
+
+        let frameDt = 0.4;
+        if (activeData.frames.length > 1) {
+          frameDt = activeData.frames[1].t - activeData.frames[0].t;
+          if (frameDt <= 0) frameDt = 0.4;
+        }
+
+        set({
+          qualiSegments: segments,
+          qualiSegment: defaultSeg,
+          isQualifyingReplay: true,
+          frameData: activeData,
+          maxTime: activeData.max_time || 0,
+          lapFrameMap: { 1: 0 },
+          totalFrames: activeData.frames.length,
+          frameDt,
+          currentFrameIndex: 0,
+          isLoadingFrames: false,
+        });
+        console.log(`Qualifying frames loaded: ${defaultSeg} has ${activeData.frames.length} frames, segments: ${Object.keys(segments).join(', ')}`);
+        return;
+      }
+
+      // ── Race/Sprint: response has { frames: [...], driver_colors, total_laps, max_time }
       const lapFrameMap = {};
       let totalFrames = 0;
       let frameDt = 0.4;
@@ -566,12 +769,39 @@ export const useF1Store = create((set, get) => ({
         frameDt,
         currentFrameIndex: 0,
         isLoadingFrames: false,
+        qualiSegments: null,
+        isQualifyingReplay: false,
       });
       console.log(`Frames loaded: ${totalFrames} frames (${frameDt.toFixed(2)}s/frame), lap map has ${Object.keys(lapFrameMap).length} entries`);
     } catch (e) {
       set({ isLoadingFrames: false });
       console.error('Failed to load frames', e);
     }
+  },
+
+  setQualiSegment: (seg) => {
+    const { qualiSegments } = get();
+    if (!qualiSegments?.[seg]) return;
+    const activeData = qualiSegments[seg];
+    if (!activeData?.frames?.length) return;
+
+    let frameDt = 0.4;
+    if (activeData.frames.length > 1) {
+      frameDt = activeData.frames[1].t - activeData.frames[0].t;
+      if (frameDt <= 0) frameDt = 0.4;
+    }
+
+    set({
+      qualiSegment: seg,
+      frameData: activeData,
+      maxTime: activeData.max_time || 0,
+      totalFrames: activeData.frames.length,
+      frameDt,
+      currentFrameIndex: 0,
+      isPlaying: false,
+      lapFrameMap: { 1: 0 },
+    });
+    console.log(`Switched to ${seg}: ${activeData.frames.length} frames`);
   },
 
   // Get the frame data for the current frame index (used by TrackMap)
@@ -601,16 +831,16 @@ export const useF1Store = create((set, get) => ({
   fetchAnalytics: async () => {
     const { year, round } = get();
     if (!year || !round) return;
-    try {
-      const [sectors, consistency, speed] = await Promise.all([
-        api.getSectors(year, round),
-        api.getConsistency(year, round),
-        api.getSpeedRankings(year, round),
-      ]);
-      set({ sectorRankings: sectors, consistencyData: consistency, speedRankings: speed });
-    } catch (e) {
-      console.warn('Analytics fetch failed', e);
-    }
+    const [sectors, consistency, speed] = await Promise.allSettled([
+      api.getSectors(year, round),
+      api.getConsistency(year, round),
+      api.getSpeedRankings(year, round),
+    ]);
+    set({
+      sectorRankings: sectors.status === 'fulfilled' ? sectors.value : null,
+      consistencyData: consistency.status === 'fulfilled' ? consistency.value : null,
+      speedRankings: speed.status === 'fulfilled' ? speed.value : null,
+    });
   },
 
   // ── Telemetry Strip ──────────────────────────────────────────────
@@ -620,7 +850,8 @@ export const useF1Store = create((set, get) => ({
   telemetryLoading: false,
 
   fetchDriverTelemetry: async (driver, lap) => {
-    const key = `${driver}-${lap}`;
+    const sessionType = get().isQualifyingReplay ? 'Q' : 'R';
+    const key = `${driver}-${lap}-${sessionType}`;
     if (get().telemetryCache[key]) return get().telemetryCache[key];
 
     const { year, round } = get();
@@ -628,7 +859,7 @@ export const useF1Store = create((set, get) => ({
 
     set({ telemetryLoading: true });
     try {
-      const data = await api.getTelemetry(year, round, driver, lap);
+      const data = await api.getTelemetry(year, round, driver, lap, sessionType);
       const telemetry = data.telemetry || [];
       set((s) => ({
         telemetryCache: { ...s.telemetryCache, [key]: telemetry },
@@ -644,6 +875,60 @@ export const useF1Store = create((set, get) => ({
 
   setTelemetryCompareMode: (mode) => set({ telemetryCompareMode: mode }),
   setTelemetryCompareLaps: (laps) => set({ telemetryCompareLaps: laps }),
+
+  // ── Race Situation Map ──────────────────────────────────────────
+  raceSituationData: null,
+  raceSituationLap: null,
+  _prevPcaResult: null, // for sign consistency across recomputes
+
+  computeRaceSituation: () => {
+    const {
+      sessionData, currentLap, dnfMap, frameData, currentFrameIndex,
+      lstmPredictions, focusDriver, isQualifyingReplay, raceSituationLap,
+      _prevPcaResult,
+    } = get();
+
+    if (isQualifyingReplay) return;
+    if (currentLap < 3) return;
+    // Debounce: skip if computed within 2 laps
+    if (raceSituationLap != null && Math.abs(currentLap - raceSituationLap) < 2) return;
+
+    const lapTimes = sessionData?.lap_times;
+    const strategies = sessionData?.tyre_strategy || sessionData?.strategies || [];
+    if (!lapTimes?.length) return;
+
+    const frame = frameData?.frames?.[Math.min(currentFrameIndex, (frameData?.frames?.length || 1) - 1)];
+    const frameDrivers = frame?.drivers || {};
+
+    const result = extractRaceSituationFeatures({
+      lapTimes, strategies, dnfMap, currentLap,
+      frameDrivers, lstmPredictions, focusDriver,
+    });
+
+    if (!result) {
+      set({ raceSituationData: null, raceSituationLap: currentLap });
+      return;
+    }
+
+    const pcaResult = computePCA(result.matrix, FEATURE_NAMES, _prevPcaResult);
+    if (!pcaResult) {
+      set({ raceSituationData: null, raceSituationLap: currentLap });
+      return;
+    }
+
+    set({
+      raceSituationData: {
+        driverAbbrs: result.driverAbbrs,
+        scores: pcaResult.scores,
+        loadings: pcaResult.loadings,
+        explainedVariance: pcaResult.explainedVariance,
+        driverFeatures: result.driverFeatures,
+        computedAtLap: currentLap,
+      },
+      raceSituationLap: currentLap,
+      _prevPcaResult: pcaResult,
+    });
+  },
 
   // ── Predictions ────────────────────────────────────────────────
   lstmPredictions: null,
@@ -679,7 +964,8 @@ export const useF1Store = create((set, get) => ({
   },
 
   triggerLSTMPredictions: async () => {
-    const { year, round, currentLap, maxLap, focusDriver, selectedDrivers, sessionData } = get();
+    const { year, round, currentLap, maxLap, focusDriver, selectedDrivers, sessionData, isQualifyingReplay } = get();
+    if (isQualifyingReplay) return; // LSTM predictions not applicable for qualifying
     if (!sessionData?.lap_times?.length || currentLap < 2) return;
 
     const driver = focusDriver || selectedDrivers[0];
@@ -727,7 +1013,8 @@ export const useF1Store = create((set, get) => ({
   },
 
   updateRivalContext: () => {
-    const { focusDriver, sessionData, currentLap, frameData, currentFrameIndex } = get();
+    const { focusDriver, sessionData, currentLap, frameData, currentFrameIndex, isQualifyingReplay } = get();
+    if (isQualifyingReplay) { set({ rivalContext: [] }); return; } // Not applicable for qualifying
     if (!focusDriver || !sessionData?.lap_times?.length || currentLap < 1) {
       set({ rivalContext: [] });
       return;
@@ -805,8 +1092,32 @@ export const useF1Store = create((set, get) => ({
     set({ rivalContext: rivals });
   },
 
-  // ── t-SNE Embeddings ──────────────────────────────────────────
+  // ── Championship ────────────────────────────────────────────────
+  championshipData: null,
+  championshipLoading: false,
+  championshipError: null,
+  championshipView: 'drivers', // 'drivers' | 'constructors'
+  showChampionshipPredictions: true,
+
+  fetchChampionship: async (year, loadAll = false) => {
+    if (!year) year = get().year;
+    set({ championshipLoading: true, championshipError: null });
+    try {
+      const data = await api.getChampionship(year, loadAll);
+      set({ championshipData: data, championshipLoading: false });
+    } catch (e) {
+      console.error('Failed to fetch championship', e);
+      set({ championshipLoading: false, championshipError: e.message || 'Failed to load' });
+    }
+  },
+
+  setChampionshipView: (view) => set({ championshipView: view }),
+  toggleChampionshipPredictions: () => set((s) => ({ showChampionshipPredictions: !s.showChampionshipPredictions })),
+
+  // ── t-SNE & PCA Embeddings ────────────────────────────────────
   tsneEmbeddings: null,
+  pcaEmbeddings: null,
+  projectionMode: 'live', // 'live' | 'tsne' | 'pca'
 
   loadTSNEEmbeddings: async () => {
     try {
@@ -817,18 +1128,63 @@ export const useF1Store = create((set, get) => ({
     }
   },
 
+  loadPCAEmbeddings: async () => {
+    try {
+      const data = await api.getPCAEmbeddings();
+      set({ pcaEmbeddings: data });
+    } catch (e) {
+      console.error('Failed to load PCA embeddings', e);
+    }
+  },
+
+  setProjectionMode: (mode) => set({ projectionMode: mode }),
+
   // ── Gemini ────────────────────────────────────────────────────
   geminiMessages: [],
   geminiOverlays: [],
 
   sendGeminiQuery: async (query) => {
-    const { year, round, currentLap, selectedDrivers, lstmPredictions } = get();
+    const { year, round, currentLap, selectedDrivers, lstmPredictions,
+            raceProjection, raceSituationData, degradationRegression } = get();
     set((s) => ({
       geminiMessages: [
         ...s.geminiMessages,
         { role: 'user', content: query },
       ],
     }));
+
+    // Build rich race context from all prediction sources
+    const raceContext = {};
+    if (raceProjection) {
+      raceContext.monteCarloProjections = (raceProjection.projections || []).slice(0, 10).map((p) => ({
+        driver: p.driver, currentPos: p.currentPos, expectedPos: p.expectedPos,
+        modePos: p.modePos, posRange: p.posRange,
+        podiumProb: p.podiumProb, pointsProb: p.pointsProb,
+      }));
+      raceContext.battles = (raceProjection.battles || []).slice(0, 5).map((b) => ({
+        driver1: b.ahead, driver2: b.behind,
+        overtakeProb: b.prob, type: b.behindCompound + ' vs ' + b.aheadCompound,
+      }));
+      raceContext.risks = (raceProjection.risks || []).slice(0, 5);
+      if (raceProjection.raceParams) {
+        raceContext.raceParams = {
+          pitLoss: raceProjection.raceParams.pitLoss,
+          scRate: raceProjection.raceParams.scRate,
+          lapNoise: raceProjection.raceParams.lapNoise,
+        };
+      }
+    }
+    if (raceSituationData?.driverFeatures && selectedDrivers.length > 0) {
+      const feats = {};
+      for (const d of selectedDrivers) {
+        if (raceSituationData.driverFeatures[d]) feats[d] = raceSituationData.driverFeatures[d];
+      }
+      if (Object.keys(feats).length > 0) raceContext.driverFeatures = feats;
+    }
+    if (degradationRegression) {
+      raceContext.degradationRegression = degradationRegression;
+    }
+
     try {
       const resp = await api.queryGemini({
         query,
@@ -837,6 +1193,7 @@ export const useF1Store = create((set, get) => ({
         current_lap: currentLap,
         drivers: selectedDrivers,
         lstm_predictions: lstmPredictions,
+        race_context: Object.keys(raceContext).length > 0 ? raceContext : undefined,
       });
       set((s) => ({
         geminiMessages: [
@@ -856,4 +1213,23 @@ export const useF1Store = create((set, get) => ({
   },
 
   setGeminiOverlays: (overlays) => set({ geminiOverlays: overlays }),
+  setRaceProjection: (data) => set({ raceProjection: data }),
+}), {
+  name: 'f1-settings',
+  partialize: (state) => ({
+    theme: state.theme,
+    tempUnit: state.tempUnit,
+    speedUnit: state.speedUnit,
+    playSpeed: state.playSpeed,
+    overlayTiles: state.overlayTiles,
+    showDashboard: state.showDashboard,
+    telemetryChannels: state.telemetryChannels,
+    year: state.year,
+    sessionType: state.sessionType,
+  }),
+  onRehydrateStorage: () => (state) => {
+    if (state?.theme) {
+      document.documentElement.setAttribute('data-theme', state.theme);
+    }
+  },
 }));

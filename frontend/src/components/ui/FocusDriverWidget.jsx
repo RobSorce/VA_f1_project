@@ -39,13 +39,22 @@ export default function FocusDriverWidget() {
     return { compound: NAMES[d.tyre] || 'UNKNOWN', age: d.tyre_life != null ? Math.round(d.tyre_life) : null };
   }, [focusDriver, frameData, currentFrameIndex]);
 
-  // Current position
+  const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+
+  // Current position — for qualifying, use race_results position directly
   const currentPos = useMemo(() => {
-    if (!focusDriver || !sessionData?.lap_times?.length) return null;
+    if (!focusDriver) return null;
+    if (isQualifyingReplay) {
+      const result = (sessionData?.race_results || []).find(
+        (r) => (r.Abbreviation || r.Driver) === focusDriver
+      );
+      return result?.Position || null;
+    }
+    if (!sessionData?.lap_times?.length) return null;
     const laps = sessionData.lap_times.filter((l) => l.Driver === focusDriver && l.LapNumber <= currentLap && l.Position);
     if (laps.length === 0) return null;
     return laps[laps.length - 1].Position;
-  }, [focusDriver, sessionData, currentLap]);
+  }, [focusDriver, sessionData, currentLap, isQualifyingReplay]);
 
   if (!focusDriver) return null;
 

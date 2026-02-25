@@ -36,8 +36,8 @@ export default function SettingsTabContent() {
   const setSpeedUnit = useF1Store((s) => s.setSpeedUnit);
   const playSpeed = useF1Store((s) => s.playSpeed);
   const setPlaySpeed = useF1Store((s) => s.setPlaySpeed);
-  const maxOverlays = useF1Store((s) => s.maxOverlays);
-  const setMaxOverlays = useF1Store((s) => s.setMaxOverlays);
+  const showDashboard = useF1Store((s) => s.showDashboard);
+  const setShowDashboard = useF1Store((s) => s.setShowDashboard);
   const telemetryChannels = useF1Store((s) => s.telemetryChannels);
   const setTelemetryChannel = useF1Store((s) => s.setTelemetryChannel);
 
@@ -166,15 +166,21 @@ export default function SettingsTabContent() {
       <section className="settings-tab__section">
         <h3 className="settings-tab__section-title">Windows</h3>
         <div className="settings-tab__row">
-          <span className="settings-tab__label">Max Overlays</span>
+          <span className="settings-tab__label">Tiling</span>
+          <span className="settings-tab__hint">
+            Ctrl+Left/Right: snap half &middot; Ctrl+Up: max &middot; Ctrl+Down: restore &middot; Ctrl+G: auto-arrange
+          </span>
+        </div>
+        <div className="settings-tab__row">
+          <span className="settings-tab__label">Dashboard</span>
           <div className="settings-tab__pills">
-            {[1, 2, 3].map((n) => (
+            {[['show', 'Always Show'], ['hide', 'Auto-hide']].map(([val, label]) => (
               <button
-                key={n}
-                className={`settings-tab__pill${maxOverlays === n ? ' settings-tab__pill--active' : ''}`}
-                onClick={() => setMaxOverlays(n)}
+                key={val}
+                className={`settings-tab__pill${(val === 'show') === showDashboard ? ' settings-tab__pill--active' : ''}`}
+                onClick={() => setShowDashboard(val === 'show')}
               >
-                {n}
+                {label}
               </button>
             ))}
           </div>

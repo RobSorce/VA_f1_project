@@ -9,6 +9,11 @@ export default function Header() {
   const isLoading = useF1Store((s) => s.isLoading);
   const sessionData = useF1Store((s) => s.sessionData);
   const sessionType = useF1Store((s) => s.sessionType);
+  const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+  const qualiSegment = useF1Store((s) => s.qualiSegment);
+  const qualiSegments = useF1Store((s) => s.qualiSegments);
+  const setQualiSegment = useF1Store((s) => s.setQualiSegment);
+  const isLoadingFrames = useF1Store((s) => s.isLoadingFrames);
 
   const eventName = sessionData?.circuit_info?.event_name || '';
 
@@ -48,7 +53,32 @@ export default function Header() {
 
         <div className="header-right">
           <PanelToggleBar />
-          {sessionType && <span className="status-pill">{sessionType}</span>}
+          {sessionType === 'Q' && sessionData ? (
+            <div className="header-quali-pills">
+              {['Q1', 'Q2', 'Q3'].map((seg) => {
+                const segReady = qualiSegments?.[seg];
+                const isActive = isQualifyingReplay && qualiSegment === seg;
+                return (
+                  <button
+                    key={seg}
+                    className={`header-quali-pill ${isActive ? 'active' : ''} ${isLoadingFrames ? 'loading' : ''}`}
+                    disabled={!segReady}
+                    onClick={() => setQualiSegment(seg)}
+                    title={segReady ? `Switch to ${seg}` : isLoadingFrames ? 'Loading replay...' : `${seg} not available`}
+                  >
+                    {seg}
+                  </button>
+                );
+              })}
+              {isLoadingFrames && (
+                <span style={{ fontSize: '10px', color: 'var(--color-accent-warning)', marginLeft: '4px' }}>
+                  Loading...
+                </span>
+              )}
+            </div>
+          ) : sessionType ? (
+            <span className="status-pill">{sessionType}</span>
+          ) : null}
           <div className="status-indicator" style={{ fontSize: 'var(--font-size-xs)', gap: '4px', display: 'flex', alignItems: 'center' }}>
             <span
               className="status-dot"

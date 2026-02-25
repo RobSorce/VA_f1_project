@@ -67,3 +67,23 @@ export function getTyreTextColor(compound) {
   if (compound === 'MEDIUM' || compound === 'HARD') return '#000000';
   return '#ffffff';
 }
+
+// 3-letter IOC/FIFA country codes (used by FastF1) → 2-letter ISO 3166-1 alpha-2
+const COUNTRY_TO_ISO2 = {
+  NED: 'NL', GBR: 'GB', ESP: 'ES', MON: 'MC', AUS: 'AU', MEX: 'MX',
+  FRA: 'FR', CAN: 'CA', GER: 'DE', FIN: 'FI', JPN: 'JP', THA: 'TH',
+  CHN: 'CN', DEN: 'DK', USA: 'US', NZL: 'NZ', ITA: 'IT', BRA: 'BR',
+  ARG: 'AR', COL: 'CO', IND: 'IN', RUS: 'RU', POL: 'PL', ISR: 'IL',
+  SUI: 'CH', AUT: 'AT', BEL: 'BE', POR: 'PT', RSA: 'ZA', KOR: 'KR',
+  SWE: 'SE', IRL: 'IE', VEN: 'VE', IDN: 'ID', MAL: 'MY',
+};
+
+// Convert 3-letter country code to flag emoji
+export function countryFlag(code3) {
+  const iso2 = COUNTRY_TO_ISO2[code3];
+  if (!iso2) return '';
+  return String.fromCodePoint(...[...iso2].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+}
+
+// F1 points system (top 10 finishers)
+export const F1_POINTS = { 1:25, 2:18, 3:15, 4:12, 5:10, 6:8, 7:6, 8:4, 9:2, 10:1 };

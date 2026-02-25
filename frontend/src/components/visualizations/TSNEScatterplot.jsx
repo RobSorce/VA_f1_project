@@ -15,7 +15,8 @@ export default function TSNEScatterplot() {
   const selectedTSNEPoints = useF1Store((s) => s.selectedTSNEPoints);
   const setSelectedTSNEPoints = useF1Store((s) => s.setSelectedTSNEPoints);
   const fetchTSNEAnalysis = useF1Store((s) => s.fetchTSNEAnalysis);
-  const openPanel = useF1Store((s) => s.openPanel);
+  const selectedDrivers = useF1Store((s) => s.selectedDrivers);
+  const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const year = useF1Store((s) => s.year);
   const round = useF1Store((s) => s.round);
 
@@ -31,7 +32,7 @@ export default function TSNEScatterplot() {
     const rect = container.getBoundingClientRect();
     const width = rect.width || 500;
     const height = rect.height || 400;
-    const margin = { top: 15, right: 15, bottom: 30, left: 35 };
+    const margin = { top: 15, right: 15, bottom: 24, left: 15 };
     const innerW = width - margin.left - margin.right;
     const innerH = height - margin.top - margin.bottom;
 
@@ -56,13 +57,24 @@ export default function TSNEScatterplot() {
       .domain([yExtent[0] - yPad, yExtent[1] + yPad])
       .range([innerH, 0]);
 
-    // Axes
-    g.append('g').attr('transform', `translate(0,${innerH})`)
-      .call(d3.axisBottom(x).ticks(5))
-      .selectAll('text').attr('fill', 'var(--color-text-muted)');
-    g.append('g')
-      .call(d3.axisLeft(y).ticks(5))
-      .selectAll('text').attr('fill', 'var(--color-text-muted)');
+    // t-SNE axes have no inherent meaning — show proximity annotation instead
+    // Subtle border to frame the plot area
+    g.append('rect')
+      .attr('width', innerW).attr('height', innerH)
+      .attr('fill', 'none')
+      .attr('stroke', 'rgba(255,255,255,0.06)')
+      .attr('rx', 4);
+
+    // Proximity annotation (small icon + text in corner)
+    const annG = g.append('g').attr('transform', `translate(6, ${innerH - 6})`);
+    // Two small dots close together
+    annG.append('circle').attr('cx', 0).attr('cy', 0).attr('r', 2.5).attr('fill', 'rgba(255,255,255,0.25)');
+    annG.append('circle').attr('cx', 7).attr('cy', -2).attr('r', 2.5).attr('fill', 'rgba(255,255,255,0.25)');
+    annG.append('text')
+      .attr('x', 13).attr('y', 1)
+      .attr('fill', 'rgba(255,255,255,0.25)')
+      .attr('font-size', '8px')
+      .text('= similar races (closer = more similar)');
 
     // Draw points
     const isCurrentRace = (d) => d.year === year && d.round === round;
@@ -107,8 +119,32 @@ export default function TSNEScatterplot() {
           ? selectedTSNEPoints.filter((id) => id !== d.id)
           : [...selectedTSNEPoints, d.id];
         setSelectedTSNEPoints(ids);
-        if (ids.length > 0) fetchTSNEAnalysis(ids);
+        if (ids.length > 0) {
+          fetchTSNEAnalysis(ids);
+          // Propagate unique drivers to Leaderboard
+          const uniqueDrivers = [...new Set(ids.map((id) => points.find((p) => p.id === id)?.driver).filter(Boolean))];
+          setSelectedDrivers(uniqueDrivers);
+        } else {
+          setSelectedDrivers([]);
+        }
       });
+
+    // Driver highlight rings (Leaderboard → t-SNE coordination)
+    if (selectedDrivers.length > 0) {
+      g.selectAll('.tsne-driver-ring')
+        .data(points.filter((d) => selectedDrivers.includes(d.driver)))
+        .join('circle')
+        .attr('class', 'tsne-driver-ring')
+        .attr('cx', (d) => x(d.x))
+        .attr('cy', (d) => y(d.y))
+        .attr('r', 8)
+        .attr('fill', 'none')
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', 1.5)
+        .attr('stroke-dasharray', '3,2')
+        .attr('opacity', 0.85)
+        .attr('pointer-events', 'none');
+    }
 
     // Lasso selection (shift+drag)
     if (cleanupRef.current) cleanupRef.current();
@@ -119,18 +155,22 @@ export default function TSNEScatterplot() {
         setSelectedTSNEPoints(ids);
         if (ids.length > 0) {
           fetchTSNEAnalysis(ids);
-          openPanel('analytics');
+          // Propagate unique drivers to Leaderboard
+          const uniqueDrivers = [...new Set(ids.map((id) => points.find((p) => p.id === id)?.driver).filter(Boolean))];
+          setSelectedDrivers(uniqueDrivers);
+        } else {
+          setSelectedDrivers([]);
         }
       },
     });
 
     // Info text
     g.append('text')
-      .attr('x', innerW / 2).attr('y', innerH + 22)
+      .attr('x', innerW / 2).attr('y', innerH + 16)
       .attr('text-anchor', 'middle')
       .attr('fill', 'var(--color-text-muted)')
       .attr('font-size', 9)
-      .text('Shift+drag to lasso | Click to select | Each point = 1 driver-race performance');
+      .text('Shift+drag to select a cluster of similar races | Click to toggle individual points');
 
     // Selected count indicator
     if (selectedTSNEPoints.length > 0) {
@@ -143,7 +183,7 @@ export default function TSNEScatterplot() {
         .text(`${selectedTSNEPoints.length} selected`);
     }
 
-  }, [tsneEmbeddings, selectedTSNEPoints, year, round, setSelectedTSNEPoints, fetchTSNEAnalysis]);
+  }, [tsneEmbeddings, selectedTSNEPoints, selectedDrivers, year, round, setSelectedTSNEPoints, setSelectedDrivers, fetchTSNEAnalysis]);
 
   // Cleanup lasso on unmount
   useEffect(() => () => { if (cleanupRef.current) cleanupRef.current(); }, []);
@@ -166,10 +206,16 @@ export default function TSNEScatterplot() {
       <div className="viz-container">
         {tsneEmbeddings?.points?.length ? (
           <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+        ) : tsneEmbeddings?.message ? (
+          <div className="loading-placeholder">
+            <span style={{ color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
+              {tsneEmbeddings.message}
+            </span>
+          </div>
         ) : (
           <div className="loading-placeholder">
             <div className="spinner" />
-            <span>Loading t-SNE embeddings...</span>
+            <span>Computing t-SNE embeddings from race data...</span>
           </div>
         )}
       </div>

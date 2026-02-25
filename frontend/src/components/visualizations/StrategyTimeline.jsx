@@ -173,6 +173,51 @@ export default function StrategyTimeline({ showOverlays = false }) {
       });
     });
 
+    // Pit stop duration markers (between stints)
+    const lapTimes = sessionData?.lap_times || [];
+    driverStrats.forEach((stints, driver) => {
+      const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(driver);
+      if (!isSelected) return;
+      const sorted = [...stints].sort((a, b) => a.LapStart - b.LapStart);
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const endLap = sorted[i].LapStart + sorted[i].StintLength - 1;
+        if (endLap > currentLap) continue;
+        // Find the pit lap in lap_times
+        const pitLap = lapTimes.find(
+          (lt) => lt.Driver === driver && lt.LapNumber === endLap && lt.PitInTimeSeconds > 0
+        );
+        if (!pitLap) continue;
+        // Estimate pit duration from the spike in lap time vs median
+        const driverLaps = lapTimes.filter(
+          (lt) => lt.Driver === driver && lt.LapTimeSeconds > 0 && lt.LapTimeSeconds < 300
+            && !lt.PitInTimeSeconds && !lt.PitOutTimeSeconds
+        );
+        const median = driverLaps.length > 0
+          ? driverLaps.map((l) => l.LapTimeSeconds).sort((a, b) => a - b)[Math.floor(driverLaps.length / 2)]
+          : 0;
+        const pitDuration = median > 0 ? Math.max(0, pitLap.LapTimeSeconds - median) : 0;
+        if (pitDuration <= 0) continue;
+
+        const pitX = x(endLap + 0.5);
+        const pitY = y(driver);
+        // Small diamond marker
+        g.append('path')
+          .attr('d', `M${pitX},${pitY - 2} l4,${y.bandwidth() / 2 + 2} l-4,${y.bandwidth() / 2 + 2} l-4,-${y.bandwidth() / 2 + 2} Z`)
+          .attr('fill', 'rgba(255,255,255,0.8)')
+          .attr('stroke', 'rgba(0,0,0,0.4)')
+          .attr('stroke-width', 0.5);
+        // Duration label
+        g.append('text')
+          .attr('x', pitX)
+          .attr('y', pitY - 5)
+          .attr('text-anchor', 'middle')
+          .attr('fill', 'rgba(255,255,255,0.7)')
+          .attr('font-size', 7)
+          .attr('font-weight', 700)
+          .text(`${pitDuration.toFixed(1)}s`);
+      }
+    });
+
     // LSTM predicted stints
     if (lstmPredictions?.predicted_stints) {
       lstmPredictions.predicted_stints.forEach((stint) => {

@@ -16,6 +16,37 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Ctrl+Arrow — macOS-style window tiling
+      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        state.tileActiveOverlay('left');
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowRight') {
+        e.preventDefault();
+        state.tileActiveOverlay('right');
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
+        e.preventDefault();
+        state.tileActiveOverlay('maximize');
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') {
+        e.preventDefault();
+        // Clear tile — restore to default
+        if (state.openOverlays.includes(state.activeTab)) {
+          state.clearTile(state.activeTab);
+        }
+        return;
+      }
+      // Ctrl+G — cycle auto-arrange layouts
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        state.arrangeOverlays();
+        return;
+      }
+
       // Don't intercept other Cmd/Ctrl combos (browser shortcuts)
       if (e.metaKey || e.ctrlKey) return;
 
@@ -65,16 +96,18 @@ export function useKeyboardShortcuts() {
       // / — focus command bar (handled by CommandBar component, but prevent default here too)
       if (e.key === '/') return; // let CommandBar handle it
 
-      // Number keys 1-8 — open tabs (matches BottomTabBar order)
+      // Number keys 1-9,0 — open tabs (matches BottomTabBar order)
       const tabMap = {
         '1': 'charts',       // Track Map (close overlays)
         '2': 'laptimes',     // Lap Times overlay
         '3': 'sectors',      // Sectors overlay
         '4': 'tyres',        // Tyres overlay
-        '5': 'speed',        // Speed overlay
+        '5': 'speed',        // Charts (telemetry) overlay
         '6': 'consistency',  // Consistency overlay
-        '7': 'ai',           // AI Assistant overlay
-        '8': 'settings',     // Settings overlay
+        '7': 'prediction',   // Race Prediction overlay
+        '8': 'ai',           // AI Assistant overlay
+        '9': 'compare',      // Driver Comparison overlay
+        '0': 'settings',     // Settings overlay
       };
       if (tabMap[e.key]) {
         e.preventDefault();
@@ -183,8 +216,15 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // H — toggle shortcut hints
-      if (e.key === 'h' || e.key === 'H') {
+      // Shift+H — toggle dashboard auto-hide
+      if (e.key === 'H' && e.shiftKey) {
+        e.preventDefault();
+        state.setShowDashboard(!state.showDashboard);
+        return;
+      }
+
+      // h — toggle shortcut hints
+      if (e.key === 'h') {
         e.preventDefault();
         state.toggleShortcutHints();
         return;
@@ -234,13 +274,20 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // P — predict pit window (LSTM) + open Lap Times
+      // P — open Race Prediction panel (Monte Carlo) + trigger LSTM
       if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
         if (activeDriver && state.currentLap >= 2) {
           state.triggerLSTMPredictions();
         }
-        state.setActiveTab('laptimes');
+        state.setActiveTab('prediction');
+        return;
+      }
+
+      // A — open Analytics (t-SNE) tab
+      if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        state.setActiveTab('analytics');
         return;
       }
 

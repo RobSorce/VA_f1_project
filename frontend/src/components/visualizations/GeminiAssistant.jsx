@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import Panel from '../ui/Panel';
 
@@ -9,6 +9,9 @@ export default function GeminiAssistant() {
   const geminiOverlays = useF1Store((s) => s.geminiOverlays);
   const sendGeminiQuery = useF1Store((s) => s.sendGeminiQuery);
   const setGeminiOverlays = useF1Store((s) => s.setGeminiOverlays);
+  const raceProjection = useF1Store((s) => s.raceProjection);
+  const focusDriver = useF1Store((s) => s.focusDriver);
+  const selectedDrivers = useF1Store((s) => s.selectedDrivers);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -29,12 +32,30 @@ export default function GeminiAssistant() {
     }
   };
 
-  const quickQueries = [
-    'What is the optimal strategy for the leader?',
-    'Should we undercut or overcut?',
-    'Compare 1-stop vs 2-stop strategies',
-    'When is the best pit window?',
-  ];
+  const activeDriver = focusDriver || selectedDrivers[0] || null;
+
+  const quickQueries = useMemo(() => {
+    const queries = [];
+    if (activeDriver) {
+      queries.push(`What is the optimal strategy for ${activeDriver}?`);
+    } else {
+      queries.push('What is the optimal strategy for the leader?');
+    }
+    if (raceProjection?.battles?.length > 0) {
+      const b = raceProjection.battles[0];
+      queries.push(`Should ${b.behind} try to overtake ${b.ahead}?`);
+    } else {
+      queries.push('Should we undercut or overcut?');
+    }
+    if (raceProjection?.risks?.length > 0) {
+      const r = raceProjection.risks[0];
+      queries.push(`How to mitigate the ${r.type.toLowerCase()} risk for ${r.driver}?`);
+    } else {
+      queries.push('Compare 1-stop vs 2-stop strategies');
+    }
+    queries.push('When is the best pit window?');
+    return queries;
+  }, [raceProjection, activeDriver]);
 
   return (
     <Panel title="Gemini AI Strategy Assistant">

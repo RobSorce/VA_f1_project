@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
+import { exportAsPng } from '../../utils/exportChart';
 
 function formatTime(seconds) {
   if (!seconds || seconds <= 0) return '—';
@@ -21,6 +22,12 @@ export default function ConsistencyPanel() {
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+
+  const panelRef = useRef(null);
+  const handleExport = useCallback(() => {
+    if (!panelRef.current) return;
+    exportAsPng(panelRef.current, 'consistency_analysis.png');
+  }, []);
 
   const replayStarted = currentFrameIndex > 0 || currentLap > 1;
 
@@ -148,13 +155,35 @@ export default function ConsistencyPanel() {
   }
 
   return (
-    <div className="consistency-panel">
-      {sessionAvg && (
-        <div className="consistency-panel__session-summary">
-          <span>Session Average: <strong>{formatTime(sessionAvg)}</strong></span>
-          <span>{drivers.length} drivers analyzed</span>
-        </div>
-      )}
+    <div ref={panelRef} className="consistency-panel">
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '4px 8px 0',
+      }}>
+        {sessionAvg ? (
+          <div className="consistency-panel__session-summary" style={{ margin: 0 }}>
+            <span>Session Average: <strong>{formatTime(sessionAvg)}</strong></span>
+            <span>{drivers.length} drivers analyzed</span>
+          </div>
+        ) : <span />}
+        <button
+          onClick={handleExport}
+          title="Export as PNG"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 22, height: 22, borderRadius: 4,
+            border: 'none', background: 'transparent',
+            color: 'rgba(255,255,255,0.3)', cursor: 'pointer',
+            fontSize: '12px', padding: 0, flexShrink: 0,
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
+      </div>
 
       <div className="consistency-panel__grid">
         {drivers.map((d) => {

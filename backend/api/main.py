@@ -11,6 +11,7 @@ import asyncio
 import logging
 import sys
 import json
+import numpy as np
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -18,7 +19,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from data.extractors.fastf1_extractor import FastF1Extractor, get_sample_session_data
 from data.processors.feature_engineering import FeatureEngineer, create_race_features
-from data.processors.tsne_compute import load_embeddings, analyze_selection
+from data.processors.tsne_compute import load_embeddings, load_pca_embeddings, analyze_selection
+from utils.json_helpers import clean_dataframe_for_json
 
 # Import routers with graceful fallback so that a broken optional dependency
 # (e.g. missing tensorflow) does not prevent the whole app from starting.
@@ -82,8 +84,15 @@ session_cache: Dict[str, Any] = {}
 # Cache for schedule data — avoids re-fetching from FastF1 on every page load
 schedule_cache: Dict[int, Any] = {}
 
+# Cache for championship standings — computed once per year
+championship_cache: Dict[int, Any] = {}
+
 # Cache for raw FastF1 session objects (avoids re-loading heavy telemetry)
 raw_session_cache: Dict[str, Any] = {}
+
+# Lock to serialize FastF1 access (FastF1 is NOT thread-safe)
+import threading
+_fastf1_lock = threading.Lock()
 
 # Disk cache directory for processed JSON (instant loads after first computation)
 DISK_CACHE_DIR = Path(__file__).parent.parent / "data" / "processed_cache"
@@ -118,10 +127,12 @@ def _save_to_disk(path: Path, data):
 
 
 def get_raw_session(year: int, round_num: int, session_type: str = "R"):
-    """Get or load a raw FastF1 session object (cached in memory)."""
+    """Get or load a raw FastF1 session object (cached in memory).
+
+    NOTE: Callers must hold _fastf1_lock when calling this for uncached sessions.
+    """
     cache_key = get_cache_key(year, round_num, session_type)
     if cache_key in raw_session_cache:
-        logger.info(f"Using cached raw session for {cache_key}")
         return raw_session_cache[cache_key]
     session = extractor.get_session(year, round_num, session_type)
     raw_session_cache[cache_key] = session
@@ -132,78 +143,7 @@ for _r in _routers_loaded:
     app.include_router(_r)
 
 
-def clean_dataframe_for_json(df: Any) -> List[Dict[str, Any]]:
-    """
-    Clean a DataFrame for JSON serialization.
-    Converts timedelta, datetime, and numpy types to JSON-serializable formats.
-    Handles NaN, inf, and -inf values.
-    """
-    import numpy as np
-    import math
-    
-    if df is None or (hasattr(df, 'empty') and df.empty):
-        return []
-    
-    def is_nan_or_inf(value):
-        """Check if value is NaN or infinity."""
-        if value is None:
-            return True
-        if isinstance(value, float):
-            return math.isnan(value) or math.isinf(value)
-        if isinstance(value, (np.floating, np.integer)):
-            return np.isnan(value) or np.isinf(value)
-        return False
-    
-    def clean_value(value):
-        """Clean a single value for JSON serialization."""
-        # Handle None and NaN
-        if value is None:
-            return None
-        
-        # Handle numpy NaN/inf
-        if isinstance(value, (np.floating, np.integer)):
-            if np.isnan(value) or np.isinf(value):
-                return None
-            return float(value)
-        
-        # Handle native float NaN/inf
-        if isinstance(value, float):
-            if math.isnan(value) or math.isinf(value):
-                return None
-            return value
-        
-        # Handle timedelta
-        if hasattr(value, 'total_seconds'):
-            result = value.total_seconds()
-            if math.isnan(result) or math.isinf(result):
-                return None
-            return result
-        
-        # Handle datetime/Timestamp
-        if hasattr(value, 'isoformat'):
-            return value.isoformat()
-        
-        # Handle numpy arrays
-        if isinstance(value, np.ndarray):
-            return value.tolist()
-        
-        # Handle numpy bool
-        if isinstance(value, np.bool_):
-            return bool(value)
-        
-        return value
-    
-    # Convert DataFrame to records
-    records = df.to_dict('records')
-    
-    cleaned = []
-    for record in records:
-        clean_record = {}
-        for key, value in record.items():
-            clean_record[key] = clean_value(value)
-        cleaned.append(clean_record)
-    
-    return cleaned
+# clean_dataframe_for_json imported from utils.json_helpers (see top-level imports)
 
 
 # ============= Pydantic Models =============
@@ -237,18 +177,27 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
         session_cache[cache_key] = disk_data
         return disk_data
 
-    # 3. Full extraction from FastF1 (slow — first time only)
+    # 3. Full extraction from FastF1 (slow — first time only, thread-safe)
     try:
         logger.info(f"Loading session {year} round {round_num} type {session_type}")
-        session = get_raw_session(year, round_num, session_type)
-        
-        # Extract data with proper JSON serialization
-        lap_times = extractor.extract_lap_times(session)
-        circuit_info = extractor.extract_circuit_info(session)
-        driver_info = extractor.extract_driver_info(session)
-        race_results = extractor.extract_race_results(session)
-        weather_data = extractor.extract_weather_data(session)
-        tyre_strategy = extractor.extract_tyre_strategy(session)
+        with _fastf1_lock:
+            # Double-check caches after acquiring lock (another thread may have filled them)
+            if cache_key in session_cache:
+                return session_cache[cache_key]
+            disk_data = _load_from_disk(disk_path)
+            if disk_data is not None:
+                session_cache[cache_key] = disk_data
+                return disk_data
+
+            session = get_raw_session(year, round_num, session_type)
+
+            # Extract data with proper JSON serialization
+            lap_times = extractor.extract_lap_times(session)
+            circuit_info = extractor.extract_circuit_info(session)
+            driver_info = extractor.extract_driver_info(session)
+            race_results = extractor.extract_race_results(session)
+            weather_data = extractor.extract_weather_data(session)
+            tyre_strategy = extractor.extract_tyre_strategy(session)
         
         # Clean track coordinates in circuit_info
         if circuit_info.get('track_coordinates'):
@@ -318,18 +267,39 @@ async def get_seasons():
 
 @app.get("/api/schedule/{year}")
 async def get_schedule(year: int):
-    """Get event schedule for a season (cached in memory after first fetch)."""
+    """Get event schedule for a season (disk + memory cached)."""
+    # 1. Memory cache
     if year in schedule_cache:
         return schedule_cache[year]
+
+    # 2. Disk cache
+    disk_path = DISK_CACHE_DIR / f"schedule_{year}.json"
+    disk_data = _load_from_disk(disk_path)
+    if disk_data is not None:
+        logger.info(f"Loaded schedule from disk cache: {disk_path.name}")
+        schedule_cache[year] = disk_data
+        return disk_data
+
+    # 3. Fetch from FastF1 with a timeout
     try:
-        # Run blocking FastF1 call in a thread to avoid blocking the event loop
-        schedule = await asyncio.to_thread(extractor.get_event_schedule, year)
+        def _fetch_schedule():
+            with _fastf1_lock:
+                return extractor.get_event_schedule(year)
+
+        schedule = await asyncio.wait_for(
+            asyncio.to_thread(_fetch_schedule),
+            timeout=30,
+        )
         result = {
             "year": year,
             "events": schedule[['RoundNumber', 'EventName', 'Country', 'Location', 'EventDate', 'EventFormat']].to_dict('records')
         }
         schedule_cache[year] = result
+        _save_to_disk(disk_path, result)
         return result
+    except asyncio.TimeoutError:
+        logger.error(f"FastF1 schedule fetch timed out for {year}")
+        raise HTTPException(status_code=504, detail=f"Schedule fetch timed out for {year}. Try again.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -337,35 +307,39 @@ async def get_schedule(year: int):
 @app.get("/api/session/{year}/{round_num}")
 async def get_session_data(year: int, round_num: int, session_type: str = "R"):
     """Get comprehensive session data."""
-    return load_session(year, round_num, session_type)
+    return await asyncio.to_thread(load_session, year, round_num, session_type)
 
 
 @app.get("/api/laptimes/{year}/{round_num}")
 async def get_lap_times(year: int, round_num: int, driver: Optional[str] = None):
     """Get lap times for a session, optionally filtered by driver."""
-    data = load_session(year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, "R")
     lap_times = data['lap_times']
-    
+
     if driver:
         lap_times = [lt for lt in lap_times if lt.get('Driver') == driver]
-    
+
     return {"lap_times": lap_times}
 
 
 @app.get("/api/telemetry/{year}/{round_num}/{driver}")
-async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[int] = None):
+async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[int] = None, session_type: str = "R"):
     """Get telemetry data for a specific driver."""
     try:
-        session = get_raw_session(year, round_num, "R")
-        telemetry = extractor.extract_telemetry(session, driver, lap)
-        
-        if telemetry is None or telemetry.empty:
+        def _fetch():
+            with _fastf1_lock:
+                session = get_raw_session(year, round_num, session_type)
+                return extractor.extract_telemetry(session, driver, lap)
+
+        telemetry = await asyncio.to_thread(_fetch)
+
+        if telemetry is None or (hasattr(telemetry, 'empty') and telemetry.empty):
             return {
                 "driver": driver,
                 "lap": lap if lap else "fastest",
                 "telemetry": []
             }
-        
+
         return {
             "driver": driver,
             "lap": lap if lap else "fastest",
@@ -379,42 +353,41 @@ async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[in
 @app.get("/api/circuit/{year}/{round_num}")
 async def get_circuit_info(year: int, round_num: int):
     """Get circuit information including track coordinates."""
-    data = load_session(year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, "R")
     return data['circuit_info']
 
 
 @app.get("/api/strategy/{year}/{round_num}")
 async def get_tyre_strategy(year: int, round_num: int):
     """Get tyre strategy data for all drivers."""
-    data = load_session(year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, "R")
     return {"strategies": data['tyre_strategy']}
 
 
 @app.get("/api/drivers/{year}/{round_num}")
 async def get_drivers(year: int, round_num: int):
     """Get driver information for a session."""
-    data = load_session(year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, "R")
     return {"drivers": data['driver_info']}
 
 
 @app.get("/api/results/{year}/{round_num}")
 async def get_results(year: int, round_num: int):
     """Get race results."""
-    data = load_session(year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, "R")
     return {"results": data['race_results']}
 
 
 @app.get("/api/positions/{year}/{round_num}")
 async def get_positions(year: int, round_num: int):
-    """Get position telemetry data for all drivers throughout the race.
-    
-    Returns position data for animating cars around the track in real-time.
-    Data is downsampled to ~10K points per driver for performance.
-    """
+    """Get position telemetry data for all drivers throughout the race."""
     try:
-        session = get_raw_session(year, round_num, "R")
-        position_data = extractor.extract_position_data(session)
-        return position_data
+        def _fetch():
+            with _fastf1_lock:
+                session = get_raw_session(year, round_num, "R")
+                return extractor.extract_position_data(session)
+
+        return await asyncio.to_thread(_fetch)
     except Exception as e:
         logger.error(f"Error fetching positions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -422,16 +395,7 @@ async def get_positions(year: int, round_num: int):
 
 @app.get("/api/frames/{year}/{round_num}")
 async def get_race_frames(year: int, round_num: int, session_type: str = "R"):
-    """Get race replay frames with full telemetry for all drivers.
-    
-    Returns frame-by-frame data for animating a race replay with:
-    - Position (x, y coordinates)
-    - Speed, Gear, DRS status
-    - Throttle/Brake percentages
-    - Tyre compound and life
-    
-    This enables rich race replay animations similar to broadcast-style visuals.
-    """
+    """Get race replay frames."""
     try:
         # Check disk cache first (instant)
         disk_path = _disk_cache_path("frames", year, round_num, session_type)
@@ -440,11 +404,18 @@ async def get_race_frames(year: int, round_num: int, session_type: str = "R"):
             logger.info(f"Loaded frames from disk cache: {disk_path.name}")
             return disk_data
 
-        # Extract from FastF1 (slow — first time only)
-        session = get_raw_session(year, round_num, session_type)
-        frames_data = extractor.extract_race_frames(session)
-        _save_to_disk(disk_path, frames_data)
-        return frames_data
+        # Extract from FastF1 in a thread (slow — first time only)
+        def _extract_frames():
+            with _fastf1_lock:
+                session = get_raw_session(year, round_num, session_type)
+                if session_type == 'Q':
+                    frames_data = extractor.extract_qualifying_frames(session)
+                else:
+                    frames_data = extractor.extract_race_frames(session)
+            _save_to_disk(disk_path, frames_data)
+            return frames_data
+
+        return await asyncio.to_thread(_extract_frames)
     except Exception as e:
         logger.error(f"Error fetching race frames: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -453,50 +424,293 @@ async def get_race_frames(year: int, round_num: int, session_type: str = "R"):
 @app.get("/api/weather/{year}/{round_num}")
 async def get_weather(year: int, round_num: int):
     """Get weather data for a session."""
-    data = load_session(year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, "R")
     return {"weather": data['weather_data']}
+
+
+# ============= Championship Endpoints =============
+
+def _compute_championship(year: int, fast_only: bool = True) -> Dict[str, Any]:
+    """Compute cumulative championship standings for a full season.
+
+    Args:
+        fast_only: If True, only use disk-cached sessions (instant).
+                   If False, load all sessions from FastF1 (slow first time).
+    """
+    # Get schedule (lock needed for FastF1 access)
+    with _fastf1_lock:
+        schedule = extractor.get_event_schedule(year)
+    race_rounds = schedule[schedule['EventFormat'].isin(['conventional', 'sprint_shootout', 'sprint_qualifying', 'sprint'])]['RoundNumber'].unique()
+    race_rounds = sorted(int(r) for r in race_rounds)  # ensure native Python ints
+
+    driver_data = {}   # abbr → { name, team, teamColor, countryCode, rounds: [{round, points}] }
+    team_data = {}     # teamName → { teamColor, rounds: [{round, points}] }
+    missing_rounds = []
+
+    completed_rounds = 0
+    for rnd in race_rounds:
+        try:
+            # In fast mode, only use disk-cached sessions
+            if fast_only:
+                disk_path = _disk_cache_path("session", year, rnd, "R")
+                disk_data = _load_from_disk(disk_path)
+                if disk_data is None:
+                    # Also check in-memory cache
+                    cache_key = get_cache_key(year, rnd, "R")
+                    if cache_key in session_cache:
+                        disk_data = session_cache[cache_key]
+                    else:
+                        missing_rounds.append(rnd)
+                        continue
+                data = disk_data
+            else:
+                data = load_session(year, rnd, "R")
+
+            results = data.get('race_results', [])
+            if not results:
+                continue
+            completed_rounds += 1
+
+            round_team_pts = {}
+            for r in results:
+                abbr = r.get('Abbreviation') or r.get('Driver')
+                if not abbr:
+                    continue
+                raw_pts = r.get('Points', 0)
+                pts = float(raw_pts) if raw_pts is not None and raw_pts == raw_pts else 0.0  # handles NaN
+                team = r.get('TeamName', '')
+                teamColor = r.get('TeamColor', '')
+                if teamColor and not teamColor.startswith('#'):
+                    teamColor = f'#{teamColor}'
+                name = r.get('FullName', abbr)
+                cc = r.get('CountryCode', '')
+
+                if abbr not in driver_data:
+                    driver_data[abbr] = {
+                        'name': name, 'team': team, 'teamColor': teamColor,
+                        'countryCode': cc, 'rounds': [],
+                    }
+                driver_data[abbr]['rounds'].append({'round': rnd, 'points': pts})
+                # Update team info in case of mid-season change
+                driver_data[abbr]['team'] = team
+                driver_data[abbr]['teamColor'] = teamColor
+
+                # Accumulate team points
+                if team:
+                    if team not in team_data:
+                        team_data[team] = {'teamColor': teamColor, 'rounds': []}
+                    round_team_pts.setdefault(team, 0)
+                    round_team_pts[team] += pts
+
+            for team, pts in round_team_pts.items():
+                team_data[team]['rounds'].append({'round': rnd, 'points': pts})
+
+        except Exception as e:
+            logger.warning(f"Could not load round {rnd} for championship: {e}")
+            missing_rounds.append(rnd)
+            continue
+
+    # Build progression arrays with cumulative totals and positions
+    total_rounds = len(race_rounds)
+    remaining_rounds = total_rounds - completed_rounds
+
+    drivers_out = []
+    for abbr, d in driver_data.items():
+        cumulative = 0
+        progression = []
+        for r in sorted(d['rounds'], key=lambda x: x['round']):
+            cumulative += r['points']
+            progression.append({
+                'round': r['round'],
+                'points': r['points'],
+                'cumulative': cumulative,
+            })
+
+        # Prediction: weighted moving average of recent points-per-race
+        prediction = None
+        if len(progression) >= 3 and remaining_rounds > 0:
+            recent = [p['points'] for p in progression[-5:]]
+            weights = list(range(1, len(recent) + 1))
+            avg_ppg = float(np.average(recent, weights=weights))
+            prediction = {
+                'predicted_total': round(cumulative + avg_ppg * remaining_rounds),
+                'avg_points_per_race': round(avg_ppg, 1),
+                'best_case': cumulative + 26 * remaining_rounds,
+                'worst_case': cumulative,
+            }
+
+        drivers_out.append({
+            'abbr': abbr,
+            'name': d['name'],
+            'team': d['team'],
+            'teamColor': d['teamColor'],
+            'countryCode': d['countryCode'],
+            'totalPoints': cumulative,
+            'progression': progression,
+            'prediction': prediction,
+        })
+
+    # Sort by total points descending and assign positions per round
+    drivers_out.sort(key=lambda x: -x['totalPoints'])
+    # Assign final position
+    for i, d in enumerate(drivers_out):
+        d['position'] = i + 1
+
+    # Per-round positions for drivers
+    all_rounds_sorted = sorted(set(r['round'] for d in drivers_out for r in d['progression']))
+    for rnd in all_rounds_sorted:
+        # Get cumulative at this round for each driver
+        round_cum = []
+        for d in drivers_out:
+            cum = 0
+            for p in d['progression']:
+                if p['round'] <= rnd:
+                    cum = p['cumulative']
+            round_cum.append((d['abbr'], cum))
+        round_cum.sort(key=lambda x: -x[1])
+        pos_map = {abbr: i + 1 for i, (abbr, _) in enumerate(round_cum)}
+        for d in drivers_out:
+            for p in d['progression']:
+                if p['round'] == rnd:
+                    p['position'] = pos_map.get(d['abbr'], 99)
+
+    constructors_out = []
+    for team, t in team_data.items():
+        cumulative = 0
+        progression = []
+        for r in sorted(t['rounds'], key=lambda x: x['round']):
+            cumulative += r['points']
+            progression.append({
+                'round': r['round'],
+                'points': r['points'],
+                'cumulative': cumulative,
+            })
+
+        prediction = None
+        if len(progression) >= 3 and remaining_rounds > 0:
+            recent = [p['points'] for p in progression[-5:]]
+            weights = list(range(1, len(recent) + 1))
+            avg_ppg = float(np.average(recent, weights=weights))
+            prediction = {
+                'predicted_total': round(cumulative + avg_ppg * remaining_rounds),
+                'avg_points_per_race': round(avg_ppg, 1),
+                'best_case': cumulative + 52 * remaining_rounds,  # both drivers win + fastest lap
+                'worst_case': cumulative,
+            }
+
+        constructors_out.append({
+            'team': team,
+            'teamColor': t['teamColor'],
+            'totalPoints': cumulative,
+            'progression': progression,
+            'prediction': prediction,
+        })
+
+    constructors_out.sort(key=lambda x: -x['totalPoints'])
+    for i, c in enumerate(constructors_out):
+        c['position'] = i + 1
+
+    # Per-round positions for constructors
+    for rnd in all_rounds_sorted:
+        round_cum = []
+        for c in constructors_out:
+            cum = 0
+            for p in c['progression']:
+                if p['round'] <= rnd:
+                    cum = p['cumulative']
+            round_cum.append((c['team'], cum))
+        round_cum.sort(key=lambda x: -x[1])
+        pos_map = {team: i + 1 for i, (team, _) in enumerate(round_cum)}
+        for c in constructors_out:
+            for p in c['progression']:
+                if p['round'] == rnd:
+                    p['position'] = pos_map.get(c['team'], 99)
+
+    result = {
+        'year': year,
+        'total_rounds': total_rounds,
+        'completed_rounds': completed_rounds,
+        'missing_rounds': missing_rounds,
+        'drivers': drivers_out,
+        'constructors': constructors_out,
+    }
+    return result
+
+
+@app.get("/api/championship/{year}")
+async def get_championship(year: int, load_all: bool = False):
+    """Get championship standings progression for a season.
+
+    By default, only uses disk-cached sessions (instant).
+    Set load_all=true to fetch ALL rounds from FastF1 (slow first time).
+    """
+    # If load_all requested, bypass caches and recompute
+    if load_all:
+        try:
+            result = await asyncio.to_thread(_compute_championship, year, fast_only=False)
+            championship_cache[year] = result
+            disk_path = DISK_CACHE_DIR / f"championship_{year}.json"
+            _save_to_disk(disk_path, result)
+            return result
+        except Exception as e:
+            logger.error(f"Failed to compute full championship for {year}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    if year in championship_cache:
+        return championship_cache[year]
+
+    # Check disk cache for championship
+    disk_path = DISK_CACHE_DIR / f"championship_{year}.json"
+    disk_data = _load_from_disk(disk_path)
+    if disk_data is not None:
+        championship_cache[year] = disk_data
+        return disk_data
+
+    try:
+        # Fast mode: only use already-cached sessions
+        result = _compute_championship(year, fast_only=True)
+        championship_cache[year] = result
+        # Only save to disk if we have all rounds
+        if not result.get('missing_rounds'):
+            _save_to_disk(disk_path, result)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to compute championship for {year}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============= t-SNE Endpoints =============
 
 @app.get("/api/tsne/embeddings")
 async def get_tsne_embeddings():
-    """Return pre-computed t-SNE embeddings, or generate mock data if not available."""
-    embeddings = load_embeddings()
+    """Return pre-computed t-SNE embeddings, auto-building from cached sessions if needed."""
+    import asyncio
+    embeddings = await asyncio.to_thread(load_embeddings)
     if embeddings is None:
-        # Generate mock embeddings so the Analytics tab works without pre-computation
-        import random
-        random.seed(42)
-        teams = {
-            'VER': 'Red Bull Racing', 'PER': 'Red Bull Racing',
-            'LEC': 'Ferrari', 'SAI': 'Ferrari',
-            'HAM': 'Mercedes', 'RUS': 'Mercedes',
-            'NOR': 'McLaren', 'PIA': 'McLaren',
-            'ALO': 'Aston Martin', 'STR': 'Aston Martin',
-            'GAS': 'Alpine', 'OCO': 'Alpine',
-            'ALB': 'Williams', 'SAR': 'Williams',
-            'TSU': 'RB', 'RIC': 'RB',
-            'BOT': 'Kick Sauber', 'ZHO': 'Kick Sauber',
-            'MAG': 'Haas F1 Team', 'HUL': 'Haas F1 Team',
+        return {
+            'points': [],
+            'feature_cols': [],
+            'n_points': 0,
+            'message': 'No t-SNE data available. Load at least one race session first.',
         }
-        races = [
-            (1, 'Bahrain'), (2, 'Saudi Arabia'), (3, 'Australia'), (4, 'Japan'),
-            (5, 'China'), (6, 'Miami'), (7, 'Emilia Romagna'), (8, 'Monaco'),
-        ]
-        points = []
-        for driver, team in teams.items():
-            for rnd, race_name in races:
-                points.append({
-                    'id': f'{driver}_2024_{rnd}',
-                    'x': random.gauss(0, 15) + (hash(team) % 20 - 10),
-                    'y': random.gauss(0, 15) + (hash(driver) % 20 - 10),
-                    'driver': driver,
-                    'team': team,
-                    'year': 2024,
-                    'round': rnd,
-                    'race_name': race_name,
-                })
-        embeddings = {'points': points, 'feature_cols': [], 'n_points': len(points)}
+    return embeddings
+
+
+@app.get("/api/pca/embeddings")
+async def get_pca_embeddings():
+    """Return pre-computed PCA embeddings with loadings, auto-building if needed."""
+    embeddings = await asyncio.to_thread(load_pca_embeddings)
+    if embeddings is None:
+        return {
+            'points': [],
+            'loadings': [],
+            'explained_variance': [],
+            'pc1_label': '',
+            'pc2_label': '',
+            'feature_cols': [],
+            'n_points': 0,
+            'message': 'No PCA data available. Load at least one race session first.',
+        }
     return embeddings
 
 
@@ -519,7 +733,8 @@ class TSNEAnalyzeRequest(BaseModel):
 @app.post("/api/tsne/analyze-selection")
 async def analyze_tsne_selection(request: TSNEAnalyzeRequest):
     """Analyze strategy patterns for selected t-SNE points."""
-    result = analyze_selection(request.point_ids)
+    import asyncio
+    result = await asyncio.to_thread(analyze_selection, request.point_ids)
     return result
 
 

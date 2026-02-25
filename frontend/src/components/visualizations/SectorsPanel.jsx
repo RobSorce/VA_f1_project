@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
+import { exportAsPng } from '../../utils/exportChart';
 
 function formatTime(seconds) {
   if (!seconds || seconds <= 0) return '—';
@@ -30,40 +31,45 @@ export default function SectorsPanel() {
   const dnfMap = useF1Store((s) => s.dnfMap);
   const speedUnit = useF1Store((s) => s.speedUnit);
   const [view, setView] = useState('live');
+  const panelRef = useRef(null);
+  const handleExport = useCallback(() => {
+    if (!panelRef.current) return;
+    exportAsPng(panelRef.current, `sectors_${view}.png`);
+  }, [view]);
 
   const toDisplaySpeed = (kmh) => speedUnit === 'mph' ? Math.round(kmh * 0.6214 * 10) / 10 : kmh;
   const speedLabel = speedUnit === 'mph' ? 'mph' : 'km/h';
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
-  const replayStarted = currentFrameIndex > 0 || currentLap > 1;
+  const replayActive = currentFrameIndex > 0 || currentLap > 1;
 
   // Session time offset: session times (~3500s) vs frame times (0-based)
   const sessionTimeOffset = useMemo(() => {
     for (const d of lapTimes) {
-      if (d.LapStartTime > 0 && d.Time > 0 && d.LapNumber >= 1) {
+      if (d.LapStartTime > 0 && (d.Time > 0 || d.LapTimeSeconds > 0) && d.LapNumber >= 1) {
         return d.LapStartTime;
       }
     }
     return 0;
   }, [lapTimes]);
+  const hasTimeOffset = sessionTimeOffset > 0;
 
   // Session-wide and personal bests (accumulated up to currentLap) for color coding
   const { sessionBests, personalBests } = useMemo(() => {
     const sb = { 1: Infinity, 2: Infinity, 3: Infinity };
     const pb = {};
-    if (!replayStarted) return { sessionBests: sb, personalBests: pb };
+    if (lapTimes.length === 0) return { sessionBests: sb, personalBests: pb };
 
     for (const lt of lapTimes) {
-      if (lt.LapNumber > currentLap) continue;
-      // Skip laps the driver hasn't actually started yet
-      if (lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
+      if (replayActive && lt.LapNumber > currentLap) continue;
+      if (replayActive && hasTimeOffset && lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
       const drv = lt.Driver;
       if (!drv) continue;
       if (!pb[drv]) pb[drv] = { 1: Infinity, 2: Infinity, 3: Infinity };
       for (const s of [1, 2, 3]) {
         // Only include sectors that have actually been completed in the timeline
         const sSessionT = lt[`Sector${s}SessionTime`];
-        if (sSessionT > 0 && currentTime < sSessionT - sessionTimeOffset) continue;
+        if (replayActive && sSessionT > 0 && currentTime < sSessionT - sessionTimeOffset) continue;
         const val = lt[`Sector${s}TimeSeconds`];
         if (val > 0 && val < 300) {
           if (val < sb[s]) sb[s] = val;
@@ -72,18 +78,16 @@ export default function SectorsPanel() {
       }
     }
     return { sessionBests: sb, personalBests: pb };
-  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayStarted]);
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayActive]);
 
   // Live view: current-lap sector times per driver with progressive reveal
   const liveRows = useMemo(() => {
-    if (lapTimes.length === 0 || !replayStarted) return [];
+    if (lapTimes.length === 0) return [];
 
-    // Get latest lap row per driver (only laps actually started in the timeline)
     const driverLatest = {};
     for (const lt of lapTimes) {
-      if (lt.LapNumber > currentLap) continue;
-      // Skip laps the driver hasn't actually started yet
-      if (lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
+      if (replayActive && lt.LapNumber > currentLap) continue;
+      if (replayActive && hasTimeOffset && lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
       const drv = lt.Driver;
       if (!drv) continue;
       if (!driverLatest[drv] || lt.LapNumber > driverLatest[drv].LapNumber) {
@@ -95,10 +99,9 @@ export default function SectorsPanel() {
       .filter((d) => !(dnfMap[d.Driver] && dnfMap[d.Driver].lastLap <= currentLap))
       .sort((a, b) => (a.Position || 99) - (b.Position || 99))
       .map((d) => {
-        const isCurrentLap = d.LapNumber === currentLap;
+        const isCurrentLap = replayActive && d.LapNumber === currentLap;
         const pb = personalBests[d.Driver] || { 1: Infinity, 2: Infinity, 3: Infinity };
 
-        // Progressive reveal: use session time comparison for current lap
         const s1SessionT = d.Sector1SessionTime > 0 ? d.Sector1SessionTime - sessionTimeOffset : null;
         const s2SessionT = d.Sector2SessionTime > 0 ? d.Sector2SessionTime - sessionTimeOffset : null;
         const s3SessionT = d.Sector3SessionTime > 0 ? d.Sector3SessionTime - sessionTimeOffset : null;
@@ -106,6 +109,7 @@ export default function SectorsPanel() {
         const showS1 = !isCurrentLap || (s1SessionT != null ? currentTime >= s1SessionT : d.Sector1TimeSeconds > 0);
         const showS2 = !isCurrentLap || (s2SessionT != null ? currentTime >= s2SessionT : d.Sector2TimeSeconds > 0);
         const showS3 = !isCurrentLap || (s3SessionT != null ? currentTime >= s3SessionT : d.Sector3TimeSeconds > 0);
+        const showLapTime = !isCurrentLap || showS3;
 
         const sectors = [1, 2, 3].map((s) => {
           const show = s === 1 ? showS1 : s === 2 ? showS2 : showS3;
@@ -119,24 +123,38 @@ export default function SectorsPanel() {
           return { val, show, color };
         });
 
+        // Live chronometer for current sector
+        let chrono = null;
+        if (isCurrentLap && hasTimeOffset) {
+          const lapStart = d.LapStartTime > 0 ? d.LapStartTime - sessionTimeOffset : null;
+          if (!showS1 && lapStart != null) {
+            chrono = { sector: 1, elapsed: Math.max(0, currentTime - lapStart) };
+          } else if (showS1 && !showS2 && s1SessionT != null) {
+            chrono = { sector: 2, elapsed: Math.max(0, currentTime - s1SessionT) };
+          } else if (showS2 && !showS3 && s2SessionT != null) {
+            chrono = { sector: 3, elapsed: Math.max(0, currentTime - s2SessionT) };
+          }
+        }
+
         return {
           driver: d.Driver,
           pos: d.Position || 99,
           lap: d.LapNumber,
           sectors,
+          chrono,
+          lapTime: showLapTime ? d.LapTimeSeconds : null,
         };
       });
-  }, [lapTimes, currentLap, currentTime, replayStarted, sessionTimeOffset, sessionBests, personalBests, dnfMap]);
+  }, [lapTimes, currentLap, currentTime, replayActive, sessionTimeOffset, sessionBests, personalBests, dnfMap]);
 
   // Best-of-session rankings (accumulated)
   const { bestRankings, bestSessionBests } = useMemo(() => {
-    if (lapTimes.length === 0 || !replayStarted) return { bestRankings: {}, bestSessionBests: {} };
+    if (lapTimes.length === 0) return { bestRankings: {}, bestSessionBests: {} };
 
     const driverSectors = {};
     for (const lt of lapTimes) {
-      if (lt.LapNumber > currentLap) continue;
-      // Skip laps the driver hasn't actually started yet
-      if (lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
+      if (replayActive && lt.LapNumber > currentLap) continue;
+      if (replayActive && hasTimeOffset && lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
       const drv = lt.Driver;
       if (!drv) continue;
       // Skip retired drivers' laps past their retirement
@@ -146,7 +164,7 @@ export default function SectorsPanel() {
       for (const s of [1, 2, 3]) {
         // Only include sectors actually completed in the timeline
         const sSessionT = lt[`Sector${s}SessionTime`];
-        if (sSessionT > 0 && currentTime < sSessionT - sessionTimeOffset) continue;
+        if (replayActive && sSessionT > 0 && currentTime < sSessionT - sessionTimeOffset) continue;
         const val = lt[`Sector${s}TimeSeconds`];
         if (val && typeof val === 'number' && val > 0 && val < 300) {
           driverSectors[drv][s].push(val);
@@ -174,20 +192,20 @@ export default function SectorsPanel() {
       sResult[String(s)] = allTimes;
     }
     return { bestRankings: sResult, bestSessionBests: sBests };
-  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayStarted, dnfMap]);
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayActive, dnfMap]);
 
   // Speed rankings
   const speedRankings = useMemo(() => {
-    if (lapTimes.length === 0 || !replayStarted) return {};
+    if (lapTimes.length === 0) return {};
     const result = {};
     for (const { key } of SPEED_COLS) {
       const driverSpeeds = {};
       for (const lt of lapTimes) {
-        if (lt.LapNumber > currentLap) continue;
+        if (replayActive && lt.LapNumber > currentLap) continue;
         // Skip laps the driver hasn't actually started yet
-        if (lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
+        if (replayActive && hasTimeOffset && lt.LapStartTime > 0 && currentTime < lt.LapStartTime - sessionTimeOffset) continue;
         // Speed traps are recorded at sector boundaries — only include if lap is complete
-        const lapEndT = lt.Time > 0 ? lt.Time - sessionTimeOffset : null;
+        const lapEndT = (replayActive && hasTimeOffset && lt.Time > 0) ? lt.Time - sessionTimeOffset : null;
         if (lapEndT != null && currentTime < lapEndT) continue;
         const drv = lt.Driver;
         const val = lt[key];
@@ -207,24 +225,22 @@ export default function SectorsPanel() {
       result[key] = ranked;
     }
     return result;
-  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayStarted, dnfMap]);
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayActive, dnfMap]);
 
   const hasData = (view === 'live' && liveRows.length > 0)
     || (view === 'best' && Object.keys(bestRankings).length > 0)
     || (view === 'speeds' && Object.keys(speedRankings).length > 0);
 
-  if (!hasData && !replayStarted) {
+  if (!hasData) {
     return (
       <div className="sectors-panel__empty">
-        {lapTimes.length > 0
-          ? 'Press play to start the race replay'
-          : 'No sector data available. Load a session first.'}
+        No sector data available. Load a session first.
       </div>
     );
   }
 
   return (
-    <div className="sectors-panel-wrapper">
+    <div ref={panelRef} className="sectors-panel-wrapper">
       {/* ── Toggle ── */}
       <div className="sectors-panel__toggle">
         <button
@@ -245,6 +261,23 @@ export default function SectorsPanel() {
         >
           Top Speeds
         </button>
+        <button
+          onClick={handleExport}
+          title="Export as PNG"
+          style={{
+            marginLeft: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 22, height: 22, borderRadius: 4,
+            border: 'none', background: 'transparent',
+            color: 'rgba(255,255,255,0.3)', cursor: 'pointer',
+            fontSize: '12px', padding: 0, flexShrink: 0,
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
       </div>
 
       {/* ── Live Sector Times (current lap, chronometer) ── */}
@@ -258,6 +291,7 @@ export default function SectorsPanel() {
             <span className="sectors-panel__live-hdr-sec">S1</span>
             <span className="sectors-panel__live-hdr-sec">S2</span>
             <span className="sectors-panel__live-hdr-sec">S3</span>
+            <span className="sectors-panel__live-hdr-sec">LAP</span>
           </div>
           {/* Driver rows */}
           <div className="sectors-panel__live-body">
@@ -268,15 +302,28 @@ export default function SectorsPanel() {
                   <span className="sectors-panel__live-pos">{row.pos}</span>
                   <span className="sectors-panel__team-bar" style={{ backgroundColor: color }} />
                   <span className="sectors-panel__live-drv">{row.driver}</span>
-                  {row.sectors.map((s, i) => (
-                    <span
-                      key={i}
-                      className={`sectors-panel__live-sec${!s.show ? ' sectors-panel__live-sec--pending' : ''}`}
-                      style={s.show && s.val ? { color: s.color } : undefined}
-                    >
-                      {s.show ? formatTime(s.val) : '···'}
-                    </span>
-                  ))}
+                  {row.sectors.map((s, i) => {
+                    const sectorNum = i + 1;
+                    const isChrono = !s.show && row.chrono?.sector === sectorNum;
+                    return (
+                      <span
+                        key={i}
+                        className={`sectors-panel__live-sec${!s.show ? ' sectors-panel__live-sec--pending' : ''}`}
+                        style={
+                          s.show && s.val
+                            ? { color: s.color }
+                            : isChrono
+                              ? { color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }
+                              : undefined
+                        }
+                      >
+                        {s.show ? formatTime(s.val) : isChrono ? row.chrono.elapsed.toFixed(1) : '—'}
+                      </span>
+                    );
+                  })}
+                  <span className="sectors-panel__live-sec sectors-panel__live-sec--lap">
+                    {row.lapTime ? formatTime(row.lapTime) : '—'}
+                  </span>
                 </div>
               );
             })}

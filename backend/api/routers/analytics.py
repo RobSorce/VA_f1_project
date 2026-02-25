@@ -3,6 +3,7 @@ Analytics Router — Sectors, Consistency, Speed Rankings
 Provides computed analytics data from session lap times.
 """
 from fastapi import APIRouter, HTTPException
+import asyncio
 import logging
 import math
 
@@ -21,7 +22,7 @@ def _get_load_session():
 async def get_sector_rankings(year: int, round_num: int):
     """Rank drivers by best sector time for each sector."""
     load_session = _get_load_session()
-    data = load_session(year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, "R")
     lap_times = data.get("lap_times", [])
 
     if not lap_times:
@@ -70,7 +71,7 @@ async def get_sector_rankings(year: int, round_num: int):
 async def get_consistency(year: int, round_num: int):
     """Compute consistency metrics for each driver."""
     load_session = _get_load_session()
-    data = load_session(year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, "R")
     lap_times = data.get("lap_times", [])
     driver_info_list = data.get("driver_info", [])
 
@@ -201,7 +202,7 @@ async def get_consistency(year: int, round_num: int):
 async def get_speed_rankings(year: int, round_num: int):
     """Rank drivers by speed trap, finish line, and sector speeds."""
     load_session = _get_load_session()
-    data = load_session(year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, "R")
     lap_times = data.get("lap_times", [])
 
     speed_cols = {
