@@ -6,6 +6,7 @@ import math
 from typing import Any, Dict, List
 
 import numpy as np
+import pandas as pd
 
 
 def clean_dataframe_for_json(df: Any) -> List[Dict[str, Any]]:
@@ -40,6 +41,10 @@ def clean_dataframe_for_json(df: Any) -> List[Dict[str, Any]]:
             if math.isnan(result) or math.isinf(result):
                 return None
             return result
+
+        # Handle NaT (Not a Time) — must check before isoformat since NaT has isoformat
+        if isinstance(value, type(pd.NaT)):
+            return None
 
         # Handle datetime/Timestamp
         if hasattr(value, 'isoformat'):

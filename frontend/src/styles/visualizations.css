@@ -589,9 +589,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 10px 26px 8px 12px;
   background: linear-gradient(135deg, #e10600 0%, #b80500 50%, rgba(20, 20, 40, 0.95) 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px 20px 0 0;
   flex-shrink: 0;
 }
 
@@ -609,18 +610,20 @@
 }
 
 .tower-broadcast-header__title {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 900;
   color: #fff;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
   font-family: var(--font-display, 'Titillium Web', sans-serif);
+  white-space: nowrap;
 }
 
 .tower-broadcast-header__right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .tower-broadcast-header__lap {
@@ -638,7 +641,7 @@
 }
 
 .tower-broadcast-header__lap-current {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
   color: #fff;
   font-variant-numeric: tabular-nums;
@@ -652,31 +655,57 @@
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
 }
 
-/* ── Column mode toggle button ──────────────────────────────────────── */
+/* ── Column mode toggle button (legacy, kept for compat) ─────────── */
 .tower-mode-toggle {
-  display: inline-flex;
+  display: none;
+}
+
+/* ── Mode Switcher Bar (below header) ──────────────────────────────── */
+.tower-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  background: rgba(16, 16, 32, 0.50);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  height: 24px;
+}
+
+.tower-mode-bar__arrow {
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 8px;
+  width: 28px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.40);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  user-select: none;
+  line-height: 1;
+}
+
+.tower-mode-bar__arrow:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tower-mode-bar__arrow:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.tower-mode-bar__label {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.70);
   user-select: none;
-}
-
-.tower-mode-toggle:hover {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.35);
-  color: #fff;
 }
 
 /* ── Flag banner ────────────────────────────────────────────────────── */
@@ -783,7 +812,9 @@
 
 /* Highlighted (hovered from another view) */
 .tower-row--highlighted {
-  background: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.06);
+  transition: background 0.15s ease;
 }
 
 /* During animation — brief glow (only for drivers changing position) */
@@ -868,7 +899,7 @@
 
 /* ── Position change spacer ───────────────────────────────────────── */
 .tower-row__change {
-  width: 4px;
+  width: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -876,16 +907,32 @@
 }
 
 .tower-row__arrow {
-  font-size: 7px;
+  font-size: 8px;
   line-height: 1;
+  opacity: 0;
+  transform: scale(0);
+}
+
+.tower-row__arrow--active {
+  animation: arrow-pop 1.2s ease-out forwards;
 }
 
 .tower-row__arrow--up {
   color: #22c55e;
+  text-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
 }
 
 .tower-row__arrow--down {
   color: #ef4444;
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+}
+
+@keyframes arrow-pop {
+  0%   { opacity: 0; transform: scale(0); }
+  15%  { opacity: 1; transform: scale(1.4); }
+  30%  { transform: scale(1); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.8); }
 }
 
 /* ── Driver cell (team bar + name) ──────────────────────────────────── */
@@ -996,12 +1043,31 @@
 
 /* ── Retired / DNF driver styles ───────────────────────────────────── */
 .tower-row--retired {
-  opacity: 0.4;
-  background: rgba(255, 255, 255, 0.02) !important;
+  opacity: 0.5;
+  background: rgba(225, 6, 0, 0.06) !important;
+  border-left: 2px solid rgba(225, 6, 0, 0.5) !important;
+  position: relative;
 }
 
 .tower-row--retired:hover {
-  opacity: 0.6;
+  opacity: 0.7;
+}
+
+/* "OUT" badge next to retired driver name */
+.tower-row__out-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  margin-left: 4px;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: rgba(225, 6, 0, 0.7);
+  border-radius: 2px;
+  line-height: 1.4;
+  vertical-align: middle;
 }
 
 .tower-row__pos--retired {
@@ -1220,13 +1286,13 @@
   opacity: 0.06;
 }
 
-/* Throttle chart */
+/* Throttle/Brake combined chart */
 .telem-throttle-area {
-  opacity: 0.4;
+  opacity: 0.2;
 }
 
 .telem-throttle-area--focus {
-  opacity: 0.7;
+  opacity: 0.06;
 }
 
 .telem-throttle-line {
@@ -1236,17 +1302,18 @@
 }
 
 .telem-throttle-line--focus {
-  stroke-width: 2;
+  fill: none;
+  stroke-width: 2.5;
   opacity: 1;
+  filter: drop-shadow(0 0 3px currentColor);
 }
 
-/* Brake chart */
 .telem-brake-area {
-  opacity: 0.4;
+  opacity: 0.2;
 }
 
 .telem-brake-area--focus {
-  opacity: 0.7;
+  opacity: 0.06;
 }
 
 .telem-brake-line {
@@ -1256,8 +1323,10 @@
 }
 
 .telem-brake-line--focus {
-  stroke-width: 2;
+  fill: none;
+  stroke-width: 2.5;
   opacity: 1;
+  filter: drop-shadow(0 0 3px currentColor);
 }
 
 /* Gear chart */
@@ -1377,4 +1446,174 @@
 
 .chart-enter {
   animation: fade-in var(--transition-base) ease-out;
+}
+
+/* ==========================================================================
+   Light Theme Overrides — Visualizations
+   ========================================================================== */
+
+/* ── Track Map ─────────────────────────────────────────────────────── */
+[data-theme="light"] .track-outline {
+  stroke: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .track-surface {
+  stroke: rgba(242, 242, 247, 0.9);
+}
+
+[data-theme="light"] .track-edge {
+  stroke: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .corner-marker {
+  fill: rgba(255, 255, 255, 0.8);
+  stroke: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .car-dot {
+  stroke: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] .car-label {
+  fill: var(--color-text-primary);
+  filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.8));
+}
+
+[data-theme="light"] .car-label--focused {
+  filter: drop-shadow(0 1px 3px rgba(255, 255, 255, 0.9));
+}
+
+/* ── Telemetry HUD Overlay ─────────────────────────────────────────── */
+[data-theme="light"] .track-telemetry-hud {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+[data-theme="light"] .track-telemetry-hud__header {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .track-telemetry-hud__driver {
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .track-telemetry-hud__lap {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] .track-telemetry-hud__label {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .track-telemetry-hud__value {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="light"] .track-telemetry-hud__unit {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .track-telemetry-hud__gear {
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .track-telemetry-hud__bar-track {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .track-telemetry-hud__tyre-life {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .hud-drs--off {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+/* ── Lap Time Chart ────────────────────────────────────────────────── */
+[data-theme="light"] .lap-times-chart .axis path,
+[data-theme="light"] .lap-times-chart .axis line {
+  stroke: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .lap-times-chart .axis text {
+  fill: rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] .lap-times-chart .grid line {
+  stroke: rgba(0, 0, 0, 0.06);
+}
+
+/* ── t-SNE Scatterplot ─────────────────────────────────────────────── */
+[data-theme="light"] .tsne-point--current {
+  stroke: #000;
+}
+
+[data-theme="light"] .tsne-point.selected {
+  stroke: #000;
+}
+
+/* ── Tyre Degradation Chart ────────────────────────────────────────── */
+[data-theme="light"] .deg-pit-window {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Leaderboard Row Colors (light) ────────────────────────────────── */
+[data-theme="light"] .tower-col-value--retired {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+/* ── Telemetry Strip Chart Labels ──────────────────────────────────── */
+[data-theme="light"] .telem-chart-label {
+  fill: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .telem-sector-line {
+  stroke: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .telem-sector-label {
+  fill: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .telem-grid-line {
+  stroke: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .telem-axis text {
+  fill: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .telem-axis path,
+[data-theme="light"] .telem-axis line {
+  stroke: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .telem-delta-zero {
+  stroke: rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="light"] .telem-annot-bg {
+  fill: rgba(255, 255, 255, 0.75);
+  stroke: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .telem-chart-label--right {
+  fill: rgba(0, 0, 0, 0.18);
+}
+
+/* ── Global D3 Axes (light) ────────────────────────────────────────── */
+[data-theme="light"] .axis path,
+[data-theme="light"] .axis line {
+  stroke: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .axis text {
+  fill: rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] .grid line {
+  stroke: rgba(0, 0, 0, 0.06);
 }

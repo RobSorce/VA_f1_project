@@ -46,7 +46,6 @@ export function useKeyboardShortcuts() {
         state.arrangeOverlays();
         return;
       }
-
       // Don't intercept other Cmd/Ctrl combos (browser shortcuts)
       if (e.metaKey || e.ctrlKey) return;
 
@@ -209,10 +208,10 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // L — jump to lap
+      // L — toggle leaderboard sidebar
       if (e.key === 'l' || e.key === 'L') {
         e.preventDefault();
-        useF1Store.setState({ commandPaletteOpen: true, _paletteInitialCommand: 'jump-to-lap' });
+        state.toggleLeaderboard();
         return;
       }
 

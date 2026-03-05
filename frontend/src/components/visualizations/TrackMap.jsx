@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
+import { estimateFromFramePositions } from '../../utils/trackPositionEstimator';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
@@ -34,7 +35,7 @@ const FLAG_LABEL_COLORS = {
 
 const SECTOR_COLORS = { 1: '#e10600', 2: '#ffd700', 3: '#0090ff' };
 const COMPOUND_NAMES = { 0: 'UNK', 1: 'SOFT', 2: 'MED', 3: 'HARD', 4: 'INTER', 5: 'WET' };
-const COMPOUND_COLORS = { 0: '#888', 1: '#e10600', 2: '#ffd700', 3: '#ffffff', 4: '#00e676', 5: '#2196f3' };
+const COMPOUND_COLORS = { 0: '#888', 1: '#FF3333', 2: '#FFC300', 3: '#FFFFFF', 4: '#39B54A', 5: '#0067FF' };
 
 // Trail configuration for driver glow effect
 const TRAIL_CONFIG = [
@@ -233,13 +234,17 @@ export default function TrackMap({ compact = false }) {
     svg.call(zoom);
     zoomRef.current = zoom;
 
-    if (!d3.select('body').select('.track-tooltip').size()) {
-      d3.select('body').append('div').attr('class', 'tooltip track-tooltip');
-    }
+    // Remove any stale tooltip before creating a new one
+    d3.select('body').select('.track-tooltip').remove();
+    const trackTooltip = d3.select('body').append('div').attr('class', 'tooltip track-tooltip');
 
     trailPositionsRef.current = {};
     isInitialRenderRef.current = true;
     prevFrameIndexRef.current = -1;
+
+    return () => {
+      trackTooltip.remove();
+    };
   }, [compact]);
 
   // Draw track when circuit info loads
@@ -814,6 +819,22 @@ export default function TrackMap({ compact = false }) {
       }
     }
 
+    // 1b. Live mode: estimate positions when x,y are null
+    if (driverEntries && circuitInfo?.track_coordinates) {
+      const needsEstimation = driverEntries.some(([, d]) => d.x == null || d.y == null);
+      if (needsEstimation) {
+        const frameDrivers = {};
+        for (const [abbr, d] of driverEntries) frameDrivers[abbr] = d;
+        const estimated = estimateFromFramePositions(circuitInfo.track_coordinates, frameDrivers);
+        driverEntries = driverEntries.map(([abbr, d]) => {
+          if ((d.x == null || d.y == null) && estimated[abbr]) {
+            return [abbr, { ...d, ...estimated[abbr] }];
+          }
+          return [abbr, d];
+        });
+      }
+    }
+
     // 2. If no frame data yet, use qualifying grid positions
     if (!driverEntries && gridPositions) {
       isGridMode = true;
@@ -882,7 +903,7 @@ export default function TrackMap({ compact = false }) {
         .ease(d3.easeLinear)
         .attr('transform', (d) => {
           const pos = d[1];
-          if (pos.x == null || pos.y == null) return 'translate(0,0)';
+          if (pos.x == null || pos.y == null) return 'translate(-9999,-9999)';
           const rp = rotatePos(pos.x, pos.y);
           return `translate(${xScale(rp.x)}, ${yScale(rp.y)})`;
         });
@@ -890,7 +911,7 @@ export default function TrackMap({ compact = false }) {
       merged
         .attr('transform', (d) => {
           const pos = d[1];
-          if (pos.x == null || pos.y == null) return 'translate(0,0)';
+          if (pos.x == null || pos.y == null) return 'translate(-9999,-9999)';
           const rp = rotatePos(pos.x, pos.y);
           return `translate(${xScale(rp.x)}, ${yScale(rp.y)})`;
         });

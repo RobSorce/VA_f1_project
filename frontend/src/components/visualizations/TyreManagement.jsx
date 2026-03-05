@@ -25,14 +25,18 @@ export default function TyreManagement() {
 
     if (driverLaps.length === 0) return { stints: [], maxLapNum: maxLap || 1 };
 
-    // Group into stints
+    // Group into stints — detect by compound change, TyreLife reset, or pit flags
     const stints = [];
     let current = { compound: driverLaps[0].Compound || 'UNKNOWN', laps: [] };
 
     driverLaps.forEach((lap) => {
       const compound = lap.Compound || 'UNKNOWN';
-      if (compound !== current.compound || (lap.TyreLife != null && lap.TyreLife <= 1 && current.laps.length > 0)) {
-        if (current.laps.length > 0) stints.push(current);
+      const isPitOut = !!lap.PitOutTime;
+      const tyreLifeReset = lap.TyreLife != null && lap.TyreLife <= 1 && current.laps.length > 0;
+      const compoundChanged = compound !== current.compound;
+
+      if ((compoundChanged || tyreLifeReset || isPitOut) && current.laps.length > 0) {
+        stints.push(current);
         current = { compound, laps: [] };
       }
       current.laps.push({
@@ -44,32 +48,27 @@ export default function TyreManagement() {
     });
     if (current.laps.length > 0) stints.push(current);
 
-    // Compute pace retention per stint (bestTime / lapTime * 100)
+    // Compute pace retention per stint
+    // bestTime within each stint → retention = bestTime / lapTime * 100
+    // First few laps get a warm-up allowance so they can still show ~100%
     stints.forEach((stint) => {
       const times = stint.laps.map((l) => l.lapTime);
       const median = d3.median(times);
-      const threshold = median * 1.5;
+      const threshold = median * 1.4;
+
+      // Best time within this stint (excluding outliers)
       const validTimes = stint.laps.filter((l) => l.lapTime < threshold);
-      const bestTime = d3.min(validTimes, (l) => l.lapTime);
+      const bestTime = d3.min(validTimes, (l) => l.lapTime) || median;
 
-      let peakIdx = 0;
-      stint.laps.forEach((lap, i) => {
-        if (lap.lapTime === bestTime && lap.lapTime < threshold) peakIdx = i;
-      });
-
-      let ceiling = 100;
-      stint.laps.forEach((lap, i) => {
+      stint.laps.forEach((lap) => {
         const isOutlier = lap.lapTime > threshold;
         lap.isOutlier = isOutlier;
 
         if (isOutlier) {
           lap.performance = null;
-        } else if (i <= peakIdx) {
-          lap.performance = 100;
         } else {
           const raw = (bestTime / lap.lapTime) * 100;
-          lap.performance = Math.min(ceiling, raw);
-          ceiling = lap.performance;
+          lap.performance = Math.min(100, raw);
         }
       });
 
@@ -124,13 +123,13 @@ export default function TyreManagement() {
     const defs = svg.append('defs');
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Scales
+    // Scales — auto-scale Y but with reasonable range
     const x = d3.scaleLinear().domain([1, chartData.maxLapNum]).range([0, innerW]);
 
     const allPerf = chartData.stints.flatMap((s) =>
       s.laps.filter((l) => l.performance != null).map((l) => l.performance)
     );
-    const perfMin = Math.max(90, (d3.min(allPerf) || 95) - 2);
+    const perfMin = Math.max(85, Math.floor((d3.min(allPerf) || 95) - 2));
     const y = d3.scaleLinear().domain([perfMin, 100]).range([innerH, 0]);
 
     // Grid
@@ -158,6 +157,22 @@ export default function TyreManagement() {
     yAxisG.selectAll('text').attr('fill', 'rgba(255,255,255,0.3)').attr('font-size', '8px').attr('font-family', 'var(--font-mono)');
     yAxisG.selectAll('line').attr('stroke', 'rgba(255,255,255,0.1)');
     yAxisG.select('.domain').attr('stroke', 'rgba(255,255,255,0.08)');
+
+    // Pit stop markers
+    chartData.stints.forEach((stint, i) => {
+      if (i === 0) return;
+      const pitLap = stint.startLap;
+      g.append('line')
+        .attr('x1', x(pitLap)).attr('x2', x(pitLap))
+        .attr('y1', 0).attr('y2', innerH)
+        .attr('stroke', 'rgba(255,255,255,0.25)').attr('stroke-width', 1).attr('stroke-dasharray', '2,3');
+      g.append('text')
+        .attr('x', x(pitLap)).attr('y', -3)
+        .attr('text-anchor', 'middle').attr('fill', 'rgba(255,255,255,0.4)')
+        .attr('font-size', '7px').attr('font-weight', 700)
+        .attr('font-family', 'var(--font-mono)')
+        .text('PIT');
+    });
 
     // Draw per-stint curves
     chartData.stints.forEach((stint, i) => {
@@ -273,6 +288,8 @@ export default function TyreManagement() {
         g.selectAll('.hover-line, .hover-dot').remove();
         d3.select('.tyre-mgmt-tooltip').classed('visible', false).style('opacity', 0);
       });
+
+    return () => { d3.selectAll('.tyre-mgmt-tooltip').remove(); };
   }, [chartData, driver, driverColor, currentLap]);
 
   return (

@@ -245,7 +245,7 @@ export default function SettingsTabContent() {
         <div className="settings-tab__about-header">
           <img src="/f1-logo.png" alt="F1" className="settings-tab__about-logo" />
           <div>
-            <h2 className="settings-tab__about-title">F1GA</h2>
+            <h2 className="settings-tab__about-title">F1 Race Control</h2>
             <p className="settings-tab__about-subtitle">F1 Grand-Prix Analysis</p>
           </div>
         </div>

@@ -167,11 +167,9 @@ def predict_laps(last_10_laps: list, tsne_context: list = None,
     # Clamp predicted times to reasonable range
     predicted_times = [round(max(60.0, min(200.0, t)), 3) for t in predicted_times]
 
-    # t-SNE context adjustment
+    # t-SNE context enrichment (informational only — no arbitrary penalty)
     summary = f"LSTM prediction ({model_used}) based on last {min(10, len(last_10_laps))} laps."
     if tsne_context:
-        adjustment = len(tsne_context) * 0.01
-        predicted_times = [t + adjustment for t in predicted_times]
         summary += f" Enriched with {len(tsne_context)} similar historical races."
 
     # Derived metrics
@@ -215,7 +213,7 @@ def _compute_optimal_pit_lap(pit_prob, current_lap, max_lap, tyre_life):
         laps_until_pit = remaining_tyre
 
     optimal = current_lap + laps_until_pit
-    return min(optimal, max_lap - 2)  # Don't pit on last 2 laps
+    return max(current_lap + 1, min(optimal, max_lap - 2))  # Clamp to valid range
 
 
 def _compute_predicted_stints(driver, current_compound, current_lap, optimal_pit_lap, max_lap):

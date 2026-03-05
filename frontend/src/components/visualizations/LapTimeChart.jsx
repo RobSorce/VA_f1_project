@@ -65,6 +65,7 @@ function fmtSector(s) {
 function fmtGap(gap) {
   if (gap == null || gap === 0) return '';
   if (typeof gap === 'string') return gap;
+  if (!isFinite(gap)) return '—';
   return gap > 0 ? `+${gap.toFixed(3)}` : gap.toFixed(3);
 }
 
@@ -80,6 +81,7 @@ export default function LapTimeChart() {
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const dnfMap = useF1Store((s) => s.dnfMap);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+  const totalFrames = useF1Store((s) => s.totalFrames);
   const currentTime = useF1Store((s) => s.currentTime);
   const drivers = useF1Store((s) => s.drivers);
   const maxLap = useF1Store((s) => s.maxLap);
@@ -136,8 +138,9 @@ export default function LapTimeChart() {
     return map;
   }, [drivers]);
 
-  // Replay is in progress when frames have advanced — otherwise show full race review
-  const replayActive = currentFrameIndex > 0 || currentLap > 1;
+  // Replay mode: data shown incrementally while frames are loaded.
+  // Only fall back to "review mode" (show everything) when no frames exist at all.
+  const replayActive = totalFrames > 0;
 
   // Compute time offset: session times (e.g. Sector1SessionTime ~3500s) vs frame times (0-based)
   const sessionTimeOffset = useMemo(() => {

@@ -14,8 +14,13 @@ export default function Header() {
   const qualiSegments = useF1Store((s) => s.qualiSegments);
   const setQualiSegment = useF1Store((s) => s.setQualiSegment);
   const isLoadingFrames = useF1Store((s) => s.isLoadingFrames);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
+  const liveConnected = useF1Store((s) => s.liveConnected);
+  const liveSessionInfo = useF1Store((s) => s.liveSessionInfo);
 
-  const eventName = sessionData?.circuit_info?.event_name || '';
+  const eventName = isLiveMode
+    ? liveSessionInfo?.event_name || 'Live Session'
+    : sessionData?.circuit_info?.event_name || '';
 
   return (
     <>
@@ -80,13 +85,22 @@ export default function Header() {
             <span className="status-pill">{sessionType}</span>
           ) : null}
           <div className="status-indicator" style={{ fontSize: 'var(--font-size-xs)', gap: '4px', display: 'flex', alignItems: 'center' }}>
-            <span
-              className="status-dot"
-              style={isLoading ? { backgroundColor: 'var(--color-accent-warning)', animation: 'none' } : {}}
-            />
-            <span style={{ color: 'var(--color-text-muted)' }}>
-              {isLoading ? 'Loading...' : 'Ready'}
-            </span>
+            {isLiveMode && liveConnected ? (
+              <>
+                <span className="live-pulse active" />
+                <span className="live-badge">LIVE</span>
+              </>
+            ) : (
+              <>
+                <span
+                  className="status-dot"
+                  style={isLoading ? { backgroundColor: 'var(--color-accent-warning)', animation: 'none' } : {}}
+                />
+                <span style={{ color: 'var(--color-text-muted)' }}>
+                  {isLoading ? 'Loading...' : 'Ready'}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </header>

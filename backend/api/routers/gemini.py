@@ -189,7 +189,9 @@ def _mock_response(request: GeminiRequest) -> dict:
                 f"Pit loss is ~{pit_loss:.0f}s."
             )
         if drv_proj:
-            text += f"\n\nMonte Carlo projection: Expected P{drv_proj.get('expectedPos', '?'):.1f}, podium {drv_proj.get('podiumProb', 0)}%."
+            exp = drv_proj.get('expectedPos', '?')
+            exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
+            text += f"\n\nMonte Carlo projection: Expected P{exp_str}, podium {drv_proj.get('podiumProb', 0)}%."
 
         scenarios = [
             {

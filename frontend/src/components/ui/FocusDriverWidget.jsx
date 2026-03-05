@@ -56,7 +56,15 @@ export default function FocusDriverWidget() {
     return laps[laps.length - 1].Position;
   }, [focusDriver, sessionData, currentLap, isQualifyingReplay]);
 
-  if (!focusDriver) return null;
+  if (!focusDriver) {
+    return (
+      <div className="focus-widget" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '12px 10px', textAlign: 'center', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+          Double-click a driver to focus
+        </div>
+      </div>
+    );
+  }
 
   const pred = lstmPredictions;
   const nextLap = pred?.predicted_times?.[0];

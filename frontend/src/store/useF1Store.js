@@ -1,12 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as api from '../utils/apiClient';
-import { computePCA } from '../utils/livePCA';
+import { computePCA, procrustesAlign2D } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
 
 // Module-level dedup for schedule fetch (immune to store/middleware timing)
 let _schedulePromise = null;
 let _scheduleYear = null;
+
+// Module-level generation counter for loadSession to prevent stale async responses
+let _sessionLoadGeneration = 0;
 
 // ── Auto-arrange layout presets ──────────────────────────────────
 // Each layout is a function: (overlayIds) => { [tabId]: { left, top, width, height } }
@@ -98,6 +101,12 @@ export const useF1Store = create(persist((set, get) => ({
   currentFlagStatus: '1', // '1'=green, '2'=yellow, '4'=SC, '5'=red, '6'/'7'=VSC
   dnfMap: {},            // { driverAbbr: { status: 'Crash', lastLap: 45 } }
 
+  // ── Live Mode ──────────────────────────────────────────────────
+  isLiveMode: false,
+  liveConnected: false,          // WebSocket connected
+  liveSessionInfo: null,         // {event_name, session_type, ...}
+  liveConnectionStatus: 'disconnected', // 'connected'|'disconnected'|'reconnecting'
+
   // ── Qualifying replay ──────────────────────────────────────────
   qualiSegments: null,     // {Q1: {frames, driver_colors, ...}, Q2: {...}, Q3: {...}}
   qualiSegment: 'Q3',     // Active segment
@@ -163,9 +172,16 @@ export const useF1Store = create(persist((set, get) => ({
   loadSession: async () => {
     const { year, round, sessionType } = get();
     if (!year || !round) return;
+
+    // Increment generation counter to invalidate any in-flight loads
+    const generation = ++_sessionLoadGeneration;
+
     set({ isLoading: true, error: null });
     try {
       const data = await api.getSession(year, round, sessionType);
+
+      // If another loadSession was triggered while we waited, discard this result
+      if (generation !== _sessionLoadGeneration) return;
 
       // Compute maxLap from lap_times data
       const lapTimes = data.lap_times || [];
@@ -212,6 +228,13 @@ export const useF1Store = create(persist((set, get) => ({
         sectorRankings: null,
         consistencyData: null,
         speedRankings: null,
+        // Reset race situation state from previous session
+        raceSituationLap: null,
+        raceSituationData: null,
+        raceProjection: null,
+        _prevPcaResult: null,
+        lstmPredictions: null,
+        degradationRegression: null,
         // Clear qualifying state from previous session
         qualiSegments: null,
         qualiSegment: 'Q3',
@@ -245,11 +268,226 @@ export const useF1Store = create(persist((set, get) => ({
       parallelTasks.push(get().fetchAnalytics());
 
       await Promise.allSettled(parallelTasks);
-      set({ isLoading: false });
+      // Only clear loading if this is still the active session load
+      if (generation === _sessionLoadGeneration) {
+        set({ isLoading: false });
+      }
 
     } catch (e) {
       set({ isLoading: false, error: e.message });
       console.error('Failed to load session', e);
+    }
+  },
+
+  // ── Live Mode Actions ──────────────────────────────────────────
+
+  enterLiveMode: async (mockYear, mockRound, mockSpeed) => {
+    const { liveWS: _liveWSRef } = await import('../utils/liveWebSocket');
+    const liveWS = _liveWSRef ?? (await import('../utils/liveWebSocket')).liveWS;
+
+    set({ isLoading: true, error: null });
+    try {
+      // If mock parameters provided, start mock replay first
+      if (mockYear && mockRound) {
+        await api.startMockReplay(mockYear, mockRound, mockSpeed || 10);
+        // Give the mock replay a moment to initialize
+        await new Promise((r) => setTimeout(r, 500));
+      }
+
+      // Get live status
+      const status = await api.getLiveStatus();
+      if (!status.active && !mockYear) {
+        set({ isLoading: false, error: 'No active F1 session' });
+        return;
+      }
+
+      // Get full snapshot
+      const snapshot = await api.getLiveSnapshot();
+
+      // Compute maxLap
+      const lapTimes = snapshot.lap_times || [];
+      let computedMaxLap = 1;
+      for (const lt of lapTimes) {
+        if (lt.LapNumber && lt.LapNumber > computedMaxLap) computedMaxLap = lt.LapNumber;
+      }
+
+      // Load circuit info if available
+      let circuitInfo = snapshot.circuit_info || null;
+
+      set({
+        isLiveMode: true,
+        liveSessionInfo: status.session_info || null,
+        sessionData: snapshot,
+        drivers: snapshot.driver_info || [],
+        trackStatus: snapshot.track_status || [],
+        maxLap: computedMaxLap,
+        currentLap: status.current_lap || computedMaxLap,
+        isPlaying: false,
+        frameData: null,
+        lapFrameMap: null,
+        currentFrameIndex: 0,
+        totalFrames: 0,
+        circuitInfo,
+        dnfMap: {},
+        telemetryCache: {},
+        lstmPredictions: null,
+        degradationRegression: null,
+        raceSituationLap: null,
+        raceSituationData: null,
+        raceProjection: null,
+        _prevPcaResult: null,
+      });
+
+      // Connect WebSocket for incremental updates
+      liveWS.connect(
+        (msg) => get()._handleLiveMessage(msg),
+        (status) => set({
+          liveConnected: status === 'connected',
+          liveConnectionStatus: status,
+        }),
+      );
+
+      set({ isLoading: false });
+    } catch (e) {
+      set({ isLoading: false, error: e.message });
+      console.error('Failed to enter live mode', e);
+    }
+  },
+
+  exitLiveMode: async () => {
+    const { liveWS } = await import('../utils/liveWebSocket');
+    liveWS.disconnect();
+
+    // Stop mock replay if running
+    try { await api.stopMockReplay(); } catch (_) { /* ignore */ }
+
+    set({
+      isLiveMode: false,
+      liveConnected: false,
+      liveSessionInfo: null,
+      liveConnectionStatus: 'disconnected',
+      sessionData: null,
+      drivers: [],
+      frameData: null,
+      circuitInfo: null,
+      trackStatus: [],
+      currentLap: 1,
+      maxLap: 1,
+    });
+  },
+
+  _handleLiveMessage: (msg) => {
+    const { type, data } = msg;
+    const state = get();
+
+    switch (type) {
+      case 'session_init': {
+        // Full snapshot on connect — already handled by enterLiveMode
+        break;
+      }
+
+      case 'lap_update': {
+        // Append new lap time entry
+        const lapTimes = [...(state.sessionData?.lap_times || []), data];
+        const newMaxLap = Math.max(state.maxLap, data.LapNumber || 0);
+        set({
+          sessionData: { ...state.sessionData, lap_times: lapTimes },
+          maxLap: newMaxLap,
+          currentLap: newMaxLap,
+        });
+
+        // Trigger LSTM predictions every 2 laps
+        if (newMaxLap > 2 && newMaxLap % 2 === 0 && state.triggerLSTMPredictions) {
+          state.triggerLSTMPredictions();
+        }
+        break;
+      }
+
+      case 'position_update': {
+        // Update driver standings — data is array of standings
+        if (Array.isArray(data)) {
+          set({ liveStandings: data });
+        }
+        break;
+      }
+
+      case 'strategy_update': {
+        const strategies = [...(state.sessionData?.tyre_strategy || []), data];
+        set({
+          sessionData: {
+            ...state.sessionData,
+            tyre_strategy: strategies,
+            strategies, // Also update the strategies key used by some components
+          },
+        });
+        break;
+      }
+
+      case 'weather_update': {
+        const weather = [...(state.sessionData?.weather_data || []), data];
+        set({ sessionData: { ...state.sessionData, weather_data: weather } });
+        break;
+      }
+
+      case 'track_status': {
+        const newStatus = [...state.trackStatus, data];
+        set({
+          trackStatus: newStatus,
+          currentFlagStatus: data.status || '1',
+          sessionData: { ...state.sessionData, track_status: newStatus },
+        });
+        break;
+      }
+
+      case 'lap_count': {
+        const { current_lap, total_laps } = data;
+        set({
+          currentLap: current_lap,
+          maxLap: Math.max(state.maxLap, total_laps || current_lap),
+        });
+        break;
+      }
+
+      case 'driver_list': {
+        set({ drivers: data });
+        break;
+      }
+
+      case 'session_info': {
+        set({ liveSessionInfo: data });
+        break;
+      }
+
+      case 'frame': {
+        // Append position frame — used by TrackMap
+        const frames = state.frameData?.frames || [];
+        frames.push(data);
+        // Keep bounded
+        if (frames.length > 500) frames.splice(0, frames.length - 300);
+        set({
+          frameData: { ...state.frameData, frames },
+          currentFrameIndex: frames.length - 1,
+          totalFrames: frames.length,
+        });
+        break;
+      }
+
+      case 'session_end': {
+        set({ liveSessionInfo: { ...state.liveSessionInfo, ended: true } });
+        break;
+      }
+
+      case 'race_control': {
+        // Could display race control messages in UI
+        console.log('[Live] Race Control:', data);
+        break;
+      }
+
+      case 'heartbeat':
+        break;
+
+      default:
+        break;
     }
   },
 
@@ -355,6 +593,7 @@ export const useF1Store = create(persist((set, get) => ({
   overlayTiles: {},      // { [tabId]: 'left'|'right'|'maximize' | { left, top, width, height } }
   _arrangeIdx: 0,       // current layout cycle index for Ctrl+G
   showDashboard: true,   // show/hide bottom tab bar (macOS Dock-style)
+  leaderboardCollapsed: false, // collapse/expand leaderboard sidebar
   telemetryChannels: { speed: true, delta: true, throttle: true, brake: true, gear: true, rpm: true },
 
   setTheme: (theme) => {
@@ -362,6 +601,7 @@ export const useF1Store = create(persist((set, get) => ({
     set({ theme });
   },
   setTempUnit: (tempUnit) => set({ tempUnit }),
+  toggleLeaderboard: () => set((s) => ({ leaderboardCollapsed: !s.leaderboardCollapsed })),
   setSpeedUnit: (speedUnit) => set({ speedUnit }),
   // playbackSpeed uses setPlaySpeed (see Simulation section)
   tileOverlay: (tabId, tile) => set((s) => ({
@@ -890,8 +1130,8 @@ export const useF1Store = create(persist((set, get) => ({
 
     if (isQualifyingReplay) return;
     if (currentLap < 3) return;
-    // Debounce: skip if computed within 2 laps
-    if (raceSituationLap != null && Math.abs(currentLap - raceSituationLap) < 2) return;
+    // Debounce: skip if already computed for this lap
+    if (raceSituationLap != null && currentLap === raceSituationLap) return;
 
     const lapTimes = sessionData?.lap_times;
     const strategies = sessionData?.tyre_strategy || sessionData?.strategies || [];
@@ -916,10 +1156,28 @@ export const useF1Store = create(persist((set, get) => ({
       return;
     }
 
+    // Procrustes alignment: rotate+scale new scores to match previous frame
+    const prevData = get().raceSituationData;
+    let alignedScores = pcaResult.scores;
+    if (prevData?.scores?.length && prevData?.driverAbbrs?.length) {
+      // Build matched point pairs (drivers present in both frames)
+      const prevMap = {};
+      prevData.driverAbbrs.forEach((abbr, i) => { prevMap[abbr] = prevData.scores[i]; });
+      const refPts = [];
+      const newPts = [];
+      result.driverAbbrs.forEach((abbr, i) => {
+        if (prevMap[abbr]) {
+          refPts.push(prevMap[abbr]);
+          newPts.push(pcaResult.scores[i]);
+        }
+      });
+      alignedScores = procrustesAlign2D(refPts, newPts, pcaResult.scores);
+    }
+
     set({
       raceSituationData: {
         driverAbbrs: result.driverAbbrs,
-        scores: pcaResult.scores,
+        scores: alignedScores,
         loadings: pcaResult.loadings,
         explainedVariance: pcaResult.explainedVariance,
         driverFeatures: result.driverFeatures,
@@ -942,6 +1200,7 @@ export const useF1Store = create(persist((set, get) => ({
       set({ lstmPredictions: data });
     } catch (e) {
       console.error('LSTM prediction failed', e);
+      set({ lstmPredictions: null });
     }
   },
 
@@ -1009,6 +1268,7 @@ export const useF1Store = create(persist((set, get) => ({
       set({ lstmPredictions: data });
     } catch (e) {
       console.error('LSTM prediction failed', e);
+      set({ lstmPredictions: null });
     }
   },
 

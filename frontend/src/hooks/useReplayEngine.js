@@ -23,6 +23,8 @@ export function useReplayEngine() {
   const frameDt = useF1Store((s) => s.frameDt);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
 
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
+
   const intervalRef = useRef(null);
 
   // ── Status code mapping ──────────────────────────────────────────
@@ -46,20 +48,54 @@ export function useReplayEngine() {
 
     if (!trackStatus?.length && !sessionData) return events;
 
-    let avgLapTimeSec = 90;
-    if (frameData?.frames?.length && lapFrameMap && maxLap > 1) {
-      const firstFrame = frameData.frames[0];
-      const lastFrame = frameData.frames[frameData.frames.length - 1];
-      if (firstFrame?.t != null && lastFrame?.t != null && lastFrame.t > firstFrame.t) {
-        avgLapTimeSec = (lastFrame.t - firstFrame.t) / maxLap;
+    // ── Find actual lap at a given time using frame data ──────────
+    // Frame data is the ground truth: each frame has driver data with actual lap numbers.
+    // This avoids time-domain mismatches between frame.t (0-based relative) and
+    // lapTimes.Time (absolute session time from FastF1).
+    const frames = frameData?.frames;
+    const hasFrames = frames?.length > 1;
+
+    const findLapAtTime = (time) => {
+      if (hasFrames) {
+        // Binary search for frame at or just before the given time
+        let lo = 0, hi = frames.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >> 1;
+          if (frames[mid].t <= time) lo = mid;
+          else hi = mid - 1;
+        }
+        const frame = frames[lo];
+        if (frame?.drivers) {
+          let maxLapInFrame = 1;
+          for (const d of Object.values(frame.drivers)) {
+            if (d.lap > maxLapInFrame) maxLapInFrame = d.lap;
+          }
+          return Math.max(1, Math.min(maxLap, maxLapInFrame));
+        }
       }
-    }
+      // Fallback: linear estimate from total frame time
+      if (hasFrames && maxLap > 1) {
+        const totalTime = frames[frames.length - 1].t;
+        if (totalTime > 0) {
+          return Math.max(1, Math.min(maxLap, Math.round(1 + (time / totalTime) * (maxLap - 1))));
+        }
+      }
+      return 1;
+    };
+
+    // Time fraction for band rendering (ensures long events like red flags
+    // get a visible band width even if lap numbers don't change)
+    const totalFrameTime = hasFrames ? frames[frames.length - 1].t : 0;
+    const timeFraction = (t) =>
+      totalFrameTime > 0 ? Math.max(0, Math.min(1, t / totalFrameTime)) : null;
 
     events.push({
       type: 'GREEN_FLAG',
       lap: 1,
       startLap: 1,
       endLap: 1,
+      startTimeFraction: 0,
+      endTimeFraction: 0,
       description: 'Race start',
       color: '#00ff00',
     });
@@ -71,11 +107,9 @@ export function useReplayEngine() {
         const mapping = STATUS_MAP[statusCode];
         if (!mapping) continue;
 
-        const startLap = avgLapTimeSec > 0
-          ? Math.max(1, Math.min(maxLap, Math.round(period.start_time / avgLapTimeSec)))
-          : 1;
-        const endLap = period.end_time != null && avgLapTimeSec > 0
-          ? Math.max(startLap, Math.min(maxLap, Math.round(period.end_time / avgLapTimeSec)))
+        const startLap = findLapAtTime(period.start_time);
+        const endLap = period.end_time != null
+          ? Math.max(startLap, findLapAtTime(period.end_time))
           : startLap;
 
         events.push({
@@ -83,65 +117,100 @@ export function useReplayEngine() {
           lap: startLap,
           startLap,
           endLap,
+          startTimeFraction: timeFraction(period.start_time),
+          endTimeFraction: timeFraction(period.end_time ?? period.start_time),
           description: period.message || mapping.label,
           color: mapping.color,
         });
       }
     }
 
+    // ── Layer 2: Pit windows (aggregated with count + driver list) ──
+    // Also generates per-driver pit events (Layer 3, filtered in TimelinePlayer)
     if (sessionData?.strategies?.length) {
-      for (const driverStrategy of sessionData.strategies) {
-        const stints = driverStrategy.stints || driverStrategy.Stints || [];
-        if (!Array.isArray(stints)) continue;
+      const byDriver = {};
+      for (const stint of sessionData.strategies) {
+        const drv = stint.Driver || stint.driver;
+        if (!drv) continue;
+        if (!byDriver[drv]) byDriver[drv] = [];
+        byDriver[drv].push(stint);
+      }
+      // Collect all pit stops: { lap → [{driver, compound}] }
+      const pitsByLap = {};
+      for (const [drv, stints] of Object.entries(byDriver)) {
+        stints.sort((a, b) => (a.StartLap || a.LapStart || 0) - (b.StartLap || b.LapStart || 0));
         for (let i = 1; i < stints.length; i++) {
           const stint = stints[i];
-          const pitLap = stint.LapStart || stint.lap_start || stint.StartLap;
+          const pitLap = stint.StartLap || stint.LapStart || stint.lap_start;
+          const compound = stint.Compound || stint.compound || 'UNKNOWN';
           if (pitLap && pitLap > 0 && pitLap <= maxLap) {
-            const existing = events.find(
-              (e) => e.type === 'PIT_WINDOW' && e.lap === pitLap
-            );
-            if (!existing) {
-              events.push({
-                type: 'PIT_WINDOW',
-                lap: pitLap,
-                startLap: pitLap,
-                endLap: pitLap,
-                description: `Pit stops on lap ${pitLap}`,
-                color: '#00bfff',
-              });
-            }
+            if (!pitsByLap[pitLap]) pitsByLap[pitLap] = [];
+            pitsByLap[pitLap].push({ driver: drv, compound });
+            // Layer 3: per-driver pit event (shown only when driver is selected)
+            events.push({
+              type: 'DRIVER_PIT',
+              lap: pitLap,
+              startLap: pitLap,
+              endLap: pitLap,
+              driver: drv,
+              compound,
+              description: `${drv} pit stop → ${compound} (lap ${pitLap})`,
+              color: '#00bfff',
+            });
           }
         }
       }
+      // Layer 2: aggregated pit window per lap
+      for (const [lap, pits] of Object.entries(pitsByLap)) {
+        const lapNum = Number(lap);
+        const driverNames = pits.map((p) => p.driver).join(', ');
+        events.push({
+          type: 'PIT_WINDOW',
+          lap: lapNum,
+          startLap: lapNum,
+          endLap: lapNum,
+          count: pits.length,
+          drivers: pits.map((p) => p.driver),
+          description: `Lap ${lapNum}: ${pits.length} pit stop${pits.length > 1 ? 's' : ''} (${driverNames})`,
+          color: '#00bfff',
+        });
+      }
     }
 
-    // ── Fastest lap events ────────────────────────────────────────
+    // ── Layer 2: Fastest lap — only the FINAL session fastest ─────
     if (sessionData?.lap_times?.length) {
       const lapTimes = sessionData.lap_times;
       let sessionBest = Infinity;
+      let fastestEntry = null;
       for (const lt of lapTimes) {
         const time = lt.LapTime || lt.lap_time;
         if (time && time > 0 && lt.LapNumber > 1) {
           if (time < sessionBest) {
             sessionBest = time;
-            events.push({
-              type: 'FASTEST_LAP',
-              lap: lt.LapNumber,
-              startLap: lt.LapNumber,
-              endLap: lt.LapNumber,
-              description: `Fastest lap: ${lt.Driver || 'Unknown'} (${time.toFixed(3)}s)`,
-              color: '#a855f7',
-              driver: lt.Driver,
-            });
+            fastestEntry = lt;
           }
         }
       }
+      if (fastestEntry) {
+        const mins = Math.floor(sessionBest / 60);
+        const secs = (sessionBest % 60).toFixed(3);
+        const timeStr = mins > 0 ? `${mins}:${secs.padStart(6, '0')}` : `${secs}s`;
+        events.push({
+          type: 'FASTEST_LAP',
+          lap: fastestEntry.LapNumber,
+          startLap: fastestEntry.LapNumber,
+          endLap: fastestEntry.LapNumber,
+          description: `Fastest lap: ${fastestEntry.Driver || 'Unknown'} (${timeStr})`,
+          color: '#a855f7',
+          driver: fastestEntry.Driver,
+        });
+      }
     }
 
-    // ── Position change events (3+ positions in one lap) ────────
+    // ── Layer 3: Position changes (3+ positions, per driver) ─────
+    // Shown only for selected drivers in TimelinePlayer
     if (sessionData?.lap_times?.length) {
       const lapTimes = sessionData.lap_times;
-      // Group by driver, sort by lap
       const byDriver = {};
       for (const lt of lapTimes) {
         const d = lt.Driver;
@@ -155,10 +224,9 @@ export function useReplayEngine() {
           const prev = laps[i - 1].Position;
           const curr = laps[i].Position;
           if (prev != null && curr != null) {
-            const change = prev - curr; // positive = gained positions
+            const change = prev - curr;
             if (Math.abs(change) >= 3) {
               const lap = laps[i].LapNumber;
-              // Avoid duplicate events on the same lap
               const exists = events.find(
                 (e) => e.type === 'POSITION_CHANGE' && e.lap === lap && e.driver === driver
               );
@@ -205,8 +273,9 @@ export function useReplayEngine() {
     state.setCurrentFrameIndex(idx + 1);
   }, []);
 
-  // ── Playback interval management (frame-based only) ──────────
+  // ── Playback interval management (frame-based only, disabled in live mode) ──
   useEffect(() => {
+    if (isLiveMode) return; // In live mode, frames arrive via WebSocket
     if (isPlaying && totalFrames > 1) {
       const interval = Math.max(16, (frameDt * 1000) / playSpeed);
       intervalRef.current = setInterval(tick, interval);
@@ -217,7 +286,7 @@ export function useReplayEngine() {
         intervalRef.current = null;
       }
     };
-  }, [isPlaying, playSpeed, totalFrames, frameDt, tick]);
+  }, [isLiveMode, isPlaying, playSpeed, totalFrames, frameDt, tick]);
 
   // ── Transport controls ──────────────────────────────────────────
   const play = useCallback(() => {
@@ -297,6 +366,7 @@ export function useReplayEngine() {
     currentFrameIndex,
     totalFrames,
     frameDt,
+    isLiveMode,
     // Controls
     play,
     pause,

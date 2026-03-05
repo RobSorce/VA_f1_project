@@ -203,6 +203,137 @@ export function computePCA(matrix, featureNames, prevResult = null) {
   return { scores, loadings, explainedVariance };
 }
 
+/**
+ * Procrustes alignment in 2D: find optimal rotation (+ optional reflection)
+ * to align `newPts` to `refPts` using matched point pairs.
+ * Returns the transformation applied to ALL newScores (not just matched ones).
+ *
+ * @param {{ x: number, y: number }[]} refPts - reference points (previous frame, matched subset)
+ * @param {{ x: number, y: number }[]} newPts - new points (current frame, matched subset)
+ * @param {{ x: number, y: number }[]} allNewScores - all current scores to transform
+ * @returns {{ x: number, y: number }[]} - transformed scores
+ */
+export function procrustesAlign2D(refPts, newPts, allNewScores) {
+  const n = refPts.length;
+  if (n < 3) return allNewScores; // need at least 3 matched drivers
+
+  // 1. Compute centroids
+  let refCx = 0, refCy = 0, newCx = 0, newCy = 0;
+  for (let i = 0; i < n; i++) {
+    refCx += refPts[i].x; refCy += refPts[i].y;
+    newCx += newPts[i].x; newCy += newPts[i].y;
+  }
+  refCx /= n; refCy /= n;
+  newCx /= n; newCy /= n;
+
+  // 2. Center both sets
+  const refC = refPts.map((p) => ({ x: p.x - refCx, y: p.y - refCy }));
+  const newC = newPts.map((p) => ({ x: p.x - newCx, y: p.y - newCy }));
+
+  // 3. Cross-covariance matrix H (2x2) = ref^T * new
+  let h00 = 0, h01 = 0, h10 = 0, h11 = 0;
+  for (let i = 0; i < n; i++) {
+    h00 += refC[i].x * newC[i].x;
+    h01 += refC[i].x * newC[i].y;
+    h10 += refC[i].y * newC[i].x;
+    h11 += refC[i].y * newC[i].y;
+  }
+
+  // 4. SVD of 2x2: H = U * S * V^T
+  //    For 2x2, use analytic SVD
+  const { U, V } = svd2x2(h00, h01, h10, h11);
+
+  // 5. Rotation R = V * U^T  (allows reflection if det < 0)
+  //    We want pure rotation (no reflection), so correct if det(R) < 0
+  let r00 = V[0][0] * U[0][0] + V[0][1] * U[0][1];
+  let r01 = V[0][0] * U[1][0] + V[0][1] * U[1][1];
+  let r10 = V[1][0] * U[0][0] + V[1][1] * U[0][1];
+  let r11 = V[1][0] * U[1][0] + V[1][1] * U[1][1];
+
+  const detR = r00 * r11 - r01 * r10;
+  if (detR < 0) {
+    // Flip the second column of V
+    r00 = -V[0][1] * U[0][0] + V[0][0] * U[0][1];
+    r01 = -V[0][1] * U[1][0] + V[0][0] * U[1][1];
+    r10 = -V[1][1] * U[0][0] + V[1][0] * U[0][1];
+    r11 = -V[1][1] * U[1][0] + V[1][0] * U[1][1];
+  }
+
+  // 6. Compute scale: s = trace(S_corrected) / sum(||newC||^2)
+  let newSumSq = 0;
+  for (let i = 0; i < n; i++) {
+    newSumSq += newC[i].x ** 2 + newC[i].y ** 2;
+  }
+  // trace(ref^T * R * new) — numerator for scale
+  let traceRS = 0;
+  for (let i = 0; i < n; i++) {
+    const rx = r00 * newC[i].x + r01 * newC[i].y;
+    const ry = r10 * newC[i].x + r11 * newC[i].y;
+    traceRS += refC[i].x * rx + refC[i].y * ry;
+  }
+  const scale = newSumSq > 1e-10 ? traceRS / newSumSq : 1;
+
+  // Clamp scale to reasonable range to avoid extreme zooms
+  const clampedScale = Math.max(0.5, Math.min(2.0, scale));
+
+  // 7. Apply transformation to ALL new scores: result = s * R * (pt - newCentroid) + refCentroid
+  // Use centroids of ALL new scores for centering
+  let allCx = 0, allCy = 0;
+  for (const s of allNewScores) { allCx += s.x; allCy += s.y; }
+  allCx /= allNewScores.length; allCy /= allNewScores.length;
+
+  return allNewScores.map((pt) => {
+    const cx = pt.x - allCx;
+    const cy = pt.y - allCy;
+    return {
+      x: clampedScale * (r00 * cx + r01 * cy) + refCx,
+      y: clampedScale * (r10 * cx + r11 * cy) + refCy,
+    };
+  });
+}
+
+/**
+ * Analytic SVD for 2x2 matrix [[a,b],[c,d]].
+ * Returns U and V as 2x2 arrays.
+ */
+function svd2x2(a, b, c, d) {
+  // A^T A
+  const ata00 = a * a + c * c;
+  const ata01 = a * b + c * d;
+  const ata11 = b * b + d * d;
+
+  // Eigenvalues of A^T A via quadratic
+  const sum = ata00 + ata11;
+  const diff = ata00 - ata11;
+  const disc = Math.sqrt(diff * diff + 4 * ata01 * ata01);
+  const s1sq = Math.max(0, (sum + disc) / 2);
+  const s2sq = Math.max(0, (sum - disc) / 2);
+
+  // Eigenvectors of A^T A → columns of V
+  const theta = 0.5 * Math.atan2(2 * ata01, diff);
+  const V = [
+    [Math.cos(theta), -Math.sin(theta)],
+    [Math.sin(theta), Math.cos(theta)],
+  ];
+
+  // Singular values
+  const s1 = Math.sqrt(s1sq);
+  const s2 = Math.sqrt(s2sq);
+
+  // U = A * V * S^-1
+  const U = [[1, 0], [0, 1]];
+  if (s1 > 1e-10) {
+    U[0][0] = (a * V[0][0] + b * V[1][0]) / s1;
+    U[1][0] = (c * V[0][0] + d * V[1][0]) / s1;
+  }
+  if (s2 > 1e-10) {
+    U[0][1] = (a * V[0][1] + b * V[1][1]) / s2;
+    U[1][1] = (c * V[0][1] + d * V[1][1]) / s2;
+  }
+
+  return { U, V, s1, s2 };
+}
+
 function dot(a, b) {
   let s = 0;
   for (let i = 0; i < a.length; i++) s += a[i] * (b[i] || 0);

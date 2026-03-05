@@ -96,6 +96,7 @@ export default function DriverComparePanel() {
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+  const totalFrames = useF1Store((s) => s.totalFrames);
   const driversList = useF1Store((s) => s.drivers);
   const speedUnit = useF1Store((s) => s.speedUnit);
 
@@ -122,7 +123,7 @@ export default function DriverComparePanel() {
     }
   }, [compareDrivers, selectedDrivers, addCompareDriver]);
 
-  const replayActive = currentFrameIndex > 0 || currentLap > 1;
+  const replayActive = totalFrames > 0;
   const [driverA, driverB] = compareDrivers.length === 2 ? compareDrivers : [null, null];
   const colorA = getDriverColor(driverA);
   const colorB = getDriverColor(driverB);
@@ -542,6 +543,16 @@ export default function DriverComparePanel() {
           currentLap={currentLap}
           maxLap={maxLap}
         />
+
+        {/* Compound Legend */}
+        <div className="sectors-panel__legend" style={{ padding: '6px 0 4px', justifyContent: 'center' }}>
+          {['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'].map((c) => (
+            <span key={c} className="sectors-panel__legend-item">
+              <span className="sectors-panel__legend-dot" style={{ background: TYRE_COLORS[c] }} />
+              {TYRE_LABELS[c]}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

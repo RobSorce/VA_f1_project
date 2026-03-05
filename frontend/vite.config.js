@@ -10,6 +10,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        timeout: 600000,      // 10 min — FastF1 extraction can be slow
       },
       '/ws': {
         target: 'ws://localhost:8000',

@@ -117,7 +117,8 @@ def discover_all_rounds() -> list:
     """
     base_dir = Path(__file__).parent.parent / 'data'
     json_cache_dir = base_dir / 'processed_cache'
-    fastf1_cache_dir = base_dir / 'cache'
+    # Match the FastF1 cache path used by fastf1_extractor.py (project_root/data/cache)
+    fastf1_cache_dir = Path(__file__).parent.parent.parent / 'data' / 'cache'
 
     json_rounds = discover_processed_cache_rounds(json_cache_dir)
     fastf1_rounds = discover_fastf1_cached_rounds(fastf1_cache_dir)

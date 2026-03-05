@@ -5,8 +5,8 @@ import { getDriverColor, TYRE_COLORS, TYRE_LABELS } from '../../utils/colors';
 import Panel from '../ui/Panel';
 
 const COMPOUND_MAX_LIFE = {
-  SOFT: 18, MEDIUM: 28, HARD: 40,
-  INTERMEDIATE: 30, WET: 25, UNKNOWN: 25,
+  SOFT: 22, MEDIUM: 32, HARD: 45,
+  INTERMEDIATE: 30, WET: 25, UNKNOWN: 30,
 };
 
 export default function TyreHealth() {
@@ -30,14 +30,18 @@ export default function TyreHealth() {
 
     if (driverLaps.length === 0) return { stints: [], maxLapNum: maxLap || 1 };
 
-    // Group into stints
+    // Group into stints — detect by compound change, TyreLife reset, or pit flags
     const stints = [];
     let current = { compound: driverLaps[0].Compound || 'UNKNOWN', laps: [] };
 
-    driverLaps.forEach((lap) => {
+    driverLaps.forEach((lap, idx) => {
       const compound = lap.Compound || 'UNKNOWN';
-      if (compound !== current.compound || (lap.TyreLife != null && lap.TyreLife <= 1 && current.laps.length > 0)) {
-        if (current.laps.length > 0) stints.push(current);
+      const isPitOut = !!lap.PitOutTime;
+      const tyreLifeReset = lap.TyreLife != null && lap.TyreLife <= 1 && current.laps.length > 0;
+      const compoundChanged = compound !== current.compound;
+
+      if ((compoundChanged || tyreLifeReset || isPitOut) && current.laps.length > 0) {
+        stints.push(current);
         current = { compound, laps: [] };
       }
       current.laps.push({
@@ -51,17 +55,19 @@ export default function TyreHealth() {
 
     // Compute tyre health per stint
     stints.forEach((stint) => {
-      const maxLife = COMPOUND_MAX_LIFE[stint.compound] || 25;
+      const maxLife = COMPOUND_MAX_LIFE[stint.compound] || 30;
+      // Scale effective max life if the stint actually ran longer than expected
+      const actualLength = stint.laps.length;
+      const effectiveMaxLife = Math.max(maxLife, actualLength * 1.1);
 
-      // Outlier filtering
+      // Outlier filtering for pace-based adjustment
       const times = stint.laps.map((l) => l.lapTime);
       const median = d3.median(times);
-      const threshold = median * 1.5;
+      const threshold = median * 1.4;
       const validTimes = stint.laps.filter((l) => l.lapTime < threshold);
-      const bestTime = d3.min(validTimes, (l) => l.lapTime);
+      const bestTime = d3.min(validTimes, (l) => l.lapTime) || median;
 
-      let ceiling = 100;
-      stint.laps.forEach((lap) => {
+      stint.laps.forEach((lap, i) => {
         const isOutlier = lap.lapTime > threshold;
         lap.isOutlier = isOutlier;
 
@@ -70,18 +76,19 @@ export default function TyreHealth() {
           return;
         }
 
-        // Signal 1: age-based decay (non-linear, accelerating toward end of life)
-        const ageRatio = Math.min(lap.tyreLife / maxLife, 1.5);
-        const baseHealth = 100 * (1 - Math.pow(ageRatio, 1.3));
+        // Age-based decay: smooth curve from 100% → 0% over effective max life
+        // Using (1 - (age/maxLife)^1.6) gives a nice convex decay
+        const ageRatio = Math.min(lap.tyreLife / effectiveMaxLife, 1.0);
+        const baseHealth = 100 * (1 - Math.pow(ageRatio, 1.6));
 
-        // Signal 2: pace modifier from actual performance
-        const paceRatio = bestTime / lap.lapTime; // e.g., 0.985
-        const deviation = 1 - paceRatio;
-        const paceModifier = 1 - (deviation * 3);
+        // Pace modifier: penalize when pace degrades relative to best stint time
+        // deviation of 0 = on pace, deviation of 0.05 = 5% slower
+        const paceRatio = bestTime / lap.lapTime;
+        const deviation = Math.max(0, 1 - paceRatio);
+        const pacePenalty = deviation * 80; // 1% slower = 0.8% health penalty
 
-        const raw = Math.max(0, Math.min(100, baseHealth * Math.max(0.5, paceModifier)));
-        lap.health = Math.min(ceiling, raw);
-        ceiling = lap.health;
+        const raw = Math.max(0, Math.min(100, baseHealth - pacePenalty));
+        lap.health = raw;
       });
 
       stint.startLap = stint.laps[0].lapNumber;
@@ -135,14 +142,21 @@ export default function TyreHealth() {
     const defs = svg.append('defs');
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Scales
+    // Scales — always 0-100% for health
     const x = d3.scaleLinear().domain([1, chartData.maxLapNum]).range([0, innerW]);
+    const y = d3.scaleLinear().domain([0, 100]).range([innerH, 0]);
 
-    const allHealth = chartData.stints.flatMap((s) =>
-      s.laps.filter((l) => l.health != null).map((l) => l.health)
-    );
-    const healthMin = Math.max(0, (d3.min(allHealth) || 20) - 5);
-    const y = d3.scaleLinear().domain([healthMin, 100]).range([innerH, 0]);
+    // Health zone backgrounds
+    const zones = [
+      { y0: 0, y1: 30, color: 'rgba(239,68,68,0.06)' },   // Critical
+      { y0: 30, y1: 60, color: 'rgba(251,191,36,0.04)' },  // Worn
+    ];
+    zones.forEach((z) => {
+      g.append('rect')
+        .attr('x', 0).attr('y', y(z.y1))
+        .attr('width', innerW).attr('height', y(z.y0) - y(z.y1))
+        .attr('fill', z.color);
+    });
 
     // Grid
     const xTicks = x.ticks(Math.min(12, chartData.maxLapNum));
@@ -150,6 +164,14 @@ export default function TyreHealth() {
       .attr('x1', (d) => x(d)).attr('x2', (d) => x(d))
       .attr('y1', 0).attr('y2', innerH)
       .attr('stroke', 'rgba(255,255,255,0.04)');
+
+    // Horizontal reference lines at 30% and 60%
+    [30, 60].forEach((pct) => {
+      g.append('line')
+        .attr('x1', 0).attr('x2', innerW)
+        .attr('y1', y(pct)).attr('y2', y(pct))
+        .attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-dasharray', '4,4');
+    });
 
     // X-axis
     const xAxisG = g.append('g')
@@ -165,10 +187,26 @@ export default function TyreHealth() {
 
     // Y-axis
     const yAxisG = g.append('g')
-      .call(d3.axisLeft(y).ticks(5).tickFormat((d) => `${d.toFixed(0)}%`).tickSize(3));
+      .call(d3.axisLeft(y).ticks(5).tickFormat((d) => `${d}%`).tickSize(3));
     yAxisG.selectAll('text').attr('fill', 'rgba(255,255,255,0.3)').attr('font-size', '8px').attr('font-family', 'var(--font-mono)');
     yAxisG.selectAll('line').attr('stroke', 'rgba(255,255,255,0.1)');
     yAxisG.select('.domain').attr('stroke', 'rgba(255,255,255,0.08)');
+
+    // Pit stop markers (vertical dashed lines between stints)
+    chartData.stints.forEach((stint, i) => {
+      if (i === 0) return;
+      const pitLap = stint.startLap;
+      g.append('line')
+        .attr('x1', x(pitLap)).attr('x2', x(pitLap))
+        .attr('y1', 0).attr('y2', innerH)
+        .attr('stroke', 'rgba(255,255,255,0.25)').attr('stroke-width', 1).attr('stroke-dasharray', '2,3');
+      g.append('text')
+        .attr('x', x(pitLap)).attr('y', -3)
+        .attr('text-anchor', 'middle').attr('fill', 'rgba(255,255,255,0.4)')
+        .attr('font-size', '7px').attr('font-weight', 700)
+        .attr('font-family', 'var(--font-mono)')
+        .text('PIT');
+    });
 
     // Draw per-stint curves
     chartData.stints.forEach((stint, i) => {
@@ -256,6 +294,7 @@ export default function TyreHealth() {
         if (!closest || minDist > 2) return;
 
         const compColor = TYRE_COLORS[closest.compound] || '#888';
+        const healthColor = closest.health > 60 ? '#22c55e' : closest.health > 30 ? '#fbbf24' : '#ef4444';
 
         g.append('line').attr('class', 'hover-line')
           .attr('x1', x(closest.lapNumber)).attr('x2', x(closest.lapNumber))
@@ -269,7 +308,7 @@ export default function TyreHealth() {
         const tooltipHtml = `
           <div style="color:${driverColor};font-weight:700;font-size:11px">${driver}</div>
           <div style="font-size:9px;color:rgba(255,255,255,0.5)">Lap ${closest.lapNumber}</div>
-          <div style="font-size:11px;font-weight:700">${closest.health.toFixed(1)}%</div>
+          <div style="font-size:11px;font-weight:700;color:${healthColor}">${closest.health.toFixed(1)}%</div>
           <div style="font-size:9px;color:${compColor}">${closest.compound} &mdash; L${closest.tyreLife}</div>
         `;
         let tooltip = d3.select('.tyre-health-tooltip');
@@ -284,6 +323,8 @@ export default function TyreHealth() {
         g.selectAll('.hover-line, .hover-dot').remove();
         d3.select('.tyre-health-tooltip').classed('visible', false).style('opacity', 0);
       });
+
+    return () => { d3.selectAll('.tyre-health-tooltip').remove(); };
   }, [chartData, driver, driverColor, currentLap]);
 
   return (

@@ -6,7 +6,7 @@ Endpoints:
   POST /api/predict/lstm         - Predict next 5 lap times using LSTM or heuristic fallback
   POST /api/predict/degradation  - Linear regression on selected lap range, projected pit lap
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import numpy as np
@@ -166,6 +166,9 @@ async def predict_degradation(request: DegradationRequest):
       - undercut_window [start, end]
     """
     try:
+        # NOTE: This creates its own FastF1Extractor, bypassing the main app's
+        # session cache (api/main.py session_cache).  A future improvement would
+        # be to accept lap_times directly in the request or import the shared cache.
         from data.extractors.fastf1_extractor import FastF1Extractor
 
         ext = FastF1Extractor()
@@ -220,8 +223,10 @@ async def predict_degradation(request: DegradationRequest):
             ]
             return primary
         else:
-            return {"error": "Insufficient data for regression"}
+            raise HTTPException(status_code=422, detail="Insufficient data for regression")
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Degradation prediction failed: {e}", exc_info=True)
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))

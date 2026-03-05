@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
+import * as api from '../../utils/apiClient';
 
 const SESSION_TYPES = [
   { value: 'FP1', label: 'FP1' },
@@ -37,12 +38,58 @@ export default function SessionMenu({ isOpen, onClose }) {
   const schedule = useF1Store((s) => s.schedule);
   const isLoading = useF1Store((s) => s.isLoading);
   const error = useF1Store((s) => s.error);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
+  const liveConnected = useF1Store((s) => s.liveConnected);
+  const liveSessionInfo = useF1Store((s) => s.liveSessionInfo);
+  const enterLiveMode = useF1Store((s) => s.enterLiveMode);
+  const exitLiveMode = useF1Store((s) => s.exitLiveMode);
 
   const setYear = useF1Store((s) => s.setYear);
   const setRound = useF1Store((s) => s.setRound);
   const setSessionType = useF1Store((s) => s.setSessionType);
   const fetchSchedule = useF1Store((s) => s.fetchSchedule);
   const loadSession = useF1Store((s) => s.loadSession);
+
+  // Live timing state
+  const [liveStatus, setLiveStatus] = useState(null);
+  const [mockSessions, setMockSessions] = useState([]);
+  const [showMock, setShowMock] = useState(false);
+  const [mockSpeed, setMockSpeed] = useState(10);
+
+  // Poll live status when menu is open
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const status = await api.getLiveStatus();
+        if (!cancelled) setLiveStatus(status);
+      } catch (_) { /* ignore */ }
+    };
+    check();
+    const interval = setInterval(check, 30000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [isOpen]);
+
+  // Load mock sessions list
+  useEffect(() => {
+    if (!showMock) return;
+    api.getMockSessions().then((r) => setMockSessions(r.sessions || [])).catch(() => {});
+  }, [showMock]);
+
+  const handleConnectLive = async () => {
+    await enterLiveMode();
+    onClose();
+  };
+
+  const handleDisconnectLive = async () => {
+    await exitLiveMode();
+  };
+
+  const handleStartMock = async (mockYear, mockRound) => {
+    await enterLiveMode(mockYear, mockRound, mockSpeed);
+    onClose();
+  };
 
   // Close on Escape key
   const handleKeyDown = useCallback(
@@ -161,6 +208,86 @@ export default function SessionMenu({ isOpen, onClose }) {
             <span>{error}</span>
           </div>
         )}
+
+        {/* ── Live Timing Section ─────────────────────────────── */}
+        <div className="session-menu__section session-menu__live-section">
+          <label className="session-menu__label">
+            <span className={`live-pulse${isLiveMode && liveConnected ? ' active' : ''}`} />
+            Live Timing
+          </label>
+
+          {isLiveMode ? (
+            <div className="session-menu__live-status">
+              <div className="session-menu__live-info">
+                <span className="live-badge">LIVE</span>
+                <span>{liveSessionInfo?.event_name || 'Connected'}</span>
+                <span className="session-menu__live-detail">
+                  {liveSessionInfo?.session_type || ''}
+                </span>
+              </div>
+              <button
+                className="session-menu__pill session-menu__pill--danger"
+                onClick={handleDisconnectLive}
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <div className="session-menu__live-actions">
+              {liveStatus?.active ? (
+                <button
+                  className="session-menu__load-btn session-menu__load-btn--live"
+                  onClick={handleConnectLive}
+                  disabled={isLoading}
+                >
+                  <span className="live-pulse active" />
+                  Connect to Live Session
+                </button>
+              ) : (
+                <div className="session-menu__live-inactive">
+                  No active F1 session
+                </div>
+              )}
+              <button
+                className="session-menu__mock-toggle"
+                onClick={() => setShowMock(!showMock)}
+              >
+                {showMock ? 'Hide' : 'Show'} Mock Replay
+              </button>
+              {showMock && (
+                <div className="session-menu__mock-section">
+                  <div className="session-menu__mock-speed">
+                    <label>Speed: {mockSpeed}x</label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="50"
+                      value={mockSpeed}
+                      onChange={(e) => setMockSpeed(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="session-menu__mock-list">
+                    {mockSessions.length === 0 && (
+                      <span className="session-menu__empty">No cached sessions</span>
+                    )}
+                    {mockSessions.map((s) => (
+                      <button
+                        key={`${s.year}-${s.round}`}
+                        className="session-menu__race-item"
+                        onClick={() => handleStartMock(s.year, s.round)}
+                      >
+                        <span className="session-menu__race-round">{s.round}</span>
+                        <span>{s.year} Round {s.round}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="session-menu__divider" />
 
         {/* Season selector */}
         <div className="session-menu__section">

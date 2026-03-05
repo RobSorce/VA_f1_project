@@ -49,7 +49,7 @@ const SHORTCUT_SECTIONS = [
       { keys: ['Space'], desc: 'Play / Pause' },
       { keys: ['\u2190', '\u2192'], desc: 'Previous / Next Lap' },
       { keys: ['Home', 'End'], desc: 'First / Last Lap' },
-      { keys: ['L'], desc: 'Jump to Lap' },
+      { keys: ['L'], desc: 'Toggle Leaderboard' },
       { keys: ['<', '>'], desc: 'Slower / Faster playback' },
     ],
   },

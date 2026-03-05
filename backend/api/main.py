@@ -54,6 +54,15 @@ except Exception as _e:
     analytics_router = None
     logging.getLogger(__name__).warning(f"analytics router not loaded: {_e}")
 
+try:
+    from api.routers.live import router as live_router, set_session_manager, set_mock_replay
+    _routers_loaded.append(live_router)
+except Exception as _e:
+    live_router = None
+    set_session_manager = None
+    set_mock_replay = None
+    logging.getLogger(__name__).warning(f"live router not loaded: {_e}")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -78,6 +87,9 @@ app.add_middleware(
 extractor = FastF1Extractor()
 feature_engineer = FeatureEngineer()
 
+# Expose shared resources on app.state so routers can access them
+# (set after app is created below)
+
 # Cache for loaded sessions (processed JSON data) — in-memory
 session_cache: Dict[str, Any] = {}
 
@@ -93,6 +105,11 @@ raw_session_cache: Dict[str, Any] = {}
 # Lock to serialize FastF1 access (FastF1 is NOT thread-safe)
 import threading
 _fastf1_lock = threading.Lock()
+
+# Expose shared resources on app.state so routers (e.g. replay) can access them
+app.state.extractor = extractor
+app.state.fastf1_lock = _fastf1_lock
+app.state.raw_session_cache = raw_session_cache
 
 # Disk cache directory for processed JSON (instant loads after first computation)
 DISK_CACHE_DIR = Path(__file__).parent.parent / "data" / "processed_cache"
@@ -292,7 +309,9 @@ async def get_schedule(year: int):
         )
         result = {
             "year": year,
-            "events": schedule[['RoundNumber', 'EventName', 'Country', 'Location', 'EventDate', 'EventFormat']].to_dict('records')
+            "events": clean_dataframe_for_json(
+                schedule[['RoundNumber', 'EventName', 'Country', 'Location', 'EventDate', 'EventFormat']]
+            )
         }
         schedule_cache[year] = result
         _save_to_disk(disk_path, result)
@@ -764,6 +783,94 @@ async def get_point_features(point_id: str):
             val = row[col]
             features[col] = round(float(val), 3) if pd.notna(val) else None
     return {'point_id': point_id, 'driver': driver, 'features': features}
+
+
+# ============= Live Timing Lifecycle =============
+
+_live_session_manager = None
+_live_signalr_task = None
+_live_mock_replay = None
+
+
+@app.on_event("startup")
+async def _startup_live_timing():
+    """Initialize live timing components on app startup."""
+    global _live_session_manager, _live_mock_replay
+    try:
+        from live.session_manager import LiveSessionManager
+        from live.mock_replay import MockReplay
+
+        _live_session_manager = LiveSessionManager()
+        _live_mock_replay = MockReplay(_live_session_manager)
+
+        # Wire them into the live router
+        if set_session_manager:
+            set_session_manager(_live_session_manager)
+        if set_mock_replay:
+            set_mock_replay(_live_mock_replay)
+
+        logger.info("Live timing system initialized (mock replay ready)")
+    except Exception as e:
+        logger.warning(f"Live timing init failed (non-fatal): {e}")
+
+
+@app.on_event("shutdown")
+async def _shutdown_live_timing():
+    """Clean shutdown of live timing components."""
+    global _live_signalr_task, _live_mock_replay
+    if _live_mock_replay and _live_mock_replay.is_running:
+        await _live_mock_replay.stop()
+    if _live_signalr_task:
+        _live_signalr_task.cancel()
+        try:
+            await _live_signalr_task
+        except asyncio.CancelledError:
+            pass
+    logger.info("Live timing system shut down")
+
+
+@app.get("/api/live/connect-signalr")
+async def connect_live_signalr():
+    """Manually start the SignalR connection to F1 live timing.
+
+    Call this when an F1 session is about to start. The connection will
+    auto-reconnect if dropped.
+    """
+    global _live_signalr_task, _live_session_manager
+    if _live_session_manager is None:
+        return {"error": "Live timing not initialized"}
+    if _live_signalr_task and not _live_signalr_task.done():
+        return {"status": "already_connected"}
+
+    try:
+        from live.signalr_client import F1SignalRClient
+
+        _live_session_manager.reset()
+
+        async def _on_msg(topic, data):
+            await _live_session_manager.on_message(topic, data)
+
+        client = F1SignalRClient(on_message=lambda t, d: asyncio.create_task(_on_msg(t, d)))
+        _live_signalr_task = asyncio.create_task(client.start())
+        return {"status": "connecting", "message": "SignalR client started"}
+    except Exception as e:
+        logger.error(f"SignalR connect failed: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/live/disconnect-signalr")
+async def disconnect_live_signalr():
+    """Stop the SignalR connection."""
+    global _live_signalr_task
+    if _live_signalr_task:
+        _live_signalr_task.cancel()
+        try:
+            await _live_signalr_task
+        except asyncio.CancelledError:
+            pass
+        _live_signalr_task = None
+        return {"status": "disconnected"}
+    return {"status": "not_connected"}
 
 
 # ============= Run Server =============

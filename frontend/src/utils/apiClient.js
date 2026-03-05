@@ -12,7 +12,7 @@ const client = axios.create({
 export const getSeasons = () => client.get('/seasons').then((r) => r.data);
 export const getSchedule = (year) => client.get(`/schedule/${year}`).then((r) => r.data);
 export const getSession = (year, round, type = 'R') =>
-  client.get(`/session/${year}/${round}`, { params: { session_type: type } }).then((r) => r.data);
+  client.get(`/session/${year}/${round}`, { params: { session_type: type }, timeout: 600000 }).then((r) => r.data);
 
 // ── Race Data ───────────────────────────────────────────────────────
 export const getLapTimes = (year, round, driver) => {
@@ -24,9 +24,9 @@ export const getTelemetry = (year, round, driver, lap, sessionType = 'R') => {
   return client.get(`/telemetry/${year}/${round}/${driver}`, { params }).then((r) => r.data);
 };
 export const getCircuit = (year, round) =>
-  client.get(`/circuit/${year}/${round}`).then((r) => r.data);
+  client.get(`/circuit/${year}/${round}`, { timeout: 600000 }).then((r) => r.data);
 export const getStrategy = (year, round) =>
-  client.get(`/strategy/${year}/${round}`).then((r) => r.data);
+  client.get(`/strategy/${year}/${round}`, { timeout: 600000 }).then((r) => r.data);
 export const getDrivers = (year, round) =>
   client.get(`/drivers/${year}/${round}`).then((r) => r.data);
 export const getResults = (year, round) =>
@@ -45,12 +45,8 @@ export const getTSNEEmbeddings = () =>
   client.get('/tsne/embeddings').then((r) => r.data);
 export const getPCAEmbeddings = () =>
   client.get('/pca/embeddings').then((r) => r.data);
-export const projectTSNE = (data) =>
-  client.post('/tsne/project', data).then((r) => r.data);
 export const analyzeTSNESelection = (pointIds) =>
   client.post('/tsne/analyze-selection', { point_ids: pointIds }).then((r) => r.data);
-export const getTSNEPointFeatures = (id) =>
-  client.get(`/tsne/point-features/${id}`).then((r) => r.data);
 
 // ── Predictions ─────────────────────────────────────────────────────
 export const predictLSTM = (data) =>
@@ -73,6 +69,17 @@ export const getSpeedRankings = (year, round) =>
 // ── Championship ──────────────────────────────────────────────────────
 export const getChampionship = (year, loadAll = false) =>
   client.get(`/championship/${year}`, { params: loadAll ? { load_all: true } : {}, timeout: 600000 }).then((r) => r.data);
+
+// ── Live Timing ─────────────────────────────────────────────────────
+export const getLiveStatus = () => client.get('/live/status').then((r) => r.data);
+export const getLiveSnapshot = () => client.get('/live/snapshot').then((r) => r.data);
+export const getLiveFrames = () => client.get('/live/frames').then((r) => r.data);
+export const connectSignalR = () => client.get('/live/connect-signalr').then((r) => r.data);
+export const disconnectSignalR = () => client.get('/live/disconnect-signalr').then((r) => r.data);
+export const getMockSessions = () => client.get('/live/mock/sessions').then((r) => r.data);
+export const startMockReplay = (year, round, speed = 10) =>
+  client.get('/live/mock/start', { params: { year, round, speed } }).then((r) => r.data);
+export const stopMockReplay = () => client.get('/live/mock/stop').then((r) => r.data);
 
 // ── Health ──────────────────────────────────────────────────────────
 export const healthCheck = () => client.get('/health').then((r) => r.data);

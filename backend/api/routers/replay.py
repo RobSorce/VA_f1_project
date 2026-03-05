@@ -12,7 +12,7 @@ import asyncio
 import json
 import math
 import logging
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pathlib import Path
 import sys
 
@@ -21,12 +21,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from data.extractors.fastf1_extractor import FastF1Extractor
-
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-extractor = FastF1Extractor()
 
 # -- Status code -> event type mapping ------------------------------------
 STATUS_TYPE_MAP = {
@@ -37,6 +33,25 @@ STATUS_TYPE_MAP = {
     "6": "VSC",
     "7": "VSC",
 }
+
+
+def _get_shared_state(app):
+    """Retrieve shared FastF1 resources from main app state."""
+    return app.state.extractor, app.state.fastf1_lock, app.state.raw_session_cache
+
+
+def _get_raw_session(extractor, lock, cache, year, round_num, session_type):
+    """Get or load a raw FastF1 session, using the shared lock and cache."""
+    cache_key = f"{year}_{round_num}_{session_type}"
+    if cache_key in cache:
+        return cache[cache_key]
+    with lock:
+        # Double-check after acquiring lock
+        if cache_key in cache:
+            return cache[cache_key]
+        session = extractor.get_session(year, round_num, session_type)
+        cache[cache_key] = session
+        return session
 
 
 def _safe_float(value, default=None):
@@ -221,7 +236,7 @@ def _build_laps_array(session) -> list:
     return result
 
 
-def _build_events(session, total_laps: int, avg_lap_time: float) -> list:
+def _build_events(extractor, session, total_laps: int, avg_lap_time: float) -> list:
     """Build the events list from track status data."""
     track_status = extractor.extract_track_status(session)
     events = []
@@ -281,7 +296,7 @@ def _build_events(session, total_laps: int, avg_lap_time: float) -> list:
 # =========================================================================
 
 @router.get("/api/session/{year}/{round_num}/{session_type}/replay")
-async def get_replay_data(year: int, round_num: int, session_type: str = "R"):
+async def get_replay_data(request: Request, year: int, round_num: int, session_type: str = "R"):
     """
     Return structured replay data for a session.
 
@@ -314,40 +329,45 @@ async def get_replay_data(year: int, round_num: int, session_type: str = "R"):
             ]
         }
     """
+    ext, lock, cache = _get_shared_state(request.app)
+
+    def _blocking_replay():
+        session = _get_raw_session(ext, lock, cache, year, round_num, session_type)
+
+        all_laps = session.laps
+        total_laps = (
+            int(all_laps["LapNumber"].max())
+            if all_laps is not None and not all_laps.empty
+            else 0
+        )
+
+        # Average lap time for timestamp -> lap estimation in events
+        avg_lap_time = 90.0
+        if total_laps > 0:
+            lt = all_laps["LapTime"].dropna()
+            if not lt.empty:
+                avg_seconds = lt.apply(
+                    lambda td: td.total_seconds() if hasattr(td, "total_seconds") else 0
+                )
+                valid = avg_seconds[avg_seconds > 0]
+                if not valid.empty:
+                    avg_lap_time = float(valid.mean())
+
+        # Build structured data
+        laps_array = _build_laps_array(session)
+        events = _build_events(ext, session, total_laps, avg_lap_time)
+
+        return {
+            "totalLaps": total_laps,
+            "laps": laps_array,
+            "events": events,
+        }
+
     try:
-        session = extractor.get_session(year, round_num, session_type)
+        return await asyncio.to_thread(_blocking_replay)
     except Exception as e:
         logger.error(f"Failed to load session for replay: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-    all_laps = session.laps
-    total_laps = (
-        int(all_laps["LapNumber"].max())
-        if all_laps is not None and not all_laps.empty
-        else 0
-    )
-
-    # Average lap time for timestamp -> lap estimation in events
-    avg_lap_time = 90.0
-    if total_laps > 0:
-        lt = all_laps["LapTime"].dropna()
-        if not lt.empty:
-            avg_seconds = lt.apply(
-                lambda td: td.total_seconds() if hasattr(td, "total_seconds") else 0
-            )
-            valid = avg_seconds[avg_seconds > 0]
-            if not valid.empty:
-                avg_lap_time = float(valid.mean())
-
-    # Build structured data
-    laps_array = _build_laps_array(session)
-    events = _build_events(session, total_laps, avg_lap_time)
-
-    return {
-        "totalLaps": total_laps,
-        "laps": laps_array,
-        "events": events,
-    }
 
 
 # =========================================================================
@@ -367,10 +387,15 @@ async def replay_session(websocket: WebSocket, year: int, round_num: int):
     """
     await websocket.accept()
 
-    # Load session + frames once
+    ext, lock, cache = _get_shared_state(websocket.app)
+
+    # Load session + frames in a thread to avoid blocking the event loop
     try:
-        session = extractor.get_session(year, round_num, "R")
-        frames_data = extractor.extract_race_frames(session)
+        def _load_frames():
+            session = _get_raw_session(ext, lock, cache, year, round_num, "R")
+            return ext.extract_race_frames(session)
+
+        frames_data = await asyncio.to_thread(_load_frames)
     except Exception as e:
         await websocket.send_json({"error": f"Failed to load session: {e}"})
         await websocket.close()

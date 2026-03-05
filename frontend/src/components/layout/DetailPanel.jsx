@@ -4,17 +4,14 @@ import LapTimeChart from '../visualizations/LapTimeChart';
 import LapDeltaChart from '../visualizations/LapDeltaChart';
 import StrategyTimeline from '../visualizations/StrategyTimeline';
 import TireSilhouette from '../visualizations/TireSilhouette';
-import TSNEScatterplot from '../visualizations/TSNEScatterplot';
+import RaceSituationMap from '../visualizations/RaceSituationMap';
 import StrategyAnalysis from '../visualizations/StrategyAnalysis';
-import StrategyBriefing from '../visualizations/StrategyBriefing';
 import GeminiAssistant from '../visualizations/GeminiAssistant';
 import TireDegradation from '../visualizations/TireDegradation';
 
 export default function DetailPanel() {
   const activePanel = useF1Store((s) => s.activePanel);
   const closePanel = useF1Store((s) => s.closePanel);
-  const tsneStrategyAnalysis = useF1Store((s) => s.tsneStrategyAnalysis);
-
   if (!activePanel) return null;
 
   return (
@@ -57,14 +54,10 @@ export default function DetailPanel() {
         {activePanel === 'analytics' && (
           <>
             <div style={{ flex: '1 1 55%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <TSNEScatterplot />
+              <RaceSituationMap />
             </div>
             <div style={{ flex: '1 1 45%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {tsneStrategyAnalysis?.feature_importance ? (
-                <StrategyBriefing />
-              ) : (
-                <StrategyAnalysis />
-              )}
+              <StrategyAnalysis />
             </div>
           </>
         )}

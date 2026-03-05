@@ -27,6 +27,7 @@ export default function SectorsPanel() {
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+  const totalFrames = useF1Store((s) => s.totalFrames);
   const currentTime = useF1Store((s) => s.currentTime);
   const dnfMap = useF1Store((s) => s.dnfMap);
   const speedUnit = useF1Store((s) => s.speedUnit);
@@ -41,7 +42,7 @@ export default function SectorsPanel() {
   const speedLabel = speedUnit === 'mph' ? 'mph' : 'km/h';
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
-  const replayActive = currentFrameIndex > 0 || currentLap > 1;
+  const replayActive = totalFrames > 0;
 
   // Session time offset: session times (~3500s) vs frame times (0-based)
   const sessionTimeOffset = useMemo(() => {
@@ -278,6 +279,18 @@ export default function SectorsPanel() {
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
+      </div>
+
+      {/* ── Color Legend ── */}
+      <div className="sectors-panel__legend">
+        <span className="sectors-panel__legend-item">
+          <span className="sectors-panel__legend-dot" style={{ background: '#a855f7' }} />
+          Overall Best
+        </span>
+        <span className="sectors-panel__legend-item">
+          <span className="sectors-panel__legend-dot" style={{ background: '#22c55e' }} />
+          Personal Best
+        </span>
       </div>
 
       {/* ── Live Sector Times (current lap, chronometer) ── */}

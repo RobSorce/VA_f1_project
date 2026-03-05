@@ -43,7 +43,8 @@ const TYRE_DISPLAY_NAMES = {
   UNKNOWN: '—',
 };
 
-export default function Leaderboard() {
+export default function Leaderboard({ collapsed }) {
+  const toggleLeaderboard = useF1Store((s) => s.toggleLeaderboard);
   const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
@@ -76,6 +77,7 @@ export default function Leaderboard() {
   const previousLapRef = useRef(null);
   const rowRefsMap = useRef({});
   const animatingRowsRef = useRef(new Set());
+  const clearChangesTimerRef = useRef(null);
 
   /* ── Replay started gate ───────────────────────────────────────── */
   const replayStarted = currentFrameIndex > 0 || currentLap > 1;
@@ -334,7 +336,13 @@ export default function Leaderboard() {
       // Show arrows for drivers involved in position changes
       const hasChanges = Object.keys(positionChanges).length > 0;
       if (hasChanges) {
+        // Clear any pending timer from a previous lap change, then start a new one
+        if (clearChangesTimerRef.current) clearTimeout(clearChangesTimerRef.current);
         setDisplayedChanges(positionChanges);
+        clearChangesTimerRef.current = setTimeout(() => {
+          setDisplayedChanges({});
+          clearChangesTimerRef.current = null;
+        }, 1500);
       }
 
       // Snapshot current positions for next comparison
@@ -344,20 +352,29 @@ export default function Leaderboard() {
       }
       previousPositionsRef.current = newPositions;
       previousLapRef.current = currentLap;
-
-      // Auto-clear arrows after animation completes
-      if (hasChanges) {
-        const timer = setTimeout(() => setDisplayedChanges({}), 1500);
-        return () => clearTimeout(timer);
-      }
     }
   }, [currentLap, standings, positionChanges]);
+
+  // Cleanup timer on unmount
+  useEffect(() => () => {
+    if (clearChangesTimerRef.current) clearTimeout(clearChangesTimerRef.current);
+  }, []);
 
   /* ── Position-change highlight flash (CSS transition handles the slide) */
   useEffect(() => {
     if (!standings.length) return;
 
-    const cleanupTimers = [];
+    // First: clean ALL stale animation classes from every row.
+    // This prevents classes from persisting when fast playback skips cleanup.
+    for (const abbr of Object.keys(rowRefsMap.current)) {
+      const el = rowRefsMap.current[abbr];
+      if (el) {
+        el.classList.remove('tower-row--animating', 'tower-row--gained', 'tower-row--lost');
+      }
+    }
+    animatingRowsRef.current.clear();
+
+    const activeListeners = [];
 
     standings.forEach((d) => {
       const rowEl = rowRefsMap.current[d.abbr];
@@ -369,15 +386,24 @@ export default function Leaderboard() {
         animatingRowsRef.current.add(d.abbr);
         rowEl.classList.add('tower-row--animating', cls);
 
-        const timer = setTimeout(() => {
+        // Use animationend for reliable cleanup instead of setTimeout
+        const handler = () => {
           animatingRowsRef.current.delete(d.abbr);
           rowEl.classList.remove('tower-row--animating', cls);
-        }, 1200);
-        cleanupTimers.push(timer);
+          rowEl.removeEventListener('animationend', handler);
+        };
+        rowEl.addEventListener('animationend', handler);
+        activeListeners.push({ el: rowEl, handler, abbr: d.abbr, cls });
       }
     });
 
-    return () => cleanupTimers.forEach(clearTimeout);
+    return () => {
+      activeListeners.forEach(({ el, handler, abbr, cls }) => {
+        el.removeEventListener('animationend', handler);
+        el.classList.remove('tower-row--animating', cls);
+        animatingRowsRef.current.delete(abbr);
+      });
+    };
   }, [standings, displayedChanges]);
 
   /* ── Column mode toggle ───────────────────────────────────────────── */
@@ -394,6 +420,7 @@ export default function Leaderboard() {
   const formatGap = (gap) => {
     if (gap == null || gap === 0) return '';
     if (typeof gap === 'string') return gap;
+    if (!isFinite(gap)) return '';
     return gap > 0 ? `+${gap.toFixed(3)}` : gap.toFixed(3);
   };
 
@@ -409,6 +436,7 @@ export default function Leaderboard() {
       return (
         <span className="tower-col-value tower-col-value--retired">
           {d.retiredStatus || 'RET'}
+          {d.retiredLap && <span style={{ fontSize: '7px', marginLeft: 3, opacity: 0.7 }}>L{d.retiredLap}</span>}
         </span>
       );
     }
@@ -472,32 +500,29 @@ export default function Leaderboard() {
 
   const winnerColor = raceFinished && winner ? winner.color : null;
 
-  const panelBorderStyle = raceFinished && winnerColor
-    ? {
-        '--hazard-color': winnerColor,
-        '--hazard-color-bright': winnerColor,
-        '--hazard-color-dim': `${winnerColor}44`,
-        border: `3px solid ${winnerColor}`,
-        boxShadow: `0 0 20px ${winnerColor}55`,
-        animation: 'hazard-border-pulse 2s ease-in-out infinite',
-        transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
-      }
-    : {
-        '--hazard-color': flagBorderColor,
-        '--hazard-color-bright': flagBorderColor,
-        '--hazard-color-dim': `${flagBorderColor}44`,
-        border: isHazard
-          ? `3px solid ${flagBorderColor}`
-          : '2px solid rgba(255, 255, 255, 0.12)',
-        boxShadow: isHazard
-          ? `0 0 16px ${flagBorderColor}44`
-          : '0 4px 30px rgba(0, 0, 0, 0.3)',
-        transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
-        animation: isHazard ? 'hazard-border-pulse 1.2s ease-in-out infinite' : 'none',
-      };
+  const bezelActive = isHazard || (raceFinished && winnerColor);
+  const activeColor = raceFinished && winnerColor ? winnerColor : flagBorderColor;
+
+  const panelBorderStyle = {
+    '--bezel-color': bezelActive ? activeColor : 'transparent',
+    '--bezel-color-dim': bezelActive ? `${activeColor}44` : 'transparent',
+    '--bezel-color-glow': bezelActive ? `${activeColor}33` : 'transparent',
+    border: 'none',
+    boxShadow: bezelActive
+      ? `0 0 20px ${activeColor}33, 0 0 40px ${activeColor}18, 0 8px 32px rgba(0,0,0,0.40)`
+      : '0 8px 32px rgba(0,0,0,0.40)',
+    transition: 'box-shadow 0.4s ease',
+  };
 
   /* ── Header (broadcast style) ─────────────────────────────────────── */
   const qualiSegment = useF1Store((s) => s.qualiSegment);
+  const prevColumnMode = () => {
+    // Cycle backwards through COLUMN_MODES
+    const prevIdx = (columnMode - 1 + COLUMN_MODES.length) % COLUMN_MODES.length;
+    // Use the store setter directly
+    useF1Store.setState({ leaderboardColumnMode: prevIdx });
+  };
+
   const header = (
     <div className="tower-broadcast-header">
       <div className="tower-broadcast-header__left">
@@ -507,11 +532,11 @@ export default function Leaderboard() {
       </div>
       <div className="tower-broadcast-header__right">
         <button
-          className="tower-mode-toggle"
-          onClick={cycleColumnMode}
-          title={`Display: ${COLUMN_MODES[columnMode]}`}
+          className="leaderboard-toggle leaderboard-toggle--collapse"
+          onClick={toggleLeaderboard}
+          title="Collapse leaderboard (L)"
         >
-          {COLUMN_MODES[columnMode]}
+          {'\u276E'}
         </button>
         {isQualifyingReplay ? (
           <div className="tower-broadcast-header__lap">
@@ -528,10 +553,48 @@ export default function Leaderboard() {
     </div>
   );
 
+  const modeBar = (
+    <div className="tower-mode-bar">
+      <button className="tower-mode-bar__arrow" onClick={prevColumnMode} title="Previous mode">
+        {'\u2039'}
+      </button>
+      <span className="tower-mode-bar__label">{COLUMN_MODES[columnMode]}</span>
+      <button className="tower-mode-bar__arrow" onClick={cycleColumnMode} title="Next mode">
+        {'\u203A'}
+      </button>
+    </div>
+  );
+
+  /* ── Collapsed render ─────────────────────────────────────────────── */
+  if (collapsed) {
+    return (
+      <div className="leaderboard-collapsed">
+        <button className="leaderboard-toggle leaderboard-toggle--expand" onClick={toggleLeaderboard} title="Expand leaderboard (L)">
+          {'\u276F'}
+        </button>
+        <div className="leaderboard-collapsed__label">STANDINGS</div>
+        <div className="leaderboard-collapsed__positions">
+          {standings.slice(0, 20).map((d) => (
+            <div
+              key={d.abbr}
+              className={`leaderboard-collapsed__pos${selectedDrivers.includes(d.abbr) ? ' leaderboard-collapsed__pos--selected' : ''}`}
+              style={{ borderLeftColor: d.color }}
+              onClick={() => toggleDriver(d.abbr)}
+              title={d.abbr}
+            >
+              <span className="leaderboard-collapsed__num">{d.isRetired ? '—' : d.pos}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   /* ── Main render ──────────────────────────────────────────────────── */
   return (
-    <Panel className="panel--leaderboard" style={{ padding: 0, ...panelBorderStyle }} focused={focusedView === 'leaderboard'}>
+    <Panel className={`panel--leaderboard${bezelActive ? ' panel--bezel-active' : ''}`} style={{ padding: 0, ...panelBorderStyle }} focused={focusedView === 'leaderboard'}>
       {header}
+      {modeBar}
 
       {/* Winner banner */}
       {raceFinished && winner && (() => {
@@ -673,7 +736,12 @@ export default function Leaderboard() {
               </span>
 
               <span className="tower-row__change">
-                {/* Empty spacer — kept for layout consistency */}
+                {displayedChanges[d.abbr] === 'gained' && (
+                  <span className="tower-row__arrow tower-row__arrow--up tower-row__arrow--active">{'\u25B2'}</span>
+                )}
+                {displayedChanges[d.abbr] === 'lost' && (
+                  <span className="tower-row__arrow tower-row__arrow--down tower-row__arrow--active">{'\u25BC'}</span>
+                )}
               </span>
 
               <span className="tower-row__driver-cell">
@@ -686,9 +754,11 @@ export default function Leaderboard() {
                     {countryFlag(countryCodeMap[d.abbr])}
                   </span>
                 )}
-                <span className="tower-row__driver-name">{d.abbr}</span>
+                <span className="tower-row__driver-name" style={d.isRetired ? { textDecoration: 'line-through', textDecorationColor: 'rgba(225,6,0,0.5)' } : undefined}>{d.abbr}</span>
+                {d.isRetired && <span className="tower-row__out-badge">OUT</span>}
                 {lstmPredictions?.driver_predictions?.[d.abbr] != null && (() => {
                   const pred = lstmPredictions.driver_predictions[d.abbr];
+                  if (!pred) return null;
                   const delta = pred.predicted_position_change || 0;
                   if (delta === 0) return null;
                   return (

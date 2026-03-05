@@ -267,6 +267,7 @@ export default function LapDeltaChart() {
       .attr('font-weight', '600')
       .text('Lap');
 
+    return () => { d3.selectAll('.delta-tooltip').remove(); };
   }, [baseDriver, displayDrivers, driverCumTimes, currentLap]);
 
   // Lightweight highlight effect — updates opacity/stroke without full redraw

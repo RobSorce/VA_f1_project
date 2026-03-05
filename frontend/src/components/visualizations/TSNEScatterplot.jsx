@@ -42,7 +42,8 @@ export default function TSNEScatterplot() {
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-    const points = tsneEmbeddings.points;
+    const points = tsneEmbeddings.points.filter((d) => isFinite(d.x) && isFinite(d.y));
+    if (points.length === 0) return;
 
     // Scales
     const xExtent = d3.extent(points, (d) => d.x);
@@ -112,7 +113,7 @@ export default function TSNEScatterplot() {
       })
       .on('mouseleave', function (event, d) {
         d3.select(this).attr('d', d3.symbol().type(isCurrentRace(d) ? d3.symbolStar : d3.symbolCircle).size(isCurrentRace(d) ? 120 : 50)());
-        d3.select('.tsne-tooltip').classed('visible', false).style('opacity', 0);
+        d3.select('body').select('.tsne-tooltip').classed('visible', false).style('opacity', 0);
       })
       .on('click', (event, d) => {
         const ids = selectedTSNEPoints.includes(d.id)
@@ -183,6 +184,9 @@ export default function TSNEScatterplot() {
         .text(`${selectedTSNEPoints.length} selected`);
     }
 
+    return () => {
+      d3.select('body').select('.tsne-tooltip').remove();
+    };
   }, [tsneEmbeddings, selectedTSNEPoints, selectedDrivers, year, round, setSelectedTSNEPoints, setSelectedDrivers, fetchTSNEAnalysis]);
 
   // Cleanup lasso on unmount

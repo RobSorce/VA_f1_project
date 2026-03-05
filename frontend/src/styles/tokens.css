@@ -35,7 +35,7 @@
 
   --color-text-primary: #ffffff;
   --color-text-secondary: rgba(255, 255, 255, 0.6);
-  --color-text-muted: rgba(255, 255, 255, 0.35);
+  --color-text-muted: rgba(255, 255, 255, 0.45);
   --color-text-interval: #00ff00;
 
   --color-border: rgba(255, 255, 255, 0.08);
@@ -128,17 +128,18 @@
   --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.6);
   --shadow-glow-red: 0 0 20px rgba(225, 6, 0, 0.4);
   --shadow-panel: 0 4px 30px rgba(0, 0, 0, 0.3);
-  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.25), inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.10), inset 0 0 0 0.5px rgba(255, 255, 255, 0.05);
 
   /* Glassmorphism (iOS 26 style) */
-  --glass-bg: rgba(18, 18, 36, 0.55);
-  --glass-bg-heavy: rgba(16, 16, 32, 0.72);
-  --glass-bg-light: rgba(24, 24, 48, 0.42);
-  --glass-blur: 24px;
-  --glass-blur-heavy: 40px;
-  --glass-border: 1px solid rgba(255, 255, 255, 0.12);
-  --glass-border-light: 1px solid rgba(255, 255, 255, 0.08);
-  --glass-highlight: inset 0 0.5px 0 rgba(255, 255, 255, 0.1);
+  --glass-bg: rgba(18, 18, 36, 0.28);
+  --glass-bg-heavy: rgba(16, 16, 32, 0.42);
+  --glass-bg-light: rgba(24, 24, 48, 0.20);
+  --glass-blur: 40px;
+  --glass-blur-heavy: 64px;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.10);
+  --glass-border-light: 1px solid rgba(255, 255, 255, 0.07);
+  --glass-border-thick: 3px solid rgba(255, 255, 255, 0.10);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.10), inset 0 0 0 0.5px rgba(255, 255, 255, 0.05);
 
   /* Transitions */
   --transition-fast: 200ms ease;
@@ -247,10 +248,36 @@
   --shadow-glass: 0 4px 20px rgba(0, 0, 0, 0.08), inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
 
   /* Glassmorphism (light) */
-  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-bg: rgba(255, 255, 255, 0.60);
   --glass-bg-heavy: rgba(255, 255, 255, 0.78);
   --glass-bg-light: rgba(255, 255, 255, 0.45);
+  --glass-blur: 32px;
+  --glass-blur-heavy: 48px;
   --glass-border: 1px solid rgba(0, 0, 0, 0.08);
   --glass-border-light: 1px solid rgba(0, 0, 0, 0.05);
+  --glass-border-thick: 3px solid rgba(0, 0, 0, 0.08);
   --glass-highlight: inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+
+  /* Robinhood Legend — light overrides */
+  --rh-bg:               #f5f5f7;
+  --rh-surface:          #ffffff;
+  --rh-surface-active:   #f0f0f4;
+  --rh-surface-hover:    #e8e8ec;
+  --rh-surface-deep:     #eaeaef;
+
+  --rh-border:           #d1d1d6;
+  --rh-border-strong:    #c0c0c6;
+  --rh-border-subtle:    #e0e0e5;
+  --rh-border-focus:     rgba(225, 6, 0, 0.2);
+
+  --rh-text-primary:     #1d1d1f;
+  --rh-text-secondary:   #6e6e73;
+  --rh-text-muted:       #8e8e93;
+  --rh-text-faint:       #aeaeb2;
+  --rh-text-dimmed:      #c7c7cc;
+
+  --rh-shadow-kbd:       0 1px 0 #d1d1d6;
+  --rh-shadow-focus:     0 0 0 3px rgba(225, 6, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.1);
+  --rh-shadow-dropdown:  0 8px 32px rgba(0, 0, 0, 0.12);
+  --rh-shadow-modal:     0 16px 48px rgba(0, 0, 0, 0.15);
 }

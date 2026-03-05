@@ -24,8 +24,8 @@
   background: var(--glass-bg);
   border-bottom: var(--glass-border-light);
   flex-shrink: 0;
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
 }
 
 .header-left,
@@ -92,19 +92,182 @@
 
 .app-sidebar {
   width: 300px;
-  min-width: 300px;
+  min-width: 40px;
   max-width: 300px;
   display: flex;
   flex-direction: column;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
+  transition: width 300ms ease-in-out, min-width 300ms ease-in-out;
+  flex-shrink: 0;
+}
+
+.app-sidebar--collapsed {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+}
+
+/* ── Leaderboard Toggle Button ─────────────────────────────────────── */
+.leaderboard-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.leaderboard-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* ── Collapsed Leaderboard Strip ───────────────────────────────────── */
+.leaderboard-collapsed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  padding: 4px 0;
+  gap: 2px;
+  background: var(--color-bg-primary);
+}
+
+.leaderboard-collapsed__label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+  margin: 4px 0 6px;
+}
+
+.leaderboard-collapsed__positions {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  overflow: hidden;
+  width: 100%;
+  padding: 0 4px;
+}
+
+.leaderboard-collapsed__pos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-radius: 2px;
+}
+
+.leaderboard-collapsed__pos:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.leaderboard-collapsed__pos--selected {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.leaderboard-collapsed__num {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .app-sidebar .panel {
   flex: 1;
   min-height: 0;
   border-radius: 20px;
-  box-shadow: var(--shadow-glass);
+  border: none;
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.40);
+  transition: box-shadow 0.4s ease;
+}
+
+.app-sidebar .panel.panel--bezel-active {
+  animation: bezel-outer-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes bezel-outer-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 12px var(--bezel-color-glow, transparent),
+      0 0 28px var(--bezel-color-glow, transparent),
+      0 8px 32px rgba(0, 0, 0, 0.40);
+  }
+  50% {
+    box-shadow:
+      0 0 20px var(--bezel-color-dim, transparent),
+      0 0 48px var(--bezel-color-glow, transparent),
+      0 8px 32px rgba(0, 0, 0, 0.40);
+  }
+}
+
+/* ── F1 Manager-style thick translucent bezel ────────────────────── */
+.app-sidebar .panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  padding: 5px;
+  background: linear-gradient(
+    180deg,
+    rgba(90, 105, 130, 0.32) 0%,
+    rgba(75, 90, 115, 0.22) 40%,
+    rgba(55, 70, 95, 0.12) 75%,
+    rgba(40, 55, 80, 0.04) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 10;
+  transition: background 0.4s ease, filter 0.4s ease;
+}
+
+/* ── Bezel glow — lights up with race event color ────────────────── */
+.app-sidebar .panel.panel--bezel-active::after {
+  background: linear-gradient(
+    180deg,
+    var(--bezel-color, transparent) 0%,
+    var(--bezel-color-dim, transparent) 50%,
+    var(--bezel-color-glow, transparent) 85%,
+    transparent 100%
+  );
+  filter: drop-shadow(0 0 4px var(--bezel-color-dim, transparent));
+  animation: bezel-glow-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes bezel-glow-pulse {
+  0%, 100% {
+    opacity: 0.7;
+    filter: drop-shadow(0 0 3px var(--bezel-color-glow, transparent));
+  }
+  50% {
+    opacity: 1;
+    filter:
+      drop-shadow(0 0 6px var(--bezel-color-dim, transparent))
+      drop-shadow(0 0 14px var(--bezel-color-glow, transparent));
+  }
 }
 
 .app-sidebar .panel-content {
@@ -180,11 +343,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: rgba(22, 22, 44, 0.4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(22, 22, 44, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .detail-panel__title {
@@ -246,14 +407,16 @@
   font-size: 9px;
   font-weight: var(--font-weight-bold);
   color: var(--color-text-secondary);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: var(--radius-full);
   cursor: pointer;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   transition: all var(--transition-fast);
   line-height: 1.4;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .panel-toggle-btn:hover {
@@ -304,8 +467,8 @@
   background: var(--glass-bg);
   border-top: var(--glass-border-light);
   flex-shrink: 0;
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
 }
 
 .footer-left,
@@ -332,12 +495,14 @@
   width: 32px;
   height: 28px;
   font-size: var(--font-size-sm);
-  background: rgba(20, 20, 40, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-sm);
+  background: rgba(20, 20, 40, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-md);
   color: var(--color-text-primary);
   cursor: pointer;
   transition: all var(--transition-base);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .time-btn:hover {
@@ -440,11 +605,9 @@
   align-items: flex-start;
   padding: 4px 12px;
   gap: 8px;
-  background: rgba(20, 22, 40, 0.35);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(20, 22, 40, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 
 .telemetry-strip__header-left {
@@ -472,32 +635,37 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 5px 8px 5px 8px;
-  background: rgba(15, 15, 30, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  padding: 5px 22px 5px 8px;
+  background: rgba(15, 15, 30, 0.45);
+  border: 1.5px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
   font-size: 10px;
   flex-shrink: 0;
   font-family: var(--font-mono);
   min-width: 160px;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
 }
 
 .telem-mfd-card__close {
   position: absolute;
-  top: 1px;
+  top: 2px;
   right: 3px;
-  background: none;
+  background: rgba(255, 255, 255, 0.06);
   border: none;
-  color: rgba(255, 255, 255, 0.25);
-  font-size: 13px;
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  padding: 0 3px;
-  line-height: 1;
+  padding: 0 4px;
+  line-height: 1.2;
   z-index: 1;
+  transition: color 0.15s, background 0.15s;
 }
 .telem-mfd-card__close:hover {
-  color: #e10600;
+  color: #fff;
+  background: rgba(225, 6, 0, 0.5);
 }
 
 .telem-mfd-card__top {
@@ -672,12 +840,8 @@
   flex: 1.2;
 }
 
-.telemetry-strip__chart--throttle {
-  flex: 1.2;
-}
-
-.telemetry-strip__chart--brake {
-  flex: 1.2;
+.telemetry-strip__chart--throttle-brake {
+  flex: 2.4;
 }
 
 .telemetry-strip__chart--gear {
@@ -736,7 +900,7 @@
 }
 
 .timeline-player.expanded {
-  height: 120px;
+  height: 136px;
 }
 
 /* ── Collapsed row ── */
@@ -878,17 +1042,14 @@
 /* ── Expanded row ── */
 .timeline-player__expanded-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-sm);
-  height: 80px;
-  padding: 0 var(--spacing-md);
+  padding: 2px var(--spacing-md) 4px;
 }
 
 .timeline-player__timeline-wrapper {
   flex: 1;
   min-width: 0;
-  height: 68px;
-  overflow: hidden;
 }
 
 .timeline-player__svg {
@@ -980,9 +1141,15 @@
 .timeline-player__legend {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 2px 12px 0;
-  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 12px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.timeline-player__legend::-webkit-scrollbar {
+  display: none;
 }
 
 .timeline-player__legend-item {
@@ -1001,6 +1168,17 @@
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.timeline-player__legend-divider {
+  width: 1px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+}
+
+.timeline-player__legend-item--driver {
+  color: rgba(255, 255, 255, 0.55);
 }
 
 /* ── Tooltip ── */
@@ -1233,8 +1411,8 @@
   height: 44px;
   padding: 0 16px;
   background: var(--glass-bg-heavy);
-  backdrop-filter: blur(var(--glass-blur-heavy));
-  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
   border-bottom: var(--glass-border-light);
   flex-shrink: 0;
   gap: 12px;
@@ -1454,15 +1632,16 @@
   margin: 0 auto 8px;
   padding: 0 6px;
   gap: 2px;
-  /* Glassmorphism capsule */
-  background: rgba(28, 28, 40, 0.55);
-  backdrop-filter: blur(24px) saturate(1.6);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  /* iOS 26 Glassmorphism capsule */
+  background: rgba(28, 28, 40, 0.22);
+  backdrop-filter: blur(48px) saturate(1.9);
+  -webkit-backdrop-filter: blur(48px) saturate(1.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 26px;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.45),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+    0 12px 48px rgba(0, 0, 0, 0.40),
+    0 4px 12px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
   z-index: var(--z-sticky);
   transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -1575,25 +1754,26 @@
   pointer-events: none; /* let clicks through to track map in gaps */
 }
 
-/* Individual glassmorphism window */
+/* Individual glassmorphism window — pure iOS 26 frosted glass */
 .overlay-panel {
   flex: 1;
   min-width: 0;
   max-width: 1200px;
-  /* Glassmorphism — semi-transparent so track bleeds through */
-  background: rgba(20, 20, 36, 0.55);
-  backdrop-filter: blur(32px) saturate(1.8);
-  -webkit-backdrop-filter: blur(32px) saturate(1.8);
+  background: rgba(18, 18, 36, 0.26);
+  backdrop-filter: blur(56px) saturate(1.9);
+  -webkit-backdrop-filter: blur(56px) saturate(1.9);
   border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 16px;
+  border-radius: 18px;
   box-shadow:
-    0 12px 48px rgba(0, 0, 0, 0.55),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+    0 16px 64px rgba(0, 0, 0, 0.45),
+    0 4px 16px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;
   animation: overlayScaleIn 200ms ease-out;
   overflow: hidden;
-  pointer-events: auto; /* re-enable interaction on the window itself */
+  pointer-events: auto;
 }
 
 /* Single window — wider but still floats over track map */
@@ -1715,8 +1895,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: rgba(28, 28, 44, 0.35);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(28, 28, 44, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
   cursor: grab;
   user-select: none;
@@ -1767,7 +1947,7 @@
 .overlay-panel__content {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
 }
 
 /* --------------------------------------------------------------------------
@@ -2123,6 +2303,32 @@
   color: var(--color-f1-red);
   background: rgba(225, 6, 0, 0.12);
   border-color: rgba(225, 6, 0, 0.35);
+}
+
+.sectors-panel__legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 0 4px;
+  flex-shrink: 0;
+}
+
+.sectors-panel__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sectors-panel__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .sectors-panel__columns {
@@ -3505,23 +3711,19 @@
 }
 
 /* ==========================================================================
-   Focus Driver Widget — persistent floating card (bottom-left)
+   Focus Driver Widget — inline card inside sidebar
    ========================================================================== */
 .focus-widget {
-  position: fixed;
-  bottom: 72px;
-  left: 16px;
-  z-index: 700;
-  width: 200px;
+  position: relative;
+  width: 100%;
+  flex-shrink: 0;
+  max-height: 280px;
   background: rgba(18, 18, 36, 0.78);
   backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 14px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.45),
-    inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
-  overflow: hidden;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  overflow-y: auto;
+  overflow-x: hidden;
   animation: overlayScaleIn 200ms ease-out;
 }
 
@@ -3909,6 +4111,679 @@
 
 [data-theme="light"] .focus-widget__section {
   border-bottom-color: rgba(0, 0, 0, 0.04);
+}
+
+/* ==========================================================================
+   Extended Light Theme Overrides
+   ========================================================================== */
+
+/* ── App Container & Background ────────────────────────────────────── */
+[data-theme="light"] .app-container {
+  background: linear-gradient(180deg, #f2f2f7 0%, #e5e5ea 100%);
+}
+
+/* ── App Header ────────────────────────────────────────────────────── */
+[data-theme="light"] .app-header {
+  background: var(--glass-bg);
+  border-bottom: var(--glass-border-light);
+}
+
+/* ── App Footer ────────────────────────────────────────────────────── */
+[data-theme="light"] .app-footer {
+  background: var(--glass-bg);
+  border-top: var(--glass-border-light);
+}
+
+/* ── App Sidebar — Leaderboard ─────────────────────────────────────── */
+[data-theme="light"] .app-sidebar {
+  border-right-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .app-sidebar .panel {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.10);
+}
+
+/* Light theme bezel — translucent light gradient instead of dark */
+[data-theme="light"] .app-sidebar .panel::after {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.06) 0%,
+    rgba(0, 0, 0, 0.04) 40%,
+    rgba(0, 0, 0, 0.02) 75%,
+    rgba(0, 0, 0, 0.00) 100%
+  );
+}
+
+[data-theme="light"] .app-detail-panel {
+  border-left-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .detail-panel__header {
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .detail-panel__close {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .detail-panel__close:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Leaderboard Toggle ────────────────────────────────────────────── */
+[data-theme="light"] .leaderboard-toggle {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] .leaderboard-toggle:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--color-text-primary);
+}
+
+/* ── Collapsed Leaderboard ─────────────────────────────────────────── */
+[data-theme="light"] .leaderboard-collapsed {
+  background: var(--color-bg-primary);
+}
+
+[data-theme="light"] .leaderboard-collapsed__label {
+  color: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .leaderboard-collapsed__pos:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .leaderboard-collapsed__pos--selected {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .leaderboard-collapsed__num {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/* ── Panel Toggle Bar ──────────────────────────────────────────────── */
+[data-theme="light"] .panel-toggle-btn {
+  color: var(--color-text-secondary);
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .panel-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+/* ── Time Controls ─────────────────────────────────────────────────── */
+[data-theme="light"] .time-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .time-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .time-slider {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Telemetry Strip ───────────────────────────────────────────────── */
+[data-theme="light"] .telemetry-strip {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border-top: var(--glass-border);
+}
+
+[data-theme="light"] .telemetry-strip__header {
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .telemetry-strip__chart {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .telem-mfd-card {
+  background: rgba(255, 255, 255, 0.65);
+  border-color: rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+
+[data-theme="light"] .telem-mfd-card__close {
+  background: rgba(0, 0, 0, 0.04);
+  color: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] .telem-mfd-card__close:hover {
+  color: #fff;
+}
+
+[data-theme="light"] .telem-mfd-card__abbr {
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .telem-mfd-card__lap-badge {
+  color: rgba(0, 0, 0, 0.55);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .telem-mfd-card__laptime {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="light"] .telem-mfd-card__tyre-life {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .telem-mfd-card__sector-label {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .telem-mode-toggle {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .telem-lap-picker {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .telem-crosshair-line {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .telem-crosshair-tooltip {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: var(--glass-border);
+}
+
+[data-theme="light"] .telem-crosshair-tooltip__dist {
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Timeline Player ───────────────────────────────────────────────── */
+[data-theme="light"] .timeline-player {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-top: var(--glass-border);
+}
+
+[data-theme="light"] .timeline-player__skip-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .timeline-player__skip-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .timeline-player__progress-track {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .timeline-player__speed-pill {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+[data-theme="light"] .timeline-player__speed-pill:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .timeline-player__quali-pill {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .timeline-player__quali-pill:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .timeline-player__legend-item {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .timeline-player__legend-divider {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .timeline-player__legend-item--driver {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/* ── Bottom Tab Bar ────────────────────────────────────────────────── */
+[data-theme="light"] .bottom-tab-bar {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 -4px 24px rgba(0, 0, 0, 0.06),
+    0 -1px 4px rgba(0, 0, 0, 0.03),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="light"] .bottom-tab-bar__tab {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] .bottom-tab-bar__tab:hover {
+  color: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .bottom-tab-bar__tab--active {
+  color: #1d1d1f;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .tab-kbd {
+  color: var(--rh-text-dimmed);
+  background: var(--rh-surface-hover);
+  border-color: var(--rh-border-strong);
+}
+
+[data-theme="light"] .bottom-tab-bar__tab--active .tab-kbd {
+  color: var(--color-f1-red);
+}
+
+/* ── Weather Bar ───────────────────────────────────────────────────── */
+[data-theme="light"] .weather-bar {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.3);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .weather-bar__menu-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .weather-bar__menu-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .weather-bar__change-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .weather-bar__change-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Leaderboard Tower ─────────────────────────────────────────────── */
+[data-theme="light"] .tower-broadcast-header {
+  background: linear-gradient(135deg, #e10600 0%, #b80500 50%, rgba(245, 245, 247, 0.95) 100%);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .tower-mode-bar {
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .tower-mode-bar__arrow {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .tower-mode-bar__arrow:hover {
+  color: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .tower-mode-bar__label {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="light"] .tower-col-header {
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .tower-row {
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.85);
+}
+
+[data-theme="light"] .tower-row--odd {
+  background: rgba(0, 0, 0, 0.015);
+}
+
+[data-theme="light"] .tower-row--leader {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .tower-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .tower-row--selected {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .tower-row--highlighted {
+  background: rgba(0, 0, 0, 0.10) !important;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .tower-row--animating {
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .tower-row--focused {
+  background: rgba(0, 0, 0, 0.10);
+}
+
+[data-theme="light"] .tower-row__pos {
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .tower-row__driver-name {
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .tower-col-value {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="light"] .tower-col-value--leader {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .tower-tyre-age {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+/* ── Overlay Panels ────────────────────────────────────────────────── */
+[data-theme="light"] .overlay-panel {
+  background: rgba(255, 255, 255, 0.60);
+  backdrop-filter: blur(48px) saturate(1.6);
+  -webkit-backdrop-filter: blur(48px) saturate(1.6);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="light"] .overlay-panel__header {
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .overlay-panel__title {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="light"] .overlay-panel__btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] .overlay-panel__btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .overlay-panel__corner--se::after {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .overlay-panel__corner--se:hover::after,
+[data-theme="light"] .overlay-panel__corner--se:active::after {
+  border-color: rgba(0, 0, 0, 0.35);
+}
+
+/* ── Track Minimap ─────────────────────────────────────────────────── */
+[data-theme="light"] .track-minimap {
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.6) 0%, rgba(242, 242, 247, 0.9) 100%);
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Sectors Panel ─────────────────────────────────────────────────── */
+[data-theme="light"] .sectors-panel__column,
+[data-theme="light"] .sectors-panel__live {
+  background: rgba(255, 255, 255, 0.50);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05), inset 0 0.5px 0 rgba(255, 255, 255, 0.5);
+}
+
+[data-theme="light"] .sectors-panel__col-header,
+[data-theme="light"] .sectors-panel__live-header {
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .sectors-panel__col-title {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="light"] .sectors-panel__live-header {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .sectors-panel__row:hover,
+[data-theme="light"] .sectors-panel__live-row:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .sectors-panel__toggle-btn {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .sectors-panel__toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .sectors-panel__legend-item {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .sectors-panel__bar-cell {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* ── Analytics Tab ─────────────────────────────────────────────────── */
+[data-theme="light"] .analytics-tab__toggle-btn {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .analytics-tab__toggle-btn:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+/* ── Session Screen ────────────────────────────────────────────────── */
+[data-theme="light"] .session-screen {
+  background: linear-gradient(180deg, #f2f2f7 0%, #e5e5ea 50%, #d1d1d6 100%);
+}
+
+[data-theme="light"] .session-screen__title {
+  background: linear-gradient(135deg, #1d1d1f 0%, rgba(0, 0, 0, 0.6) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="light"] .session-screen__glow {
+  background: radial-gradient(circle, rgba(225, 6, 0, 0.08) 0%, transparent 70%);
+}
+
+[data-theme="light"] .session-screen__select {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .session-screen__select option {
+  background: #ffffff;
+  color: #1d1d1f;
+}
+
+[data-theme="light"] .session-screen__pill {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .session-screen__pill:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Consistency Panel ─────────────────────────────────────────────── */
+[data-theme="light"] .consistency-card__col-title {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Driver Comparison ─────────────────────────────────────────────── */
+[data-theme="light"] .compare-panel__header {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .compare-panel__driver-card,
+[data-theme="light"] .compare-panel__chart-container,
+[data-theme="light"] .compare-panel__metrics {
+  background: rgba(255, 255, 255, 0.50);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .compare-panel__metrics-title {
+  background: rgba(0, 0, 0, 0.03);
+  color: rgba(0, 0, 0, 0.6);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .compare-panel__metric-row {
+  border-bottom-color: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .compare-panel__score {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .compare-panel__empty kbd {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .compare-panel__driver-select {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--color-text-primary);
+}
+
+/* ── Telemetry Toolbar ─────────────────────────────────────────────── */
+[data-theme="light"] .telem-toolbar {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: var(--glass-border);
+}
+
+[data-theme="light"] .telem-toolbar__btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Telemetry Driver Select ───────────────────────────────────────── */
+[data-theme="light"] .telem-driver-select {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .telem-driver-select option {
+  background: #ffffff;
+  color: #1d1d1f;
+}
+
+/* ── Speed Rankings ────────────────────────────────────────────────── */
+[data-theme="light"] .charts-tab__speed-rankings {
+  background: var(--glass-bg-light);
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .speed-ranking-col__title {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+/* ── Driver Grid (Session Screen) ──────────────────────────────────── */
+[data-theme="light"] .driver-grid__card {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .driver-grid__card:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .driver-grid__search-input {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .driver-grid__action-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .driver-grid__action-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+/* ── Welcome Toast ─────────────────────────────────────────────────── */
+[data-theme="light"] .welcome-toast__content {
+  background: var(--rh-surface-active);
+  border-color: var(--rh-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Settings Tab ──────────────────────────────────────────────────── */
+[data-theme="light"] .settings-tab__hint {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+/* ── Tyre Degradation / Health / Management Charts ─────────────────── */
+[data-theme="light"] .deg-manager,
+[data-theme="light"] .tyre-health-chart,
+[data-theme="light"] .tyre-management-chart {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(242, 242, 247, 0.8) 100%);
+}
+
+[data-theme="light"] .deg-pit-window {
+  color: rgba(0, 0, 0, 0.5);
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .deg-pit-window__label {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+/* ── Telem Zoom Indicator ──────────────────────────────────────────── */
+[data-theme="light"] .telem-zoom-indicator {
+  background: var(--glass-bg-heavy);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
 /* ==========================================================================

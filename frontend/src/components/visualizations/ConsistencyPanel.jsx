@@ -22,6 +22,7 @@ export default function ConsistencyPanel() {
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+  const totalFrames = useF1Store((s) => s.totalFrames);
 
   const panelRef = useRef(null);
   const handleExport = useCallback(() => {
@@ -29,7 +30,7 @@ export default function ConsistencyPanel() {
     exportAsPng(panelRef.current, 'consistency_analysis.png');
   }, []);
 
-  const replayStarted = currentFrameIndex > 0 || currentLap > 1;
+  const replayStarted = totalFrames > 0;
 
   // Compute consistency from lap_times, filtered by currentLap for incremental reveal
   const { drivers, sessionAvg } = useMemo(() => {
@@ -59,7 +60,10 @@ export default function ConsistencyPanel() {
 
       // Remove outliers (> 1.5x median)
       const sorted = [...times].sort((a, b) => a - b);
-      const median = sorted[Math.floor(sorted.length / 2)];
+      const mid = Math.floor(sorted.length / 2);
+      const median = sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
       const threshold = median * 1.5;
       const valid = laps.filter((l) => l.time <= threshold);
       const outliers = laps.length - valid.length;
@@ -101,7 +105,8 @@ export default function ConsistencyPanel() {
             den += (cdata.tyre_lives[i] - meanTL) ** 2;
           }
           if (den > 0) {
-            degRate = Math.round(((num / den) * 100 / cAvg) * 100) / 100; // % per lap
+            // slope (seconds per tyre-life unit) → normalise to % of avg lap time
+            degRate = Math.round(((num / den) / cAvg) * 100 * 100) / 100; // % per lap
           }
         }
 
@@ -183,6 +188,30 @@ export default function ConsistencyPanel() {
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
         </button>
+      </div>
+
+      {/* ── Color Legend ── */}
+      <div className="sectors-panel__legend" style={{ padding: '2px 8px 4px' }}>
+        <span className="sectors-panel__legend-item">
+          <span className="sectors-panel__legend-dot" style={{ background: 'var(--tyre-soft)' }} />
+          Soft
+        </span>
+        <span className="sectors-panel__legend-item">
+          <span className="sectors-panel__legend-dot" style={{ background: 'var(--tyre-medium)' }} />
+          Medium
+        </span>
+        <span className="sectors-panel__legend-item">
+          <span className="sectors-panel__legend-dot" style={{ background: 'var(--tyre-hard)' }} />
+          Hard
+        </span>
+        <span className="sectors-panel__legend-item">
+          <span className="sectors-panel__legend-dot" style={{ borderRadius: 2, background: '#22c55e' }} />
+          Consistent
+        </span>
+        <span className="sectors-panel__legend-item">
+          <span className="sectors-panel__legend-dot" style={{ borderRadius: 2, background: '#ef4444' }} />
+          Inconsistent
+        </span>
       </div>
 
       <div className="consistency-panel__grid">

@@ -54,6 +54,7 @@ const OVERLAY_TABS = {
 export default function App() {
   const sessionData = useF1Store((s) => s.sessionData);
   const openOverlays = useF1Store((s) => s.openOverlays);
+  const leaderboardCollapsed = useF1Store((s) => s.leaderboardCollapsed);
 
   // Activate global keyboard shortcuts
   useKeyboardShortcuts();
@@ -67,8 +68,9 @@ export default function App() {
     <div className="app-container">
       <WeatherBar />
       <div className="app-body">
-        <aside className="app-sidebar">
-          <Leaderboard />
+        <aside className={`app-sidebar${leaderboardCollapsed ? ' app-sidebar--collapsed' : ''}`}>
+          <Leaderboard collapsed={leaderboardCollapsed} />
+          {!leaderboardCollapsed && <FocusDriverWidget />}
           {openOverlays.length > 0 && (
             <div className="track-minimap">
               <TrackMap compact />
@@ -97,7 +99,6 @@ export default function App() {
       <TimelinePlayer />
       <BottomTabBar />
       <DriverMFDCard />
-      <FocusDriverWidget />
       {/* Command Palette & Keyboard Overlays */}
       <CommandPalette />
       <ShortcutCheatsheet />

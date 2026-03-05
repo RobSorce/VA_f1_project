@@ -74,12 +74,12 @@ export default function StrategyTimeline({ showOverlays = false }) {
 
     // Group strategies by driver
     const driverStrats = d3.group(strategies, (d) => d.Driver);
-    const driverList = Array.from(driverStrats.keys());
+    const driverList = Array.from(driverStrats.keys()).sort();
 
     // Find max lap
     let maxLap = 0;
     strategies.forEach((s) => {
-      const end = s.LapStart + s.StintLength;
+      const end = s.LapStart + s.StintLength - 1;
       if (end > maxLap) maxLap = end;
     });
 
@@ -118,6 +118,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
         const compoundDimmed = highlightedCompound && highlightedCompound !== compound;
         let barOpacity = isSelected ? 0.85 : 0.2;
         if (compoundDimmed) barOpacity *= 0.3;
+        barOpacity = Math.max(barOpacity, 0.12); // floor: always perceptible
 
         g.append('rect')
           .attr('class', 'stint-bar')
@@ -275,6 +276,9 @@ export default function StrategyTimeline({ showOverlays = false }) {
       });
     }
 
+    return () => {
+      d3.select('body').select('.strat-tooltip').remove();
+    };
   }, [strategies, selectedDrivers, currentLap, lstmPredictions, tsneStrategyAnalysis, geminiOverlays, showOverlays, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound]);
 
   // Lightweight highlight effect — updates opacity without full redraw
@@ -285,11 +289,13 @@ export default function StrategyTimeline({ showOverlays = false }) {
       const el = d3.select(this);
       const driver = el.attr('data-driver');
       if (!driver) return;
+      const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(driver);
+      const baseOpacity = isSelected ? 0.85 : 0.2;
       const isHl = highlightedDriver && driver === highlightedDriver;
       const isDimmed = highlightedDriver && driver !== highlightedDriver;
-      el.attr('opacity', isDimmed ? 0.25 : isHl ? 1 : 0.85);
+      el.attr('opacity', isDimmed ? Math.min(baseOpacity, 0.15) : isHl ? Math.min(1, baseOpacity + 0.15) : baseOpacity);
     });
-  }, [highlightedDriver]);
+  }, [highlightedDriver, selectedDrivers]);
 
   return (
     <Panel title="Strategy Timeline" controls={<Legend items={legendItems} shape="circle" />} focused={focusedView === 'strategy'} shortcutKey="7">

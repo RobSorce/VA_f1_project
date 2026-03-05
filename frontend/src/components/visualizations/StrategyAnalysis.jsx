@@ -2,20 +2,105 @@ import React, { useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
 import Panel from '../ui/Panel';
-import StrategyBriefing from './StrategyBriefing';
 
 export default function StrategyAnalysis() {
-  const tsneStrategyAnalysis = useF1Store((s) => s.tsneStrategyAnalysis);
-  const selectedTSNEPoints = useF1Store((s) => s.selectedTSNEPoints);
-  const projectionMode = useF1Store((s) => s.projectionMode);
   const raceSituationData = useF1Store((s) => s.raceSituationData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const driversInfo = useF1Store((s) => s.drivers);
   const raceProjection = useF1Store((s) => s.raceProjection);
 
-  // ── Compute rich live analysis (selected drivers only) ──
+  const driverInfoMap = useMemo(() => {
+    const map = {};
+    for (const d of driversInfo || []) map[d.Abbreviation] = d;
+    return map;
+  }, [driversInfo]);
+
+  // ── Helpers ──
+  const meanOf = (drivers, allFeatures, key) => {
+    const vals = drivers.map((d) => allFeatures[d]?.[key]).filter((v) => v != null && Number.isFinite(v));
+    return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  };
+
+  const cohensD = (selDrivers, restDrivers, allFeatures, key) => {
+    const selVals = selDrivers.map((d) => allFeatures[d]?.[key]).filter((v) => v != null && Number.isFinite(v));
+    const restVals = restDrivers.map((d) => allFeatures[d]?.[key]).filter((v) => v != null && Number.isFinite(v));
+    if (selVals.length < 1 || restVals.length < 1) return { d: 0, selMean: 0, restMean: 0, direction: 'same' };
+    const selMean = selVals.reduce((a, b) => a + b, 0) / selVals.length;
+    const restMean = restVals.reduce((a, b) => a + b, 0) / restVals.length;
+    const selVar = selVals.reduce((s, v) => s + (v - selMean) ** 2, 0) / Math.max(1, selVals.length - 1);
+    const restVar = restVals.reduce((s, v) => s + (v - restMean) ** 2, 0) / Math.max(1, restVals.length - 1);
+    const pooledStd = Math.sqrt((selVar + restVar) / 2);
+    const effect = pooledStd > 1e-10 ? Math.abs(selMean - restMean) / pooledStd : 0;
+    return { d: effect, selMean, restMean, direction: selMean > restMean ? 'higher' : 'lower' };
+  };
+
+  // ── Find all battles in the field (for both overview and selection modes) ──
+  const findBattles = (drivers, allFeatures, maxGap = 20, maxLaps = 12) => {
+    const battles = [];
+    for (let i = 0; i < drivers.length; i++) {
+      for (let j = i + 1; j < drivers.length; j++) {
+        const a = { abbr: drivers[i], ...allFeatures[drivers[i]] };
+        const b = { abbr: drivers[j], ...allFeatures[drivers[j]] };
+        const [ahead, behind] = a.position < b.position ? [a, b] : [b, a];
+        const gap = Math.abs(behind.gapToLeader - ahead.gapToLeader);
+        if (gap <= 0 || gap > maxGap) continue;
+        const paceDelta = behind.recentPace - ahead.recentPace;
+        if (paceDelta >= 0) continue;
+        const lapsToClose = gap / Math.abs(paceDelta);
+        if (lapsToClose > maxLaps) continue;
+        const type = lapsToClose <= 3 ? 'imminent' : lapsToClose <= 7 ? 'approaching' : 'developing';
+        const color = type === 'imminent' ? '#e10600' : type === 'approaching' ? '#ffd700' : '#64C4FF';
+        battles.push({ behind: behind.abbr, ahead: ahead.abbr, gap: gap.toFixed(1),
+          paceDelta: paceDelta.toFixed(2), lapsToClose: lapsToClose.toFixed(0), type, color,
+          behindCompound: behind.compoundName, aheadCompound: ahead.compoundName });
+      }
+    }
+    battles.sort((a, b) => parseFloat(a.lapsToClose) - parseFloat(b.lapsToClose));
+    return battles;
+  };
+
+  // ── Field-wide overview (when no drivers are selected) ──
+  const fieldOverview = useMemo(() => {
+    if (!raceSituationData || selectedDrivers.length > 0) return null;
+
+    const { driverAbbrs, driverFeatures } = raceSituationData;
+    const all = driverAbbrs.filter((d) => driverFeatures[d]);
+    if (all.length < 3) return null;
+
+    // Key battles across the entire field
+    const battles = findBattles(all, driverFeatures, 15, 10);
+
+    // Imminent pit stops
+    const pitSoon = all
+      .filter((d) => driverFeatures[d].estLapsToPit <= 4)
+      .map((d) => ({ abbr: d, laps: driverFeatures[d].estLapsToPit, compound: driverFeatures[d].compoundName }))
+      .sort((a, b) => a.laps - b.laps);
+
+    // Drivers losing pace rapidly
+    const degrading = all
+      .filter((d) => driverFeatures[d].paceTrend > 0.12)
+      .map((d) => ({ abbr: d, trend: driverFeatures[d].paceTrend, compound: driverFeatures[d].compoundName, tyreLife: driverFeatures[d].tyreLife }))
+      .sort((a, b) => b.trend - a.trend);
+
+    // Drivers gaining positions
+    const gainers = all
+      .filter((d) => driverFeatures[d].positionTrend >= 2)
+      .map((d) => ({ abbr: d, gained: driverFeatures[d].positionTrend, pace: driverFeatures[d].recentPace }))
+      .sort((a, b) => b.gained - a.gained);
+
+    // Compound distribution
+    const compoundCounts = {};
+    all.forEach((d) => {
+      const c = driverFeatures[d].compoundName || 'UNKNOWN';
+      compoundCounts[c] = (compoundCounts[c] || 0) + 1;
+    });
+
+    return { battles: battles.slice(0, 8), pitSoon, degrading: degrading.slice(0, 4), gainers: gainers.slice(0, 4), compoundCounts, totalDrivers: all.length };
+  }, [raceSituationData, selectedDrivers]);
+
+  // ── Cluster analysis (selected drivers) ──
   const liveAnalysis = useMemo(() => {
-    if (projectionMode !== 'live' || !raceSituationData || selectedDrivers.length === 0) return null;
+    if (!raceSituationData || selectedDrivers.length === 0) return null;
 
     const allFeatures = raceSituationData.driverFeatures;
     const allAbbrs = raceSituationData.driverAbbrs;
@@ -24,32 +109,11 @@ export default function StrategyAnalysis() {
 
     const rest = allAbbrs.filter((d) => !selected.includes(d) && allFeatures[d]);
 
-    const driverInfoMap = {};
-    for (const d of driversInfo || []) driverInfoMap[d.Abbreviation] = d;
-
-    const meanOf = (drivers, key) => {
-      const vals = drivers.map((d) => allFeatures[d]?.[key]).filter((v) => v != null && Number.isFinite(v));
-      return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-    };
-
-    const cohensD = (selDrivers, restDrivers, key) => {
-      const selVals = selDrivers.map((d) => allFeatures[d]?.[key]).filter((v) => v != null && Number.isFinite(v));
-      const restVals = restDrivers.map((d) => allFeatures[d]?.[key]).filter((v) => v != null && Number.isFinite(v));
-      if (selVals.length < 1 || restVals.length < 1) return { d: 0, selMean: 0, restMean: 0, direction: 'same' };
-      const selMean = selVals.reduce((a, b) => a + b, 0) / selVals.length;
-      const restMean = restVals.reduce((a, b) => a + b, 0) / restVals.length;
-      const selVar = selVals.reduce((s, v) => s + (v - selMean) ** 2, 0) / Math.max(1, selVals.length - 1);
-      const restVar = restVals.reduce((s, v) => s + (v - restMean) ** 2, 0) / Math.max(1, restVals.length - 1);
-      const pooledStd = Math.sqrt((selVar + restVar) / 2);
-      const effect = pooledStd > 1e-10 ? Math.abs(selMean - restMean) / pooledStd : 0;
-      return { d: effect, selMean, restMean, direction: selMean > restMean ? 'higher' : 'lower' };
-    };
-
     const compounds = selected.map((d) => allFeatures[d].compoundName);
     const uniqueCompounds = [...new Set(compounds)];
-    const avgTyreLife = meanOf(selected, 'tyreLife');
-    const avgPace = meanOf(selected, 'recentPace');
-    const avgPosition = meanOf(selected, 'position');
+    const avgTyreLife = meanOf(selected, allFeatures, 'tyreLife');
+    const avgPace = meanOf(selected, allFeatures, 'recentPace');
+    const avgPosition = meanOf(selected, allFeatures, 'position');
 
     const summaryParts = [];
     summaryParts.push(`${selected.length} driver${selected.length > 1 ? 's' : ''} selected`);
@@ -82,7 +146,7 @@ export default function StrategyAnalysis() {
     const featureBars = [];
     for (const key of FEATURE_KEYS) {
       if (rest.length === 0) break;
-      const { d, selMean, restMean, direction } = cohensD(selected, rest, key);
+      const { d, selMean, restMean, direction } = cohensD(selected, rest, allFeatures, key);
       if (d < 0.2) continue;
       const meta = FEATURE_DISPLAY[key];
       const magnitude = d < 0.5 ? 'small' : d < 0.8 ? 'medium' : 'large';
@@ -116,25 +180,8 @@ export default function StrategyAnalysis() {
       }
     }
 
-    const threats = [];
-    for (let i = 0; i < selected.length; i++) {
-      for (let j = i + 1; j < selected.length; j++) {
-        const a = { abbr: selected[i], ...allFeatures[selected[i]] };
-        const b = { abbr: selected[j], ...allFeatures[selected[j]] };
-        const [ahead, behind] = a.position < b.position ? [a, b] : [b, a];
-        const gap = Math.abs(behind.gapToLeader - ahead.gapToLeader);
-        if (gap <= 0 || gap > 30) continue;
-        const paceDelta = behind.recentPace - ahead.recentPace;
-        if (paceDelta >= 0) continue;
-        const lapsToClose = gap / Math.abs(paceDelta);
-        if (lapsToClose > 15) continue;
-        const type = lapsToClose <= 3 ? 'imminent' : lapsToClose <= 7 ? 'approaching' : 'developing';
-        const color = type === 'imminent' ? '#e10600' : type === 'approaching' ? '#ffd700' : '#64C4FF';
-        threats.push({ behind: behind.abbr, ahead: ahead.abbr, gap: gap.toFixed(1),
-          paceDelta: paceDelta.toFixed(2), lapsToClose: lapsToClose.toFixed(0), type, color,
-          behindCompound: behind.compoundName, aheadCompound: ahead.compoundName });
-      }
-    }
+    // Battles among selected + between selected and nearby drivers
+    const threats = findBattles(selected, allFeatures, 30, 15);
     for (const sel of selected) {
       for (const r of rest) {
         const a = { abbr: sel, ...allFeatures[sel] };
@@ -163,18 +210,164 @@ export default function StrategyAnalysis() {
     })).sort((a, b) => a.position - b.position);
 
     return { clusterLabel, summary: summaryParts.join('. ') + '.', featureBars, insights, threats: threats.slice(0, 6), drivers };
-  }, [projectionMode, raceSituationData, selectedDrivers, driversInfo]);
+  }, [raceSituationData, selectedDrivers, driverInfoMap]);
 
-  const isLiveMode = projectionMode === 'live';
+  // ── Shared battle row renderer ──
+  const BattleRow = ({ t, i }) => (
+    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8, fontSize: 'var(--font-size-xs)', lineHeight: 1.5 }}>
+      <span style={{
+        flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
+        backgroundColor: t.color, color: '#000', fontWeight: 900,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px',
+      }}>
+        {t.type === 'imminent' ? '!' : t.type === 'approaching' ? '\u25B6' : '\u2192'}
+      </span>
+      <div>
+        <strong style={{ color: getDriverColor(t.behind) }}>{t.behind}</strong>
+        <span style={{ color: 'var(--color-text-muted)' }}> ({t.behindCompound})</span>
+        {' '}closing on{' '}
+        <strong style={{ color: getDriverColor(t.ahead) }}>{t.ahead}</strong>
+        <span style={{ color: 'var(--color-text-muted)' }}> ({t.aheadCompound})</span>
+        <br />
+        <span style={{ color: 'var(--color-text-muted)' }}>
+          Gap: {t.gap}s | Delta: {t.paceDelta}s/lap | ~{t.lapsToClose} laps
+        </span>
+        {t.isExternal && (
+          <span style={{
+            marginLeft: 6, fontSize: '8px', padding: '1px 4px', borderRadius: 3,
+            backgroundColor: 'rgba(255,255,255,0.08)',
+            color: t.isThreat ? '#e10600' : '#00e676',
+          }}>
+            {t.isThreat ? 'THREAT' : 'OPPORTUNITY'}
+          </span>
+        )}
+      </div>
+    </div>
+  );
 
   return (
-    <Panel title={isLiveMode ? 'Race Analysis' : 'Strategy Analysis'}>
+    <Panel title="Race Analysis">
       <div style={{ flex: 1, overflowY: 'auto' }}>
 
-        {/* ══════════ LIVE MODE ══════════ */}
+        {/* ══════════ FIELD OVERVIEW (no selection) ══════════ */}
 
-        {/* ── CLUSTER ANALYSIS (selected drivers) ── */}
-        {isLiveMode && liveAnalysis && (
+        {fieldOverview && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+
+            {/* Compound distribution bar */}
+            <div style={{
+              background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)',
+            }}>
+              <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                Field Tyre Distribution
+              </h6>
+              <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 6 }}>
+                {Object.entries(fieldOverview.compoundCounts).sort((a, b) => b[1] - a[1]).map(([compound, count]) => (
+                  <div key={compound} style={{
+                    width: `${(count / fieldOverview.totalDrivers) * 100}%`,
+                    backgroundColor: TYRE_COLORS[compound] || '#888',
+                  }} />
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 10, fontSize: '9px', color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
+                {Object.entries(fieldOverview.compoundCounts).sort((a, b) => b[1] - a[1]).map(([compound, count]) => (
+                  <span key={compound}>
+                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: TYRE_COLORS[compound] || '#888', marginRight: 3, verticalAlign: 'middle' }} />
+                    {compound} ({count})
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Key battles */}
+            {fieldOverview.battles.length > 0 && (
+              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Key Battles
+                </h6>
+                {fieldOverview.battles.map((t, i) => <BattleRow key={i} t={t} i={i} />)}
+              </div>
+            )}
+
+            {/* Pit stop alerts */}
+            {fieldOverview.pitSoon.length > 0 && (
+              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Pit Window Open
+                </h6>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {fieldOverview.pitSoon.map((d) => (
+                    <span key={d.abbr} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '3px 8px', borderRadius: 'var(--radius-sm)',
+                      background: d.laps <= 2 ? 'rgba(225,6,0,0.12)' : 'rgba(255,215,0,0.10)',
+                      borderLeft: `2px solid ${d.laps <= 2 ? '#e10600' : '#ffd700'}`,
+                      fontSize: 'var(--font-size-xs)',
+                    }}>
+                      <strong style={{ color: getDriverColor(d.abbr) }}>{d.abbr}</strong>
+                      <span style={{ color: 'var(--color-text-muted)' }}>~{d.laps}L</span>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: TYRE_COLORS[d.compound] || '#888' }} />
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Degradation alerts */}
+            {fieldOverview.degrading.length > 0 && (
+              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Losing Pace
+                </h6>
+                {fieldOverview.degrading.map((d) => (
+                  <div key={d.abbr} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 'var(--font-size-xs)' }}>
+                    <strong style={{ color: getDriverColor(d.abbr), minWidth: 28 }}>{d.abbr}</strong>
+                    <span style={{ color: '#e10600' }}>+{d.trend.toFixed(2)}s/lap</span>
+                    <span style={{ color: 'var(--color-text-muted)' }}>
+                      <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: TYRE_COLORS[d.compound] || '#888', marginRight: 3, verticalAlign: 'middle' }} />
+                      {d.compound} L{d.tyreLife}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Drivers gaining */}
+            {fieldOverview.gainers.length > 0 && (
+              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  On The Move
+                </h6>
+                {fieldOverview.gainers.map((d) => (
+                  <div key={d.abbr} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 'var(--font-size-xs)' }}>
+                    <strong style={{ color: getDriverColor(d.abbr), minWidth: 28 }}>{d.abbr}</strong>
+                    <span style={{ color: '#00e676', fontWeight: 700 }}>+{d.gained} positions</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '4px 0' }}>
+              Select drivers on the map or leaderboard for detailed cluster analysis
+            </div>
+          </div>
+        )}
+
+        {/* ── No data yet ── */}
+        {!raceSituationData && !fieldOverview && !liveAnalysis && (
+          <div className="loading-placeholder" style={{ padding: '20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
+              <strong style={{ color: '#00e676', display: 'block', marginBottom: 8, fontSize: 'var(--font-size-md)' }}>
+                Race Situation Analysis
+              </strong>
+              Waiting for race data to build the situation map...
+            </div>
+          </div>
+        )}
+
+        {/* ══════════ CLUSTER ANALYSIS (selected drivers) ══════════ */}
+
+        {liveAnalysis && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
 
             <div style={{
@@ -194,37 +387,7 @@ export default function StrategyAnalysis() {
                 <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
                   Threats & Opportunities
                 </h6>
-                {liveAnalysis.threats.map((t, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8, fontSize: 'var(--font-size-xs)', lineHeight: 1.5 }}>
-                    <span style={{
-                      flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
-                      backgroundColor: t.color, color: '#000', fontWeight: 900,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px',
-                    }}>
-                      {t.type === 'imminent' ? '!' : t.type === 'approaching' ? '\u25B6' : '\u2192'}
-                    </span>
-                    <div>
-                      <strong style={{ color: getDriverColor(t.behind) }}>{t.behind}</strong>
-                      <span style={{ color: 'var(--color-text-muted)' }}> ({t.behindCompound})</span>
-                      {' '}closing on{' '}
-                      <strong style={{ color: getDriverColor(t.ahead) }}>{t.ahead}</strong>
-                      <span style={{ color: 'var(--color-text-muted)' }}> ({t.aheadCompound})</span>
-                      <br />
-                      <span style={{ color: 'var(--color-text-muted)' }}>
-                        Gap: {t.gap}s | Delta: {t.paceDelta}s/lap | ~{t.lapsToClose} laps
-                      </span>
-                      {t.isExternal && (
-                        <span style={{
-                          marginLeft: 6, fontSize: '8px', padding: '1px 4px', borderRadius: 3,
-                          backgroundColor: 'rgba(255,255,255,0.08)',
-                          color: t.isThreat ? '#e10600' : '#00e676',
-                        }}>
-                          {t.isThreat ? 'THREAT' : 'OPPORTUNITY'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                {liveAnalysis.threats.map((t, i) => <BattleRow key={i} t={t} i={i} />)}
               </div>
             )}
 
@@ -331,161 +494,6 @@ export default function StrategyAnalysis() {
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Live mode empty state ── */}
-        {isLiveMode && !liveAnalysis && selectedDrivers.length === 0 && (
-          <div className="loading-placeholder" style={{ padding: '20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
-              <strong style={{ color: '#00e676', display: 'block', marginBottom: 8, fontSize: 'var(--font-size-md)' }}>
-                Race Situation Analysis
-              </strong>
-              Select drivers on the Race Situation Map or Leaderboard to see
-              <strong> cluster analysis</strong>, strategic insights, and threats/opportunities.
-            </div>
-          </div>
-        )}
-
-        {/* ══════════ HISTORICAL MODE (t-SNE / PCA) ══════════ */}
-
-        {!isLiveMode && !tsneStrategyAnalysis && selectedTSNEPoints.length === 0 && (
-          <div className="loading-placeholder" style={{ padding: '20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
-              <strong style={{ color: 'var(--color-text-primary)', display: 'block', marginBottom: 8, fontSize: 'var(--font-size-md)' }}>
-                What does the scatterplot show?
-              </strong>
-              Each point is one driver's full race performance,
-              projected from <strong style={{ color: 'var(--color-accent-info)' }}>19 features</strong> into 2D.<br /><br />
-              <strong style={{ color: 'var(--color-text-primary)' }}>Points close together = similar race profiles.</strong><br /><br />
-              <div style={{
-                background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)',
-                padding: '12px', textAlign: 'left', marginTop: 8,
-              }}>
-                <div style={{ fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 6, fontSize: 'var(--font-size-xs)', textTransform: 'uppercase' }}>
-                  How to use
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                  <span style={{ color: 'var(--color-accent-info)', fontWeight: 700, minWidth: 16 }}>1.</span>
-                  <span>Find a cluster of nearby points</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                  <span style={{ color: 'var(--color-accent-info)', fontWeight: 700, minWidth: 16 }}>2.</span>
-                  <span><strong>Shift + drag</strong> to lasso-select them</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <span style={{ color: 'var(--color-accent-info)', fontWeight: 700, minWidth: 16 }}>3.</span>
-                  <span>See strategy patterns and feature analysis</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {!isLiveMode && selectedTSNEPoints.length > 0 && !tsneStrategyAnalysis && (
-          <div className="loading-placeholder">
-            <div className="spinner" />
-            <span>Analyzing {selectedTSNEPoints.length} selected points...</span>
-          </div>
-        )}
-
-        {!isLiveMode && tsneStrategyAnalysis && !tsneStrategyAnalysis.error && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-            {tsneStrategyAnalysis.summary && (
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(225,6,0,0.08) 0%, rgba(225,6,0,0.02) 100%)',
-                borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)',
-                borderLeft: '3px solid var(--color-f1-red)',
-              }}>
-                {tsneStrategyAnalysis.cluster_label && (
-                  <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-f1-red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                    {tsneStrategyAnalysis.cluster_label}
-                  </div>
-                )}
-                <div style={{ fontSize: 'var(--font-size-sm)', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>
-                  {tsneStrategyAnalysis.summary}
-                </div>
-              </div>
-            )}
-
-            {tsneStrategyAnalysis.strategies?.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Strategies Used ({tsneStrategyAnalysis.n_selected || selectedTSNEPoints.length} races)
-                </h6>
-                {tsneStrategyAnalysis.strategies.map((strat, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--font-size-xs)', marginBottom: 6 }}>
-                    <span style={{ color: 'var(--color-text-muted)', width: 20, fontSize: '9px' }}>#{i + 1}</span>
-                    {(strat.stints || []).map((s, j) => (
-                      <React.Fragment key={j}>
-                        {j > 0 && <span style={{ color: 'var(--color-text-muted)', fontSize: 8 }}>{'\u2192'}</span>}
-                        <span style={{
-                          padding: '2px 6px', borderRadius: 3,
-                          backgroundColor: TYRE_COLORS[s.compound?.toUpperCase()] || '#888',
-                          color: s.compound?.toUpperCase() === 'HARD' || s.compound?.toUpperCase() === 'MEDIUM' ? '#000' : '#fff',
-                          fontSize: 9, fontWeight: 700,
-                        }}>
-                          {s.compound?.[0]}{s.length > 0 ? s.length : ''}
-                        </span>
-                      </React.Fragment>
-                    ))}
-                    <span style={{ color: 'var(--color-text-muted)', marginLeft: 'auto', fontSize: '10px' }}>
-                      {strat.count} race{strat.count !== 1 ? 's' : ''} ({(strat.frequency * 100).toFixed(0)}%)
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {tsneStrategyAnalysis.common_patterns?.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Compound Usage
-                </h6>
-                {tsneStrategyAnalysis.common_patterns.map((pattern, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 'var(--font-size-sm)' }}>
-                    <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: TYRE_COLORS[pattern.compound] || '#888', flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600 }}>{pattern.compound}</span>
-                    <span style={{ color: 'var(--color-text-muted)' }}>avg {pattern.avg_stint_length?.toFixed(0)} laps/stint</span>
-                    <span style={{ color: 'var(--color-text-muted)', marginLeft: 'auto', fontSize: 'var(--font-size-xs)' }}>
-                      {pattern.count} stint{pattern.count !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {tsneStrategyAnalysis.pit_windows?.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Pit Stop Windows
-                </h6>
-                {tsneStrategyAnalysis.pit_windows.map((w, i) => (
-                  <div key={i} style={{ fontSize: 'var(--font-size-sm)', marginBottom: 4, display: 'flex', gap: 8 }}>
-                    <span style={{ color: 'var(--color-text-muted)', minWidth: 50 }}>Stop {i + 1}</span>
-                    <span>
-                      Lap <strong>{w.lap_start}</strong>{'\u2013'}<strong>{w.lap_end}</strong>
-                      {w.median_lap && <span style={{ color: 'var(--color-text-muted)' }}> (median: {w.median_lap})</span>}
-                    </span>
-                    <span style={{ color: 'var(--color-text-muted)', marginLeft: 'auto' }}>
-                      {w.count} pit{w.count !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {tsneStrategyAnalysis.feature_importance?.length > 0 && (
-              <StrategyBriefing />
-            )}
-          </div>
-        )}
-
-        {!isLiveMode && tsneStrategyAnalysis?.error && (
-          <div className="loading-placeholder" style={{ padding: '20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>
-              {tsneStrategyAnalysis.error}
             </div>
           </div>
         )}

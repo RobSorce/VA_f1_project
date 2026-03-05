@@ -16,7 +16,7 @@ export default function TelemetryStrip({ embedded = false }) {
   const speedRef = useRef(null);
   const deltaRef = useRef(null);
   const throttleRef = useRef(null);
-  const brakeRef = useRef(null);
+  // brakeRef removed — throttle+brake combined into throttleRef
   const gearRef = useRef(null);
   const rpmRef = useRef(null);
   const containerRef = useRef(null);
@@ -357,7 +357,7 @@ export default function TelemetryStrip({ embedded = false }) {
   // ── D3 Rendering (uses full traces — clipPath handles progressive reveal) ──
   useEffect(() => {
     if (traces.length === 0 || dims.width === 0) {
-      [speedRef, deltaRef, throttleRef, brakeRef, gearRef, rpmRef].forEach((ref) => {
+      [speedRef, deltaRef, throttleRef, gearRef, rpmRef].forEach((ref) => {
         if (ref.current) d3.select(ref.current).selectAll('*').remove();
       });
       clipRectsRef.current = [];
@@ -377,13 +377,12 @@ export default function TelemetryStrip({ embedded = false }) {
 
     renderSpeedChart(speedRef.current, sorted, xScale, margin, sectorBoundaries, trackLength);
     renderDeltaChart(deltaRef.current, sorted, xScale, margin, sectorBoundaries);
-    renderThrottleChart(throttleRef.current, sorted, xScale, margin, sectorBoundaries);
-    renderBrakeChart(brakeRef.current, sorted, xScale, margin, sectorBoundaries);
+    renderThrottleBrakeChart(throttleRef.current, sorted, xScale, margin, sectorBoundaries);
     renderGearChart(gearRef.current, sorted, xScale, margin, sectorBoundaries);
     renderRPMChart(rpmRef.current, sorted, xScale, margin, sectorBoundaries);
 
     // Add clipPaths for progressive reveal (only clips trace <path> elements)
-    const svgRefs = [speedRef, deltaRef, throttleRef, brakeRef, gearRef, rpmRef];
+    const svgRefs = [speedRef, deltaRef, throttleRef, gearRef, rpmRef];
     const clipDist = currentDistRef.current;
     const clipX = (clipDist != null && clipDist > 0) ? xScale(clipDist) : null;
 
@@ -658,14 +657,9 @@ export default function TelemetryStrip({ embedded = false }) {
                 <svg ref={deltaRef} />
               </div>
             )}
-            {telemetryChannels.throttle && (
-              <div className="telemetry-strip__chart telemetry-strip__chart--throttle">
+            {(telemetryChannels.throttle || telemetryChannels.brake) && (
+              <div className="telemetry-strip__chart telemetry-strip__chart--throttle-brake">
                 <svg ref={throttleRef} />
-              </div>
-            )}
-            {telemetryChannels.brake && (
-              <div className="telemetry-strip__chart telemetry-strip__chart--brake">
-                <svg ref={brakeRef} />
               </div>
             )}
             {telemetryChannels.gear && (
@@ -755,8 +749,11 @@ export default function TelemetryStrip({ embedded = false }) {
                     <span className="telem-crosshair-tooltip__val">
                       {v.speed != null ? `${Math.round(v.speed)} kph` : '—'}
                     </span>
-                    <span className="telem-crosshair-tooltip__val telem-crosshair-tooltip__val--dim">
+                    <span className="telem-crosshair-tooltip__val telem-crosshair-tooltip__val--dim" style={{ color: '#00e676' }}>
                       {v.throttle != null ? `${Math.round(v.throttle)}%T` : ''}
+                    </span>
+                    <span className="telem-crosshair-tooltip__val telem-crosshair-tooltip__val--dim" style={{ color: '#e10600' }}>
+                      {v.brake != null ? `${Math.round(typeof v.brake === 'boolean' ? (v.brake ? 100 : 0) : v.brake)}%B` : ''}
                     </span>
                     <span className="telem-crosshair-tooltip__val telem-crosshair-tooltip__val--dim">
                       G{v.gear != null ? v.gear : '—'}
@@ -1084,53 +1081,47 @@ function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries) {
   });
 }
 
-function renderThrottleChart(svgEl, traces, xScale, margin, sectorBoundaries) {
+function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundaries) {
   const ctx = prepSvg(svgEl);
   if (!ctx) return;
   const { g, width, height } = ctx;
   const m = { ...margin, bottom: 14 };
 
-  const yScale = d3.scaleLinear().domain([0, 100]).range([height - m.bottom, m.top]);
+  // Split chart: throttle goes up from center, brake goes down
+  const midY = (m.top + (height - m.bottom)) / 2;
+
+  // Throttle Y: 0 at midY → 100 at top
+  const yThrottle = d3.scaleLinear().domain([0, 100]).range([midY, m.top]);
+  // Brake Y: 0 at midY → 100 at bottom (inverted)
+  const yBrake = d3.scaleLinear().domain([0, 100]).range([midY, height - m.bottom]);
 
   drawSectorLines(g, sectorBoundaries, xScale, m.top, height - m.bottom);
 
-  g.append('text').attr('class', 'telem-chart-label')
-    .attr('x', m.left + 4).attr('y', m.top + 9)
-    .text('THROTTLE (%)');
+  // Center dividing line (0%)
+  g.append('line')
+    .attr('x1', m.left).attr('x2', width - m.right)
+    .attr('y1', midY).attr('y2', midY)
+    .attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 0.5);
 
-  // X axis
+  // Y axis — throttle side (upward: 0 → 100%)
   g.append('g').attr('class', 'telem-axis')
-    .attr('transform', `translate(0,${height - m.bottom})`)
-    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat((d) => `${(d / 1000).toFixed(1)}k`))
+    .attr('transform', `translate(${m.left},0)`)
+    .call(d3.axisLeft(yThrottle).tickValues([0, 50, 100]).tickSize(-3).tickFormat((d) => `${d}%`))
     .call((el) => el.select('.domain').remove());
 
-  const area = d3.area()
-    .x((d) => xScale(d.Distance))
-    .y0(height - m.bottom)
-    .y1((d) => yScale(d.Throttle != null ? d.Throttle : 0))
-    .defined((d) => d.Distance != null)
-    .curve(d3.curveMonotoneX);
+  // Y axis — brake side (downward: 0 → 100%)
+  g.append('g').attr('class', 'telem-axis')
+    .attr('transform', `translate(${m.left},0)`)
+    .call(d3.axisLeft(yBrake).tickValues([50, 100]).tickSize(-3).tickFormat((d) => `${d}%`))
+    .call((el) => el.select('.domain').remove());
 
-  traces.forEach((t) => {
-    g.append('path').datum(t.data)
-      .attr('class', t.isFocus ? 'telem-throttle-area telem-throttle-area--focus' : 'telem-throttle-area')
-      .attr('d', area)
-      .attr('fill', t.isFocus ? '#00e676' : t.color);
-  });
-}
-
-function renderBrakeChart(svgEl, traces, xScale, margin, sectorBoundaries) {
-  const ctx = prepSvg(svgEl);
-  if (!ctx) return;
-  const { g, width, height } = ctx;
-  const m = { ...margin, bottom: 14 };
-
-  const yScale = d3.scaleLinear().domain([0, 100]).range([height - m.bottom, m.top]);
-
-  drawSectorLines(g, sectorBoundaries, xScale, m.top, height - m.bottom);
-
+  // Labels
   g.append('text').attr('class', 'telem-chart-label')
     .attr('x', m.left + 4).attr('y', m.top + 9)
+    .text('THROTTLE');
+
+  g.append('text').attr('class', 'telem-chart-label')
+    .attr('x', m.left + 4).attr('y', height - m.bottom - 3)
     .text('BRAKE');
 
   // X axis
@@ -1139,21 +1130,65 @@ function renderBrakeChart(svgEl, traces, xScale, margin, sectorBoundaries) {
     .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat((d) => `${(d / 1000).toFixed(1)}k`))
     .call((el) => el.select('.domain').remove());
 
-  const area = d3.area()
+  // ── Throttle area (transparent fill) + line (solid border) ──
+  const throttleArea = d3.area()
     .x((d) => xScale(d.Distance))
-    .y0(height - m.bottom)
+    .y0(midY)
+    .y1((d) => yThrottle(d.Throttle != null ? d.Throttle : 0))
+    .defined((d) => d.Distance != null)
+    .curve(d3.curveMonotoneX);
+
+  const throttleLine = d3.line()
+    .x((d) => xScale(d.Distance))
+    .y((d) => yThrottle(d.Throttle != null ? d.Throttle : 0))
+    .defined((d) => d.Distance != null)
+    .curve(d3.curveMonotoneX);
+
+  // ── Brake area (transparent fill, inverted) + line (solid border) ──
+  const brakeArea = d3.area()
+    .x((d) => xScale(d.Distance))
+    .y0(midY)
     .y1((d) => {
       const v = d.Brake != null ? (typeof d.Brake === 'boolean' ? (d.Brake ? 100 : 0) : d.Brake) : 0;
-      return yScale(v);
+      return yBrake(v);
+    })
+    .defined((d) => d.Distance != null)
+    .curve(d3.curveMonotoneX);
+
+  const brakeLine = d3.line()
+    .x((d) => xScale(d.Distance))
+    .y((d) => {
+      const v = d.Brake != null ? (typeof d.Brake === 'boolean' ? (d.Brake ? 100 : 0) : d.Brake) : 0;
+      return yBrake(v);
     })
     .defined((d) => d.Distance != null)
     .curve(d3.curveMonotoneX);
 
   traces.forEach((t) => {
+    const throttleColor = t.isFocus ? '#00e676' : t.color;
+    const brakeColor = t.isFocus ? '#e10600' : t.color;
+
+    // All drivers get area fill; focus gets special class for lower opacity + glow
+    g.append('path').datum(t.data)
+      .attr('class', t.isFocus ? 'telem-throttle-area telem-throttle-area--focus' : 'telem-throttle-area')
+      .attr('d', throttleArea)
+      .attr('fill', throttleColor);
+
     g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-brake-area telem-brake-area--focus' : 'telem-brake-area')
-      .attr('d', area)
-      .attr('fill', t.isFocus ? '#e10600' : t.color);
+      .attr('d', brakeArea)
+      .attr('fill', brakeColor);
+
+    // All drivers get the line; focus gets glow
+    g.append('path').datum(t.data)
+      .attr('class', t.isFocus ? 'telem-throttle-line telem-throttle-line--focus' : 'telem-throttle-line')
+      .attr('d', throttleLine)
+      .attr('stroke', throttleColor);
+
+    g.append('path').datum(t.data)
+      .attr('class', t.isFocus ? 'telem-brake-line telem-brake-line--focus' : 'telem-brake-line')
+      .attr('d', brakeLine)
+      .attr('stroke', brakeColor);
   });
 }
 

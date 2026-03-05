@@ -25,9 +25,15 @@ data/cache/
 # Large Datasets (CSV)
 # Assuming source code doesn't require these to run if they are fetched/generated
 f1_dataset/
-backend/data/
+backend/data/processed_cache/
+backend/data/processed/
 data/
+
+# Build artifacts
+frontend/dist/
 
 # Node
 node_modules/
 npm-debug.log
+
+

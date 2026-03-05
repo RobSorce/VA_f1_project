@@ -113,13 +113,20 @@ export default function DriverMFDCard() {
 
   const teamName = driverInfo?.TeamName || '';
 
-  // Clamp position to viewport
+  // Position the card: to the right of the cursor, biased strongly upward
+  // so it doesn't cover the timeline player at the bottom
   const cardW = 260;
   const cardH = 180;
   let left = highlightedDriverPosition.x + 16;
-  let top = highlightedDriverPosition.y - 10;
+  // Place card above the cursor position (top-aligned to cursor)
+  let top = highlightedDriverPosition.y - cardH + 20;
+
+  // Flip horizontally if going off-screen
   if (left + cardW > window.innerWidth) left = highlightedDriverPosition.x - cardW - 16;
-  if (top + cardH > window.innerHeight) top = window.innerHeight - cardH - 8;
+
+  // Clamp: never go below 50% of the viewport, never above 8px
+  const maxTop = Math.floor(window.innerHeight * 0.5) - cardH;
+  if (top > maxTop) top = maxTop;
   if (top < 8) top = 8;
 
   const fmtTime = (s) => {

@@ -81,11 +81,21 @@ def train_model():
         with open(stats_path) as f:
             data_stats = json.load(f)
     else:
-        # Compute from y if stats not saved
+        # WARNING: If y was loaded from .npy, it is already normalized (mean~0, std~1).
+        # We cannot recover the original scale here. Save a warning and use
+        # reasonable defaults for F1 lap times.
+        logger.warning(
+            "data_stats.json not found. y data may already be normalized. "
+            "Using default lap time scale (mean=90s, std=5s). "
+            "Re-run prepare_data to generate correct stats."
+        )
         data_stats = {
-            'y_time_mean': float(y[:, :5].mean()),
-            'y_time_std': float(y[:, :5].std()),
+            'y_time_mean': 90.0,
+            'y_time_std': 5.0,
         }
+        # Save so future runs don't hit this again
+        with open(stats_path, 'w') as f:
+            json.dump(data_stats, f, indent=2)
 
     logger.info(f"Training data: X={X.shape}, y={y.shape}")
 

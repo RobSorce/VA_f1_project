@@ -28,11 +28,11 @@ export const DRIVER_COLORS = {
   HUL: '#B6BABD', MAG: '#B6BABD', BEA: '#B6BABD',
 };
 
-// Tyre compound colors (official F1)
+// Tyre compound colors — F1 broadcast standard
 export const TYRE_COLORS = {
   SOFT: '#e10600',
   MEDIUM: '#ffd700',
-  HARD: '#ffffff',
+  HARD: '#FFFFFF',
   INTERMEDIATE: '#00e676',
   WET: '#2196f3',
   UNKNOWN: '#888888',
