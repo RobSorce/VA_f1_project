@@ -133,6 +133,8 @@ class LiveSessionManager:
                 await self._handle_track_status(data)
             elif topic == "RaceControlMessages":
                 await self._handle_race_control(data)
+            elif topic == "TimingStats":
+                await self._handle_timing_stats(data)
             elif topic == "SessionInfo":
                 await self._handle_session_info(data)
             elif topic == "SessionStatus":
@@ -256,6 +258,55 @@ class LiveSessionManager:
                     "type": "race_control",
                     "data": msg,
                 })
+
+    async def _handle_timing_stats(self, data: Dict):
+        """TimingStats contains per-driver personal bests — extract best lap times."""
+        lines = data.get("Lines", data)
+        if not isinstance(lines, dict):
+            return
+        for num, stats in lines.items():
+            if not isinstance(stats, dict):
+                continue
+            abbr = self.normalizer.get_abbreviation(num)
+            self.normalizer._ensure_driver_state(abbr)
+            state = self.normalizer.driver_state[abbr]
+
+            # PersonalBestLapTime → emit a lap entry if better than current best
+            pb = stats.get("PersonalBestLapTime")
+            if isinstance(pb, dict):
+                from .data_normalizer import _parse_lap_time
+                val = pb.get("Value")
+                pb_sec = _parse_lap_time(val) if val else None
+                if pb_sec and pb_sec > 0:
+                    if state["best_lap_time"] is None or pb_sec < state["best_lap_time"]:
+                        state["best_lap_time"] = pb_sec
+                        lap_entry = {
+                            "Driver": abbr,
+                            "DriverNumber": str(num),
+                            "LapNumber": max(state["current_lap"], 1),
+                            "LapTime": pb_sec,
+                            "LapTimeSeconds": pb_sec,
+                            "Sector1Time": None, "Sector1TimeSeconds": None,
+                            "Sector2Time": None, "Sector2TimeSeconds": None,
+                            "Sector3Time": None, "Sector3TimeSeconds": None,
+                            "Position": state["position"],
+                            "Compound": state["compound"],
+                            "TyreLife": state["tyre_life"],
+                            "GapToLeader": state["gap_to_leader"],
+                            "IntervalToAhead": state["interval"],
+                            "IsPersonalBest": True,
+                            "PitInTime": None, "PitOutTime": None,
+                            "PitInTimeSeconds": None, "PitOutTimeSeconds": None,
+                            "Team": self.normalizer.driver_map.get(str(num), {}).get("TeamName", ""),
+                            "Stint": state["stint_number"],
+                            "SpeedI1": None, "SpeedI2": None,
+                            "SpeedFL": None, "SpeedST": None,
+                        }
+                        self.lap_times.append(lap_entry)
+                        await self._broadcast({
+                            "type": "lap_update",
+                            "data": lap_entry,
+                        })
 
     async def _handle_session_info(self, data: Dict):
         self.session_info = self.normalizer.process_session_info(data)

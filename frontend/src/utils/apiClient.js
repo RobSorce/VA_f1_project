@@ -76,6 +76,7 @@ export const getLiveSnapshot = () => client.get('/live/snapshot').then((r) => r.
 export const getLiveFrames = () => client.get('/live/frames').then((r) => r.data);
 export const connectSignalR = () => client.get('/live/connect-signalr').then((r) => r.data);
 export const disconnectSignalR = () => client.get('/live/disconnect-signalr').then((r) => r.data);
+export const loadLiveFullSession = () => client.get('/live/load-full-session', { timeout: 600000 }).then((r) => r.data);
 export const getMockSessions = () => client.get('/live/mock/sessions').then((r) => r.data);
 export const startMockReplay = (year, round, speed = 10) =>
   client.get('/live/mock/start', { params: { year, round, speed } }).then((r) => r.data);

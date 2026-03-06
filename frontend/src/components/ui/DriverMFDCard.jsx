@@ -267,7 +267,7 @@ export default function DriverMFDCard() {
                 if (!point) return <span>No feature data for this driver</span>;
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span style={{ color: 'rgba(255,255,255,0.6)' }}>t-SNE Embedding</span>
+                    <span style={{ color: 'rgba(255,255,255,0.6)' }}>PCA Embedding</span>
                     <Row label="x" value={point.x.toFixed(2)} />
                     <Row label="y" value={point.y.toFixed(2)} />
                     <Row label="Team" value={point.team} />
@@ -276,7 +276,7 @@ export default function DriverMFDCard() {
                 );
               })()
             ) : (
-              <span>Load t-SNE embeddings to see features</span>
+              <span>Load PCA embeddings to see features</span>
             )}
           </div>
         )}

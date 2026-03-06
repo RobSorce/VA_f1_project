@@ -73,6 +73,7 @@ export default function TrackMap({ compact = false }) {
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
   const drivers = useF1Store((s) => s.drivers);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
 
   // Track overlay toggles — synced with store for keyboard shortcuts
   const showTrackSectors = useF1Store((s) => s.showTrackSectors);
@@ -1125,9 +1126,19 @@ export default function TrackMap({ compact = false }) {
           borderRadius: '8px',
           width: '100%',
           height: '100%',
+          position: 'relative',
         }}
       >
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+        {isLiveMode && (!frameData?.frames?.length) && (
+          <div style={{
+            position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 10, padding: '2px 8px', borderRadius: 3,
+            background: 'rgba(0,0,0,0.6)', fontSize: 8, color: '#777', whiteSpace: 'nowrap',
+          }}>
+            No live positions
+          </div>
+        )}
       </div>
     );
   }
@@ -1225,6 +1236,18 @@ export default function TrackMap({ compact = false }) {
                 return info?.FullName?.toUpperCase() || winnerAbbr;
               })()} WINS
             </span>
+          </div>
+        )}
+
+        {/* Live mode: no position data available */}
+        {isLiveMode && (!frameData?.frames?.length) && (
+          <div style={{
+            position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 10, padding: '3px 10px', borderRadius: 4,
+            background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.08)',
+            fontSize: 9, color: '#888', letterSpacing: '0.04em', whiteSpace: 'nowrap',
+          }}>
+            Live car positions unavailable — timing data active
           </div>
         )}
 

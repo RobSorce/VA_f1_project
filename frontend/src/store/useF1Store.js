@@ -11,80 +11,6 @@ let _scheduleYear = null;
 // Module-level generation counter for loadSession to prevent stale async responses
 let _sessionLoadGeneration = 0;
 
-// ── Auto-arrange layout presets ──────────────────────────────────
-// Each layout is a function: (overlayIds) => { [tabId]: { left, top, width, height } }
-const ARRANGE_LAYOUTS = {
-  1: [
-    (ids) => ({ [ids[0]]: { left: '0%', top: '0%', width: '100%', height: '100%' } }),
-  ],
-  2: [
-    // Side-by-side
-    (ids) => ({
-      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '100%' },
-      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '100%' },
-    }),
-    // Stacked
-    (ids) => ({
-      [ids[0]]: { left: '0%', top: '0%', width: '100%', height: '50%' },
-      [ids[1]]: { left: '0%', top: '50%', width: '100%', height: '50%' },
-    }),
-  ],
-  3: [
-    // 1 left + 2 right stacked
-    (ids) => ({
-      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '100%' },
-      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '50%' },
-      [ids[2]]: { left: '50%', top: '50%', width: '50%', height: '50%' },
-    }),
-    // 3 equal columns
-    (ids) => ({
-      [ids[0]]: { left: '0%', top: '0%', width: '33.33%', height: '100%' },
-      [ids[1]]: { left: '33.33%', top: '0%', width: '33.34%', height: '100%' },
-      [ids[2]]: { left: '66.67%', top: '0%', width: '33.33%', height: '100%' },
-    }),
-    // 2 top + 1 bottom
-    (ids) => ({
-      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '50%' },
-      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '50%' },
-      [ids[2]]: { left: '0%', top: '50%', width: '100%', height: '50%' },
-    }),
-  ],
-  4: [
-    // 2x2 grid
-    (ids) => ({
-      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '50%' },
-      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '50%' },
-      [ids[2]]: { left: '0%', top: '50%', width: '50%', height: '50%' },
-      [ids[3]]: { left: '50%', top: '50%', width: '50%', height: '50%' },
-    }),
-    // 1 left + 3 right stacked
-    (ids) => ({
-      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '100%' },
-      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '33.33%' },
-      [ids[2]]: { left: '50%', top: '33.33%', width: '50%', height: '33.34%' },
-      [ids[3]]: { left: '50%', top: '66.67%', width: '50%', height: '33.33%' },
-    }),
-  ],
-};
-
-function autoGridLayout(ids) {
-  const n = ids.length;
-  const cols = Math.ceil(Math.sqrt(n));
-  const rows = Math.ceil(n / cols);
-  const tiles = {};
-  ids.forEach((id, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    tiles[id] = {
-      left: `${(col / cols) * 100}%`,
-      top: `${(row / rows) * 100}%`,
-      width: `${100 / cols}%`,
-      height: `${100 / rows}%`,
-    };
-  });
-  return tiles;
-}
-
 export const useF1Store = create(persist((set, get) => ({
   // ── Session ─────────────────────────────────────────────────────
   year: 2024,
@@ -106,6 +32,8 @@ export const useF1Store = create(persist((set, get) => ({
   liveConnected: false,          // WebSocket connected
   liveSessionInfo: null,         // {event_name, session_type, ...}
   liveConnectionStatus: 'disconnected', // 'connected'|'disconnected'|'reconnecting'
+  liveStandings: null,           // driver standings from live position updates
+  raceControlMessages: [],       // live race control messages
 
   // ── Qualifying replay ──────────────────────────────────────────
   qualiSegments: null,     // {Q1: {frames, driver_colors, ...}, Q2: {...}, Q3: {...}}
@@ -172,6 +100,23 @@ export const useF1Store = create(persist((set, get) => ({
   loadSession: async () => {
     const { year, round, sessionType } = get();
     if (!year || !round) return;
+
+    // If switching from live mode, disconnect first
+    if (get().isLiveMode) {
+      try {
+        const { liveWS } = await import('../utils/liveWebSocket');
+        liveWS.disconnect();
+        await api.stopMockReplay().catch(() => {});
+      } catch (_) { /* ignore */ }
+      set({
+        isLiveMode: false,
+        liveConnected: false,
+        liveSessionInfo: null,
+        liveConnectionStatus: 'disconnected',
+        liveStandings: null,
+        raceControlMessages: [],
+      });
+    }
 
     // Increment generation counter to invalidate any in-flight loads
     const generation = ++_sessionLoadGeneration;
@@ -294,11 +239,20 @@ export const useF1Store = create(persist((set, get) => ({
         await new Promise((r) => setTimeout(r, 500));
       }
 
-      // Get live status
-      const status = await api.getLiveStatus();
+      // Get live status — if not active, try connecting SignalR first
+      let status = await api.getLiveStatus();
       if (!status.active && !mockYear) {
-        set({ isLoading: false, error: 'No active F1 session' });
-        return;
+        // Attempt to connect to F1 live timing
+        try {
+          await api.connectSignalR();
+          // Wait for connection and initial data
+          await new Promise((r) => setTimeout(r, 3000));
+          status = await api.getLiveStatus();
+        } catch (_) { /* ignore */ }
+        if (!status.active) {
+          set({ isLoading: false, error: 'No active F1 session. SignalR connection failed or no session running.' });
+          return;
+        }
       }
 
       // Get full snapshot
@@ -313,6 +267,10 @@ export const useF1Store = create(persist((set, get) => ({
 
       // Load circuit info if available
       let circuitInfo = snapshot.circuit_info || null;
+      // If circuit_info exists but has no track_coordinates, it's metadata only
+      if (circuitInfo && !circuitInfo.track_coordinates) {
+        circuitInfo = null;
+      }
 
       set({
         isLiveMode: true,
@@ -338,12 +296,53 @@ export const useF1Store = create(persist((set, get) => ({
         _prevPcaResult: null,
       });
 
+      // If no track coordinates in snapshot, try loading from cached session
+      if (!circuitInfo && mockYear && mockRound) {
+        try {
+          const cached = await api.getCircuit(mockYear, mockRound);
+          if (cached?.track_coordinates?.length) {
+            set({ circuitInfo: cached });
+          }
+        } catch (_) { /* ignore — track map just won't show */ }
+      }
+
+      // If session has already ended, load full data from FastF1
+      // (SignalR snapshot only has current state, not full lap history)
+      const sessionStatus = status.session_status || '';
+      const isFinished = ['Ends', 'Finished', 'Finalised'].includes(sessionStatus);
+      if (isFinished) {
+        try {
+          console.log('Session finished — loading full data from FastF1...');
+          const fullData = await api.loadLiveFullSession();
+          if (fullData && fullData.lap_times?.length > 0 && !fullData.error) {
+            const fullLapTimes = fullData.lap_times;
+            let fullMaxLap = 1;
+            for (const lt of fullLapTimes) {
+              if (lt.LapNumber && lt.LapNumber > fullMaxLap) fullMaxLap = lt.LapNumber;
+            }
+            const fullCircuitInfo = fullData.circuit_info?.track_coordinates
+              ? fullData.circuit_info : get().circuitInfo;
+            set({
+              sessionData: fullData,
+              drivers: fullData.driver_info || get().drivers,
+              trackStatus: fullData.track_status || get().trackStatus,
+              maxLap: fullMaxLap,
+              currentLap: fullMaxLap,
+              circuitInfo: fullCircuitInfo,
+            });
+            console.log(`Full session loaded: ${fullLapTimes.length} lap entries, ${fullMaxLap} laps`);
+          }
+        } catch (e) {
+          console.warn('Could not load full session data:', e.message);
+        }
+      }
+
       // Connect WebSocket for incremental updates
       liveWS.connect(
         (msg) => get()._handleLiveMessage(msg),
-        (status) => set({
-          liveConnected: status === 'connected',
-          liveConnectionStatus: status,
+        (statusVal) => set({
+          liveConnected: statusVal === 'connected',
+          liveConnectionStatus: statusVal,
         }),
       );
 
@@ -366,6 +365,8 @@ export const useF1Store = create(persist((set, get) => ({
       liveConnected: false,
       liveSessionInfo: null,
       liveConnectionStatus: 'disconnected',
+      liveStandings: null,
+      raceControlMessages: [],
       sessionData: null,
       drivers: [],
       frameData: null,
@@ -399,6 +400,11 @@ export const useF1Store = create(persist((set, get) => ({
         // Trigger LSTM predictions every 2 laps
         if (newMaxLap > 2 && newMaxLap % 2 === 0 && state.triggerLSTMPredictions) {
           state.triggerLSTMPredictions();
+        }
+
+        // Compute race situation (PCA + Monte Carlo) every lap
+        if (newMaxLap >= 3) {
+          setTimeout(() => get().computeRaceSituation(), 0);
         }
         break;
       }
@@ -455,6 +461,17 @@ export const useF1Store = create(persist((set, get) => ({
 
       case 'session_info': {
         set({ liveSessionInfo: data });
+        // Also update sessionData so UI components (WeatherBar, SessionInfoBar) see the name
+        if (data && state.sessionData) {
+          const updatedCircuit = { ...(state.sessionData.circuit_info || {}), ...data };
+          set({
+            sessionData: { ...state.sessionData, circuit_info: updatedCircuit },
+          });
+          // If circuit_info gained track coordinates, update circuitInfo too
+          if (data.circuit_info?.track_coordinates) {
+            set({ circuitInfo: data.circuit_info });
+          }
+        }
         break;
       }
 
@@ -478,8 +495,12 @@ export const useF1Store = create(persist((set, get) => ({
       }
 
       case 'race_control': {
-        // Could display race control messages in UI
-        console.log('[Live] Race Control:', data);
+        set((s) => ({
+          raceControlMessages: [
+            ...s.raceControlMessages,
+            { ...data, timestamp: Date.now() },
+          ],
+        }));
         break;
       }
 
@@ -540,58 +561,54 @@ export const useF1Store = create(persist((set, get) => ({
   rotateTrackCCW: () => set(s => ({ trackRotationOffset: (s.trackRotationOffset + 90) % 360 })),
   resetTrackRotation: () => set({ trackRotationOffset: 0 }),
 
-  // ── Tab / Panel system (multi-window) ──────────────────────────
-  activeTab: 'charts', // kept for compat — 'charts' means no legacy overlay
-  openOverlays: [],    // array of tab IDs currently open as windows (max 3)
+  // ── Tab system (v3: single active tab, no floating overlays) ───
+  activeTab: 'pitwall',  // which content fills the main area
+  setActiveTab: (tab) => set({ activeTab: tab }),
 
-  setActiveTab: (tab) => {
-    // Legacy compat: 'charts' closes all overlays, otherwise toggle
-    if (tab === 'charts') {
-      set({ activeTab: 'charts', openOverlays: [], overlayTiles: {}, _arrangeIdx: 0 });
-    } else {
-      set((s) => {
-        const already = s.openOverlays.includes(tab);
-        if (already) {
-          const next = s.openOverlays.filter((t) => t !== tab);
-          const tiles = { ...s.overlayTiles };
-          delete tiles[tab];
-          return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles, _arrangeIdx: 0 };
-        }
-        const next = [...s.openOverlays, tab];
-        return { openOverlays: next, activeTab: tab, _arrangeIdx: 0 };
-      });
-    }
+  // ── Layout mode (v3 hybrid: pitwall vs analysis) ──────────────
+  layoutMode: 'pitwall', // 'pitwall' | 'analysis'
+  setLayoutMode: (mode) => set({ layoutMode: mode }),
+  toggleLayoutMode: () => set((s) => ({
+    layoutMode: s.layoutMode === 'pitwall' ? 'analysis' : 'pitwall',
+  })),
+
+  // ── Analysis slot selections ──────────────────────────────────
+  analysisSlots: {
+    slotA: 'laptimes',
+    slotB: 'trackmap',
+    slotC: 'tiredeg',
   },
-
-  focusOverlay: (tab) => set((s) => {
-    if (!s.openOverlays.includes(tab)) return s;
-    return { activeTab: tab };
+  slotCVisible: true,
+  splitVertical: 0.5,
+  splitHorizontal: 0.65,
+  setSplitVertical: (ratio) => set({
+    splitVertical: Math.max(0.2, Math.min(0.8, ratio))
   }),
-
-  closeOverlay: (tab) => set((s) => {
-    const next = s.openOverlays.filter((t) => t !== tab);
-    const tiles = { ...s.overlayTiles };
-    delete tiles[tab];
-    return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles };
+  setSplitHorizontal: (ratio) => set({
+    splitHorizontal: Math.max(0.3, Math.min(0.9, ratio))
   }),
-
-  closeAllOverlays: () => set({ openOverlays: [], activeTab: 'charts', overlayTiles: {}, _arrangeIdx: 0 }),
-
-  cycleOverlay: (direction = 1) => set((s) => {
-    if (s.openOverlays.length === 0) return s;
-    const idx = s.openOverlays.indexOf(s.activeTab);
-    const len = s.openOverlays.length;
-    const next = s.openOverlays[((idx === -1 ? 0 : idx) + direction + len) % len];
-    return { activeTab: next };
+  resetSplits: () => set({ splitVertical: 0.5, splitHorizontal: 0.65 }),
+  setSlotContent: (slot, vizId) => set((s) => ({
+    analysisSlots: { ...s.analysisSlots, [slot]: vizId },
+  })),
+  applyPreset: (preset) => set({
+    analysisSlots: { slotA: preset.slotA, slotB: preset.slotB, slotC: preset.slotC },
+    splitVertical: preset.splitV ?? 0.5,
+    splitHorizontal: preset.splitH ?? 0.65,
+    slotCVisible: !!preset.slotC,
+    layoutMode: 'analysis',
   }),
+  toggleSlotC: () => set((s) => ({ slotCVisible: !s.slotCVisible })),
+
+  // ── Gemini floating panel ─────────────────────────────────────
+  geminiPanelOpen: false,
+  toggleGeminiPanel: () => set((s) => ({ geminiPanelOpen: !s.geminiPanelOpen })),
 
   // ── Settings (persist across sessions) ──────────────────────────
   theme: 'dark',         // 'dark' | 'light'
   tempUnit: 'C',         // 'C' | 'F'
   speedUnit: 'kmh',      // 'kmh' | 'mph'
   // playbackSpeed uses existing playSpeed / setPlaySpeed below
-  overlayTiles: {},      // { [tabId]: 'left'|'right'|'maximize' | { left, top, width, height } }
-  _arrangeIdx: 0,       // current layout cycle index for Ctrl+G
   showDashboard: true,   // show/hide bottom tab bar (macOS Dock-style)
   leaderboardCollapsed: false, // collapse/expand leaderboard sidebar
   telemetryChannels: { speed: true, delta: true, throttle: true, brake: true, gear: true, rpm: true },
@@ -604,41 +621,6 @@ export const useF1Store = create(persist((set, get) => ({
   toggleLeaderboard: () => set((s) => ({ leaderboardCollapsed: !s.leaderboardCollapsed })),
   setSpeedUnit: (speedUnit) => set({ speedUnit }),
   // playbackSpeed uses setPlaySpeed (see Simulation section)
-  tileOverlay: (tabId, tile) => set((s) => ({
-    overlayTiles: { ...s.overlayTiles, [tabId]: tile },
-  })),
-  clearTile: (tabId) => set((s) => {
-    const next = { ...s.overlayTiles };
-    delete next[tabId];
-    return { overlayTiles: next };
-  }),
-  tileActiveOverlay: (tile) => set((s) => {
-    if (s.openOverlays.length === 0) return s;
-    const tabId = s.activeTab;
-    if (!s.openOverlays.includes(tabId)) return s;
-    // If already tiled with the same tile, clear it (toggle behavior)
-    if (s.overlayTiles[tabId] === tile) {
-      const next = { ...s.overlayTiles };
-      delete next[tabId];
-      return { overlayTiles: next };
-    }
-    return { overlayTiles: { ...s.overlayTiles, [tabId]: tile } };
-  }),
-  arrangeOverlays: () => set((s) => {
-    const ids = s.openOverlays;
-    if (ids.length === 0) return s;
-    const presets = ARRANGE_LAYOUTS[ids.length];
-    const totalLayouts = presets ? presets.length : 1; // 1 for auto-grid
-    const nextIdx = (s._arrangeIdx + 1) % (totalLayouts + 1); // +1 for "reset to default"
-    // Index 0 = reset to default flow
-    if (nextIdx === 0) {
-      return { overlayTiles: {}, _arrangeIdx: 0 };
-    }
-    const tiles = presets
-      ? presets[nextIdx - 1](ids)
-      : autoGridLayout(ids);
-    return { overlayTiles: tiles, _arrangeIdx: nextIdx };
-  }),
   setShowDashboard: (show) => set({ showDashboard: show }),
   setTelemetryChannel: (channel, enabled) => set((s) => ({
     telemetryChannels: { ...s.telemetryChannels, [channel]: enabled },
@@ -662,8 +644,7 @@ export const useF1Store = create(persist((set, get) => ({
     currentLap: 1,
     maxLap: 1,
     isPlaying: false,
-    activeTab: 'charts',
-    openOverlays: [],
+    activeTab: 'pitwall',
     activePanel: null,
     sectorRankings: null,
     consistencyData: null,
@@ -1481,8 +1462,12 @@ export const useF1Store = create(persist((set, get) => ({
     tempUnit: state.tempUnit,
     speedUnit: state.speedUnit,
     playSpeed: state.playSpeed,
-    overlayTiles: state.overlayTiles,
     showDashboard: state.showDashboard,
+    layoutMode: state.layoutMode,
+    analysisSlots: state.analysisSlots,
+    slotCVisible: state.slotCVisible,
+    splitVertical: state.splitVertical,
+    splitHorizontal: state.splitHorizontal,
     telemetryChannels: state.telemetryChannels,
     year: state.year,
     sessionType: state.sessionType,

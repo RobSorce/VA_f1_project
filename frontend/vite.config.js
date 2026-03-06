@@ -10,11 +10,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        ws: true,             // proxy WebSocket upgrades (e.g. /api/live/ws)
         timeout: 600000,      // 10 min — FastF1 extraction can be slow
-      },
-      '/ws': {
-        target: 'ws://localhost:8000',
-        ws: true,
       },
     },
   },

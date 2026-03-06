@@ -7,29 +7,12 @@ import WeatherBar from './components/ui/WeatherBar';
 import BottomTabBar from './components/ui/BottomTabBar';
 import TimelinePlayer from './components/ui/TimelinePlayer';
 import DriverMFDCard from './components/ui/DriverMFDCard';
-import FocusDriverWidget from './components/ui/FocusDriverWidget';
 import WelcomeToast from './components/ui/WelcomeToast';
+import GeminiFloatingButton from './components/ui/GeminiFloatingButton';
 
-// Layout
-import OverlayPanel from './components/layout/OverlayPanel';
-
-// Visualizations
-import Leaderboard from './components/visualizations/Leaderboard';
-import SectorsPanel from './components/visualizations/SectorsPanel';
-import SpeedPanel from './components/visualizations/SpeedPanel';
-import ConsistencyPanel from './components/visualizations/ConsistencyPanel';
-import DriverComparePanel from './components/visualizations/DriverComparePanel';
-import TrackMap from './components/visualizations/TrackMap';
-
-// Tab content
-import ChartsTabContent from './components/tabs/ChartsTabContent';
-import LapTimesTabContent from './components/tabs/LapTimesTabContent';
-import AITabContent from './components/tabs/AITabContent';
-import TyresTabContent from './components/tabs/TyresTabContent';
-import SettingsTabContent from './components/tabs/SettingsTabContent';
-import ChampionshipTabContent from './components/tabs/ChampionshipTabContent';
-import AnalyticsTabContent from './components/tabs/AnalyticsTabContent';
-import RacePredictionPanel from './components/visualizations/RacePredictionPanel';
+// Layout modes
+import PitWallLayout from './components/layout/PitWallLayout';
+import AnalysisLayout from './components/layout/AnalysisLayout';
 
 // Command Palette & Keyboard
 import CommandPalette from './components/CommandPalette/CommandPalette';
@@ -37,24 +20,9 @@ import ShortcutHints from './components/ShortcutHints/ShortcutHints';
 import ShortcutCheatsheet from './components/ShortcutCheatsheet/ShortcutCheatsheet';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
-const OVERLAY_TABS = {
-  laptimes: { title: 'Lap Times', Component: LapTimesTabContent },
-  sectors: { title: 'Sectors & Speeds', Component: SectorsPanel },
-  tyres: { title: 'Tyres', Component: TyresTabContent },
-  speed: { title: 'Charts', Component: SpeedPanel },
-  consistency: { title: 'Consistency', Component: ConsistencyPanel },
-  ai: { title: 'AI Assistant', Component: AITabContent },
-  analytics: { title: 'Analytics', Component: AnalyticsTabContent },
-  prediction: { title: 'Race Prediction', Component: RacePredictionPanel },
-  championship: { title: 'Championship', Component: ChampionshipTabContent },
-  settings: { title: 'Settings', Component: SettingsTabContent },
-  compare: { title: 'Driver Comparison', Component: DriverComparePanel },
-};
-
 export default function App() {
   const sessionData = useF1Store((s) => s.sessionData);
-  const openOverlays = useF1Store((s) => s.openOverlays);
-  const leaderboardCollapsed = useF1Store((s) => s.leaderboardCollapsed);
+  const layoutMode = useF1Store((s) => s.layoutMode);
 
   // Activate global keyboard shortcuts
   useKeyboardShortcuts();
@@ -66,40 +34,23 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Header — always visible */}
       <WeatherBar />
-      <div className="app-body">
-        <aside className={`app-sidebar${leaderboardCollapsed ? ' app-sidebar--collapsed' : ''}`}>
-          <Leaderboard collapsed={leaderboardCollapsed} />
-          {!leaderboardCollapsed && <FocusDriverWidget />}
-          {openOverlays.length > 0 && (
-            <div className="track-minimap">
-              <TrackMap compact />
-            </div>
-          )}
-        </aside>
-        <div className="app-center">
-          {/* Charts tab always renders underneath */}
-          <ChartsTabContent />
-          {/* Floating overlay windows */}
-          {openOverlays.length > 0 && (
-            <div className={`overlay-container overlay-container--count-${openOverlays.length}`}>
-              {openOverlays.map((tabId) => {
-                const config = OVERLAY_TABS[tabId];
-                if (!config) return null;
-                return (
-                  <OverlayPanel key={tabId} title={config.title} tabId={tabId}>
-                    <config.Component />
-                  </OverlayPanel>
-                );
-              })}
-            </div>
-          )}
-        </div>
+
+      {/* Main body — mode-dependent layout */}
+      <div className="app-body" style={{ animation: 'fadeIn 0.15s ease-out' }}>
+        {layoutMode === 'pitwall' ? <PitWallLayout /> : <AnalysisLayout />}
       </div>
+
+      {/* Timeline player — always visible */}
       <TimelinePlayer />
+
+      {/* Bottom tab bar — always visible */}
       <BottomTabBar />
+
+      {/* Floating elements */}
       <DriverMFDCard />
-      {/* Command Palette & Keyboard Overlays */}
+      <GeminiFloatingButton />
       <CommandPalette />
       <ShortcutCheatsheet />
       <ShortcutHints />

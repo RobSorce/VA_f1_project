@@ -20,6 +20,7 @@
 .panel {
   display: flex;
   flex-direction: column;
+  height: 100%;
   background: var(--glass-bg);
   border: var(--glass-border);
   border-radius: 20px;

@@ -231,8 +231,17 @@ class F1SignalRClient:
                             self._dispatch_message(method, args)
 
                 # Process "R" (invoke result — initial data dump after subscribe)
+                # Order: DriverList → TimingAppData → everything else
+                # so abbreviation map and compounds are ready for TimingData
                 if "R" in data and isinstance(data["R"], dict):
-                    for topic, payload in data["R"].items():
+                    r_data = data["R"]
+                    priority_order = ["DriverList", "TimingAppData"]
+                    for topic in priority_order:
+                        if topic in r_data:
+                            self._process_topic(topic, r_data[topic])
+                    for topic, payload in r_data.items():
+                        if topic in priority_order:
+                            continue  # already processed
                         self._process_topic(topic, payload)
 
                 # Some messages come directly as topic updates

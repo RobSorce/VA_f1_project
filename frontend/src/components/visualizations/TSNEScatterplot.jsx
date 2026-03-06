@@ -206,7 +206,7 @@ export default function TSNEScatterplot() {
   }, [tsneEmbeddings]);
 
   return (
-    <Panel title="t-SNE Strategy Space" controls={<Legend items={teamLegend} shape="circle" />}>
+    <Panel title="Strategy Space (PCA)" controls={<Legend items={teamLegend} shape="circle" />}>
       <div className="viz-container">
         {tsneEmbeddings?.points?.length ? (
           <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
@@ -219,7 +219,7 @@ export default function TSNEScatterplot() {
         ) : (
           <div className="loading-placeholder">
             <div className="spinner" />
-            <span>Computing t-SNE embeddings from race data...</span>
+            <span>Computing PCA embeddings from race data...</span>
           </div>
         )}
       </div>

@@ -94,22 +94,34 @@ class LiveDataNormalizer:
     def process_driver_list(self, data: Dict) -> List[Dict[str, Any]]:
         """Process DriverList topic → driver_info format.
 
-        Returns list of {DriverNumber, Abbreviation, FullName, TeamName, TeamColor}.
+        SignalR sends incremental updates, so we merge into the existing
+        driver_map rather than replacing it.
+
+        Returns list of {DriverNumber, Abbreviation, FullName, TeamName, TeamColor}
+        for ALL known drivers (not just the ones in this update).
         """
-        drivers = []
         for num, info in data.items():
             if not isinstance(info, dict):
                 continue
-            abbr = info.get("Tla", num)
-            self.driver_map[str(num)] = info
+            num_str = str(num)
+            # Merge into existing entry (don't replace — updates are partial)
+            if num_str in self.driver_map:
+                self.driver_map[num_str].update(info)
+            else:
+                self.driver_map[num_str] = info
+            abbr = self.driver_map[num_str].get("Tla", num_str)
             self._ensure_driver_state(abbr)
 
+        # Rebuild full driver list from accumulated map
+        drivers = []
+        for num_str, info in self.driver_map.items():
+            abbr = info.get("Tla", num_str)
             team_colour = info.get("TeamColour", "FFFFFF")
             if team_colour and not team_colour.startswith("#"):
                 team_colour = f"#{team_colour}"
 
             drivers.append({
-                "DriverNumber": str(num),
+                "DriverNumber": num_str,
                 "Abbreviation": abbr,
                 "FullName": f"{info.get('FirstName', '')} {info.get('LastName', '')}".strip() or abbr,
                 "TeamName": info.get("TeamName", ""),
@@ -140,6 +152,12 @@ class LiveDataNormalizer:
             self._ensure_driver_state(abbr)
             state = self.driver_state[abbr]
 
+            # NumberOfLaps — process early so current_lap is set before lap time emission
+            if "NumberOfLaps" in line:
+                n = line["NumberOfLaps"]
+                if n:
+                    state["current_lap"] = int(n)
+
             # Position
             if "Position" in line:
                 state["position"] = int(line["Position"]) if line["Position"] else state["position"]
@@ -161,6 +179,48 @@ class LiveDataNormalizer:
             if "InPit" in line:
                 state["in_pit"] = bool(line["InPit"])
 
+            # Stints (tyre changes) — process BEFORE lap time so compound is set
+            # Stints can be a dict {"0": {...}} (incremental) or a list [{...}] (initial dump)
+            raw_stints = line.get("Stints", {})
+            stint_items = []
+            if isinstance(raw_stints, dict):
+                stint_items = list(raw_stints.items())
+            elif isinstance(raw_stints, list):
+                stint_items = [(str(i), s) for i, s in enumerate(raw_stints)]
+
+            for stint_key, stint_val in stint_items:
+                if not isinstance(stint_val, dict):
+                    continue
+                compound = stint_val.get("Compound", "").upper()
+                compound = COMPOUND_MAP.get(compound, "UNKNOWN")
+                new_tyres = stint_val.get("New", False)
+                if isinstance(new_tyres, str):
+                    new_tyres = new_tyres.lower() == "true"
+                tyre_age = stint_val.get("TotalLaps", 0) or 0
+                stint_num = int(stint_key) + 1 if stint_key.isdigit() else state["stint_number"]
+
+                if compound != "UNKNOWN" and (compound != state["compound"] or stint_num != state["stint_number"]):
+                    state["compound"] = compound
+                    state["stint_number"] = stint_num
+                    state["tyre_life"] = int(tyre_age)
+
+                    strategy_updates.append({
+                        "Driver": abbr,
+                        "StintNumber": stint_num,
+                        "Compound": compound,
+                        "StartLap": state["current_lap"],
+                        "EndLap": None,
+                        "TotalLaps": 0,
+                        "New": new_tyres,
+                    })
+                else:
+                    # Update tyre life even if compound unchanged
+                    if tyre_age:
+                        state["tyre_life"] = int(tyre_age)
+                    # Set compound if still UNKNOWN and we got a valid one
+                    if state["compound"] == "UNKNOWN" and compound != "UNKNOWN":
+                        state["compound"] = compound
+
             # Sectors
             sectors = line.get("Sectors", {})
             if isinstance(sectors, dict):
@@ -173,6 +233,50 @@ class LiveDataNormalizer:
                         time_sec = _parse_lap_time(val) if val else None
                         if time_sec:
                             state[f"sector{sec_num}"] = time_sec
+
+            # BestLapTime — update driver's best and emit a lap entry if
+            # it's better than what we've already recorded (critical for
+            # initial data dumps where LastLapTime may not be the best)
+            best_lap = line.get("BestLapTime")
+            if isinstance(best_lap, dict):
+                best_time_str = best_lap.get("Value")
+                best_time_sec = _parse_lap_time(best_time_str)
+                if best_time_sec and best_time_sec > 0:
+                    emit_best = (
+                        state["best_lap_time"] is None
+                        or best_time_sec < state["best_lap_time"]
+                    )
+                    state["best_lap_time"] = best_time_sec
+                    if emit_best:
+                        lap_updates.append({
+                            "Driver": abbr,
+                            "DriverNumber": str(num),
+                            "LapNumber": max(state["current_lap"], 1),
+                            "LapTime": best_time_sec,
+                            "LapTimeSeconds": best_time_sec,
+                            "Sector1Time": None,
+                            "Sector1TimeSeconds": None,
+                            "Sector2Time": None,
+                            "Sector2TimeSeconds": None,
+                            "Sector3Time": None,
+                            "Sector3TimeSeconds": None,
+                            "Position": state["position"],
+                            "Compound": state["compound"],
+                            "TyreLife": state["tyre_life"],
+                            "GapToLeader": state["gap_to_leader"],
+                            "IntervalToAhead": state["interval"],
+                            "IsPersonalBest": True,
+                            "PitInTime": None,
+                            "PitOutTime": None,
+                            "PitInTimeSeconds": None,
+                            "PitOutTimeSeconds": None,
+                            "Team": self.driver_map.get(str(num), {}).get("TeamName", ""),
+                            "Stint": state["stint_number"],
+                            "SpeedI1": None,
+                            "SpeedI2": None,
+                            "SpeedFL": None,
+                            "SpeedST": None,
+                        })
 
             # Last lap time → emit a completed lap entry
             last_lap = line.get("LastLapTime")
@@ -221,44 +325,6 @@ class LiveDataNormalizer:
                     state["sector1"] = None
                     state["sector2"] = None
                     state["sector3"] = None
-
-            # Stints (tyre changes)
-            stints = line.get("Stints", {})
-            if isinstance(stints, dict):
-                for stint_key, stint_val in stints.items():
-                    if not isinstance(stint_val, dict):
-                        continue
-                    compound = stint_val.get("Compound", "").upper()
-                    compound = COMPOUND_MAP.get(compound, "UNKNOWN")
-                    new_tyres = stint_val.get("New", False)
-                    tyre_age = stint_val.get("TotalLaps", 0) or 0
-                    stint_num = int(stint_key) + 1 if stint_key.isdigit() else state["stint_number"]
-
-                    if compound != state["compound"] or stint_num != state["stint_number"]:
-                        # New stint detected
-                        old_compound = state["compound"]
-                        old_stint = state["stint_number"]
-                        state["compound"] = compound
-                        state["stint_number"] = stint_num
-                        state["tyre_life"] = int(tyre_age)
-
-                        strategy_updates.append({
-                            "Driver": abbr,
-                            "StintNumber": stint_num,
-                            "Compound": compound,
-                            "StartLap": state["current_lap"],
-                            "EndLap": None,  # Will be updated on next stint
-                            "TotalLaps": 0,
-                            "New": new_tyres,
-                        })
-                    else:
-                        state["tyre_life"] = int(tyre_age)
-
-            # NumberOfLaps (some timing data includes this)
-            if "NumberOfLaps" in line:
-                n = line["NumberOfLaps"]
-                if n:
-                    state["current_lap"] = int(n)
 
         return lap_updates, strategy_updates
 

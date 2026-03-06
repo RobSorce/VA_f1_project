@@ -9,10 +9,14 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import asyncio
 import logging
+import os
 import sys
 import json
 import numpy as np
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / '.env')
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -855,6 +859,83 @@ async def connect_live_signalr():
         return {"status": "connecting", "message": "SignalR client started"}
     except Exception as e:
         logger.error(f"SignalR connect failed: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/live/load-full-session")
+async def load_live_full_session():
+    """Load full session data via FastF1 for the current/recent live session.
+
+    When connecting to a finished session, SignalR only gives a state snapshot
+    (no lap history). This endpoint resolves the event from session_info and
+    loads the complete data through FastF1.
+    """
+    if _live_session_manager is None:
+        return {"error": "Live timing not initialized"}
+
+    info = _live_session_manager.session_info
+    if not info:
+        return {"error": "No session info available"}
+
+    # Extract year from start_date or fallback to current year
+    import datetime
+    year = None
+    start_date = info.get("start_date", "")
+    if start_date:
+        try:
+            year = int(start_date[:4])
+        except (ValueError, IndexError):
+            pass
+    if not year:
+        year = datetime.datetime.now().year
+
+    event_name = info.get("event_name", "") or info.get("circuit_name", "")
+    session_type_raw = info.get("session_name", "") or info.get("session_type", "")
+
+    # Map session type names to FastF1 identifiers
+    session_type_map = {
+        "Race": "R", "Sprint": "S", "Qualifying": "Q",
+        "Practice 1": "FP1", "Practice 2": "FP2", "Practice 3": "FP3",
+        "Sprint Qualifying": "SQ", "Sprint Shootout": "SS",
+    }
+    session_type = session_type_map.get(session_type_raw, session_type_raw)
+    if not session_type:
+        session_type = "R"
+
+    logger.info(f"Loading full session via FastF1: {year} '{event_name}' {session_type}")
+
+    try:
+        import fastf1
+        # Use event name to find the round
+        schedule = fastf1.get_event_schedule(year, include_testing=False)
+        round_num = None
+        for _, row in schedule.iterrows():
+            if event_name and (
+                event_name.lower() in str(row.get("EventName", "")).lower()
+                or event_name.lower() in str(row.get("OfficialEventName", "")).lower()
+                or event_name.lower() in str(row.get("Location", "")).lower()
+            ):
+                round_num = int(row["RoundNumber"])
+                break
+
+        if round_num is None:
+            return {"error": f"Could not find round for '{event_name}' in {year} schedule"}
+
+        data = await asyncio.to_thread(load_session, year, round_num, session_type)
+        logger.info(f"Full session loaded: {len(data.get('lap_times', []))} lap entries")
+        # Sanitize any remaining NaN/Inf before JSON serialization
+        import math as _math
+        def _sanitize(obj):
+            if isinstance(obj, float) and (_math.isnan(obj) or _math.isinf(obj)):
+                return None
+            if isinstance(obj, dict):
+                return {k: _sanitize(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_sanitize(v) for v in obj]
+            return obj
+        return _sanitize(data)
+    except Exception as e:
+        logger.error(f"Failed to load full session: {e}", exc_info=True)
         return {"error": str(e)}
 
 

@@ -28,75 +28,98 @@ export function fuzzyMatch(query, target) {
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const modKey = isMac ? '\u2318' : 'Ctrl';
 
+/** Helper: switch to analysis mode with a given viz in slot A */
+function openAnalysisViz(state, vizId) {
+  if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
+  state.setSlotContent('slotA', vizId);
+  state.closeCommandPalette();
+}
+
 export function createCommandRegistry() {
   const store = useF1Store;
   const getState = () => store.getState();
 
   const commands = [
-    // === NAVIGATION (open tabs — matches BottomTabBar 1-8) ===
+    // === NAVIGATION (number keys map to layout mode + analysis slot) ===
     {
-      id: 'open-charts',
-      label: 'Track Map (close overlays)',
+      id: 'go-pitwall',
+      label: 'Pit Wall Mode',
       category: 'Navigation',
       shortcut: '1',
-      icon: 'map-pin',
-      action: () => { getState().setActiveTab('charts'); getState().closeCommandPalette(); },
+      icon: 'home',
+      action: () => { getState().setLayoutMode('pitwall'); getState().closeCommandPalette(); },
     },
     {
-      id: 'open-laptimes-tab',
-      label: 'Open Lap Times',
+      id: 'open-trackmap',
+      label: 'Track Map',
       category: 'Navigation',
       shortcut: '2',
-      icon: 'clock',
-      action: () => { getState().setActiveTab('laptimes'); getState().closeCommandPalette(); },
+      icon: 'map-pin',
+      action: () => openAnalysisViz(getState(), 'trackmap'),
     },
     {
-      id: 'open-sectors-tab',
-      label: 'Open Sectors',
+      id: 'open-laptimes',
+      label: 'Lap Times',
       category: 'Navigation',
       shortcut: '3',
-      icon: 'bar-chart',
-      action: () => { getState().setActiveTab('sectors'); getState().closeCommandPalette(); },
+      icon: 'clock',
+      action: () => openAnalysisViz(getState(), 'laptimes'),
     },
     {
-      id: 'open-tyres-tab',
-      label: 'Open Tyres',
+      id: 'open-sectors',
+      label: 'Sectors',
       category: 'Navigation',
       shortcut: '4',
-      icon: 'circle',
-      action: () => { getState().setActiveTab('tyres'); getState().closeCommandPalette(); },
+      icon: 'bar-chart',
+      action: () => openAnalysisViz(getState(), 'sectors'),
     },
     {
-      id: 'open-speed-tab',
-      label: 'Open Speed',
+      id: 'open-tyres',
+      label: 'Tyres',
       category: 'Navigation',
       shortcut: '5',
-      icon: 'zap',
-      action: () => { getState().setActiveTab('speed'); getState().closeCommandPalette(); },
+      icon: 'circle',
+      action: () => openAnalysisViz(getState(), 'tiredeg'),
     },
     {
-      id: 'open-consistency-tab',
-      label: 'Open Consistency',
+      id: 'open-consistency',
+      label: 'Consistency',
       category: 'Navigation',
       shortcut: '6',
       icon: 'trending-down',
-      action: () => { getState().setActiveTab('consistency'); getState().closeCommandPalette(); },
+      action: () => openAnalysisViz(getState(), 'consistency'),
     },
     {
-      id: 'open-ai-tab',
-      label: 'Open AI Assistant',
+      id: 'open-prediction',
+      label: 'Prediction',
       category: 'Navigation',
       shortcut: '7',
-      icon: 'sparkles',
-      action: () => { getState().setActiveTab('ai'); getState().closeCommandPalette(); },
+      icon: 'activity',
+      action: () => openAnalysisViz(getState(), 'prediction'),
     },
     {
-      id: 'open-settings-tab',
-      label: 'Open Settings',
+      id: 'open-ai',
+      label: 'AI Assistant',
       category: 'Navigation',
       shortcut: '8',
-      icon: 'settings',
-      action: () => { getState().setActiveTab('settings'); getState().closeCommandPalette(); },
+      icon: 'sparkles',
+      action: () => openAnalysisViz(getState(), 'gemini'),
+    },
+    {
+      id: 'open-compare',
+      label: 'Compare',
+      category: 'Navigation',
+      shortcut: '9',
+      icon: 'git-compare',
+      action: () => openAnalysisViz(getState(), 'compare'),
+    },
+    {
+      id: 'open-analytics',
+      label: 'Analytics',
+      category: 'Navigation',
+      shortcut: '0',
+      icon: 'bar-chart',
+      action: () => openAnalysisViz(getState(), 'analytics'),
     },
 
     // === DRIVER ACTIONS ===
@@ -184,46 +207,23 @@ export function createCommandRegistry() {
       },
     },
 
-    // === WINDOW MANAGEMENT ===
+    // === MODE SWITCHING ===
     {
-      id: 'cycle-next',
-      label: 'Next Open Window',
-      category: 'Windows',
-      shortcut: ']',
-      icon: 'arrow-right',
-      action: () => { getState().cycleOverlay(1); getState().closeCommandPalette(); },
-      available: () => getState().openOverlays.length > 1,
-    },
-    {
-      id: 'cycle-prev',
-      label: 'Previous Open Window',
-      category: 'Windows',
-      shortcut: '[',
-      icon: 'arrow-left',
-      action: () => { getState().cycleOverlay(-1); getState().closeCommandPalette(); },
-      available: () => getState().openOverlays.length > 1,
-    },
-    {
-      id: 'close-window',
-      label: 'Close Active Window',
-      category: 'Windows',
-      shortcut: 'W',
-      icon: 'x',
-      action: () => {
-        const s = getState();
-        s.closeOverlay(s.activeTab);
-        s.closeCommandPalette();
-      },
-      available: () => getState().openOverlays.length > 0,
-    },
-    {
-      id: 'close-all-windows',
-      label: 'Close All Windows (Track Map)',
-      category: 'Windows',
+      id: 'go-home',
+      label: 'Go to Pit Wall',
+      category: 'Navigation',
       shortcut: 'X',
-      icon: 'x-square',
-      action: () => { getState().closeAllOverlays(); getState().closeCommandPalette(); },
-      available: () => getState().openOverlays.length > 0,
+      icon: 'home',
+      action: () => { getState().setLayoutMode('pitwall'); getState().closeCommandPalette(); },
+      available: () => getState().layoutMode !== 'pitwall',
+    },
+    {
+      id: 'toggle-mode',
+      label: 'Toggle Pit Wall / Analysis',
+      category: 'Navigation',
+      shortcut: 'P',
+      icon: 'layout',
+      action: () => { getState().toggleLayoutMode(); getState().closeCommandPalette(); },
     },
 
     // === REPLAY ===
@@ -287,9 +287,9 @@ export function createCommandRegistry() {
     // === ANALYTICS ===
     {
       id: 'predict-pit',
-      label: 'Predict Pit Window (LSTM) + Open Lap Times',
+      label: 'Predict Pit Window (LSTM) + Prediction View',
       category: 'Analytics',
-      shortcut: 'P',
+      shortcut: '⇧P',
       icon: 'activity',
       action: () => {
         const s = getState();
@@ -297,8 +297,7 @@ export function createCommandRegistry() {
         if (driver && s.currentLap >= 2) {
           s.triggerLSTMPredictions();
         }
-        s.setActiveTab('laptimes');
-        s.closeCommandPalette();
+        openAnalysisViz(s, 'prediction');
       },
     },
     {
@@ -307,23 +306,42 @@ export function createCommandRegistry() {
       category: 'Analytics',
       shortcut: 'T',
       icon: 'circle',
+      action: () => openAnalysisViz(getState(), 'tiredeg'),
+    },
+    {
+      id: 'open-strategy-ai',
+      label: 'Strategy & AI Assistant',
+      category: 'Analytics',
+      shortcut: 'S',
+      icon: 'layers',
+      action: () => openAnalysisViz(getState(), 'gemini'),
+    },
+    {
+      id: 'open-analytics-tsne',
+      label: 'Analytics (PCA)',
+      category: 'Analytics',
+      shortcut: 'A',
+      icon: 'bar-chart',
+      action: () => openAnalysisViz(getState(), 'tsne'),
+    },
+    {
+      id: 'toggle-gemini-panel',
+      label: 'Toggle Gemini Floating Panel',
+      category: 'Analytics',
+      shortcut: 'G',
+      icon: 'sparkles',
       action: () => {
-        const s = getState();
-        s.setActiveTab('tyres');
-        s.closeCommandPalette();
+        window.dispatchEvent(new CustomEvent('toggle-gemini-panel'));
+        getState().closeCommandPalette();
       },
     },
     {
       id: 'driver-comparison',
       label: 'Driver Comparison (Head-to-Head)',
       category: 'Analytics',
-      shortcut: 'G',
+      shortcut: '⇧G',
       icon: 'git-compare',
-      action: () => {
-        const s = getState();
-        s.setActiveTab('compare');
-        s.closeCommandPalette();
-      },
+      action: () => openAnalysisViz(getState(), 'compare'),
       available: () => getState().compareDrivers.length === 2,
     },
     {
@@ -335,18 +353,6 @@ export function createCommandRegistry() {
       action: () => {
         getState().cycleLeaderboardColumn();
         getState().closeCommandPalette();
-      },
-    },
-    {
-      id: 'strategy-analysis',
-      label: 'Strategy & AI Assistant',
-      category: 'Analytics',
-      shortcut: 'S',
-      icon: 'layers',
-      action: () => {
-        const s = getState();
-        s.setActiveTab('ai');
-        s.closeCommandPalette();
       },
     },
 
@@ -404,6 +410,20 @@ export function createCommandRegistry() {
       action: () => {
         getState().resetTrackRotation();
         getState().closeCommandPalette();
+      },
+    },
+
+    // === LAYOUT ===
+    {
+      id: 'toggle-dashboard',
+      label: 'Toggle Bottom Bar',
+      category: 'Layout',
+      shortcut: '⇧H',
+      icon: 'layout',
+      action: () => {
+        const s = getState();
+        s.setShowDashboard(!s.showDashboard);
+        s.closeCommandPalette();
       },
     },
 

@@ -8,8 +8,7 @@ export default function ShortcutHints() {
   const focusDriver = useF1Store((s) => s.focusDriver);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const compareMode = useF1Store((s) => s.compareMode);
-  const compareDrivers = useF1Store((s) => s.compareDrivers);
-  const openOverlays = useF1Store((s) => s.openOverlays);
+  const layoutMode = useF1Store((s) => s.layoutMode);
   const openCommandPalette = useF1Store((s) => s.openCommandPalette);
 
   const [faded, setFaded] = useState(false);
@@ -40,35 +39,21 @@ export default function ShortcutHints() {
   // Build contextual hints
   const hints = [
     { key: `${modKey}K`, label: 'Commands' },
-    { key: '/', label: 'Search' },
-    { key: '1-8', label: 'Tabs' },
+    { key: 'P', label: layoutMode === 'pitwall' ? 'Analysis' : 'Pit Wall' },
+    { key: '2-0', label: 'Views' },
   ];
-
-  if (openOverlays.length > 1) {
-    hints.push({ key: '[ ]', label: 'Cycle' });
-  }
-
-  if (openOverlays.length > 0) {
-    hints.push({ key: 'W', label: 'Close' });
-  }
 
   if (!activeDriver) {
     hints.push({ key: 'D', label: 'Driver' });
   }
 
-  hints.push({ key: 'V', label: 'View' });
-
   if (activeDriver) {
-    hints.push({ key: 'P', label: 'Predict' });
+    hints.push({ key: 'F', label: 'Focus' });
     hints.push({ key: 'S', label: 'Strategy' });
   }
 
   if (!compareMode) {
     hints.push({ key: 'C', label: 'Compare' });
-  }
-
-  if (compareMode && compareDrivers.length === 2) {
-    hints.push({ key: 'G', label: 'Compare' });
   }
 
   hints.push({ key: '?', label: 'Help' });

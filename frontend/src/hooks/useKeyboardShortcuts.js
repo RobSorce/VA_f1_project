@@ -16,36 +16,6 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Ctrl+Arrow — macOS-style window tiling
-      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowLeft') {
-        e.preventDefault();
-        state.tileActiveOverlay('left');
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowRight') {
-        e.preventDefault();
-        state.tileActiveOverlay('right');
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
-        e.preventDefault();
-        state.tileActiveOverlay('maximize');
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') {
-        e.preventDefault();
-        // Clear tile — restore to default
-        if (state.openOverlays.includes(state.activeTab)) {
-          state.clearTile(state.activeTab);
-        }
-        return;
-      }
-      // Ctrl+G — cycle auto-arrange layouts
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'g' || e.key === 'G')) {
-        e.preventDefault();
-        state.arrangeOverlays();
-        return;
-      }
       // Don't intercept other Cmd/Ctrl combos (browser shortcuts)
       if (e.metaKey || e.ctrlKey) return;
 
@@ -92,51 +62,39 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // / — focus command bar (handled by CommandBar component, but prevent default here too)
-      if (e.key === '/') return; // let CommandBar handle it
+      // / — focus command bar (handled by CommandBar component)
+      if (e.key === '/') return;
 
-      // Number keys 1-9,0 — open tabs (matches BottomTabBar order)
-      const tabMap = {
-        '1': 'charts',       // Track Map (close overlays)
-        '2': 'laptimes',     // Lap Times overlay
-        '3': 'sectors',      // Sectors overlay
-        '4': 'tyres',        // Tyres overlay
-        '5': 'speed',        // Charts (telemetry) overlay
-        '6': 'consistency',  // Consistency overlay
-        '7': 'prediction',   // Race Prediction overlay
-        '8': 'ai',           // AI Assistant overlay
-        '9': 'compare',      // Driver Comparison overlay
-        '0': 'settings',     // Settings overlay
+      // Number keys — in analysis mode, set slot A content; in pitwall mode, switch to analysis
+      const slotVizMap = {
+        '2': 'trackmap',
+        '3': 'laptimes',
+        '4': 'sectors',
+        '5': 'tiredeg',
+        '6': 'consistency',
+        '7': 'prediction',
+        '8': 'gemini',
+        '9': 'compare',
+        '0': 'analytics',
       };
-      if (tabMap[e.key]) {
+      if (e.key === '1') {
         e.preventDefault();
-        state.setActiveTab(tabMap[e.key]);
+        state.setLayoutMode('pitwall');
+        return;
+      }
+      if (slotVizMap[e.key]) {
+        e.preventDefault();
+        if (state.layoutMode === 'pitwall') {
+          state.setLayoutMode('analysis');
+        }
+        state.setSlotContent('slotA', slotVizMap[e.key]);
         return;
       }
 
-      // ] / [ — cycle through open overlays (like Alt+Tab)
-      if (e.key === ']') {
+      // X — go to Pit Wall home
+      if (e.key === 'x' || e.key === 'X') {
         e.preventDefault();
-        state.cycleOverlay(1);
-        return;
-      }
-      if (e.key === '[') {
-        e.preventDefault();
-        state.cycleOverlay(-1);
-        return;
-      }
-
-      // W — close active overlay window
-      if ((e.key === 'w' || e.key === 'W') && state.openOverlays.length > 0) {
-        e.preventDefault();
-        state.closeOverlay(state.activeTab);
-        return;
-      }
-
-      // X — close all overlays (back to Track Map)
-      if ((e.key === 'x' || e.key === 'X') && state.openOverlays.length > 0) {
-        e.preventDefault();
-        state.closeAllOverlays();
+        state.setLayoutMode('pitwall');
         return;
       }
 
@@ -187,31 +145,22 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Shift+D — toggle DRS on track map
+      // L — toggle leaderboard sidebar
+      if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        state.toggleLeaderboard();
+        return;
+      }
+
+      // D — toggle bottom bar visibility (Shift+D toggles DRS)
       if (e.key === 'D' && e.shiftKey) {
         e.preventDefault();
         state.toggleTrackDRS();
         return;
       }
-
-      // d — open driver selector
       if (e.key === 'd') {
         e.preventDefault();
         useF1Store.setState({ commandPaletteOpen: true, _paletteInitialCommand: 'select-driver' });
-        return;
-      }
-
-      // C — toggle compare mode
-      if (e.key === 'c' || e.key === 'C') {
-        e.preventDefault();
-        state.toggleCompareMode();
-        return;
-      }
-
-      // L — toggle leaderboard sidebar
-      if (e.key === 'l' || e.key === 'L') {
-        e.preventDefault();
-        state.toggleLeaderboard();
         return;
       }
 
@@ -229,28 +178,29 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // V — cycle leaderboard column mode (INT → GAP → TYRE)
+      // V — cycle leaderboard column mode
       if (e.key === 'v' || e.key === 'V') {
         e.preventDefault();
         state.cycleLeaderboardColumn();
         return;
       }
 
-      // Shift+R — rotate track counter-clockwise
+      // r — in analysis mode: reset panel splits; otherwise rotate track CW
+      // Shift+R — rotate track CCW
       if (e.key === 'R' && e.shiftKey) {
         e.preventDefault();
         state.rotateTrackCCW();
         return;
       }
-
-      // r — rotate track clockwise
       if (e.key === 'r') {
         e.preventDefault();
-        state.rotateTrackCW();
+        if (state.layoutMode === 'analysis') {
+          state.resetSplits();
+        } else {
+          state.rotateTrackCW();
+        }
         return;
       }
-
-      const activeDriver = state.focusDriver || state.selectedDrivers[0];
 
       // Shift+S — toggle sectors on track map
       if (e.key === 'S' && e.shiftKey) {
@@ -259,46 +209,86 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // s — open Strategy / AI tab (StrategyTimeline + Gemini)
+      // s — open AI/Strategy in analysis mode
       if (e.key === 's') {
         e.preventDefault();
-        state.setActiveTab('ai');
+        if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
+        state.setSlotContent('slotA', 'gemini');
         return;
       }
 
-      // T — open Tyres tab (tyre degradation & management)
+      // t/T — open Tyres in analysis mode
       if (e.key === 't' || e.key === 'T') {
         e.preventDefault();
-        state.setActiveTab('tyres');
+        if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
+        state.setSlotContent('slotA', 'tiredeg');
         return;
       }
 
-      // P — open Race Prediction panel (Monte Carlo) + trigger LSTM
-      if (e.key === 'p' || e.key === 'P') {
+      // p — toggle Pit Wall / Analysis mode; Shift+P — prediction
+      if (e.key === 'p') {
         e.preventDefault();
+        state.toggleLayoutMode();
+        return;
+      }
+      if (e.key === 'P' && e.shiftKey) {
+        e.preventDefault();
+        const activeDriver = state.focusDriver || state.selectedDrivers[0];
         if (activeDriver && state.currentLap >= 2) {
           state.triggerLSTMPredictions();
         }
-        state.setActiveTab('prediction');
+        if (state.layoutMode === 'pitwall') {
+          state.setLayoutMode('analysis');
+        }
+        state.setSlotContent('slotA', 'prediction');
         return;
       }
 
-      // A — open Analytics (t-SNE) tab
+      // A — open Analytics (t-SNE) in analysis mode
       if (e.key === 'a' || e.key === 'A') {
         e.preventDefault();
-        state.setActiveTab('analytics');
+        if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
+        state.setSlotContent('slotA', 'tsne');
         return;
       }
 
-      // G — driver comparison (compare mode with 2 drivers)
-      if ((e.key === 'g' || e.key === 'G') && state.compareMode && state.compareDrivers.length === 2) {
+      // Shift+C — championship in slot
+      if (e.key === 'C' && e.shiftKey) {
         e.preventDefault();
-        state.setActiveTab('compare');
+        // No direct slot for championship - just ignore or keep as-is
+        return;
+      }
+      if (e.key === 'c') {
+        e.preventDefault();
+        state.toggleCompareMode();
+        return;
+      }
+
+      // G — toggle Gemini floating panel
+      if (e.key === 'g') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('toggle-gemini-panel'));
+        return;
+      }
+      if (e.key === 'G' && e.shiftKey && state.compareMode && state.compareDrivers?.length === 2) {
+        e.preventDefault();
+        if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
+        state.setSlotContent('slotA', 'compare');
+        return;
+      }
+
+      // F — toggle focus on highlighted driver
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        const driver = state.highlightedDriver || state.selectedDrivers[0];
+        if (driver) {
+          state.setFocusDriver(state.focusDriver === driver ? null : driver);
+        }
         return;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown, true); // capture phase
+    window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, []);
 }

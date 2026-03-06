@@ -90,6 +90,11 @@
   overflow: hidden;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+
 .app-sidebar {
   width: 300px;
   min-width: 40px;
@@ -305,6 +310,21 @@
 }
 
 .app-center > .panel {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Main content area (v3: single tab content fills this) */
+.app-content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-content > * {
   flex: 1;
   min-height: 0;
 }
@@ -4837,6 +4857,113 @@
     width: 16px;
     height: 16px;
   }
+}
+
+/* ── Analysis Layout (flex-based with draggable dividers) ── */
+
+.analysis-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.analysis-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: rgba(12, 12, 28, 0.95);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s ease;
+}
+
+.analysis-sidebar--collapsed {
+  width: 40px;
+}
+
+.analysis-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.analysis-top-row {
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.analysis-slot-a,
+.analysis-slot-b {
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+.analysis-slot-c {
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ── Drag Dividers ── */
+
+.drag-divider {
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+}
+
+.drag-divider:hover,
+.drag-divider:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.drag-divider::after {
+  content: '';
+  position: absolute;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  transition: opacity 0.15s ease;
+  opacity: 0;
+}
+
+.drag-divider:hover::after {
+  opacity: 1;
+}
+
+.drag-divider--vertical {
+  width: 5px;
+  cursor: col-resize;
+  min-height: 0;
+}
+
+.drag-divider--vertical::after {
+  width: 3px;
+  height: 32px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.drag-divider--horizontal {
+  height: 5px;
+  cursor: row-resize;
+  min-width: 0;
+}
+
+.drag-divider--horizontal::after {
+  height: 3px;
+  width: 32px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 /* Narrow screens (≤1100px) — sidebar hidden */

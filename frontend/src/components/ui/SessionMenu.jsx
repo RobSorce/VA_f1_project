@@ -56,13 +56,21 @@ export default function SessionMenu({ isOpen, onClose }) {
   const [showMock, setShowMock] = useState(false);
   const [mockSpeed, setMockSpeed] = useState(10);
 
-  // Poll live status when menu is open
+  // Poll live status when menu is open — auto-connect SignalR on first check
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
     const check = async () => {
       try {
-        const status = await api.getLiveStatus();
+        let status = await api.getLiveStatus();
+        // If not active, try connecting SignalR (it may just not be connected yet)
+        if (!status.active) {
+          try {
+            await api.connectSignalR();
+            await new Promise((r) => setTimeout(r, 3000));
+            status = await api.getLiveStatus();
+          } catch (_) { /* ignore */ }
+        }
         if (!cancelled) setLiveStatus(status);
       } catch (_) { /* ignore */ }
     };

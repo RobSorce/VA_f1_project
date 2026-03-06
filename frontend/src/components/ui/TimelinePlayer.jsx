@@ -697,6 +697,7 @@ export default function TimelinePlayer() {
   if (isLiveMode) {
     const liveSessionInfo = useF1Store.getState().liveSessionInfo;
     const liveConnected = useF1Store.getState().liveConnected;
+    const exitLiveMode = useF1Store.getState().exitLiveMode;
     const flagStatus = useF1Store.getState().currentFlagStatus;
     const flagColors = { '1': '#00ff00', '2': '#ffcc00', '4': '#ffcc00', '5': '#ff0000', '6': '#ff8c00', '7': '#ff8c00' };
     return (
@@ -724,6 +725,19 @@ export default function TimelinePlayer() {
               {liveSessionInfo?.session_type || 'Race'}
               {liveSessionInfo?.event_name ? ` — ${liveSessionInfo.event_name}` : ''}
             </span>
+            <button
+              onClick={exitLiveMode}
+              style={{
+                marginLeft: 8, padding: '3px 10px', borderRadius: 4,
+                border: '1px solid rgba(239,68,68,0.3)',
+                background: 'rgba(239,68,68,0.1)',
+                color: '#f87171', fontSize: 9, fontWeight: 700,
+                letterSpacing: '0.06em', cursor: 'pointer',
+                fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+              }}
+            >
+              DISCONNECT
+            </button>
           </div>
         </div>
       </div>

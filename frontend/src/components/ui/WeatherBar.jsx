@@ -79,6 +79,8 @@ export default function WeatherBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const sessionData = useF1Store((s) => s.sessionData);
   const sessionType = useF1Store((s) => s.sessionType);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
+  const liveConnected = useF1Store((s) => s.liveConnected);
   const currentFlagStatus = useF1Store((s) => s.currentFlagStatus);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
@@ -86,6 +88,7 @@ export default function WeatherBar() {
   const resetSession = useF1Store((s) => s.resetSession);
   const tempUnit = useF1Store((s) => s.tempUnit);
   const speedUnit = useF1Store((s) => s.speedUnit);
+  const liveSessionInfo = useF1Store((s) => s.liveSessionInfo);
 
   const weather = sessionData?.weather_data;
 
@@ -104,7 +107,9 @@ export default function WeatherBar() {
     }
     return best;
   }, [weather, currentTime]);
-  const eventName = sessionData?.circuit_info?.event_name || '';
+  const eventName = sessionData?.circuit_info?.event_name
+    || liveSessionInfo?.event_name
+    || '';
   const flag = FLAG_LABELS[currentFlagStatus] || FLAG_LABELS['1'];
 
   return (
@@ -198,6 +203,22 @@ export default function WeatherBar() {
 
         {/* Right: Session info + Flag status */}
         <div className="weather-bar__right">
+          {isLiveMode && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '2px 8px', borderRadius: 4, fontSize: 9, fontWeight: 800,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              color: '#fff',
+              background: liveConnected ? 'rgba(225,6,0,0.8)' : 'rgba(225,6,0,0.3)',
+              animation: liveConnected ? 'livePulse 1.5s ease-in-out infinite' : 'none',
+            }}>
+              <span style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: liveConnected ? '#fff' : '#888',
+              }} />
+              LIVE
+            </span>
+          )}
           <span className="weather-bar__session-badge">{sessionType}</span>
           <span className="weather-bar__lap">
             Lap {currentLap}/{maxLap}

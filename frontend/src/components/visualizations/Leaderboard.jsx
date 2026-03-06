@@ -261,6 +261,7 @@ export default function Leaderboard({ collapsed }) {
     }
 
     const drivers = new Map();
+    const prevLapByDriver = new Map(); // track previous lap for lap time fallback
 
     lapTimes
       .filter((d) => d.LapNumber <= currentLap)
@@ -269,6 +270,7 @@ export default function Leaderboard({ collapsed }) {
         if (d.LapStartTime > 0 && currentTime < d.LapStartTime - timeOffset) return;
         const existing = drivers.get(d.Driver);
         if (!existing || d.LapNumber > existing.LapNumber) {
+          if (existing) prevLapByDriver.set(d.Driver, existing);
           drivers.set(d.Driver, d);
         }
       });
@@ -291,7 +293,7 @@ export default function Leaderboard({ collapsed }) {
           color: getDriverColor(d.Driver),
           compound: d.Compound || 'UNKNOWN',
           tyreLife: d.TyreLife || 0,
-          lapTime: d.LapTimeSeconds,
+          lapTime: d.LapTimeSeconds || (prevLapByDriver.get(d.Driver)?.LapTimeSeconds) || null,
           bestLap: null,
           interval: d.IntervalToAhead || null,
           gapToLeader: d.GapToLeader || null,
