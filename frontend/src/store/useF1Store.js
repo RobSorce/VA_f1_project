@@ -34,6 +34,7 @@ export const useF1Store = create(persist((set, get) => ({
   liveConnectionStatus: 'disconnected', // 'connected'|'disconnected'|'reconnecting'
   liveStandings: null,           // driver standings from live position updates
   raceControlMessages: [],       // live race control messages
+  totalRaceLaps: null,           // total laps in the race (from lap_count)
 
   // ── Qualifying replay ──────────────────────────────────────────
   qualiSegments: null,     // {Q1: {frames, driver_colors, ...}, Q2: {...}, Q3: {...}}
@@ -115,6 +116,7 @@ export const useF1Store = create(persist((set, get) => ({
         liveConnectionStatus: 'disconnected',
         liveStandings: null,
         raceControlMessages: [],
+        totalRaceLaps: null,
       });
     }
 
@@ -280,6 +282,7 @@ export const useF1Store = create(persist((set, get) => ({
         trackStatus: snapshot.track_status || [],
         maxLap: computedMaxLap,
         currentLap: status.current_lap || computedMaxLap,
+        totalRaceLaps: status.total_laps || null,
         isPlaying: false,
         frameData: null,
         lapFrameMap: null,
@@ -450,6 +453,7 @@ export const useF1Store = create(persist((set, get) => ({
         set({
           currentLap: current_lap,
           maxLap: Math.max(state.maxLap, total_laps || current_lap),
+          totalRaceLaps: total_laps || state.totalRaceLaps,
         });
         break;
       }

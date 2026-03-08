@@ -158,6 +158,7 @@ function RacePaceGrid() {
   const drivers = useF1Store((s) => s.sessionData?.drivers || s.drivers || []);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
   const dnfMap = useF1Store((s) => s.dnfMap);
@@ -280,7 +281,8 @@ function RacePaceGrid() {
   }
 
   const lapNumbers = [];
-  for (let i = 1; i <= maxLap; i++) lapNumbers.push(i);
+  const gridMaxLap = isLiveMode ? currentLap : maxLap;
+  for (let i = 1; i <= gridMaxLap; i++) lapNumbers.push(i);
   const hasSelection = selectedDrivers.length > 0;
 
   return (

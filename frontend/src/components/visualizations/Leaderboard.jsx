@@ -490,7 +490,12 @@ export default function Leaderboard({ collapsed }) {
   }, [setHighlightedDriver]);
 
   /* ── Race finished detection ─────────────────────────────────────── */
-  const raceFinished = currentLap >= maxLap && maxLap > 1;
+  const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
+  const raceTarget = totalRaceLaps || maxLap;
+  const raceFinished = isLiveMode
+    ? (currentLap >= raceTarget && raceTarget > 1 && currentLap > 2)
+    : (currentLap >= maxLap && maxLap > 1);
   const winner = standings.length > 0 && !standings[0].isRetired ? standings[0] : null;
 
   /* ── Flag border styling ──────────────────────────────────────────── */

@@ -277,6 +277,8 @@ class F1SignalRClient:
             if decompressed is not None:
                 clean_topic = topic.replace(".z", "")
                 self._on_message(clean_topic, decompressed)
+            else:
+                logger.warning(f"Decompression failed for {topic}, data[:80]={data[:80]}")
             return
 
         # Handle nested compressed data (sometimes the value is a dict with compressed entries)
