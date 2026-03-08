@@ -22,14 +22,14 @@ export function useKeyboardShortcuts() {
       // If command palette modal is open, let it handle its own keys
       if (state.commandPaletteOpen) return;
 
-      // Escape — close cheatsheet, clear focused view, blur inputs
+      // Escape — close cheatsheet, close overlays, blur inputs
       if (e.key === 'Escape') {
         if (state.cheatsheetOpen) {
           state.closeCheatsheet();
           return;
         }
-        if (state.focusedView) {
-          state.clearFocusedView();
+        if (state.openOverlays.length > 0) {
+          state.closeAllOverlays();
           return;
         }
         if (document.activeElement && document.activeElement !== document.body) {
@@ -65,36 +65,33 @@ export function useKeyboardShortcuts() {
       // / — focus command bar (handled by CommandBar component)
       if (e.key === '/') return;
 
-      // Number keys — in analysis mode, set slot A content; in pitwall mode, switch to analysis
-      const slotVizMap = {
-        '2': 'trackmap',
-        '3': 'laptimes',
-        '4': 'sectors',
-        '5': 'tiredeg',
+      // Number keys — open overlay panels
+      const tabMap = {
+        '2': 'laptimes',
+        '3': 'sectors',
+        '4': 'tyres',
+        '5': 'speed',
         '6': 'consistency',
         '7': 'prediction',
-        '8': 'gemini',
+        '8': 'ai',
         '9': 'compare',
         '0': 'analytics',
       };
       if (e.key === '1') {
         e.preventDefault();
-        state.setLayoutMode('pitwall');
+        state.closeAllOverlays();
         return;
       }
-      if (slotVizMap[e.key]) {
+      if (tabMap[e.key]) {
         e.preventDefault();
-        if (state.layoutMode === 'pitwall') {
-          state.setLayoutMode('analysis');
-        }
-        state.setSlotContent('slotA', slotVizMap[e.key]);
+        state.setActiveTab(tabMap[e.key]);
         return;
       }
 
-      // X — go to Pit Wall home
+      // X — go to charts (close all overlays)
       if (e.key === 'x' || e.key === 'X') {
         e.preventDefault();
-        state.setLayoutMode('pitwall');
+        state.closeAllOverlays();
         return;
       }
 
@@ -185,8 +182,7 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // r — in analysis mode: reset panel splits; otherwise rotate track CW
-      // Shift+R — rotate track CCW
+      // r — rotate track CW; Shift+R — rotate track CCW
       if (e.key === 'R' && e.shiftKey) {
         e.preventDefault();
         state.rotateTrackCCW();
@@ -194,11 +190,7 @@ export function useKeyboardShortcuts() {
       }
       if (e.key === 'r') {
         e.preventDefault();
-        if (state.layoutMode === 'analysis') {
-          state.resetSplits();
-        } else {
-          state.rotateTrackCW();
-        }
+        state.rotateTrackCW();
         return;
       }
 
@@ -209,26 +201,26 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // s — open AI/Strategy in analysis mode
+      // s — open AI/Strategy overlay
       if (e.key === 's') {
         e.preventDefault();
-        if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
-        state.setSlotContent('slotA', 'gemini');
+        state.setActiveTab('ai');
         return;
       }
 
-      // t/T — open Tyres in analysis mode
+      // t/T — open Tyres overlay
       if (e.key === 't' || e.key === 'T') {
         e.preventDefault();
-        if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
-        state.setSlotContent('slotA', 'tiredeg');
+        state.setActiveTab('tyres');
         return;
       }
 
-      // p — toggle Pit Wall / Analysis mode; Shift+P — prediction
+      // p — toggle overlays (close all or open charts); Shift+P — prediction
       if (e.key === 'p') {
         e.preventDefault();
-        state.toggleLayoutMode();
+        if (state.openOverlays.length > 0) {
+          state.closeAllOverlays();
+        }
         return;
       }
       if (e.key === 'P' && e.shiftKey) {
@@ -237,25 +229,21 @@ export function useKeyboardShortcuts() {
         if (activeDriver && state.currentLap >= 2) {
           state.triggerLSTMPredictions();
         }
-        if (state.layoutMode === 'pitwall') {
-          state.setLayoutMode('analysis');
-        }
-        state.setSlotContent('slotA', 'prediction');
+        state.setActiveTab('prediction');
         return;
       }
 
-      // A — open Analytics (t-SNE) in analysis mode
+      // A — open Analytics overlay
       if (e.key === 'a' || e.key === 'A') {
         e.preventDefault();
-        if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
-        state.setSlotContent('slotA', 'tsne');
+        state.setActiveTab('analytics');
         return;
       }
 
-      // Shift+C — championship in slot
+      // Shift+C — championship
       if (e.key === 'C' && e.shiftKey) {
         e.preventDefault();
-        // No direct slot for championship - just ignore or keep as-is
+        state.setActiveTab('championship');
         return;
       }
       if (e.key === 'c') {
@@ -272,8 +260,7 @@ export function useKeyboardShortcuts() {
       }
       if (e.key === 'G' && e.shiftKey && state.compareMode && state.compareDrivers?.length === 2) {
         e.preventDefault();
-        if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
-        state.setSlotContent('slotA', 'compare');
+        state.setActiveTab('compare');
         return;
       }
 

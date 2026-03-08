@@ -28,10 +28,9 @@ export function fuzzyMatch(query, target) {
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const modKey = isMac ? '\u2318' : 'Ctrl';
 
-/** Helper: switch to analysis mode with a given viz in slot A */
-function openAnalysisViz(state, vizId) {
-  if (state.layoutMode === 'pitwall') state.setLayoutMode('analysis');
-  state.setSlotContent('slotA', vizId);
+/** Helper: open an overlay tab */
+function openOverlayTab(state, tabId) {
+  state.setActiveTab(tabId);
   state.closeCommandPalette();
 }
 
@@ -40,46 +39,46 @@ export function createCommandRegistry() {
   const getState = () => store.getState();
 
   const commands = [
-    // === NAVIGATION (number keys map to layout mode + analysis slot) ===
+    // === NAVIGATION (number keys map to overlay tabs) ===
     {
-      id: 'go-pitwall',
-      label: 'Pit Wall Mode',
+      id: 'go-charts',
+      label: 'Charts (Close All Overlays)',
       category: 'Navigation',
       shortcut: '1',
       icon: 'home',
-      action: () => { getState().setLayoutMode('pitwall'); getState().closeCommandPalette(); },
-    },
-    {
-      id: 'open-trackmap',
-      label: 'Track Map',
-      category: 'Navigation',
-      shortcut: '2',
-      icon: 'map-pin',
-      action: () => openAnalysisViz(getState(), 'trackmap'),
+      action: () => { getState().closeAllOverlays(); getState().closeCommandPalette(); },
     },
     {
       id: 'open-laptimes',
       label: 'Lap Times',
       category: 'Navigation',
-      shortcut: '3',
+      shortcut: '2',
       icon: 'clock',
-      action: () => openAnalysisViz(getState(), 'laptimes'),
+      action: () => openOverlayTab(getState(), 'laptimes'),
     },
     {
       id: 'open-sectors',
       label: 'Sectors',
       category: 'Navigation',
-      shortcut: '4',
+      shortcut: '3',
       icon: 'bar-chart',
-      action: () => openAnalysisViz(getState(), 'sectors'),
+      action: () => openOverlayTab(getState(), 'sectors'),
     },
     {
       id: 'open-tyres',
       label: 'Tyres',
       category: 'Navigation',
-      shortcut: '5',
+      shortcut: '4',
       icon: 'circle',
-      action: () => openAnalysisViz(getState(), 'tiredeg'),
+      action: () => openOverlayTab(getState(), 'tyres'),
+    },
+    {
+      id: 'open-speed',
+      label: 'Charts Panel',
+      category: 'Navigation',
+      shortcut: '5',
+      icon: 'trending-up',
+      action: () => openOverlayTab(getState(), 'speed'),
     },
     {
       id: 'open-consistency',
@@ -87,7 +86,7 @@ export function createCommandRegistry() {
       category: 'Navigation',
       shortcut: '6',
       icon: 'trending-down',
-      action: () => openAnalysisViz(getState(), 'consistency'),
+      action: () => openOverlayTab(getState(), 'consistency'),
     },
     {
       id: 'open-prediction',
@@ -95,7 +94,7 @@ export function createCommandRegistry() {
       category: 'Navigation',
       shortcut: '7',
       icon: 'activity',
-      action: () => openAnalysisViz(getState(), 'prediction'),
+      action: () => openOverlayTab(getState(), 'prediction'),
     },
     {
       id: 'open-ai',
@@ -103,7 +102,7 @@ export function createCommandRegistry() {
       category: 'Navigation',
       shortcut: '8',
       icon: 'sparkles',
-      action: () => openAnalysisViz(getState(), 'gemini'),
+      action: () => openOverlayTab(getState(), 'ai'),
     },
     {
       id: 'open-compare',
@@ -111,7 +110,7 @@ export function createCommandRegistry() {
       category: 'Navigation',
       shortcut: '9',
       icon: 'git-compare',
-      action: () => openAnalysisViz(getState(), 'compare'),
+      action: () => openOverlayTab(getState(), 'compare'),
     },
     {
       id: 'open-analytics',
@@ -119,7 +118,7 @@ export function createCommandRegistry() {
       category: 'Navigation',
       shortcut: '0',
       icon: 'bar-chart',
-      action: () => openAnalysisViz(getState(), 'analytics'),
+      action: () => openOverlayTab(getState(), 'analytics'),
     },
 
     // === DRIVER ACTIONS ===
@@ -210,20 +209,20 @@ export function createCommandRegistry() {
     // === MODE SWITCHING ===
     {
       id: 'go-home',
-      label: 'Go to Pit Wall',
+      label: 'Close All Overlays (Charts View)',
       category: 'Navigation',
       shortcut: 'X',
       icon: 'home',
-      action: () => { getState().setLayoutMode('pitwall'); getState().closeCommandPalette(); },
-      available: () => getState().layoutMode !== 'pitwall',
+      action: () => { getState().closeAllOverlays(); getState().closeCommandPalette(); },
+      available: () => getState().openOverlays.length > 0,
     },
     {
       id: 'toggle-mode',
-      label: 'Toggle Pit Wall / Analysis',
+      label: 'Close All Overlays',
       category: 'Navigation',
       shortcut: 'P',
       icon: 'layout',
-      action: () => { getState().toggleLayoutMode(); getState().closeCommandPalette(); },
+      action: () => { getState().closeAllOverlays(); getState().closeCommandPalette(); },
     },
 
     // === REPLAY ===
@@ -297,7 +296,7 @@ export function createCommandRegistry() {
         if (driver && s.currentLap >= 2) {
           s.triggerLSTMPredictions();
         }
-        openAnalysisViz(s, 'prediction');
+        openOverlayTab(s, 'prediction');
       },
     },
     {
@@ -306,7 +305,7 @@ export function createCommandRegistry() {
       category: 'Analytics',
       shortcut: 'T',
       icon: 'circle',
-      action: () => openAnalysisViz(getState(), 'tiredeg'),
+      action: () => openOverlayTab(getState(), 'tyres'),
     },
     {
       id: 'open-strategy-ai',
@@ -314,15 +313,15 @@ export function createCommandRegistry() {
       category: 'Analytics',
       shortcut: 'S',
       icon: 'layers',
-      action: () => openAnalysisViz(getState(), 'gemini'),
+      action: () => openOverlayTab(getState(), 'ai'),
     },
     {
-      id: 'open-analytics-tsne',
+      id: 'open-analytics-pca',
       label: 'Analytics (PCA)',
       category: 'Analytics',
       shortcut: 'A',
       icon: 'bar-chart',
-      action: () => openAnalysisViz(getState(), 'tsne'),
+      action: () => openOverlayTab(getState(), 'analytics'),
     },
     {
       id: 'toggle-gemini-panel',
@@ -341,7 +340,7 @@ export function createCommandRegistry() {
       category: 'Analytics',
       shortcut: '⇧G',
       icon: 'git-compare',
-      action: () => openAnalysisViz(getState(), 'compare'),
+      action: () => openOverlayTab(getState(), 'compare'),
       available: () => getState().compareDrivers.length === 2,
     },
     {
@@ -425,6 +424,18 @@ export function createCommandRegistry() {
         s.setShowDashboard(!s.showDashboard);
         s.closeCommandPalette();
       },
+    },
+    {
+      id: 'arrange-overlays',
+      label: 'Arrange Open Overlays',
+      category: 'Layout',
+      shortcut: null,
+      icon: 'grid',
+      action: () => {
+        getState().arrangeOverlays();
+        getState().closeCommandPalette();
+      },
+      available: () => getState().openOverlays.length > 1,
     },
 
     // === UTILITY ===

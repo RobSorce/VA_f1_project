@@ -4,6 +4,71 @@ import * as api from '../utils/apiClient';
 import { computePCA, procrustesAlign2D } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
 
+const ARRANGE_LAYOUTS = {
+  1: [
+    (ids) => ({ [ids[0]]: { left: '0%', top: '0%', width: '100%', height: '100%' } }),
+  ],
+  2: [
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '100%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '100%' },
+    }),
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '100%', height: '50%' },
+      [ids[1]]: { left: '0%', top: '50%', width: '100%', height: '50%' },
+    }),
+  ],
+  3: [
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '100%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '50%' },
+      [ids[2]]: { left: '50%', top: '50%', width: '50%', height: '50%' },
+    }),
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '33.33%', height: '100%' },
+      [ids[1]]: { left: '33.33%', top: '0%', width: '33.34%', height: '100%' },
+      [ids[2]]: { left: '66.67%', top: '0%', width: '33.33%', height: '100%' },
+    }),
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '50%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '50%' },
+      [ids[2]]: { left: '0%', top: '50%', width: '100%', height: '50%' },
+    }),
+  ],
+  4: [
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '50%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '50%' },
+      [ids[2]]: { left: '0%', top: '50%', width: '50%', height: '50%' },
+      [ids[3]]: { left: '50%', top: '50%', width: '50%', height: '50%' },
+    }),
+    (ids) => ({
+      [ids[0]]: { left: '0%', top: '0%', width: '50%', height: '100%' },
+      [ids[1]]: { left: '50%', top: '0%', width: '50%', height: '33.33%' },
+      [ids[2]]: { left: '50%', top: '33.33%', width: '50%', height: '33.34%' },
+      [ids[3]]: { left: '50%', top: '66.67%', width: '50%', height: '33.33%' },
+    }),
+  ],
+};
+
+function autoGridLayout(ids) {
+  const n = ids.length;
+  const cols = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  const tiles = {};
+  ids.forEach((id, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    tiles[id] = {
+      left: `${(col / cols) * 100}%`,
+      top: `${(row / rows) * 100}%`,
+      width: `${100 / cols}%`,
+      height: `${100 / rows}%`,
+    };
+  });
+  return tiles;
+}
+
 // Module-level dedup for schedule fetch (immune to store/middleware timing)
 let _schedulePromise = null;
 let _scheduleYear = null;
@@ -565,56 +630,62 @@ export const useF1Store = create(persist((set, get) => ({
   rotateTrackCCW: () => set(s => ({ trackRotationOffset: (s.trackRotationOffset + 90) % 360 })),
   resetTrackRotation: () => set({ trackRotationOffset: 0 }),
 
-  // ── Tab system (v3: single active tab, no floating overlays) ───
-  activeTab: 'pitwall',  // which content fills the main area
-  setActiveTab: (tab) => set({ activeTab: tab }),
+  // ── Tab / Panel system (multi-window) ──────────────────────────
+  activeTab: 'charts',
+  openOverlays: [],
 
-  // ── Layout mode (v3 hybrid: pitwall vs analysis) ──────────────
-  layoutMode: 'pitwall', // 'pitwall' | 'analysis'
-  setLayoutMode: (mode) => set({ layoutMode: mode }),
-  toggleLayoutMode: () => set((s) => ({
-    layoutMode: s.layoutMode === 'pitwall' ? 'analysis' : 'pitwall',
-  })),
-
-  // ── Analysis slot selections ──────────────────────────────────
-  analysisSlots: {
-    slotA: 'laptimes',
-    slotB: 'trackmap',
-    slotC: 'tiredeg',
+  setActiveTab: (tab) => {
+    if (tab === 'charts') {
+      set({ activeTab: 'charts', openOverlays: [], overlayTiles: {}, _arrangeIdx: 0 });
+    } else {
+      set((s) => {
+        const already = s.openOverlays.includes(tab);
+        if (already) {
+          const next = s.openOverlays.filter((t) => t !== tab);
+          const tiles = { ...s.overlayTiles };
+          delete tiles[tab];
+          return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles, _arrangeIdx: 0 };
+        }
+        const next = [...s.openOverlays, tab];
+        return { openOverlays: next, activeTab: tab, _arrangeIdx: 0 };
+      });
+    }
   },
-  slotCVisible: true,
-  splitVertical: 0.5,
-  splitHorizontal: 0.65,
-  setSplitVertical: (ratio) => set({
-    splitVertical: Math.max(0.2, Math.min(0.8, ratio))
+
+  focusOverlay: (tab) => set((s) => {
+    if (!s.openOverlays.includes(tab)) return s;
+    return { activeTab: tab };
   }),
-  setSplitHorizontal: (ratio) => set({
-    splitHorizontal: Math.max(0.3, Math.min(0.9, ratio))
+
+  closeOverlay: (tab) => set((s) => {
+    const next = s.openOverlays.filter((t) => t !== tab);
+    const tiles = { ...s.overlayTiles };
+    delete tiles[tab];
+    return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles };
   }),
-  resetSplits: () => set({ splitVertical: 0.5, splitHorizontal: 0.65 }),
-  setSlotContent: (slot, vizId) => set((s) => ({
-    analysisSlots: { ...s.analysisSlots, [slot]: vizId },
-  })),
-  applyPreset: (preset) => set({
-    analysisSlots: { slotA: preset.slotA, slotB: preset.slotB, slotC: preset.slotC },
-    splitVertical: preset.splitV ?? 0.5,
-    splitHorizontal: preset.splitH ?? 0.65,
-    slotCVisible: !!preset.slotC,
-    layoutMode: 'analysis',
+
+  closeAllOverlays: () => set({ openOverlays: [], activeTab: 'charts', overlayTiles: {}, _arrangeIdx: 0 }),
+
+  cycleOverlay: (direction = 1) => set((s) => {
+    if (s.openOverlays.length === 0) return s;
+    const idx = s.openOverlays.indexOf(s.activeTab);
+    const len = s.openOverlays.length;
+    const next = s.openOverlays[((idx === -1 ? 0 : idx) + direction + len) % len];
+    return { activeTab: next };
   }),
-  toggleSlotC: () => set((s) => ({ slotCVisible: !s.slotCVisible })),
 
   // ── Gemini floating panel ─────────────────────────────────────
   geminiPanelOpen: false,
   toggleGeminiPanel: () => set((s) => ({ geminiPanelOpen: !s.geminiPanelOpen })),
 
   // ── Settings (persist across sessions) ──────────────────────────
-  theme: 'dark',         // 'dark' | 'light'
-  tempUnit: 'C',         // 'C' | 'F'
-  speedUnit: 'kmh',      // 'kmh' | 'mph'
-  // playbackSpeed uses existing playSpeed / setPlaySpeed below
-  showDashboard: true,   // show/hide bottom tab bar (macOS Dock-style)
-  leaderboardCollapsed: false, // collapse/expand leaderboard sidebar
+  theme: 'dark',
+  tempUnit: 'C',
+  speedUnit: 'kmh',
+  overlayTiles: {},
+  _arrangeIdx: 0,
+  showDashboard: true,
+  leaderboardCollapsed: false,
   telemetryChannels: { speed: true, delta: true, throttle: true, brake: true, gear: true, rpm: true },
 
   setTheme: (theme) => {
@@ -624,13 +695,45 @@ export const useF1Store = create(persist((set, get) => ({
   setTempUnit: (tempUnit) => set({ tempUnit }),
   toggleLeaderboard: () => set((s) => ({ leaderboardCollapsed: !s.leaderboardCollapsed })),
   setSpeedUnit: (speedUnit) => set({ speedUnit }),
-  // playbackSpeed uses setPlaySpeed (see Simulation section)
+  tileOverlay: (tabId, tile) => set((s) => ({
+    overlayTiles: { ...s.overlayTiles, [tabId]: tile },
+  })),
+  clearTile: (tabId) => set((s) => {
+    const next = { ...s.overlayTiles };
+    delete next[tabId];
+    return { overlayTiles: next };
+  }),
+  tileActiveOverlay: (tile) => set((s) => {
+    if (s.openOverlays.length === 0) return s;
+    const tabId = s.activeTab;
+    if (!s.openOverlays.includes(tabId)) return s;
+    if (s.overlayTiles[tabId] === tile) {
+      const next = { ...s.overlayTiles };
+      delete next[tabId];
+      return { overlayTiles: next };
+    }
+    return { overlayTiles: { ...s.overlayTiles, [tabId]: tile } };
+  }),
+  arrangeOverlays: () => set((s) => {
+    const ids = s.openOverlays;
+    if (ids.length === 0) return s;
+    const presets = ARRANGE_LAYOUTS[ids.length];
+    const totalLayouts = presets ? presets.length : 1;
+    const nextIdx = (s._arrangeIdx + 1) % (totalLayouts + 1);
+    if (nextIdx === 0) {
+      return { overlayTiles: {}, _arrangeIdx: 0 };
+    }
+    const tiles = presets
+      ? presets[nextIdx - 1](ids)
+      : autoGridLayout(ids);
+    return { overlayTiles: tiles, _arrangeIdx: nextIdx };
+  }),
   setShowDashboard: (show) => set({ showDashboard: show }),
   setTelemetryChannel: (channel, enabled) => set((s) => ({
     telemetryChannels: { ...s.telemetryChannels, [channel]: enabled },
   })),
 
-  // Legacy panel system (kept for backward compat during transition)
+  // Legacy panel system (kept for backward compat)
   activePanel: null,
   setActivePanel: (panel) => set((s) => ({ activePanel: s.activePanel === panel ? null : panel })),
   openPanel: (panel) => set({ activePanel: panel }),
@@ -648,7 +751,10 @@ export const useF1Store = create(persist((set, get) => ({
     currentLap: 1,
     maxLap: 1,
     isPlaying: false,
-    activeTab: 'pitwall',
+    activeTab: 'charts',
+    openOverlays: [],
+    overlayTiles: {},
+    _arrangeIdx: 0,
     activePanel: null,
     sectorRankings: null,
     consistencyData: null,
@@ -1467,11 +1573,7 @@ export const useF1Store = create(persist((set, get) => ({
     speedUnit: state.speedUnit,
     playSpeed: state.playSpeed,
     showDashboard: state.showDashboard,
-    layoutMode: state.layoutMode,
-    analysisSlots: state.analysisSlots,
-    slotCVisible: state.slotCVisible,
-    splitVertical: state.splitVertical,
-    splitHorizontal: state.splitHorizontal,
+    openOverlays: state.openOverlays,
     telemetryChannels: state.telemetryChannels,
     year: state.year,
     sessionType: state.sessionType,

@@ -8,7 +8,6 @@ export default function ShortcutHints() {
   const focusDriver = useF1Store((s) => s.focusDriver);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const compareMode = useF1Store((s) => s.compareMode);
-  const layoutMode = useF1Store((s) => s.layoutMode);
   const openCommandPalette = useF1Store((s) => s.openCommandPalette);
 
   const [faded, setFaded] = useState(false);
@@ -39,7 +38,7 @@ export default function ShortcutHints() {
   // Build contextual hints
   const hints = [
     { key: `${modKey}K`, label: 'Commands' },
-    { key: 'P', label: layoutMode === 'pitwall' ? 'Analysis' : 'Pit Wall' },
+    { key: 'Esc', label: 'Close Overlays' },
     { key: '2-0', label: 'Views' },
   ];
 
