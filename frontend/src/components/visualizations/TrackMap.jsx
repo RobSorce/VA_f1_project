@@ -37,6 +37,90 @@ const SECTOR_COLORS = { 1: '#e10600', 2: '#ffd700', 3: '#0090ff' };
 const COMPOUND_NAMES = { 0: 'UNK', 1: 'SOFT', 2: 'MED', 3: 'HARD', 4: 'INTER', 5: 'WET' };
 const COMPOUND_COLORS = { 0: '#888', 1: '#FF3333', 2: '#FFC300', 3: '#FFFFFF', 4: '#39B54A', 5: '#0067FF' };
 
+// Race control overlay for live mode (when car positions are unavailable)
+function LiveRaceControlOverlay() {
+  const raceControlMessages = useF1Store((s) => s.raceControlMessages);
+  const trackStatus = useF1Store((s) => s.trackStatus);
+  const currentLap = useF1Store((s) => s.currentLap);
+  const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
+
+  const messages = useMemo(() => {
+    const items = [];
+    // Add track status events
+    for (const ts of (trackStatus || [])) {
+      const info = FLAG_COLORS_MAP[ts.status];
+      if (info) {
+        items.push({ type: 'status', text: info.label, color: info.color, time: ts.start_time });
+      }
+    }
+    // Add race control messages
+    for (const msg of (raceControlMessages || [])) {
+      items.push({
+        type: msg.category || 'RC',
+        text: msg.message || '',
+        color: msg.flag === 'YELLOW' ? '#eab308' : msg.flag === 'RED' ? '#ef4444' : '#7a7f9a',
+        time: msg.timestamp,
+        lap: msg.lap,
+      });
+    }
+    return items.slice(-12).reverse(); // Last 12, newest first
+  }, [raceControlMessages, trackStatus]);
+
+  return (
+    <div style={{
+      position: 'absolute', top: 8, right: 8, bottom: 40, width: 260,
+      zIndex: 10, display: 'flex', flexDirection: 'column',
+      background: 'rgba(12,12,28,0.85)', borderRadius: 6,
+      border: '1px solid rgba(255,255,255,0.08)',
+      backdropFilter: 'blur(12px)',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: '#e0e0e0', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Race Control
+        </span>
+        <span style={{ fontSize: 9, color: '#555', fontFamily: 'var(--font-mono)' }}>
+          Lap {currentLap}/{totalRaceLaps || '?'}
+        </span>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+        {messages.length === 0 ? (
+          <div style={{ padding: '12px 10px', fontSize: 9, color: '#555', textAlign: 'center' }}>
+            No race control messages yet
+          </div>
+        ) : messages.map((msg, i) => (
+          <div key={i} style={{
+            padding: '4px 10px', fontSize: 9, color: '#bbb',
+            borderLeft: `2px solid ${msg.color}`,
+            marginLeft: 4, marginBottom: 2,
+          }}>
+            {msg.lap && <span style={{ color: '#555', marginRight: 4, fontFamily: 'var(--font-mono)' }}>L{msg.lap}</span>}
+            <span style={{ color: msg.color, fontWeight: 600 }}>{msg.text}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{
+        padding: '4px 10px', borderTop: '1px solid rgba(255,255,255,0.06)',
+        fontSize: 8, color: '#555', textAlign: 'center',
+      }}>
+        Positions via OpenF1 (when available)
+      </div>
+    </div>
+  );
+}
+
+const FLAG_COLORS_MAP = {
+  '1': { label: 'Green Flag', color: '#22c55e' },
+  '2': { label: 'Yellow Flag', color: '#eab308' },
+  '4': { label: 'Safety Car', color: '#f59e0b' },
+  '5': { label: 'Red Flag', color: '#ef4444' },
+  '6': { label: 'Virtual Safety Car', color: '#f97316' },
+  '7': { label: 'Virtual Safety Car', color: '#f97316' },
+};
+
 // Trail configuration for driver glow effect
 const TRAIL_CONFIG = [
   { radius: 5, opacity: 0.4 },   // Most recent
@@ -74,6 +158,7 @@ export default function TrackMap({ compact = false }) {
   const maxLap = useF1Store((s) => s.maxLap);
   const drivers = useF1Store((s) => s.drivers);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
+  const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
 
   // Track overlay toggles — synced with store for keyboard shortcuts
   const showTrackSectors = useF1Store((s) => s.showTrackSectors);
@@ -999,36 +1084,69 @@ export default function TrackMap({ compact = false }) {
     return list.filter((d) => !(dnfMap[d] && dnfMap[d].lastLap <= currentLap));
   }, [focusDriver, selectedDrivers, dnfMap, currentLap]);
 
-  const hudDataList = useMemo(() => {
-    if (hudDrivers.length === 0 || !frameData?.frames?.length || currentFrameIndex < 0) return [];
-    const idx = Math.min(currentFrameIndex, frameData.frames.length - 1);
-    const frame = frameData.frames[idx];
-    if (!frame?.drivers) return [];
+  const liveTelemetry = useF1Store((s) => s.liveTelemetry);
 
-    return hudDrivers.map((drv) => {
-      const d = frame.drivers[drv];
-      if (!d) return null;
-      const tyreInt = d.tyre ?? 0;
-      const drsVal = d.drs;
-      let drsText = 'OFF', drsClass = 'hud-drs--off';
-      if (drsVal === 8) { drsText = 'AVAIL'; drsClass = 'hud-drs--avail'; }
-      else if (drsVal === 10 || drsVal === 12 || drsVal === 14) { drsText = 'ACTIVE'; drsClass = 'hud-drs--on'; }
-      return {
-        driver: drv,
-        isFocused: drv === focusDriver,
-        color: getDriverColor(drv),
-        speed: typeof d.speed === 'number' ? d.speed.toFixed(0) : '—',
-        throttle: typeof d.throttle === 'number' ? d.throttle.toFixed(0) : '—',
-        brake: typeof d.brake === 'number' ? d.brake.toFixed(0) : '—',
-        gear: typeof d.gear === 'number' ? Math.round(d.gear) : '—',
-        drsText, drsClass,
-        compound: COMPOUND_NAMES[tyreInt] || 'UNK',
-        compoundColor: COMPOUND_COLORS[tyreInt] || '#888',
-        tyreLife: d.tyre_life != null ? Math.round(d.tyre_life) : '—',
-        lap: d.lap != null ? d.lap : '—',
-      };
-    }).filter(Boolean);
-  }, [hudDrivers, focusDriver, frameData, currentFrameIndex]);
+  const hudDataList = useMemo(() => {
+    if (hudDrivers.length === 0) return [];
+
+    // Try frame data first (replay mode or live mode with OpenF1 positions)
+    if (frameData?.frames?.length && currentFrameIndex >= 0) {
+      const idx = Math.min(currentFrameIndex, frameData.frames.length - 1);
+      const frame = frameData.frames[idx];
+      if (frame?.drivers) {
+        return hudDrivers.map((drv) => {
+          const d = frame.drivers[drv];
+          if (!d) return null;
+          const tyreInt = d.tyre ?? 0;
+          const drsVal = d.drs;
+          let drsText = 'OFF', drsClass = 'hud-drs--off';
+          if (drsVal === 8) { drsText = 'AVAIL'; drsClass = 'hud-drs--avail'; }
+          else if (drsVal === 10 || drsVal === 12 || drsVal === 14) { drsText = 'ACTIVE'; drsClass = 'hud-drs--on'; }
+          return {
+            driver: drv,
+            isFocused: drv === focusDriver,
+            color: getDriverColor(drv),
+            speed: typeof d.speed === 'number' ? d.speed.toFixed(0) : '—',
+            throttle: typeof d.throttle === 'number' ? d.throttle.toFixed(0) : '—',
+            brake: typeof d.brake === 'number' ? d.brake.toFixed(0) : '—',
+            gear: typeof d.gear === 'number' ? Math.round(d.gear) : '—',
+            drsText, drsClass,
+            compound: COMPOUND_NAMES[tyreInt] || 'UNK',
+            compoundColor: COMPOUND_COLORS[tyreInt] || '#888',
+            tyreLife: d.tyre_life != null ? Math.round(d.tyre_life) : '—',
+            lap: d.lap != null ? d.lap : '—',
+          };
+        }).filter(Boolean);
+      }
+    }
+
+    // Fallback: use live telemetry from OpenF1 (when no frame positions available)
+    if (isLiveMode && liveTelemetry && Object.keys(liveTelemetry).length > 0) {
+      return hudDrivers.map((drv) => {
+        const t = liveTelemetry[drv];
+        if (!t) return null;
+        const drsVal = t.drs;
+        let drsText = 'OFF', drsClass = 'hud-drs--off';
+        if (drsVal === 8) { drsText = 'AVAIL'; drsClass = 'hud-drs--avail'; }
+        else if (drsVal === 10 || drsVal === 12 || drsVal === 14) { drsText = 'ACTIVE'; drsClass = 'hud-drs--on'; }
+        return {
+          driver: drv,
+          isFocused: drv === focusDriver,
+          color: getDriverColor(drv),
+          speed: typeof t.speed === 'number' ? t.speed.toFixed(0) : '—',
+          throttle: typeof t.throttle === 'number' ? t.throttle.toFixed(0) : '—',
+          brake: typeof t.brake === 'number' ? t.brake.toFixed(0) : '—',
+          gear: typeof t.gear === 'number' ? Math.round(t.gear) : '—',
+          drsText, drsClass,
+          compound: '—', compoundColor: '#888',
+          tyreLife: '—',
+          lap: currentLap || '—',
+        };
+      }).filter(Boolean);
+    }
+
+    return [];
+  }, [hudDrivers, focusDriver, frameData, currentFrameIndex, isLiveMode, liveTelemetry, currentLap]);
 
   // Build driver legend
   const driverLegendItems = useMemo(() => {
@@ -1144,7 +1262,10 @@ export default function TrackMap({ compact = false }) {
   }
 
   // Race finish + winner detection
-  const raceFinished = currentLap >= maxLap && maxLap > 1;
+  const raceTarget = totalRaceLaps || maxLap;
+  const raceFinished = isLiveMode
+    ? (currentLap >= raceTarget && raceTarget > 1 && currentLap > 2)
+    : (currentLap >= maxLap && maxLap > 1);
   const winnerAbbr = useMemo(() => {
     if (!raceFinished || !sessionData?.race_results?.length) return null;
     const sorted = [...sessionData.race_results].sort(
@@ -1239,16 +1360,9 @@ export default function TrackMap({ compact = false }) {
           </div>
         )}
 
-        {/* Live mode: no position data available */}
+        {/* Live mode: race control feed overlay when no position data */}
         {isLiveMode && (!frameData?.frames?.length) && (
-          <div style={{
-            position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 10, padding: '3px 10px', borderRadius: 4,
-            background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.08)',
-            fontSize: 9, color: '#888', letterSpacing: '0.04em', whiteSpace: 'nowrap',
-          }}>
-            Live car positions unavailable — timing data active
-          </div>
+          <LiveRaceControlOverlay />
         )}
 
         {/* Telemetry HUD overlays — one per selected/focused driver */}

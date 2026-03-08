@@ -14,6 +14,7 @@ export default function SessionInfoBar() {
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
+  const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
   const currentFlagStatus = useF1Store((s) => s.currentFlagStatus);
   const liveSessionInfo = useF1Store((s) => s.liveSessionInfo);
 
@@ -44,7 +45,7 @@ export default function SessionInfoBar() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 11, color: '#7a7f9a', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
-          LAP <strong style={{ color: '#fff', fontSize: 14 }}>{currentLap}</strong> / {maxLap}
+          LAP <strong style={{ color: '#fff', fontSize: 14 }}>{currentLap}</strong> / {totalRaceLaps || maxLap}
         </span>
       </div>
 

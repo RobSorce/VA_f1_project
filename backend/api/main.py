@@ -824,6 +824,8 @@ async def _shutdown_live_timing():
     global _live_signalr_task, _live_mock_replay
     if _live_mock_replay and _live_mock_replay.is_running:
         await _live_mock_replay.stop()
+    if _live_session_manager:
+        await _live_session_manager.stop_openf1()
     if _live_signalr_task:
         _live_signalr_task.cancel()
         try:
@@ -856,7 +858,16 @@ async def connect_live_signalr():
 
         client = F1SignalRClient(on_message=lambda t, d: asyncio.create_task(_on_msg(t, d)))
         _live_signalr_task = asyncio.create_task(client.start())
-        return {"status": "connecting", "message": "SignalR client started"}
+
+        # Also start OpenF1 telemetry polling for car data + positions
+        # (SignalR's CarData.z and Position.z are paywalled since 2025)
+        try:
+            await _live_session_manager.start_openf1()
+            logger.info("OpenF1 telemetry polling started alongside SignalR")
+        except Exception as oe:
+            logger.warning(f"OpenF1 telemetry not available: {oe}")
+
+        return {"status": "connecting", "message": "SignalR client started (with OpenF1 telemetry)"}
     except Exception as e:
         logger.error(f"SignalR connect failed: {e}")
         return {"error": str(e)}
@@ -941,8 +952,10 @@ async def load_live_full_session():
 
 @app.get("/api/live/disconnect-signalr")
 async def disconnect_live_signalr():
-    """Stop the SignalR connection."""
+    """Stop the SignalR connection and OpenF1 telemetry."""
     global _live_signalr_task
+    if _live_session_manager:
+        await _live_session_manager.stop_openf1()
     if _live_signalr_task:
         _live_signalr_task.cancel()
         try:

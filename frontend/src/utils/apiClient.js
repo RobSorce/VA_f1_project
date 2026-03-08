@@ -82,5 +82,11 @@ export const startMockReplay = (year, round, speed = 10) =>
   client.get('/live/mock/start', { params: { year, round, speed } }).then((r) => r.data);
 export const stopMockReplay = () => client.get('/live/mock/stop').then((r) => r.data);
 
+// ── OpenF1 Telemetry ────────────────────────────────────────────────
+export const startOpenF1Telemetry = (sessionKey) =>
+  client.get('/live/openf1/start', { params: sessionKey ? { session_key: sessionKey } : {} }).then((r) => r.data);
+export const stopOpenF1Telemetry = () => client.get('/live/openf1/stop').then((r) => r.data);
+export const getOpenF1Status = () => client.get('/live/openf1/status').then((r) => r.data);
+
 // ── Health ──────────────────────────────────────────────────────────
 export const healthCheck = () => client.get('/health').then((r) => r.data);

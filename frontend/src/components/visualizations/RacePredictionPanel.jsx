@@ -9,9 +9,12 @@ export default function RacePredictionPanel() {
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
+  const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
   const sessionData = useF1Store((s) => s.sessionData);
   const trackStatus = useF1Store((s) => s.trackStatus);
   const setRaceProjection = useF1Store((s) => s.setRaceProjection);
+
+  const effectiveMaxLap = totalRaceLaps || maxLap;
 
   // ── Monte Carlo race projection (all drivers, real data) ──
   const raceProjection = useMemo(() => {
@@ -19,20 +22,20 @@ export default function RacePredictionPanel() {
     return simulateRaceFinish({
       driverFeatures: raceSituationData.driverFeatures,
       currentLap,
-      maxLap,
+      maxLap: effectiveMaxLap,
       lapTimes: sessionData?.lap_times,
       strategies: sessionData?.tyre_strategy,
       trackStatus,
     });
-  }, [raceSituationData, currentLap, maxLap, sessionData, trackStatus]);
+  }, [raceSituationData, currentLap, effectiveMaxLap, sessionData, trackStatus]);
 
   // Sync to store so Gemini can access it
   useEffect(() => {
     setRaceProjection(raceProjection);
   }, [raceProjection, setRaceProjection]);
 
-  const lapsRemaining = maxLap - currentLap;
-  const raceProgress = maxLap > 0 ? currentLap / maxLap : 0;
+  const lapsRemaining = effectiveMaxLap - currentLap;
+  const raceProgress = effectiveMaxLap > 0 ? currentLap / effectiveMaxLap : 0;
   const numDrivers = raceSituationData?.driverAbbrs?.length || 20;
 
   return (
@@ -55,7 +58,7 @@ export default function RacePredictionPanel() {
                   Monte Carlo Projection
                 </span>
                 <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>
-                  Lap {currentLap}/{maxLap} &middot; {lapsRemaining} to go
+                  Lap {currentLap}/{effectiveMaxLap} &middot; {lapsRemaining} to go
                 </span>
               </div>
               <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', marginBottom: 6 }}>

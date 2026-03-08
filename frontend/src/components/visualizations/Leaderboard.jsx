@@ -553,7 +553,7 @@ export default function Leaderboard({ collapsed }) {
           <div className="tower-broadcast-header__lap">
             <span className="tower-broadcast-header__lap-label">LAP</span>
             <span className="tower-broadcast-header__lap-current">{currentLap}</span>
-            <span className="tower-broadcast-header__lap-total">/{maxLap}</span>
+            <span className="tower-broadcast-header__lap-total">/{totalRaceLaps || maxLap}</span>
           </div>
         )}
       </div>

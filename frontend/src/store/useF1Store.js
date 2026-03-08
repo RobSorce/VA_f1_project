@@ -100,6 +100,7 @@ export const useF1Store = create(persist((set, get) => ({
   liveStandings: null,           // driver standings from live position updates
   raceControlMessages: [],       // live race control messages
   totalRaceLaps: null,           // total laps in the race (from lap_count)
+  liveTelemetry: {},             // {DRIVER: {speed, throttle, brake, gear, rpm, drs, updated}}
 
   // ── Qualifying replay ──────────────────────────────────────────
   qualiSegments: null,     // {Q1: {frames, driver_colors, ...}, Q2: {...}, Q3: {...}}
@@ -182,6 +183,7 @@ export const useF1Store = create(persist((set, get) => ({
         liveStandings: null,
         raceControlMessages: [],
         totalRaceLaps: null,
+        liveTelemetry: {},
       });
     }
 
@@ -435,6 +437,7 @@ export const useF1Store = create(persist((set, get) => ({
       liveConnectionStatus: 'disconnected',
       liveStandings: null,
       raceControlMessages: [],
+      liveTelemetry: {},
       sessionData: null,
       drivers: [],
       frameData: null,
@@ -458,20 +461,22 @@ export const useF1Store = create(persist((set, get) => ({
       case 'lap_update': {
         // Append new lap time entry
         const lapTimes = [...(state.sessionData?.lap_times || []), data];
-        const newMaxLap = Math.max(state.maxLap, data.LapNumber || 0);
+        const lapNum = data.LapNumber || 0;
+        const updatedMaxLap = Math.max(state.maxLap, lapNum);
         set({
           sessionData: { ...state.sessionData, lap_times: lapTimes },
-          maxLap: newMaxLap,
-          currentLap: newMaxLap,
+          currentLap: Math.max(state.currentLap, lapNum),
+          // maxLap tracks the furthest lap seen (not totalRaceLaps)
+          maxLap: updatedMaxLap,
         });
 
         // Trigger LSTM predictions every 2 laps
-        if (newMaxLap > 2 && newMaxLap % 2 === 0 && state.triggerLSTMPredictions) {
+        if (updatedMaxLap > 2 && updatedMaxLap % 2 === 0 && state.triggerLSTMPredictions) {
           state.triggerLSTMPredictions();
         }
 
         // Compute race situation (PCA + Monte Carlo) every lap
-        if (newMaxLap >= 3) {
+        if (updatedMaxLap >= 3) {
           setTimeout(() => get().computeRaceSituation(), 0);
         }
         break;
@@ -517,7 +522,7 @@ export const useF1Store = create(persist((set, get) => ({
         const { current_lap, total_laps } = data;
         set({
           currentLap: current_lap,
-          maxLap: Math.max(state.maxLap, total_laps || current_lap),
+          maxLap: Math.max(state.maxLap, current_lap),
           totalRaceLaps: total_laps || state.totalRaceLaps,
         });
         break;
@@ -570,6 +575,24 @@ export const useF1Store = create(persist((set, get) => ({
             { ...data, timestamp: Date.now() },
           ],
         }));
+        break;
+      }
+
+      case 'telemetry_update': {
+        // Live telemetry from OpenF1: {driver, driver_number, samples}
+        const driver = data.driver;
+        const samples = data.samples || [];
+        if (driver && samples.length > 0) {
+          set((s) => ({
+            liveTelemetry: {
+              ...s.liveTelemetry,
+              [driver]: {
+                ...samples[samples.length - 1],
+                updated: Date.now(),
+              },
+            },
+          }));
+        }
         break;
       }
 
@@ -635,10 +658,13 @@ export const useF1Store = create(persist((set, get) => ({
   openOverlays: [],
 
   setActiveTab: (tab) => {
-    if (tab === 'charts') {
-      set({ activeTab: 'charts', openOverlays: [], overlayTiles: {}, _arrangeIdx: 0 });
+    if (tab === 'charts' || tab === 'pitwall') {
+      // Standalone modes: close all overlays
+      set({ activeTab: tab, openOverlays: [], overlayTiles: {}, _arrangeIdx: 0 });
     } else {
       set((s) => {
+        // If currently in pitwall, switch to charts base + open overlay
+        const base = s.activeTab === 'pitwall' ? 'charts' : s.activeTab;
         const already = s.openOverlays.includes(tab);
         if (already) {
           const next = s.openOverlays.filter((t) => t !== tab);

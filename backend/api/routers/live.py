@@ -183,3 +183,50 @@ async def stop_mock_replay():
         await _mock_replay.stop()
         return {"status": "stopped"}
     return {"status": "not_running"}
+
+
+# ── OpenF1 telemetry endpoints ───────────────────────────────────
+
+@router.get("/openf1/start")
+async def start_openf1_telemetry(session_key: int = Query(None)):
+    """Start polling OpenF1 API for live telemetry and car positions.
+
+    Optionally provide a session_key. If omitted, the client will
+    auto-detect the latest/active session on OpenF1.
+    """
+    if _session_manager is None:
+        return {"error": "Live timing not initialized"}
+
+    try:
+        await _session_manager.start_openf1(session_key=session_key)
+        return {
+            "status": "started",
+            "session_key": session_key,
+            "message": "OpenF1 telemetry polling started",
+        }
+    except Exception as e:
+        logger.error(f"OpenF1 start error: {e}")
+        return {"error": str(e)}
+
+
+@router.get("/openf1/stop")
+async def stop_openf1_telemetry():
+    """Stop polling OpenF1 API."""
+    if _session_manager is None:
+        return {"error": "Live timing not initialized"}
+    await _session_manager.stop_openf1()
+    return {"status": "stopped"}
+
+
+@router.get("/openf1/status")
+async def openf1_status():
+    """Check OpenF1 telemetry polling status."""
+    if _session_manager is None:
+        return {"active": False}
+    return {
+        "active": _session_manager._openf1_enabled,
+        "has_car_data": len(_session_manager._openf1_car_data) > 0,
+        "has_positions": len(_session_manager._openf1_positions) > 0,
+        "drivers_with_telemetry": list(_session_manager._openf1_car_data.keys()),
+        "drivers_with_positions": list(_session_manager._openf1_positions.keys()),
+    }

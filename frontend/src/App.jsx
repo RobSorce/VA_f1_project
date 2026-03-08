@@ -13,6 +13,7 @@ import GeminiFloatingButton from './components/ui/GeminiFloatingButton';
 
 // Layout
 import OverlayPanel from './components/layout/OverlayPanel';
+import PitWallLayout from './components/layout/PitWallLayout';
 
 // Visualizations
 import Leaderboard from './components/visualizations/Leaderboard';
@@ -54,6 +55,7 @@ const OVERLAY_TABS = {
 
 export default function App() {
   const sessionData = useF1Store((s) => s.sessionData);
+  const activeTab = useF1Store((s) => s.activeTab);
   const openOverlays = useF1Store((s) => s.openOverlays);
   const leaderboardCollapsed = useF1Store((s) => s.leaderboardCollapsed);
 
@@ -65,37 +67,47 @@ export default function App() {
     return <SessionSelectorScreen />;
   }
 
+  // Pit Wall is a standalone full-screen mode (no sidebar, no overlays)
+  const isPitWall = activeTab === 'pitwall';
+
   return (
     <div className="app-container">
       <WeatherBar />
       <div className="app-body">
-        <aside className={`app-sidebar${leaderboardCollapsed ? ' app-sidebar--collapsed' : ''}`}>
-          <Leaderboard collapsed={leaderboardCollapsed} />
-          {!leaderboardCollapsed && <FocusDriverWidget />}
-          {openOverlays.length > 0 && (
-            <div className="track-minimap">
-              <TrackMap compact />
+        {isPitWall ? (
+          /* Pit Wall: full-width layout with its own sidebar */
+          <PitWallLayout />
+        ) : (
+          <>
+            <aside className={`app-sidebar${leaderboardCollapsed ? ' app-sidebar--collapsed' : ''}`}>
+              <Leaderboard collapsed={leaderboardCollapsed} />
+              {!leaderboardCollapsed && <FocusDriverWidget />}
+              {openOverlays.length > 0 && (
+                <div className="track-minimap">
+                  <TrackMap compact />
+                </div>
+              )}
+            </aside>
+            <div className="app-center">
+              {/* Charts tab always renders underneath */}
+              <ChartsTabContent />
+              {/* Floating overlay windows */}
+              {openOverlays.length > 0 && (
+                <div className={`overlay-container overlay-container--count-${openOverlays.length}`}>
+                  {openOverlays.map((tabId) => {
+                    const config = OVERLAY_TABS[tabId];
+                    if (!config) return null;
+                    return (
+                      <OverlayPanel key={tabId} title={config.title} tabId={tabId}>
+                        <config.Component />
+                      </OverlayPanel>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
-        </aside>
-        <div className="app-center">
-          {/* Charts tab always renders underneath */}
-          <ChartsTabContent />
-          {/* Floating overlay windows */}
-          {openOverlays.length > 0 && (
-            <div className={`overlay-container overlay-container--count-${openOverlays.length}`}>
-              {openOverlays.map((tabId) => {
-                const config = OVERLAY_TABS[tabId];
-                if (!config) return null;
-                return (
-                  <OverlayPanel key={tabId} title={config.title} tabId={tabId}>
-                    <config.Component />
-                  </OverlayPanel>
-                );
-              })}
-            </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
       <TimelinePlayer />
       <BottomTabBar />

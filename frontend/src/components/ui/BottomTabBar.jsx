@@ -3,6 +3,7 @@ import { useF1Store } from '../../store/useF1Store';
 
 const TABS = [
   { id: 'charts', label: 'Track Map', icon: 'M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4zM8 2v20M16 6v16', hint: '1' },
+  { id: 'pitwall', label: 'Pit Wall', icon: 'M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5zM4 9h16M9 4v16', hint: null },
   { id: 'laptimes', label: 'Lap Times', icon: 'M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM12 6V2M10 2h4M12 12l2-2M22 12h-2M2 12h2M12 22v-2', hint: '2' },
   { id: 'sectors', label: 'Sectors', icon: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5', hint: '3' },
   { id: 'tyres', label: 'Tyres', icon: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', hint: '4' },
@@ -19,6 +20,7 @@ const TABS = [
 const HOVER_ZONE_HEIGHT = 12; // px from bottom edge that triggers reveal
 
 export default function BottomTabBar() {
+  const activeTab = useF1Store((s) => s.activeTab);
   const openOverlays = useF1Store((s) => s.openOverlays);
   const setActiveTab = useF1Store((s) => s.setActiveTab);
   const showDashboard = useF1Store((s) => s.showDashboard);
@@ -82,8 +84,10 @@ export default function BottomTabBar() {
       >
         {TABS.map((tab) => {
           const isOpen = tab.id === 'charts'
-            ? openOverlays.length === 0
-            : openOverlays.includes(tab.id);
+            ? (activeTab === 'charts' && openOverlays.length === 0)
+            : tab.id === 'pitwall'
+              ? activeTab === 'pitwall'
+              : openOverlays.includes(tab.id);
 
           return (
             <button

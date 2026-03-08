@@ -5,6 +5,10 @@ Manages the lifecycle of a live F1 session: accumulates data from the
 SignalR client via the normalizer, maintains full session state matching
 the historical data format, and pushes incremental updates to connected
 WebSocket clients.
+
+Also manages an OpenF1 client for live telemetry (speed, throttle, brake,
+gear, RPM, DRS) and car positions (x, y, z) since those feeds are paywalled
+on the F1 SignalR hub since 2025.
 """
 import asyncio
 import json
@@ -46,6 +50,13 @@ class LiveSessionManager:
         # Per-driver telemetry buffers (for accumulating CarData per lap)
         self.telemetry_buffers: Dict[str, List[Dict]] = {}
         self.completed_telemetry: Dict[str, List[Dict]] = {}  # "DRIVER-LAP" → samples
+
+        # OpenF1 telemetry client
+        self._openf1_client = None
+        self._openf1_enabled = False
+        # Latest per-driver telemetry from OpenF1 (for frame building)
+        self._openf1_car_data: Dict[str, Dict] = {}   # driver_num → latest sample
+        self._openf1_positions: Dict[str, Dict] = {}   # driver_num → latest {x, y, z}
 
         # Connected WebSocket client queues
         self._subscribers: List[asyncio.Queue] = []
@@ -109,6 +120,9 @@ class LiveSessionManager:
             "session_status": self.session_status,
             "current_lap": self.current_lap,
             "total_laps": self.total_laps,
+            "openf1_active": self._openf1_enabled,
+            "openf1_locked": (self._openf1_client._api_locked
+                              if self._openf1_client else False),
             "connected_clients": len(self._subscribers),
             "lap_count": len(self.lap_times),
             "driver_count": len(self.driver_info),
@@ -166,6 +180,8 @@ class LiveSessionManager:
 
         for lap_entry in lap_updates:
             self.lap_times.append(lap_entry)
+            logger.info(f"lap_update: {lap_entry.get('Driver')} L{lap_entry.get('LapNumber')} "
+                        f"{lap_entry.get('LapTimeSeconds', '?')}s")
             await self._broadcast({
                 "type": "lap_update",
                 "data": lap_entry,
@@ -221,6 +237,7 @@ class LiveSessionManager:
         self.current_lap = self.normalizer.process_lap_count(data)
         if data.get("TotalLaps"):
             self.total_laps = int(data["TotalLaps"])
+        logger.info(f"LapCount: current={self.current_lap} total={self.total_laps} (raw: {data})")
         if self.current_lap != old_lap:
             await self._broadcast({
                 "type": "lap_count",
@@ -372,6 +389,116 @@ class LiveSessionManager:
             "data": frame,
         })
 
+    # ── OpenF1 Telemetry ─────────────────────────────────────────────
+
+    async def start_openf1(self, session_key: Optional[int] = None):
+        """Start the OpenF1 telemetry client for live car data and positions."""
+        if self._openf1_client and self._openf1_client.is_running:
+            await self._openf1_client.stop()
+
+        try:
+            from .openf1_client import OpenF1Client
+            self._openf1_client = OpenF1Client(
+                on_car_data=self._on_openf1_car_data,
+                on_location=self._on_openf1_location,
+            )
+            await self._openf1_client.start(session_key=session_key)
+            self._openf1_enabled = True
+            logger.info("OpenF1 telemetry client started")
+        except Exception as e:
+            logger.warning(f"OpenF1 client start failed: {e}")
+            self._openf1_enabled = False
+
+    async def stop_openf1(self):
+        """Stop the OpenF1 telemetry client."""
+        if self._openf1_client:
+            await self._openf1_client.stop()
+            self._openf1_client = None
+        self._openf1_enabled = False
+        logger.info("OpenF1 telemetry client stopped")
+
+    async def _on_openf1_car_data(self, driver_number: str, samples: list):
+        """Callback from OpenF1 client with car telemetry samples."""
+        if not samples:
+            return
+
+        latest = samples[-1]
+        self._openf1_car_data[driver_number] = latest
+
+        # Update normalizer driver state with speed
+        abbr = self.normalizer.get_abbreviation(driver_number)
+        self.normalizer._ensure_driver_state(abbr)
+        self.normalizer.driver_state[abbr]["speed"] = latest.get("speed", 0)
+
+        # Accumulate into telemetry buffers (per driver per lap)
+        state = self.normalizer.driver_state.get(abbr, {})
+        current_lap = state.get("current_lap", 0)
+        key = f"{abbr}-{current_lap}"
+        if key not in self.telemetry_buffers:
+            self.telemetry_buffers[key] = []
+        for s in samples:
+            self.telemetry_buffers[key].append({
+                "timestamp": s.get("date", ""),
+                "speed": s.get("speed", 0),
+                "rpm": s.get("rpm", 0),
+                "gear": s.get("gear", 0),
+                "throttle": s.get("throttle", 0),
+                "brake": s.get("brake", 0),
+                "drs": s.get("drs", 0),
+            })
+
+        # Broadcast telemetry update (last samples for live display)
+        await self._broadcast({
+            "type": "telemetry_update",
+            "data": {
+                "driver": abbr,
+                "driver_number": driver_number,
+                "samples": samples[-5:],
+            },
+        })
+
+    async def _on_openf1_location(self, driver_number: str, samples: list):
+        """Callback from OpenF1 client with car position samples."""
+        if not samples:
+            return
+
+        latest = samples[-1]
+        self._openf1_positions[driver_number] = latest
+
+        # Build a position frame from all known positions + car data
+        frame_drivers = {}
+        for num in set(list(self._openf1_positions.keys()) +
+                       list(self._openf1_car_data.keys())):
+            abbr = self.normalizer.get_abbreviation(num)
+            self.normalizer._ensure_driver_state(abbr)
+            state = self.normalizer.driver_state[abbr]
+            pos = self._openf1_positions.get(num, {})
+            car = self._openf1_car_data.get(num, {})
+
+            from .data_normalizer import COMPOUND_INT
+            frame_drivers[abbr] = {
+                "x": pos.get("x"),
+                "y": pos.get("y"),
+                "lap": state["current_lap"],
+                "position": state["position"],
+                "gap_to_leader": state["gap_to_leader"],
+                "speed": car.get("speed", state["speed"]),
+                "gear": car.get("gear", 0),
+                "drs": car.get("drs", 0),
+                "throttle": car.get("throttle", 0),
+                "brake": car.get("brake", 0),
+                "tyre": COMPOUND_INT.get(state["compound"], 0),
+                "tyre_life": state["tyre_life"],
+                "is_pit_in": state["in_pit"],
+            }
+
+        frame = {"t": _time.time(), "drivers": frame_drivers}
+        self.frames.append(frame)
+        if len(self.frames) > 5000:
+            self.frames = self.frames[-3000:]
+
+        await self._broadcast({"type": "frame", "data": frame})
+
     # ── Session reset ─────────────────────────────────────────────────
 
     def reset(self):
@@ -394,4 +521,6 @@ class LiveSessionManager:
         self.telemetry_buffers = {}
         self.completed_telemetry = {}
         self._last_car_data = {}
+        self._openf1_car_data = {}
+        self._openf1_positions = {}
         logger.info("Session manager reset")

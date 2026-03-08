@@ -88,7 +88,12 @@ export default function LapTimeChart() {
 
   const sessionType = useF1Store((s) => s.sessionType);
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
-  const raceFinished = currentLap >= maxLap && maxLap > 1;
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
+  const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
+  const raceTarget = totalRaceLaps || maxLap;
+  const raceFinished = isLiveMode
+    ? (currentLap >= raceTarget && raceTarget > 1 && currentLap > 2)
+    : (currentLap >= maxLap && maxLap > 1);
   const isQualifying = sessionType === 'Q';
 
   // Qualifying segment filter

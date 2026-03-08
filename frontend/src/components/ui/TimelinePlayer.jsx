@@ -33,6 +33,7 @@ export default function TimelinePlayer() {
   } = useReplayEngine();
 
   const isLoadingFrames = useF1Store((s) => s.isLoadingFrames);
+  const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
   const frameData = useF1Store((s) => s.frameData);
   const openPanel = useF1Store((s) => s.openPanel);
   const setSelectedLapRange = useF1Store((s) => s.setSelectedLapRange);
@@ -714,12 +715,12 @@ export default function TimelinePlayer() {
           <div className="timeline-player__progress-track" style={{ pointerEvents: 'none' }}>
             <div
               className="timeline-player__progress-fill timeline-player__progress-fill--live"
-              style={{ width: maxLap > 1 ? `${((currentLap - 1) / (maxLap - 1)) * 100}%` : '0%' }}
+              style={{ width: totalRaceLaps > 1 ? `${((currentLap - 1) / (totalRaceLaps - 1)) * 100}%` : '0%' }}
             />
           </div>
           <div className="timeline-player__right">
             <span className="timeline-player__lap-text">
-              LAP <strong>{currentLap}</strong> / {maxLap || '?'}
+              LAP <strong>{currentLap}</strong> / {totalRaceLaps || '?'}
             </span>
             <span className="timeline-player__status-text" style={{ color: 'var(--color-text-muted)' }}>
               {liveSessionInfo?.session_type || 'Race'}

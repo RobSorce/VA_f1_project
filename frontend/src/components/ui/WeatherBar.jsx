@@ -84,6 +84,7 @@ export default function WeatherBar() {
   const currentFlagStatus = useF1Store((s) => s.currentFlagStatus);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
+  const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
   const currentTime = useF1Store((s) => s.currentTime);
   const resetSession = useF1Store((s) => s.resetSession);
   const tempUnit = useF1Store((s) => s.tempUnit);
@@ -221,7 +222,7 @@ export default function WeatherBar() {
           )}
           <span className="weather-bar__session-badge">{sessionType}</span>
           <span className="weather-bar__lap">
-            Lap {currentLap}/{maxLap}
+            Lap {currentLap}/{totalRaceLaps || maxLap}
           </span>
           <span className={`weather-bar__flag weather-bar__flag--${flag.cls}`}>
             {flag.label}
