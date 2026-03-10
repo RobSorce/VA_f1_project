@@ -16,19 +16,52 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Ctrl+Arrow — tile/maximize/restore windows
+      if (e.ctrlKey && !e.metaKey) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          state.tileActiveOverlay('left');
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          state.tileActiveOverlay('right');
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          state.tileActiveOverlay('maximize');
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          const active = state.activeTab;
+          if (state.overlayTiles[active]) {
+            state.clearTile(active);
+          }
+          return;
+        }
+        // Ctrl+G — cycle arrange layouts
+        if (e.key === 'g' || e.key === 'G') {
+          e.preventDefault();
+          state.arrangeOverlays();
+          return;
+        }
+      }
+
       // Don't intercept other Cmd/Ctrl combos (browser shortcuts)
       if (e.metaKey || e.ctrlKey) return;
 
       // If command palette modal is open, let it handle its own keys
       if (state.commandPaletteOpen) return;
 
-      // Escape — close cheatsheet, close overlays, blur inputs
+      // Escape — close cheatsheet, close overlays/docked, blur inputs
       if (e.key === 'Escape') {
         if (state.cheatsheetOpen) {
           state.closeCheatsheet();
           return;
         }
-        if (state.openOverlays.length > 0) {
+        if (state.dockedLayout || state.openOverlays.length > 0) {
           state.closeAllOverlays();
           return;
         }
@@ -67,28 +100,31 @@ export function useKeyboardShortcuts() {
 
       // Number keys — open overlay panels
       const tabMap = {
-        '2': 'laptimes',
-        '3': 'sectors',
-        '4': 'tyres',
-        '5': 'speed',
-        '6': 'consistency',
-        '7': 'prediction',
-        '8': 'ai',
-        '9': 'compare',
-        '0': 'analytics',
+        '1': 'laptimes',
+        '2': 'sectors',
+        '3': 'tyres',
+        '4': 'consistency',
+        '5': 'prediction',
+        '6': 'ai',
+        '7': 'compare',
+        '8': 'analytics',
+        '9': 'championship',
+        '0': 'settings',
       };
-      if (e.key === '1') {
-        e.preventDefault();
-        state.closeAllOverlays();
-        return;
-      }
       if (tabMap[e.key]) {
         e.preventDefault();
         state.setActiveTab(tabMap[e.key]);
         return;
       }
 
-      // X — go to charts (close all overlays)
+      // W — close last/active tab (works in both overlay and docked mode)
+      if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        state.closeLastTab();
+        return;
+      }
+
+      // X — close all windows/tabs (exit docked layout or close all overlays)
       if (e.key === 'x' || e.key === 'X') {
         e.preventDefault();
         state.closeAllOverlays();
@@ -215,21 +251,16 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // p — toggle overlays (close all or open charts); Shift+P — prediction
-      if (e.key === 'p') {
+      // p/P — toggle Pit Wall <-> Analysis mode
+      if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
-        if (state.openOverlays.length > 0) {
-          state.closeAllOverlays();
+        if (state.activeTab === 'pitwall') {
+          // Leave pit wall → go to charts (analysis mode)
+          state.setActiveTab('charts');
+        } else {
+          // Enter pit wall mode
+          state.setActiveTab('pitwall');
         }
-        return;
-      }
-      if (e.key === 'P' && e.shiftKey) {
-        e.preventDefault();
-        const activeDriver = state.focusDriver || state.selectedDrivers[0];
-        if (activeDriver && state.currentLap >= 2) {
-          state.triggerLSTMPredictions();
-        }
-        state.setActiveTab('prediction');
         return;
       }
 

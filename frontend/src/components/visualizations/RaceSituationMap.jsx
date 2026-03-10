@@ -16,12 +16,15 @@ const COMPOUND_COLORS = {
 };
 
 const MAX_TRAIL_LENGTH = 20; // number of past positions to store per driver
+const SMOOTHING_ALPHA = 0.35; // exponential smoothing factor (0 = fully smooth, 1 = no smoothing)
+const JUMP_THRESHOLD = 2.5; // PCA-space distance beyond which smoothing kicks in
 
 export default function RaceSituationMap() {
   const svgRef = useRef(null);
   const cleanupRef = useRef(null);
   const trajectoryRef = useRef({}); // { driverAbbr: [{x, y, lap}, ...] }
   const lastTrailLapRef = useRef(null); // track the lap we last added to trails
+  const smoothedPositionsRef = useRef({}); // { driverAbbr: {x, y} } for exponential smoothing
 
   const raceSituationData = useF1Store((s) => s.raceSituationData);
   const computeRaceSituation = useF1Store((s) => s.computeRaceSituation);
@@ -161,7 +164,7 @@ export default function RaceSituationMap() {
     const x = d3.scaleLinear().domain([fullXExtent[0] - xPad, fullXExtent[1] + xPad]).range([0, innerW]);
     const y = d3.scaleLinear().domain([fullYExtent[0] - yPad, fullYExtent[1] + yPad]).range([innerH, 0]);
 
-    const t = d3.transition().duration(800).ease(d3.easeCubicInOut);
+    const t = d3.transition().duration(600).ease(d3.easeCubicInOut);
 
     // ── Grid (rebuild on scale changes) ──
     const gridLayer = g.select('.grid-layer');
@@ -226,13 +229,32 @@ export default function RaceSituationMap() {
         .text(labelText);
     });
 
-    // ── Build point data ──
-    const pointData = driverAbbrs.map((abbr, i) => ({
-      abbr,
-      ...scores[i],
-      ...driverFeatures[abbr],
-      teamName: driverInfoMap[abbr]?.TeamName || 'Unknown',
-    }));
+    // ── Build point data with exponential smoothing for large jumps ──
+    const smoothed = smoothedPositionsRef.current;
+    const pointData = driverAbbrs.map((abbr, i) => {
+      const raw = scores[i];
+      let sx = raw.x, sy = raw.y;
+
+      if (smoothed[abbr]) {
+        const dx = raw.x - smoothed[abbr].x;
+        const dy = raw.y - smoothed[abbr].y;
+        const jumpDist = Math.sqrt(dx * dx + dy * dy);
+        if (jumpDist > JUMP_THRESHOLD) {
+          // Large jump: blend toward new position with exponential smoothing
+          sx = smoothed[abbr].x + SMOOTHING_ALPHA * dx;
+          sy = smoothed[abbr].y + SMOOTHING_ALPHA * dy;
+        }
+      }
+      smoothed[abbr] = { x: sx, y: sy };
+
+      return {
+        abbr,
+        x: sx,
+        y: sy,
+        ...driverFeatures[abbr],
+        teamName: driverInfoMap[abbr]?.TeamName || 'Unknown',
+      };
+    });
 
     const isSelected = (d) => selectedDrivers.includes(d.abbr);
     const isDimmed = (d) => selectedDrivers.length > 0 && !isSelected(d);
@@ -565,6 +587,7 @@ export default function RaceSituationMap() {
   useEffect(() => {
     trajectoryRef.current = {};
     lastTrailLapRef.current = null;
+    smoothedPositionsRef.current = {};
   }, [sessionKey]);
 
   return (

@@ -30,11 +30,11 @@ export const DRIVER_COLORS = {
 
 // Tyre compound colors — F1 broadcast standard
 export const TYRE_COLORS = {
-  SOFT: '#e10600',
-  MEDIUM: '#ffd700',
-  HARD: '#FFFFFF',
-  INTERMEDIATE: '#00e676',
-  WET: '#2196f3',
+  SOFT: '#FF3333',
+  MEDIUM: '#FFC300',
+  HARD: '#EEEEEE',
+  INTERMEDIATE: '#39B54A',
+  WET: '#00AAFF',
   UNKNOWN: '#888888',
 };
 

@@ -65,11 +65,11 @@
   --team-haas: #B6BABD;
 
   /* Tyre Compound Colors */
-  --tyre-soft: #e10600;
-  --tyre-medium: #ffd700;
-  --tyre-hard: #ffffff;
-  --tyre-intermediate: #00e676;
-  --tyre-wet: #2196f3;
+  --tyre-soft: #FF3333;
+  --tyre-medium: #FFC300;
+  --tyre-hard: #EEEEEE;
+  --tyre-intermediate: #39B54A;
+  --tyre-wet: #00AAFF;
 
   /* Session State Colors */
   --state-green-flag: #00ff00;
@@ -79,9 +79,9 @@
   --state-in-pit: #00bfff;
 
   /* Sector Timing Colors */
-  --sector-purple: #a855f7;   /* session best */
-  --sector-green: #22c55e;    /* personal best */
-  --sector-yellow: #fbbf24;   /* slower */
+  --sector-purple: #A020F0;   /* overall best */
+  --sector-green: #00FF00;    /* personal best */
+  --sector-yellow: #FFD700;   /* slower */
 
   /* Gemini / AI accent */
   --color-gemini: #f5a623;

@@ -6,6 +6,9 @@ import Panel from '../ui/Panel';
 
 export default function RacePredictionPanel() {
   const raceSituationData = useF1Store((s) => s.raceSituationData);
+  const lstmPredictions = useF1Store((s) => s.lstmPredictions);
+  const predictionLoading = useF1Store((s) => s.predictionLoading);
+  const lastPredictionTrigger = useF1Store((s) => s.lastPredictionTrigger);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
@@ -76,6 +79,33 @@ export default function RacePredictionPanel() {
                   <span>100 sims</span>
                 </div>
               )}
+            </div>
+
+            {/* ── Compact Legend ── */}
+            <div style={{
+              display: 'flex', gap: 10, flexWrap: 'wrap', padding: '0 var(--spacing-sm)',
+              fontSize: '8px', color: 'var(--color-text-muted)',
+            }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', border: '1px solid rgba(0,0,0,0.3)', flexShrink: 0 }} />
+                Expected
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 0, height: 0, borderLeft: '3px solid transparent', borderRight: '3px solid transparent', borderTop: '4px solid var(--color-text-muted)', flexShrink: 0 }} />
+                Current
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 8, height: 4, borderRadius: 1, background: '#00e676', flexShrink: 0 }} />
+                Gain
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 8, height: 4, borderRadius: 1, background: '#e10600', flexShrink: 0 }} />
+                Loss
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 8, height: 4, borderRadius: 1, background: '#ffd700', opacity: 0.7, flexShrink: 0 }} />
+                Points
+              </span>
             </div>
 
             {/* ── Position probability table ── */}
@@ -294,6 +324,51 @@ export default function RacePredictionPanel() {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── LSTM per-driver predictions (from triggerPrediction) ── */}
+        {lstmPredictions && typeof lstmPredictions === 'object' && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(168,85,247,0.10) 0%, rgba(168,85,247,0.02) 100%)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--spacing-sm) var(--spacing-md)',
+            borderLeft: '3px solid #a855f7',
+            marginTop: 'var(--spacing-sm)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                LSTM Predictions
+              </span>
+              {predictionLoading && (
+                <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>Loading...</span>
+              )}
+              {lastPredictionTrigger && (
+                <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>
+                  {lastPredictionTrigger.driver} @ L{lastPredictionTrigger.lap}
+                </span>
+              )}
+            </div>
+            {Object.entries(lstmPredictions).map(([driver, pred]) => {
+              if (!pred || driver === 'driver_predictions') return null;
+              // Handle both direct per-driver results and legacy format
+              const prediction = pred.predicted_lap_time || pred.predicted_position_change || pred;
+              if (!prediction || typeof prediction !== 'object' && typeof prediction !== 'number') return null;
+              return (
+                <div key={driver} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                  fontSize: 'var(--font-size-xs)',
+                }}>
+                  <span style={{ fontWeight: 700, color: getDriverColor(driver) }}>{driver}</span>
+                  <span style={{ color: 'var(--color-text-secondary)' }}>
+                    {typeof prediction === 'number'
+                      ? prediction.toFixed(3) + 's'
+                      : JSON.stringify(prediction).slice(0, 40)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
 

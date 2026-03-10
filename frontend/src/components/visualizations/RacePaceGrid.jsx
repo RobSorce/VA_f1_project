@@ -31,7 +31,7 @@ const CELL_STYLES = {
 };
 
 /* -- Classify a cell ------------------------------------------------------- */
-function classifyCell(lapEntry, lap, currentLap, sessionBest, driverBest, dnfInfo) {
+function classifyCell(lapEntry, lap, currentLap, sessionBest, driverBest, dnfInfo, driverMedian) {
   if (lap > currentLap) return { label: '', style: 'future' };
 
   if (dnfInfo) {
@@ -60,17 +60,25 @@ function classifyCell(lapEntry, lap, currentLap, sessionBest, driverBest, dnfInf
   if (!LapTimeSeconds || LapTimeSeconds <= 0) return { label: '-', style: 'empty' };
 
   const time = LapTimeSeconds;
-  if (sessionBest && Math.abs(time - sessionBest) < 0.0005)
-    return { label: formatLapTime(time), style: 'session-best' };
-  if (driverBest && Math.abs(time - driverBest) < 0.0005)
-    return { label: formatLapTime(time), style: 'personal-best' };
-  if (driverBest && time < driverBest + 0.3)
-    return { label: formatLapTime(time), style: 'good' };
-  if (driverBest && time < driverBest + 0.5)
-    return { label: formatLapTime(time), style: 'slower' };
-  if (driverBest && time > driverBest + 1.5)
-    return { label: formatLapTime(time), style: 'very-slow' };
-  return { label: formatLapTime(time), style: 'default' };
+  const label = formatLapTime(time);
+
+  // Session best: within 0.010s
+  if (sessionBest && Math.abs(time - sessionBest) < 0.010)
+    return { label, style: 'session-best' };
+  // Personal best: within 0.010s
+  if (driverBest && Math.abs(time - driverBest) < 0.010)
+    return { label, style: 'personal-best' };
+
+  // Median-based classification
+  if (driverMedian) {
+    const delta = time - driverMedian;
+    if (delta < -0.3)  return { label, style: 'good' };       // >0.3s faster than median
+    if (delta <= 0.5)   return { label, style: 'default' };    // within -0.3 to +0.5 of median
+    if (delta <= 2.0)   return { label, style: 'slower' };     // 0.5 to 2.0s above median
+    return { label, style: 'very-slow' };                      // >2.0s above median
+  }
+
+  return { label, style: 'default' };
 }
 
 /* -- Build tooltip string -------------------------------------------------- */
@@ -166,6 +174,7 @@ function RacePaceGrid() {
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const triggerLSTMPredictions = useF1Store((s) => s.triggerLSTMPredictions);
+  const triggerPrediction = useF1Store((s) => s.triggerPrediction);
 
   const lapTimes = sessionData?.lap_times || [];
   const raceResults = sessionData?.race_results || [];
@@ -207,10 +216,11 @@ function RacePaceGrid() {
     return Array.from(driverSet.values()).sort((a, b) => a.position - b.position);
   }, [lapTimes, raceResults, drivers]);
 
-  // -- Pre-compute lap lookup, session best, and personal bests --
-  const { lapLookup, sessionBest, driverBests } = useMemo(() => {
+  // -- Pre-compute lap lookup, session best, personal bests, and driver medians --
+  const { lapLookup, sessionBest, driverBests, driverMedians } = useMemo(() => {
     const lookup = {};
     const driverMins = {};
+    const driverCleanLaps = {};   // driver -> [clean lap times]
     let globalMin = Infinity;
 
     for (const lt of lapTimes) {
@@ -224,6 +234,12 @@ function RacePaceGrid() {
         if (time < globalMin) globalMin = time;
         if (!driverMins[lt.Driver] || time < driverMins[lt.Driver])
           driverMins[lt.Driver] = time;
+
+        // Collect clean laps: exclude lap 1, pit in/out, times >= 300s or <= 0
+        if (lt.LapNumber > 1 && time < 300) {
+          if (!driverCleanLaps[lt.Driver]) driverCleanLaps[lt.Driver] = [];
+          driverCleanLaps[lt.Driver].push(time);
+        }
       }
     }
 
@@ -233,10 +249,22 @@ function RacePaceGrid() {
       if (!lookup[key]) lookup[key] = lt;
     }
 
+    // Compute median per driver from clean laps
+    const medians = {};
+    for (const [driver, times] of Object.entries(driverCleanLaps)) {
+      if (times.length === 0) continue;
+      const sorted = times.slice().sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      medians[driver] = sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
+    }
+
     return {
       lapLookup: lookup,
       sessionBest: globalMin < Infinity ? globalMin : null,
       driverBests: driverMins,
+      driverMedians: medians,
     };
   }, [lapTimes, currentLap]);
 
@@ -248,10 +276,11 @@ function RacePaceGrid() {
   }, [sortedDrivers]);
 
   // -- Handlers --
-  const handleCellClick = useCallback((abbr) => {
+  const handleCellClick = useCallback((abbr, lap) => {
     toggleDriver(abbr);
     triggerLSTMPredictions();
-  }, [toggleDriver, triggerLSTMPredictions]);
+    triggerPrediction(abbr, lap);
+  }, [toggleDriver, triggerLSTMPredictions, triggerPrediction]);
 
   const handleHeaderClick = useCallback((abbr) => toggleDriver(abbr), [toggleDriver]);
   const handleHeaderDoubleClick = useCallback((abbr) => setFocusDriver(abbr), [setFocusDriver]);
@@ -370,9 +399,10 @@ function RacePaceGrid() {
                   const lapEntry = lapLookup[lapKey] || null;
                   const dnfInfo = dnfMap?.[abbr] || null;
                   const driverBest = driverBests[abbr] || null;
+                  const driverMedian = driverMedians[abbr] || null;
 
                   const { label, style: styleKey } = classifyCell(
-                    lapEntry, lap, currentLap, sessionBest, driverBest, dnfInfo
+                    lapEntry, lap, currentLap, sessionBest, driverBest, dnfInfo, driverMedian
                   );
 
                   const tooltip = buildTooltip(abbr, lap, lapEntry);
@@ -387,7 +417,7 @@ function RacePaceGrid() {
                       tooltip={tooltip}
                       isHighlighted={isHighlighted}
                       dimmed={dimmed}
-                      onClick={() => handleCellClick(abbr)}
+                      onClick={() => handleCellClick(abbr, lap)}
                       onMouseEnter={() => handleMouseEnter(abbr)}
                       onMouseLeave={handleMouseLeave}
                     />
@@ -398,6 +428,35 @@ function RacePaceGrid() {
           })}
         </tbody>
       </table>
+
+      {/* Pace legend */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: '8px 14px',
+        padding: '6px 10px', fontSize: 9,
+        color: '#99a', fontFamily: "'JetBrains Mono', monospace",
+        borderTop: '1px solid rgba(255,255,255,0.06)',
+        background: 'rgba(10,10,20,0.98)',
+        position: 'sticky', bottom: 0, left: 0, zIndex: 4,
+      }}>
+        {[
+          { color: '#A855F7', label: 'Session Best' },
+          { color: '#22C55E', label: 'Personal Best' },
+          { color: '#88FFAA', label: 'Fast' },
+          { color: '#aab',    label: 'Normal' },
+          { color: '#FBBF24', label: 'Slow' },
+          { color: '#FF4444', label: 'Very Slow' },
+          { color: '#FFA500', label: 'Pit In' },
+          { color: '#44AAFF', label: 'Pit Out' },
+        ].map(({ color, label }) => (
+          <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: color, display: 'inline-block', flexShrink: 0,
+            }} />
+            {label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

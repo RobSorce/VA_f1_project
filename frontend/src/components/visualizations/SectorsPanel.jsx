@@ -11,8 +11,8 @@ function formatTime(seconds) {
 }
 
 const TIME_COLORS = {
-  overall_best: '#a855f7',
-  personal_best: '#22c55e',
+  overall_best: '#A020F0',
+  personal_best: '#00FF00',
   normal: 'var(--color-text-primary)',
 };
 
@@ -284,11 +284,11 @@ export default function SectorsPanel() {
       {/* ── Color Legend ── */}
       <div className="sectors-panel__legend">
         <span className="sectors-panel__legend-item">
-          <span className="sectors-panel__legend-dot" style={{ background: '#a855f7' }} />
+          <span className="sectors-panel__legend-dot" style={{ background: '#A020F0' }} />
           Overall Best
         </span>
         <span className="sectors-panel__legend-item">
-          <span className="sectors-panel__legend-dot" style={{ background: '#22c55e' }} />
+          <span className="sectors-panel__legend-dot" style={{ background: '#00FF00' }} />
           Personal Best
         </span>
       </div>

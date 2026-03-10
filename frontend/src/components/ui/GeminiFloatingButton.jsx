@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { queryGemini } from '../../utils/apiClient';
 
 /* Gemini logo — the official 4-pointed spark/star shape */
 function GeminiLogo({ size = 22 }) {
@@ -37,7 +36,7 @@ const panelWrapperBase = {
   bottom: 128,
   right: 16,
   width: 320,
-  height: 420,
+  height: 450,
   zIndex: 9999,
   transition: 'opacity 0.25s ease, transform 0.25s ease',
 };
@@ -56,17 +55,26 @@ const panelStyle = {
   overflow: 'hidden',
 };
 
+const QUICK_QUERIES = [
+  'When to pit?',
+  'Undercut risk?',
+  'Strategy options?',
+  '1-stop vs 2-stop?',
+];
+
 export default function GeminiFloatingButton() {
-  const sessionData = useF1Store((s) => s.sessionData);
-  const currentLap = useF1Store((s) => s.currentLap);
   const focusDriver = useF1Store((s) => s.focusDriver);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
+  const geminiMessages = useF1Store((s) => s.geminiMessages);
+  const sendGeminiQuery = useF1Store((s) => s.sendGeminiQuery);
+  const raceProjection = useF1Store((s) => s.raceProjection);
 
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Derive loading state from messages — last message is user means waiting for AI
+  const loading = geminiMessages.length > 0 && geminiMessages[geminiMessages.length - 1].role === 'user';
 
   // Listen for keyboard shortcut (G key) toggle event
   useEffect(() => {
@@ -79,42 +87,35 @@ export default function GeminiFloatingButton() {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, loading]);
+  }, [geminiMessages, loading]);
 
-  const sendMessage = useCallback(async () => {
-    const text = input.trim();
-    if (!text || loading) return;
-
-    setMessages((prev) => [...prev, { role: 'user', text }]);
+  const handleSend = useCallback((text) => {
+    const q = (text || input).trim();
+    if (!q || loading) return;
     setInput('');
-    setLoading(true);
-
-    try {
-      const result = await queryGemini({
-        query: text,
-        year: sessionData?.year,
-        round: sessionData?.round,
-        driver: focusDriver || selectedDrivers[0] || null,
-        current_lap: currentLap,
-      });
-      const aiText = result?.response || result?.answer || JSON.stringify(result);
-      setMessages((prev) => [...prev, { role: 'ai', text: aiText }]);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'ai', text: `Error: ${err?.message || 'Failed to get response'}` },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  }, [input, loading, sessionData, currentLap, focusDriver, selectedDrivers]);
+    sendGeminiQuery(q);
+  }, [input, loading, sendGeminiQuery]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSend();
     }
   };
+
+  // Dynamic quick queries based on context
+  const quickQueries = useMemo(() => {
+    const queries = [...QUICK_QUERIES];
+    const activeDriver = focusDriver || selectedDrivers[0];
+    if (activeDriver) {
+      queries[2] = `Best strategy for ${activeDriver}?`;
+    }
+    if (raceProjection?.battles?.length > 0) {
+      const b = raceProjection.battles[0];
+      queries.push(`${b.behind} vs ${b.ahead}?`);
+    }
+    return queries;
+  }, [focusDriver, selectedDrivers, raceProjection]);
 
   return (
     <>
@@ -154,12 +155,33 @@ export default function GeminiFloatingButton() {
             flex: 1, overflowY: 'auto', padding: '10px 12px',
             display: 'flex', flexDirection: 'column', gap: 8,
           }}>
-            {messages.length === 0 && !loading && (
-              <div style={{ color: '#7a7f9a', fontSize: 11, textAlign: 'center', marginTop: 40, lineHeight: 1.5 }}>
-                Ask anything about race strategy, tyre performance, or driver comparisons.
+            {geminiMessages.length === 0 && !loading && (
+              <div style={{
+                color: '#7a7f9a', fontSize: 11, textAlign: 'center',
+                marginTop: 20, lineHeight: 1.5,
+                display: 'flex', flexDirection: 'column', gap: 12,
+              }}>
+                <span>Ask about race strategy, tyres, or driver battles.</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
+                  {quickQueries.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => handleSend(q)}
+                      style={{
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 12, padding: '3px 8px',
+                        fontSize: 9, color: '#aab', cursor: 'pointer',
+                        transition: 'background 0.15s, color 0.15s',
+                      }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
-            {messages.map((msg, i) => (
+            {geminiMessages.map((msg, i) => (
               <div key={i} style={{
                 alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
                 background: msg.role === 'user' ? 'rgba(66,133,244,0.18)' : 'rgba(255,255,255,0.05)',
@@ -168,7 +190,7 @@ export default function GeminiFloatingButton() {
                 padding: '6px 10px', fontSize: 11, maxWidth: '85%',
                 wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: 1.4,
               }}>
-                {msg.text}
+                {msg.content || msg.text}
               </div>
             ))}
             {loading && (
@@ -199,7 +221,7 @@ export default function GeminiFloatingButton() {
               }}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => handleSend()}
               disabled={loading}
               style={{
                 background: 'linear-gradient(135deg, #4285F4, #886FBF)',

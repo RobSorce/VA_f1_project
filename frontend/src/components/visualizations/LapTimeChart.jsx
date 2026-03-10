@@ -5,10 +5,10 @@ import Panel from '../ui/Panel';
 
 /* ── Color codes for sector/lap timing (F1 TV convention) ───────── */
 const TIME_COLORS = {
-  overall_best: '#a855f7', // Purple — overall best in the session
-  personal_best: '#22c55e', // Green — personal best
+  overall_best: '#A020F0', // Purple — overall best in the session
+  personal_best: '#00FF00', // Green — personal best
   normal: 'rgba(255,255,255,0.75)', // White/grey — normal
-  slow: '#fbbf24', // Yellow — significantly slower
+  slow: '#FFD700', // Yellow — significantly slower
   pit: '#e040fb', // Magenta — pit lap
 };
 
@@ -79,6 +79,7 @@ export default function LapTimeChart() {
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const focusDriver = useF1Store((s) => s.focusDriver);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
+  const triggerPrediction = useF1Store((s) => s.triggerPrediction);
   const dnfMap = useF1Store((s) => s.dnfMap);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
   const totalFrames = useF1Store((s) => s.totalFrames);
@@ -506,7 +507,7 @@ export default function LapTimeChart() {
                 } : {}),
               }}
               onClick={() => toggleDriver(row.driver)}
-              onDoubleClick={() => setFocusDriver(row.driver)}
+              onDoubleClick={() => { setFocusDriver(row.driver); triggerPrediction(row.driver, currentLap); }}
               onMouseEnter={(e) => setHighlightedDriver(row.driver, { x: e.clientX, y: e.clientY })}
               onMouseLeave={() => setHighlightedDriver(null)}
             >
@@ -576,16 +577,16 @@ export default function LapTimeChart() {
                 {sessionBests.fastestLapDriver === row.driver && (
                   <span style={{
                     fontSize: '7px', marginLeft: 3, padding: '1px 3px',
-                    borderRadius: 3, background: 'rgba(168,85,247,0.25)',
-                    color: '#a855f7', fontWeight: 800, letterSpacing: '0.04em',
+                    borderRadius: 3, background: 'rgba(160,32,240,0.25)',
+                    color: '#A020F0', fontWeight: 800, letterSpacing: '0.04em',
                   }}>FL</span>
                 )}
                 {isQualifying && row.qualiSegment && (
                   <span style={{
                     fontSize: '7px', marginLeft: 3, padding: '1px 3px',
                     borderRadius: 3, fontWeight: 700, letterSpacing: '0.04em',
-                    background: row.qualiSegment === 'Q3' ? 'rgba(168,85,247,0.2)' : row.qualiSegment === 'Q2' ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.08)',
-                    color: row.qualiSegment === 'Q3' ? '#a855f7' : row.qualiSegment === 'Q2' ? '#22c55e' : 'rgba(255,255,255,0.4)',
+                    background: row.qualiSegment === 'Q3' ? 'rgba(160,32,240,0.2)' : row.qualiSegment === 'Q2' ? 'rgba(0,255,0,0.2)' : 'rgba(255,255,255,0.08)',
+                    color: row.qualiSegment === 'Q3' ? '#A020F0' : row.qualiSegment === 'Q2' ? '#00FF00' : 'rgba(255,255,255,0.4)',
                   }}>{row.qualiSegment}</span>
                 )}
               </span>

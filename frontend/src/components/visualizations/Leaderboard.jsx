@@ -59,6 +59,7 @@ export default function Leaderboard({ collapsed }) {
   const compareMode = useF1Store((s) => s.compareMode);
   const addCompareDriver = useF1Store((s) => s.addCompareDriver);
   const dnfMap = useF1Store((s) => s.dnfMap);
+  const triggerPrediction = useF1Store((s) => s.triggerPrediction);
   const driversInfo = useF1Store((s) => s.drivers);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
@@ -708,7 +709,7 @@ export default function Leaderboard({ collapsed }) {
                 } : {}),
               }}
               onClick={() => compareMode ? addCompareDriver(d.abbr) : toggleDriver(d.abbr)}
-              onDoubleClick={() => setFocusDriver(d.abbr)}
+              onDoubleClick={() => { setFocusDriver(d.abbr); triggerPrediction(d.abbr, currentLap); }}
               onMouseEnter={(e) => handleMouseEnter(d.abbr, e)}
               onMouseLeave={handleMouseLeave}
             >
@@ -777,8 +778,8 @@ export default function Leaderboard({ collapsed }) {
                 {raceFinished && fastestLapDriver === d.abbr && (
                   <span style={{
                     fontSize: '7px', marginLeft: 4, padding: '1px 3px',
-                    borderRadius: 3, background: 'rgba(168,85,247,0.25)',
-                    color: '#a855f7', fontWeight: 800, letterSpacing: '0.04em',
+                    borderRadius: 3, background: 'rgba(160,32,240,0.25)',
+                    color: '#A020F0', fontWeight: 800, letterSpacing: '0.04em',
                   }}>FL</span>
                 )}
               </span>

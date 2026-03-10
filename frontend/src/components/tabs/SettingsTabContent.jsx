@@ -23,7 +23,7 @@ const TELEM_CHANNELS = [
 
 const TECH_STACK = [
   'React 18', 'D3.js', 'Zustand', 'Vite', 'FastAPI', 'FastF1',
-  'TensorFlow / LSTM', 'Google Gemini AI', 't-SNE',
+  'TensorFlow / LSTM', 'Google Gemini AI', 'PCA',
 ];
 
 export default function SettingsTabContent() {

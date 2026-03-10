@@ -292,8 +292,36 @@ export default function TyreManagement() {
     return () => { d3.selectAll('.tyre-mgmt-tooltip').remove(); };
   }, [chartData, driver, driverColor, currentLap]);
 
+  const tyreLegendItems = useMemo(() => {
+    if (!chartData.stints.length) return [];
+    const seen = new Set();
+    return chartData.stints
+      .filter((s) => { if (seen.has(s.compound)) return false; seen.add(s.compound); return true; })
+      .map((s) => ({
+        label: s.compound,
+        color: TYRE_COLORS[s.compound] || '#888',
+      }));
+  }, [chartData.stints]);
+
   return (
     <Panel title="Pace Retention" className="panel-tyre-management" controls={driverBadge}>
+      {tyreLegendItems.length > 0 && (
+        <div style={{
+          display: 'flex', gap: 8, padding: '2px 10px 0', flexWrap: 'wrap',
+          fontSize: '9px', color: 'rgba(255,255,255,0.5)',
+        }}>
+          {tyreLegendItems.map((item) => (
+            <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+              {item.label}
+            </span>
+          ))}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ width: 8, height: 2, background: '#00e5ff', borderRadius: 1, flexShrink: 0 }} />
+            Current Lap
+          </span>
+        </div>
+      )}
       <div className="viz-container tyre-management-chart">
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
       </div>

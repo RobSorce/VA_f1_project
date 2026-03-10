@@ -3,6 +3,221 @@ import { persist } from 'zustand/middleware';
 import * as api from '../utils/apiClient';
 import { computePCA, procrustesAlign2D } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
+import { WINDOW_PRESETS } from '../utils/windowPresets';
+
+/* ── Docked layout tree helpers ────────────────────────────────── */
+
+const MAX_PANES = 4;
+
+/** Count leaf panes in the tree */
+function _countPanes(node) {
+  if (!node) return 0;
+  if (!node.children) return 1;
+  return _countPanes(node.children[0]) + _countPanes(node.children[1]);
+}
+
+/** Collect all tab IDs from every leaf pane in the layout tree */
+function _collectDockedTabs(node) {
+  if (!node) return [];
+  if (!node.children) return node.tabs || [];
+  return [..._collectDockedTabs(node.children[0]), ..._collectDockedTabs(node.children[1])];
+}
+
+/** Activate a tab in the pane that contains it (set activeTab) */
+function _activateTabInTree(node, tabId) {
+  if (!node) return node;
+  if (!node.children) {
+    if (node.tabs && node.tabs.includes(tabId)) {
+      return { ...node, activeTab: tabId };
+    }
+    return node;
+  }
+  return {
+    ...node,
+    children: [
+      _activateTabInTree(node.children[0], tabId),
+      _activateTabInTree(node.children[1], tabId),
+    ],
+  };
+}
+
+/** Append a new single-tab pane to the tree without rebuilding existing panes */
+function _appendPane(node, tabId) {
+  const newLeaf = { tabs: [tabId], activeTab: tabId };
+  // Alternate split direction from the root
+  const dir = (node.children && node.direction === 'horizontal') ? 'vertical' : 'horizontal';
+  const panes = _countPanes(node);
+  // Give existing content proportional space, new pane gets 1/(n+1)
+  const ratio = panes / (panes + 1);
+  return { direction: dir, ratio, children: [node, newLeaf] };
+}
+
+/** Add a tab to the first leaf pane found (depth-first) and activate it */
+function _addTabToFirstLeaf(node, tabId) {
+  if (!node) return node;
+  if (!node.children) {
+    // This is a leaf — add the tab here
+    return { ...node, tabs: [...(node.tabs || []), tabId], activeTab: tabId };
+  }
+  // Recurse into first child only (so tab goes to top-left pane)
+  return {
+    ...node,
+    children: [
+      _addTabToFirstLeaf(node.children[0], tabId),
+      node.children[1],
+    ],
+  };
+}
+
+/** Remove a tab from the entire tree. If a pane becomes empty, collapse the split. */
+function _removeTabFromTree(node, tabId) {
+  if (!node) return node;
+  if (!node.children) {
+    // Leaf node
+    const newTabs = (node.tabs || []).filter((t) => t !== tabId);
+    if (newTabs.length === 0) return null; // pane is empty — signal removal
+    return { ...node, tabs: newTabs, activeTab: node.activeTab === tabId ? newTabs[0] : node.activeTab };
+  }
+  // Split node — recurse
+  let left = _removeTabFromTree(node.children[0], tabId);
+  let right = _removeTabFromTree(node.children[1], tabId);
+  // If one child was emptied, collapse to the other
+  if (!left && !right) return null;
+  if (!left) return right;
+  if (!right) return left;
+  return { ...node, children: [left, right] };
+}
+
+/**
+ * Group an array of tab IDs into at most MAX_PANES pane groups.
+ * Each group becomes a single pane with multiple tabs.
+ */
+function _groupTabs(tabIds) {
+  if (tabIds.length <= MAX_PANES) {
+    return tabIds.map((id) => [id]);
+  }
+  // Distribute tabs into MAX_PANES groups as evenly as possible
+  const groups = Array.from({ length: MAX_PANES }, () => []);
+  tabIds.forEach((id, i) => groups[i % MAX_PANES].push(id));
+  return groups;
+}
+
+/**
+ * Build a docked layout tree from an array of tab IDs.
+ * Caps at MAX_PANES panes — excess tabs are grouped into shared panes.
+ * Generates different arrangements based on `variant` index:
+ *   0 = balanced grid (2-col rows)
+ *   1 = all horizontal (side by side columns)
+ *   2 = all vertical (stacked rows)
+ *   3 = main + sidebar (first pane big, rest stacked on right)
+ */
+function _buildDockedTree(tabIds, variant = 0) {
+  if (tabIds.length === 0) return null;
+  if (tabIds.length === 1) {
+    return { tabs: [tabIds[0]], activeTab: tabIds[0] };
+  }
+
+  // Group tabs into at most MAX_PANES panes
+  const groups = _groupTabs(tabIds);
+  const pane = (g) => ({ tabs: g, activeTab: g[0] });
+  const n = groups.length;
+  // n is guaranteed <= MAX_PANES (4)
+
+  const effectiveVariant = variant % 4;
+
+  if (n === 1) return pane(groups[0]);
+
+  if (n === 2) {
+    const dir = effectiveVariant === 2 ? 'vertical' : 'horizontal';
+    return { direction: dir, ratio: 0.5, children: [pane(groups[0]), pane(groups[1])] };
+  }
+
+  if (n === 3) {
+    if (effectiveVariant === 1) {
+      // 3 columns
+      return {
+        direction: 'horizontal', ratio: 0.33,
+        children: [
+          pane(groups[0]),
+          { direction: 'horizontal', ratio: 0.5, children: [pane(groups[1]), pane(groups[2])] },
+        ],
+      };
+    }
+    if (effectiveVariant === 2) {
+      // 3 rows
+      return {
+        direction: 'vertical', ratio: 0.33,
+        children: [
+          pane(groups[0]),
+          { direction: 'vertical', ratio: 0.5, children: [pane(groups[1]), pane(groups[2])] },
+        ],
+      };
+    }
+    if (effectiveVariant === 3) {
+      // Main + sidebar (2 stacked)
+      return {
+        direction: 'horizontal', ratio: 0.6,
+        children: [
+          pane(groups[0]),
+          { direction: 'vertical', ratio: 0.5, children: [pane(groups[1]), pane(groups[2])] },
+        ],
+      };
+    }
+    // Variant 0: top row of 2 + bottom
+    return {
+      direction: 'vertical', ratio: 0.5,
+      children: [
+        { direction: 'horizontal', ratio: 0.5, children: [pane(groups[0]), pane(groups[1])] },
+        pane(groups[2]),
+      ],
+    };
+  }
+
+  // n === 4
+  if (effectiveVariant === 1) {
+    // 4 columns
+    return {
+      direction: 'horizontal', ratio: 0.5,
+      children: [
+        { direction: 'horizontal', ratio: 0.5, children: [pane(groups[0]), pane(groups[1])] },
+        { direction: 'horizontal', ratio: 0.5, children: [pane(groups[2]), pane(groups[3])] },
+      ],
+    };
+  }
+  if (effectiveVariant === 2) {
+    // 4 rows
+    return {
+      direction: 'vertical', ratio: 0.5,
+      children: [
+        { direction: 'vertical', ratio: 0.5, children: [pane(groups[0]), pane(groups[1])] },
+        { direction: 'vertical', ratio: 0.5, children: [pane(groups[2]), pane(groups[3])] },
+      ],
+    };
+  }
+  if (effectiveVariant === 3) {
+    // Main + 3 stacked on right
+    return {
+      direction: 'horizontal', ratio: 0.5,
+      children: [
+        pane(groups[0]),
+        { direction: 'vertical', ratio: 0.33,
+          children: [
+            pane(groups[1]),
+            { direction: 'vertical', ratio: 0.5, children: [pane(groups[2]), pane(groups[3])] },
+          ],
+        },
+      ],
+    };
+  }
+  // Variant 0: 2x2 grid
+  return {
+    direction: 'vertical', ratio: 0.5,
+    children: [
+      { direction: 'horizontal', ratio: 0.5, children: [pane(groups[0]), pane(groups[1])] },
+      { direction: 'horizontal', ratio: 0.5, children: [pane(groups[2]), pane(groups[3])] },
+    ],
+  };
+}
 
 const ARRANGE_LAYOUTS = {
   1: [
@@ -654,17 +869,37 @@ export const useF1Store = create(persist((set, get) => ({
   resetTrackRotation: () => set({ trackRotationOffset: 0 }),
 
   // ── Tab / Panel system (multi-window) ──────────────────────────
-  activeTab: 'charts',
+  activeTab: 'pitwall',
   openOverlays: [],
 
   setActiveTab: (tab) => {
     if (tab === 'charts' || tab === 'pitwall') {
-      // Standalone modes: close all overlays
-      set({ activeTab: tab, openOverlays: [], overlayTiles: {}, _arrangeIdx: 0 });
+      // Standalone modes: close all overlays, exit docked layout
+      set({ activeTab: tab, openOverlays: [], overlayTiles: {}, overlayVizMapping: {}, dockedLayout: null, _arrangeIdx: 0 });
     } else {
       set((s) => {
-        // If currently in pitwall, switch to charts base + open overlay
-        const base = s.activeTab === 'pitwall' ? 'charts' : s.activeTab;
+        // ── Docked layout mode: add/remove tab within the layout tree ──
+        if (s.dockedLayout) {
+          const allTabs = _collectDockedTabs(s.dockedLayout);
+          if (allTabs.includes(tab)) {
+            // Tab exists — remove it (toggle off), collapsing empty panes
+            const newLayout = _removeTabFromTree(s.dockedLayout, tab);
+            if (!newLayout) {
+              // All panes empty — exit docked mode
+              return { dockedLayout: null, activeTab: 'charts', _arrangeIdx: 0 };
+            }
+            return { dockedLayout: newLayout, activeTab: 'charts' };
+          }
+          // Tab not in layout — add as new pane if under limit, else add to existing pane
+          const paneCount = _countPanes(s.dockedLayout);
+          if (paneCount < MAX_PANES) {
+            return { dockedLayout: _appendPane(s.dockedLayout, tab), activeTab: 'charts' };
+          }
+          // At limit — add to first leaf pane as an extra tab
+          return { dockedLayout: _addTabToFirstLeaf(s.dockedLayout, tab), activeTab: 'charts' };
+        }
+
+        // ── Floating overlay mode ──
         const already = s.openOverlays.includes(tab);
         if (already) {
           const next = s.openOverlays.filter((t) => t !== tab);
@@ -684,13 +919,41 @@ export const useF1Store = create(persist((set, get) => ({
   }),
 
   closeOverlay: (tab) => set((s) => {
+    // In docked mode: remove tab from the layout tree
+    if (s.dockedLayout) {
+      const newLayout = _removeTabFromTree(s.dockedLayout, tab);
+      if (!newLayout) return { dockedLayout: null, activeTab: 'charts', _arrangeIdx: 0 };
+      return { dockedLayout: newLayout };
+    }
     const next = s.openOverlays.filter((t) => t !== tab);
     const tiles = { ...s.overlayTiles };
     delete tiles[tab];
-    return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles };
+    const vizMap = { ...s.overlayVizMapping };
+    delete vizMap[tab];
+    return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles, overlayVizMapping: vizMap };
   }),
 
-  closeAllOverlays: () => set({ openOverlays: [], activeTab: 'charts', overlayTiles: {}, _arrangeIdx: 0 }),
+  /** Close the most recently added tab (last leaf, last tab). Works in both modes. */
+  closeLastTab: () => set((s) => {
+    if (s.dockedLayout) {
+      const allTabs = _collectDockedTabs(s.dockedLayout);
+      if (allTabs.length === 0) return { dockedLayout: null, activeTab: 'charts' };
+      const lastTab = allTabs[allTabs.length - 1];
+      const newLayout = _removeTabFromTree(s.dockedLayout, lastTab);
+      if (!newLayout) return { dockedLayout: null, activeTab: 'charts', _arrangeIdx: 0 };
+      return { dockedLayout: newLayout };
+    }
+    if (s.openOverlays.length === 0) return s;
+    const last = s.openOverlays[s.openOverlays.length - 1];
+    const next = s.openOverlays.slice(0, -1);
+    const tiles = { ...s.overlayTiles };
+    delete tiles[last];
+    const vizMap = { ...s.overlayVizMapping };
+    delete vizMap[last];
+    return { openOverlays: next, activeTab: next.length > 0 ? next[next.length - 1] : 'charts', overlayTiles: tiles, overlayVizMapping: vizMap };
+  }),
+
+  closeAllOverlays: () => set({ openOverlays: [], activeTab: 'charts', overlayTiles: {}, overlayVizMapping: {}, dockedLayout: null, _arrangeIdx: 0 }),
 
   cycleOverlay: (direction = 1) => set((s) => {
     if (s.openOverlays.length === 0) return s;
@@ -709,7 +972,9 @@ export const useF1Store = create(persist((set, get) => ({
   tempUnit: 'C',
   speedUnit: 'kmh',
   overlayTiles: {},
+  overlayVizMapping: {},
   _arrangeIdx: 0,
+  dockedLayout: null, // JetBrains-style split-pane layout tree (null = use floating overlays)
   showDashboard: true,
   leaderboardCollapsed: false,
   telemetryChannels: { speed: true, delta: true, throttle: true, brake: true, gear: true, rpm: true },
@@ -741,19 +1006,62 @@ export const useF1Store = create(persist((set, get) => ({
     return { overlayTiles: { ...s.overlayTiles, [tabId]: tile } };
   }),
   arrangeOverlays: () => set((s) => {
+    // ── Docked mode: cycle through layout variants for the same tabs ──
+    if (s.dockedLayout) {
+      const currentTabs = _collectDockedTabs(s.dockedLayout);
+      if (currentTabs.length === 0) return s;
+      const nextIdx = (s._arrangeIdx + 1) % 4; // 4 variants: grid, horizontal, vertical, main+sidebar
+      return {
+        dockedLayout: _buildDockedTree(currentTabs, nextIdx),
+        _arrangeIdx: nextIdx,
+      };
+    }
+
+    // ── Floating overlay mode: Ctrl+G docks them into a layout ──
     const ids = s.openOverlays;
     if (ids.length === 0) return s;
-    const presets = ARRANGE_LAYOUTS[ids.length];
-    const totalLayouts = presets ? presets.length : 1;
-    const nextIdx = (s._arrangeIdx + 1) % (totalLayouts + 1);
-    if (nextIdx === 0) {
-      return { overlayTiles: {}, _arrangeIdx: 0 };
-    }
-    const tiles = presets
-      ? presets[nextIdx - 1](ids)
-      : autoGridLayout(ids);
-    return { overlayTiles: tiles, _arrangeIdx: nextIdx };
+    // Convert floating overlays → docked layout
+    return {
+      activeTab: 'charts',
+      openOverlays: [],
+      overlayTiles: {},
+      overlayVizMapping: {},
+      dockedLayout: _buildDockedTree(ids, 0),
+      _arrangeIdx: 0,
+    };
   }),
+  applyWindowPreset: (preset) => {
+    // If preset has a docked layout tree, use the JetBrains-style docked mode
+    if (preset.dockedLayout) {
+      set({
+        activeTab: 'charts',
+        openOverlays: [],
+        overlayTiles: {},
+        overlayVizMapping: {},
+        dockedLayout: JSON.parse(JSON.stringify(preset.dockedLayout)),
+        _arrangeIdx: 0,
+      });
+      return;
+    }
+    // Fallback: floating overlays with percentage positions
+    const windowIds = preset.windows.map(w => w.id);
+    const tiles = {};
+    preset.windows.forEach(w => {
+      tiles[w.id] = w.position;
+    });
+    set({
+      activeTab: windowIds[0] || 'charts',
+      openOverlays: windowIds,
+      overlayTiles: tiles,
+      dockedLayout: null,
+      _arrangeIdx: 0,
+    });
+  },
+  setDockedLayout: (layout) => set({ dockedLayout: layout }),
+  exitDockedLayout: () => set({ dockedLayout: null }),
+  setOverlayVisualization: (overlayId, vizTabId) => set((s) => ({
+    overlayVizMapping: { ...s.overlayVizMapping, [overlayId]: vizTabId }
+  })),
   setShowDashboard: (show) => set({ showDashboard: show }),
   setTelemetryChannel: (channel, enabled) => set((s) => ({
     telemetryChannels: { ...s.telemetryChannels, [channel]: enabled },
@@ -777,9 +1085,11 @@ export const useF1Store = create(persist((set, get) => ({
     currentLap: 1,
     maxLap: 1,
     isPlaying: false,
-    activeTab: 'charts',
+    activeTab: 'pitwall',
     openOverlays: [],
     overlayTiles: {},
+    overlayVizMapping: {},
+    dockedLayout: null,
     _arrangeIdx: 0,
     activePanel: null,
     sectorRankings: null,
@@ -788,6 +1098,8 @@ export const useF1Store = create(persist((set, get) => ({
     telemetryCache: {},
     telemetryCompareLaps: [],
     lstmPredictions: null,
+    predictionLoading: false,
+    lastPredictionTrigger: null,
     degradationRegression: null,
     tsneStrategyAnalysis: null,
     raceSituationData: null,
@@ -1273,10 +1585,12 @@ export const useF1Store = create(persist((set, get) => ({
       return;
     }
 
-    // Procrustes alignment: rotate+scale new scores to match previous frame
+    // Procrustes alignment: only needed during warmup (before basis is frozen).
+    // Once frozen, axes are stable — Procrustes would just add noise.
+    const isFrozen = pcaResult._frozen?.callCount > 8;
     const prevData = get().raceSituationData;
     let alignedScores = pcaResult.scores;
-    if (prevData?.scores?.length && prevData?.driverAbbrs?.length) {
+    if (!isFrozen && prevData?.scores?.length && prevData?.driverAbbrs?.length) {
       // Build matched point pairs (drivers present in both frames)
       const prevMap = {};
       prevData.driverAbbrs.forEach((abbr, i) => { prevMap[abbr] = prevData.scores[i]; });
@@ -1386,6 +1700,24 @@ export const useF1Store = create(persist((set, get) => ({
     } catch (e) {
       console.error('LSTM prediction failed', e);
       set({ lstmPredictions: null });
+    }
+  },
+
+  triggerPrediction: async (driver, lap) => {
+    const { year, round } = get();
+    if (!year || !round || !driver) return;
+    set({ predictionLoading: true, lastPredictionTrigger: { driver, lap } });
+    try {
+      const result = await api.predictLSTM({
+        year, round, driver, current_lap: lap, session_type: 'R'
+      });
+      set((s) => ({
+        lstmPredictions: { ...s.lstmPredictions, [driver]: result },
+        predictionLoading: false
+      }));
+    } catch (e) {
+      console.error('Prediction failed:', e);
+      set({ predictionLoading: false });
     }
   },
 

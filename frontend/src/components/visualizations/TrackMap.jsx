@@ -35,7 +35,7 @@ const FLAG_LABEL_COLORS = {
 
 const SECTOR_COLORS = { 1: '#e10600', 2: '#ffd700', 3: '#0090ff' };
 const COMPOUND_NAMES = { 0: 'UNK', 1: 'SOFT', 2: 'MED', 3: 'HARD', 4: 'INTER', 5: 'WET' };
-const COMPOUND_COLORS = { 0: '#888', 1: '#FF3333', 2: '#FFC300', 3: '#FFFFFF', 4: '#39B54A', 5: '#0067FF' };
+const COMPOUND_COLORS = { 0: '#888', 1: '#FF3333', 2: '#FFC300', 3: '#EEEEEE', 4: '#39B54A', 5: '#00AAFF' };
 
 // Race control overlay for live mode (when car positions are unavailable)
 function LiveRaceControlOverlay() {

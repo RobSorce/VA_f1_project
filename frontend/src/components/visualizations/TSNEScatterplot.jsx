@@ -6,9 +6,33 @@ import { attachLasso } from '../../utils/lasso';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
+/**
+ * Spread overlapping points apart so every dot is at least minDistance px away.
+ */
+function resolveOverlaps(points, minDistance = 8) {
+  const adjusted = points.map(p => ({ ...p }));
+  for (let i = 0; i < adjusted.length; i++) {
+    for (let j = i + 1; j < adjusted.length; j++) {
+      const dx = adjusted[j].x - adjusted[i].x;
+      const dy = adjusted[j].y - adjusted[i].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < minDistance && dist > 0) {
+        const overlap = (minDistance - dist) / 2;
+        const angle = Math.atan2(dy, dx);
+        adjusted[j].x += Math.cos(angle) * overlap;
+        adjusted[j].y += Math.sin(angle) * overlap;
+        adjusted[i].x -= Math.cos(angle) * overlap;
+        adjusted[i].y -= Math.sin(angle) * overlap;
+      }
+    }
+  }
+  return adjusted;
+}
+
 export default function TSNEScatterplot() {
   const svgRef = useRef(null);
   const cleanupRef = useRef(null);
+  const pixelPointsRef = useRef([]); // resolved pixel positions for hover-repel
 
   const tsneEmbeddings = useF1Store((s) => s.tsneEmbeddings);
   const loadTSNEEmbeddings = useF1Store((s) => s.loadTSNEEmbeddings);
@@ -58,7 +82,7 @@ export default function TSNEScatterplot() {
       .domain([yExtent[0] - yPad, yExtent[1] + yPad])
       .range([innerH, 0]);
 
-    // t-SNE axes have no inherent meaning — show proximity annotation instead
+    // PCA axes have no inherent meaning — show proximity annotation instead
     // Subtle border to frame the plot area
     g.append('rect')
       .attr('width', innerW).attr('height', innerH)
@@ -77,6 +101,26 @@ export default function TSNEScatterplot() {
       .attr('font-size', '8px')
       .text('= similar races (closer = more similar)');
 
+    // Compute pixel positions and resolve overlaps
+    const rawPixelPoints = points.map((d) => ({
+      ...d,
+      px: x(d.x),
+      py: y(d.y),
+    }));
+    const resolvedPixelPoints = resolveOverlaps(
+      rawPixelPoints.map((d) => ({ ...d, x: d.px, y: d.py })),
+      8
+    );
+    // Map resolved pixel positions back
+    const pixelMap = {};
+    resolvedPixelPoints.forEach((rp, i) => {
+      pixelMap[rawPixelPoints[i].id] = { px: rp.x, py: rp.y };
+    });
+    const getPixelPos = (d) => pixelMap[d.id] || { px: x(d.x), py: y(d.y) };
+
+    // Store pixel positions for hover-repel
+    pixelPointsRef.current = points.map((d) => ({ ...d, ...getPixelPos(d) }));
+
     // Draw points
     const isCurrentRace = (d) => d.year === year && d.round === round;
 
@@ -90,7 +134,10 @@ export default function TSNEScatterplot() {
         else if (selectedTSNEPoints.length > 0) cls += ' dimmed';
         return cls;
       })
-      .attr('transform', (d) => `translate(${x(d.x)},${y(d.y)})`)
+      .attr('transform', (d) => {
+        const pos = getPixelPos(d);
+        return `translate(${pos.px},${pos.py})`;
+      })
       .attr('d', (d) =>
         isCurrentRace(d)
           ? d3.symbol().type(d3.symbolStar).size(120)()
@@ -130,14 +177,14 @@ export default function TSNEScatterplot() {
         }
       });
 
-    // Driver highlight rings (Leaderboard → t-SNE coordination)
+    // Driver highlight rings (Leaderboard → PCA coordination)
     if (selectedDrivers.length > 0) {
       g.selectAll('.tsne-driver-ring')
         .data(points.filter((d) => selectedDrivers.includes(d.driver)))
         .join('circle')
         .attr('class', 'tsne-driver-ring')
-        .attr('cx', (d) => x(d.x))
-        .attr('cy', (d) => y(d.y))
+        .attr('cx', (d) => getPixelPos(d).px)
+        .attr('cy', (d) => getPixelPos(d).py)
         .attr('r', 8)
         .attr('fill', 'none')
         .attr('stroke', '#ffffff')
@@ -151,7 +198,10 @@ export default function TSNEScatterplot() {
     if (cleanupRef.current) cleanupRef.current();
     cleanupRef.current = attachLasso(g, {
       getPoints: () =>
-        points.map((d) => ({ x: x(d.x), y: y(d.y), id: d.id })),
+        points.map((d) => {
+          const pos = getPixelPos(d);
+          return { x: pos.px, y: pos.py, id: d.id };
+        }),
       onSelect: (ids) => {
         setSelectedTSNEPoints(ids);
         if (ids.length > 0) {
@@ -184,8 +234,43 @@ export default function TSNEScatterplot() {
         .text(`${selectedTSNEPoints.length} selected`);
     }
 
+    // ── Hover-to-expand: repel nearby points when mouse approaches ──
+    const REPEL_RADIUS = 40;
+    const REPEL_STRENGTH = 18;
+
+    svg.on('mousemove.repel', function (event) {
+      const [mx, my] = d3.pointer(event, g.node());
+      g.selectAll('.tsne-point').each(function (d) {
+        const pos = getPixelPos(d);
+        const dx = pos.px - mx;
+        const dy = pos.py - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < REPEL_RADIUS && dist > 0) {
+          const force = (1 - dist / REPEL_RADIUS) * REPEL_STRENGTH;
+          const angle = Math.atan2(dy, dx);
+          const newX = pos.px + Math.cos(angle) * force;
+          const newY = pos.py + Math.sin(angle) * force;
+          d3.select(this).transition().duration(80).ease(d3.easeLinear)
+            .attr('transform', `translate(${newX},${newY})`);
+        } else {
+          d3.select(this).transition().duration(250).ease(d3.easeCubicOut)
+            .attr('transform', `translate(${pos.px},${pos.py})`);
+        }
+      });
+    });
+
+    svg.on('mouseleave.repel', function () {
+      g.selectAll('.tsne-point').transition().duration(400).ease(d3.easeCubicOut)
+        .attr('transform', (d) => {
+          const pos = getPixelPos(d);
+          return `translate(${pos.px},${pos.py})`;
+        });
+    });
+
     return () => {
       d3.select('body').select('.tsne-tooltip').remove();
+      svg.on('mousemove.repel', null);
+      svg.on('mouseleave.repel', null);
     };
   }, [tsneEmbeddings, selectedTSNEPoints, selectedDrivers, year, round, setSelectedTSNEPoints, setSelectedDrivers, fetchTSNEAnalysis]);
 

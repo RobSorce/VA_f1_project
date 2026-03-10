@@ -146,15 +146,31 @@ export function jacobiEigen(A, maxIter = 100) {
 
 /**
  * Full PCA pipeline: standardize → covariance → eigen → project onto top 2 PCs.
+ *
+ * **Frozen basis strategy:** After WARMUP_LAPS, the eigenvectors (PC axes) and
+ * standardization params (means/stds) are frozen. Subsequent calls only
+ * re-standardize the new data using frozen params and project onto the fixed axes.
+ * This prevents chaotic axis rotation that makes points jump erratically lap-to-lap.
+ *
  * @param {number[][]} matrix - NxM raw data (N drivers, M features)
  * @param {string[]} featureNames - M feature labels
- * @param {object|null} prevResult - previous PCA result for sign consistency
- * @returns {{ scores: {x,y}[], loadings: {feature,pc1,pc2}[], explainedVariance: [number,number] } | null}
+ * @param {object|null} prevResult - previous PCA result (carries frozen basis if set)
+ * @returns {{ scores: {x,y}[], loadings: {feature,pc1,pc2}[], explainedVariance: [number,number], _frozen?: object } | null}
  */
+const WARMUP_LAPS = 8; // freeze basis after this many calls
+
 export function computePCA(matrix, featureNames, prevResult = null) {
   if (!matrix || matrix.length < 3 || !matrix[0]?.length) return null;
 
-  const { standardized } = standardize(matrix);
+  const callCount = (prevResult?._frozen?.callCount || 0) + 1;
+
+  // If we have a frozen basis and past warmup, project onto it
+  if (prevResult?._frozen?.ev1 && callCount > WARMUP_LAPS) {
+    return _projectOntoFrozenBasis(matrix, featureNames, prevResult._frozen);
+  }
+
+  // Otherwise, compute full PCA
+  const { standardized, means, stds } = standardize(matrix);
   const cov = covarianceMatrix(standardized);
   const { eigenvalues, eigenvectors } = jacobiEigen(cov);
 
@@ -200,7 +216,62 @@ export function computePCA(matrix, featureNames, prevResult = null) {
     eigenvalues[1] / totalVar,
   ];
 
-  return { scores, loadings, explainedVariance };
+  // Freeze the basis once we hit the warmup threshold
+  const frozen = {
+    ev1: [...ev1],
+    ev2: [...ev2],
+    means: [...means],
+    stds: [...stds],
+    eigenvalues: [eigenvalues[0], eigenvalues[1]],
+    totalVar,
+    callCount,
+  };
+
+  return { scores, loadings, explainedVariance, _frozen: frozen };
+}
+
+/**
+ * Project new data onto a previously frozen PCA basis.
+ * Standardizes using frozen means/stds, then multiplies by frozen eigenvectors.
+ * The axes never move — only the data points shift as their features change.
+ */
+function _projectOntoFrozenBasis(matrix, featureNames, frozen) {
+  const { ev1, ev2, means, stds, eigenvalues, totalVar, callCount } = frozen;
+  const N = matrix.length;
+  const M = matrix[0].length;
+
+  // Standardize using frozen parameters
+  const scores = [];
+  for (let i = 0; i < N; i++) {
+    let x = 0;
+    let y = 0;
+    for (let j = 0; j < M; j++) {
+      const z = (matrix[i][j] - means[j]) / stds[j];
+      x += z * ev1[j];
+      y += z * ev2[j];
+    }
+    scores.push({ x, y });
+  }
+
+  // Loadings from frozen eigenvectors (unsorted — re-sort)
+  const loadings = featureNames.map((name, j) => ({
+    feature: name,
+    pc1: ev1[j],
+    pc2: ev2[j],
+  }));
+  loadings.sort((a, b) => (b.pc1 ** 2 + b.pc2 ** 2) - (a.pc1 ** 2 + a.pc2 ** 2));
+
+  const explainedVariance = [
+    eigenvalues[0] / totalVar,
+    eigenvalues[1] / totalVar,
+  ];
+
+  return {
+    scores,
+    loadings,
+    explainedVariance,
+    _frozen: { ...frozen, callCount: callCount + 1 },
+  };
 }
 
 /**

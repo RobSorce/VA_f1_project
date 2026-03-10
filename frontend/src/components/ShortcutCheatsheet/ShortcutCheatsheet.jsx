@@ -27,8 +27,10 @@ const SHORTCUT_SECTIONS = [
       { keys: ['8'], desc: 'AI Assistant' },
       { keys: ['9'], desc: 'Compare' },
       { keys: ['0'], desc: 'Analytics (PCA)' },
-      { keys: ['X'], desc: 'Close all overlays' },
+      { keys: ['W'], desc: 'Close last tab / window' },
+      { keys: ['X'], desc: 'Close all windows / exit layout' },
       { keys: ['Esc'], desc: 'Close overlays / Deselect' },
+      { keys: [`Ctrl+G`], desc: 'Cycle layout arrangements' },
     ],
   },
   {
