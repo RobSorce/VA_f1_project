@@ -9,7 +9,6 @@ const TrackMap           = lazy(() => import('../components/visualizations/Track
 const LapTimeChart       = lazy(() => import('../components/visualizations/LapTimeChart'));
 const LapDeltaChart      = lazy(() => import('../components/visualizations/LapDeltaChart'));
 const StrategyTimeline   = lazy(() => import('../components/visualizations/StrategyTimeline'));
-const TSNEScatterplot    = lazy(() => import('../components/visualizations/TSNEScatterplot'));
 const AnalyticsTabContent = lazy(() => import('../components/tabs/AnalyticsTabContent'));
 const TireDegradation    = lazy(() => import('../components/visualizations/TireDegradation'));
 const TyreHealth         = lazy(() => import('../components/visualizations/TyreHealth'));
@@ -32,7 +31,6 @@ export const SLOT_OPTIONS = [
   { id: 'lapdelta',       label: 'Lap Delta',            component: LapDeltaChart },
   { id: 'strategy',       label: 'Strategy Timeline',    component: StrategyTimeline },
   { id: 'analytics',      label: 'Analytics (PCA)',       component: AnalyticsTabContent },
-  { id: 'tsne',           label: 'Strategy Space (PCA)', component: TSNEScatterplot },
   { id: 'tiredeg',        label: 'Tyre Degradation',     component: TireDegradation },
   { id: 'tyrehealth',     label: 'Tyre Health',          component: TyreHealth },
   { id: 'tyremgmt',       label: 'Pace Retention',       component: TyreManagement },

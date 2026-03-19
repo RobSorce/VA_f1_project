@@ -5,6 +5,7 @@ import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { FEATURE_LABELS } from '../../utils/raceSituationFeatures';
 import { attachLasso } from '../../utils/lasso';
 import Panel from '../ui/Panel';
+import Legend from '../ui/Legend';
 
 const COMPOUND_COLORS = {
   SOFT: TYRE_COLORS?.SOFT || '#e10600',
@@ -590,8 +591,16 @@ export default function RaceSituationMap() {
     smoothedPositionsRef.current = {};
   }, [sessionKey]);
 
+  const tyreLegend = [
+    { label: 'Soft', color: COMPOUND_COLORS.SOFT },
+    { label: 'Med', color: COMPOUND_COLORS.MEDIUM },
+    { label: 'Hard', color: COMPOUND_COLORS.HARD },
+    { label: 'Inter', color: COMPOUND_COLORS.INTERMEDIATE },
+    { label: 'Wet', color: COMPOUND_COLORS.WET },
+  ];
+
   return (
-    <Panel title={`Race Situation ${raceSituationData?.computedAtLap ? `— Lap ${raceSituationData.computedAtLap}` : ''}`}>
+    <Panel title={`Race Situation ${raceSituationData?.computedAtLap ? `— Lap ${raceSituationData.computedAtLap}` : ''}`} controls={<Legend items={tyreLegend} shape="circle" />}>
       <div className="viz-container">
         {raceSituationData ? (
           <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
