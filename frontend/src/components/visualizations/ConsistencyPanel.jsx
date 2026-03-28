@@ -23,6 +23,10 @@ export default function ConsistencyPanel() {
   const currentLap = useF1Store((s) => s.currentLap);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
   const totalFrames = useF1Store((s) => s.totalFrames);
+  const selectedDrivers = useF1Store((s) => s.selectedDrivers);
+  const highlightedDriver = useF1Store((s) => s.highlightedDriver);
+  const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
+  const setFocusDriver = useF1Store((s) => s.setFocusDriver);
 
   const panelRef = useRef(null);
   const handleExport = useCallback(() => {
@@ -218,8 +222,21 @@ export default function ConsistencyPanel() {
         {drivers.map((d) => {
           const color = getDriverColor(d.driver);
           const compoundEntries = Object.entries(d.compounds || {});
+          const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(d.driver);
+          const isHl = highlightedDriver === d.driver;
+          const isDimmed = highlightedDriver && !isHl;
           return (
-            <div key={d.driver} className="consistency-card glass-card">
+            <div key={d.driver} className="consistency-card glass-card"
+              onMouseEnter={() => setHighlightedDriver(d.driver)}
+              onMouseLeave={() => setHighlightedDriver(null)}
+              onClick={() => setFocusDriver(d.driver)}
+              style={{
+                opacity: !isSelected ? 0.35 : isDimmed ? 0.5 : 1,
+                outline: isHl ? `1px solid ${color}` : undefined,
+                cursor: 'pointer',
+                transition: 'opacity 0.15s, outline 0.15s',
+              }}
+            >
               <div className="consistency-card__header">
                 <span className="consistency-card__team-bar" style={{ backgroundColor: color }} />
                 <span className="consistency-card__name">{d.driver}</span>

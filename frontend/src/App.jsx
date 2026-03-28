@@ -33,6 +33,8 @@ import SettingsTabContent from './components/tabs/SettingsTabContent';
 import ChampionshipTabContent from './components/tabs/ChampionshipTabContent';
 import AnalyticsTabContent from './components/tabs/AnalyticsTabContent';
 import RacePredictionPanel from './components/visualizations/RacePredictionPanel';
+import StrategySimulator from './components/visualizations/StrategySimulator';
+import StrategyTimeline from './components/visualizations/StrategyTimeline';
 
 // Command Palette & Keyboard
 import CommandPalette from './components/CommandPalette/CommandPalette';
@@ -49,6 +51,8 @@ const OVERLAY_TABS = {
   ai: { title: 'AI Assistant', Component: AITabContent },
   analytics: { title: 'Analytics', Component: AnalyticsTabContent },
   prediction: { title: 'Race Prediction', Component: RacePredictionPanel },
+  simulator: { title: 'Strategy Simulator', Component: StrategySimulator },
+  strategy: { title: 'Strategy Timeline', Component: StrategyTimeline },
   championship: { title: 'Championship', Component: ChampionshipTabContent },
   settings: { title: 'Settings', Component: SettingsTabContent },
   compare: { title: 'Driver Comparison', Component: DriverComparePanel },

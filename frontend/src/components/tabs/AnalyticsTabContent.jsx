@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import RaceSituationMap from '../visualizations/RaceSituationMap';
 import PCABiplot from '../visualizations/PCABiplot';
 import StrategyAnalysis from '../visualizations/StrategyAnalysis';
+import PCAAnalysisPanel from '../visualizations/PCAAnalysisPanel';
 
 export default function AnalyticsTabContent() {
   const [view, setView] = useState('situation'); // 'situation' | 'biplot'
@@ -26,7 +27,7 @@ export default function AnalyticsTabContent() {
         {view === 'situation' ? <RaceSituationMap /> : <PCABiplot />}
       </div>
       <div className="analytics-tab__analysis">
-        <StrategyAnalysis />
+        {view === 'situation' ? <StrategyAnalysis /> : <PCAAnalysisPanel />}
       </div>
     </div>
   );

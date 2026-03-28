@@ -146,179 +146,300 @@ def _parse_gemini_response(text: str) -> dict:
 
 
 def _mock_response(request: GeminiRequest) -> dict:
-    """Generate a context-aware mock Gemini response for development."""
+    """Generate a context-aware mock strategy response from race data."""
     driver = request.drivers[0] if request.drivers else 'VER'
     current_lap = request.current_lap or 20
     query = request.query.lower()
     ctx = request.race_context or {}
 
-    # Extract useful context for richer mock responses
+    # Extract race context
     projections = ctx.get('monteCarloProjections', [])
     battles = ctx.get('battles', [])
     risks = ctx.get('risks', [])
     features = ctx.get('driverFeatures', {})
     race_params = ctx.get('raceParams', {})
 
-    # Find focused driver's projection
+    drv_feats = features.get(driver, {})
     drv_proj = next((p for p in projections if p['driver'] == driver), None) if projections else None
     pit_loss = race_params.get('pitLoss', {}).get('mean', 22)
+    max_lap = 57  # reasonable default
+    if drv_proj and drv_proj.get('posRange'):
+        pass  # we have projections
 
-    if 'undercut' in query or 'overcut' in query:
-        drv_feats = features.get(driver, {})
-        tyre_age = drv_feats.get('tyreLife', 15)
-        compound = drv_feats.get('compoundName', 'MEDIUM')
-        pace_trend = drv_feats.get('paceTrend', 0.05)
+    # Current driver state
+    compound = drv_feats.get('compoundName', 'MEDIUM')
+    tyre_age = drv_feats.get('tyreLife', 15)
+    pace_trend = drv_feats.get('paceTrend', 0.05)
+    est_pit = drv_feats.get('estLapsToPit', 10)
+    position = drv_feats.get('position', 5)
+    recent_pace = drv_feats.get('recentPace', 92.0)
+    laps_remaining = max(max_lap - current_lap, 10)
+
+    # Current projected position
+    cur_proj_pos = position
+    if drv_proj:
+        cur_proj_pos = drv_proj.get('expectedPos', position)
+        if isinstance(cur_proj_pos, float):
+            cur_proj_pos = round(cur_proj_pos)
+
+    # ── Strategy comparison (primary use case) ──
+    if 'compare' in query or 'strategy' in query or 'option' in query or 'optimal' in query or 'best' in query:
+        # Build 3 data-driven strategies based on current state
+        pit_lap_early = current_lap + max(2, min(est_pit - 3, 5))
+        pit_lap_std = current_lap + max(5, min(est_pit, 12))
+        pit_lap_late = current_lap + max(10, min(est_pit + 5, laps_remaining - 8))
+
+        # Choose next compound intelligently
+        next_compound = 'HARD' if compound in ('SOFT', 'MEDIUM') else 'MEDIUM'
+        aggr_compound = 'SOFT' if compound == 'HARD' else 'MEDIUM'
+
+        # Strategy A: Conservative 1-stop
+        strat_a_proj = cur_proj_pos  # hold position
+        strat_a_risk = 'low'
+        strat_a_stints = [
+            {'compound': compound, 'lap_start': 1, 'length': pit_lap_std - 1},
+            {'compound': 'HARD', 'lap_start': pit_lap_std, 'length': max_lap - pit_lap_std + 1},
+        ]
+
+        # Strategy B: Aggressive undercut
+        strat_b_proj = max(1, cur_proj_pos - 1)  # gain 1 position
+        strat_b_risk = 'medium'
+        strat_b_stints = [
+            {'compound': compound, 'lap_start': 1, 'length': pit_lap_early - 1},
+            {'compound': next_compound, 'lap_start': pit_lap_early, 'length': max_lap - pit_lap_early + 1},
+        ]
+
+        # Strategy C: 2-stop aggressive
+        second_stop = pit_lap_early + int(laps_remaining * 0.55)
+        strat_c_proj = max(1, cur_proj_pos - 2) if pace_trend < 0.1 else cur_proj_pos + 1
+        strat_c_risk = 'high'
+        strat_c_stints = [
+            {'compound': compound, 'lap_start': 1, 'length': pit_lap_early - 1},
+            {'compound': 'MEDIUM', 'lap_start': pit_lap_early, 'length': second_stop - pit_lap_early},
+            {'compound': 'SOFT', 'lap_start': second_stop, 'length': max_lap - second_stop + 1},
+        ]
 
         text = (
-            f"STRATEGY CALL — Lap {current_lap}\n\n"
-            f"{driver} is on {compound} tyres (age: {tyre_age} laps), "
-            f"pace trend: {pace_trend:+.2f}s/lap.\n\n"
+            f"STRATEGY ANALYSIS — {driver} at Lap {current_lap}\n\n"
+            f"Current: P{position}, {compound} tyres ({tyre_age} laps), "
+            f"pace {recent_pace:.1f}s, trend {pace_trend:+.2f}s/lap.\n"
+            f"Pit loss: ~{pit_loss:.0f}s. Estimated tyre life remaining: ~{est_pit} laps.\n\n"
         )
-        if pace_trend > 0.05:
+
+        if pace_trend > 0.08:
             text += (
-                f"Degradation is significant — UNDERCUT recommended.\n"
-                f"Pit window: laps {current_lap + 1}-{current_lap + 3}. "
-                f"Pit loss is ~{pit_loss:.0f}s.\n"
-                f"Switch to HARD compound to extend to the end."
+                f"RECOMMENDATION: Tyres are degrading significantly ({pace_trend:+.2f}s/lap). "
+                f"Early pit (Strategy B) recommended to undercut rivals. "
+                f"Pit window: laps {pit_lap_early}-{pit_lap_early + 2}.\n"
+            )
+        elif pace_trend < -0.02:
+            text += (
+                f"RECOMMENDATION: Pace is improving — tyres still in good shape. "
+                f"Extend the stint (Strategy A) and overcut. "
+                f"Target pit: lap {pit_lap_std}.\n"
             )
         else:
             text += (
-                f"Tyres are still performing well — OVERCUT has potential.\n"
-                f"Stay out until lap {current_lap + 5}-{current_lap + 8}, "
-                f"gain track position while others pit.\n"
-                f"Pit loss is ~{pit_loss:.0f}s."
+                f"RECOMMENDATION: Pace is stable. Standard pit window (lap {pit_lap_std}) "
+                f"is optimal. Consider 2-stop only if safety car opportunity arises.\n"
             )
-        if drv_proj:
-            exp = drv_proj.get('expectedPos', '?')
-            exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
-            text += f"\n\nMonte Carlo projection: Expected P{exp_str}, podium {drv_proj.get('podiumProb', 0)}%."
+
+        if battles:
+            b = battles[0]
+            text += (
+                f"\nBattle factor: {b.get('driver2', '?')} vs {b.get('driver1', '?')} — "
+                f"{b.get('overtakeProb', 0)}% position swap probability."
+            )
+
+        scenarios = [
+            {
+                'id': 'conservative',
+                'label': f'1-Stop Standard (L{pit_lap_std})',
+                'driver': driver,
+                'risk': strat_a_risk,
+                'projected_position': strat_a_proj,
+                'total_stops': 1,
+                'time_delta': 'baseline',
+                'stints': strat_a_stints,
+            },
+            {
+                'id': 'undercut',
+                'label': f'1-Stop Undercut (L{pit_lap_early})',
+                'driver': driver,
+                'risk': strat_b_risk,
+                'projected_position': strat_b_proj,
+                'total_stops': 1,
+                'time_delta': f'-{pit_loss * 0.3:.0f}s',
+                'stints': strat_b_stints,
+            },
+            {
+                'id': 'aggressive',
+                'label': f'2-Stop Aggressive',
+                'driver': driver,
+                'risk': strat_c_risk,
+                'projected_position': strat_c_proj,
+                'total_stops': 2,
+                'time_delta': f'+{pit_loss * 0.7:.0f}s' if pace_trend > 0.05 else f'-{pit_loss * 0.2:.0f}s',
+                'stints': strat_c_stints,
+            },
+        ]
+
+    # ── Undercut / overcut analysis ──
+    elif 'undercut' in query or 'overcut' in query:
+        pit_now = current_lap + 2
+        pit_late = current_lap + max(5, est_pit)
+        next_compound = 'HARD' if compound in ('SOFT', 'MEDIUM') else 'MEDIUM'
+
+        if pace_trend > 0.05:
+            recommendation = "UNDERCUT"
+            text = (
+                f"UNDERCUT RECOMMENDED — {driver}, Lap {current_lap}\n\n"
+                f"Degradation: {pace_trend:+.2f}s/lap on {compound} (age {tyre_age}).\n"
+                f"Pit lap {pit_now} for {next_compound}. Pit loss ~{pit_loss:.0f}s.\n"
+                f"Expected to gain track position during rivals' stops."
+            )
+        else:
+            recommendation = "OVERCUT"
+            text = (
+                f"OVERCUT VIABLE — {driver}, Lap {current_lap}\n\n"
+                f"Tyres performing well ({pace_trend:+.2f}s/lap). Stay out.\n"
+                f"Extend to lap {pit_late}, gain time while others pit.\n"
+                f"Pit loss ~{pit_loss:.0f}s."
+            )
 
         scenarios = [
             {
                 'id': 'undercut',
-                'label': f'Undercut (Lap {current_lap + 2})',
+                'label': f'Undercut (Lap {pit_now})',
                 'driver': driver,
-                'stints': [{'compound': 'HARD', 'lap_start': current_lap + 2, 'length': 30}],
+                'risk': 'medium',
+                'projected_position': max(1, cur_proj_pos - 1),
+                'total_stops': 1,
+                'stints': [
+                    {'compound': compound, 'lap_start': 1, 'length': pit_now - 1},
+                    {'compound': next_compound, 'lap_start': pit_now, 'length': max_lap - pit_now + 1},
+                ],
             },
             {
                 'id': 'overcut',
-                'label': f'Overcut (Lap {current_lap + 7})',
+                'label': f'Overcut (Lap {pit_late})',
                 'driver': driver,
-                'stints': [{'compound': 'HARD', 'lap_start': current_lap + 7, 'length': 25}],
+                'risk': 'low' if pace_trend < 0.05 else 'high',
+                'projected_position': cur_proj_pos,
+                'total_stops': 1,
+                'stints': [
+                    {'compound': compound, 'lap_start': 1, 'length': pit_late - 1},
+                    {'compound': next_compound, 'lap_start': pit_late, 'length': max_lap - pit_late + 1},
+                ],
             },
         ]
 
-    elif '1-stop' in query or '2-stop' in query or 'compare' in query:
-        text = f"STRATEGY COMPARISON — {driver} at lap {current_lap}\n\n"
-        text += f"Pit stop time loss: ~{pit_loss:.0f}s per stop.\n\n"
-        text += (
-            f"1-STOP: Stay on current tyres until lap {current_lap + 12}, "
-            f"then HARD to finish. Lower risk, preserves track position.\n\n"
-            f"2-STOP: Pit now for MEDIUM (laps {current_lap + 1}-{current_lap + 18}), "
-            f"then SOFT for a fast final stint. Higher pace but {pit_loss * 2:.0f}s total pit time."
+    # ── Pit now or extend ──
+    elif 'pit' in query and ('now' in query or 'extend' in query):
+        text = (
+            f"PIT DECISION — {driver}, Lap {current_lap}\n\n"
+            f"Current: {compound} (age {tyre_age}), pace trend {pace_trend:+.2f}s/lap.\n"
+            f"Est. remaining tyre life: {est_pit} laps. Pit loss: ~{pit_loss:.0f}s.\n\n"
         )
-        if drv_proj:
-            text += f"\n\nCurrent MC projection: P{drv_proj.get('modePos', '?')}, range P{drv_proj.get('posRange', ['?','?'])[0]}-P{drv_proj.get('posRange', ['?','?'])[1]}."
+        if est_pit <= 3 or pace_trend > 0.1:
+            text += "BOX BOX BOX. Tyres are done. Pit this lap or next."
+        elif est_pit <= 6:
+            text += f"Pit window is open. Target lap {current_lap + 2}-{current_lap + 4}."
+        else:
+            text += f"Stay out. Tyres have {est_pit} laps remaining. Monitor pace."
 
+        pit_lap = current_lap + 1
+        extend_lap = current_lap + est_pit
+        next_compound = 'HARD' if compound in ('SOFT', 'MEDIUM') else 'MEDIUM'
         scenarios = [
             {
-                'id': 'one_stop',
-                'label': '1-Stop (Conservative)',
+                'id': 'pit_now',
+                'label': f'Pit Now (Lap {pit_lap})',
                 'driver': driver,
+                'risk': 'low',
+                'projected_position': cur_proj_pos,
+                'total_stops': 1,
                 'stints': [
-                    {'compound': 'HARD', 'lap_start': current_lap + 12, 'length': 25},
+                    {'compound': compound, 'lap_start': 1, 'length': pit_lap - 1},
+                    {'compound': next_compound, 'lap_start': pit_lap, 'length': max_lap - pit_lap + 1},
                 ],
             },
             {
-                'id': 'two_stop',
-                'label': '2-Stop (Aggressive)',
+                'id': 'extend',
+                'label': f'Extend to Lap {extend_lap}',
                 'driver': driver,
+                'risk': 'high' if pace_trend > 0.08 else 'medium',
+                'projected_position': cur_proj_pos + (1 if pace_trend > 0.08 else 0),
+                'total_stops': 1,
                 'stints': [
-                    {'compound': 'MEDIUM', 'lap_start': current_lap + 1, 'length': 18},
-                    {'compound': 'SOFT', 'lap_start': current_lap + 19, 'length': 15},
+                    {'compound': compound, 'lap_start': 1, 'length': extend_lap - 1},
+                    {'compound': next_compound, 'lap_start': extend_lap, 'length': max_lap - extend_lap + 1},
                 ],
             },
         ]
 
-    elif 'overtake' in query or 'battle' in query:
-        text = f"BATTLE ANALYSIS — Lap {current_lap}\n\n"
+    # ── Battle / overtake / defend ──
+    elif 'attack' in query or 'defend' in query or 'overtake' in query or 'battle' in query or ' vs ' in query:
+        text = f"BATTLE ANALYSIS — {driver}, Lap {current_lap}\n\n"
         if battles:
             for b in battles[:3]:
                 text += (
                     f"{b.get('driver2', '?')} vs {b.get('driver1', '?')}: "
-                    f"{b.get('overtakeProb', 0)}% overtake probability "
+                    f"{b.get('overtakeProb', 0)}% swap probability "
                     f"({b.get('type', '')})\n"
                 )
-            text += f"\nRecommendation: "
-            top_battle = battles[0]
-            if top_battle.get('overtakeProb', 0) >= 50:
-                text += f"Attack is likely to succeed. Push now and use tyre advantage."
+            top = battles[0]
+            if top.get('overtakeProb', 0) >= 50:
+                text += f"\nPUSH NOW — high probability of success. Use tyre advantage."
             else:
-                text += f"Hold position and manage tyres. Wait for pit window to gain track position."
+                text += f"\nHOLD POSITION — manage tyres, use pit strategy to gain."
         else:
-            text += "No significant battles detected at the moment."
+            text += "No significant battles around your driver."
         scenarios = []
 
-    elif 'risk' in query or 'danger' in query or 'mitigate' in query:
-        text = f"RISK ASSESSMENT — Lap {current_lap}\n\n"
+    # ── Risk / mitigate ──
+    elif 'risk' in query or 'mitigate' in query:
+        text = f"RISK ASSESSMENT — {driver}, Lap {current_lap}\n\n"
         if risks:
             for r in risks[:3]:
                 sev = r.get('severity', 'low').upper()
                 text += f"[{sev}] {r.get('driver', '?')}: {r.get('description', r.get('message', ''))}\n"
-            text += "\nMitigation: "
-            high_risks = [r for r in risks if r.get('severity') == 'high']
-            if high_risks:
-                text += "Immediate action needed — consider early pit stop to avoid tyre failure or position loss."
-            else:
-                text += "Monitor situation. No immediate action required."
+            high = [r for r in risks if r.get('severity') == 'high']
+            text += f"\nMitigation: {'Early pit recommended.' if high else 'Monitor — no immediate action needed.'}"
         else:
             text += "No significant risks identified."
         scenarios = []
 
+    # ── General / fallback ──
     else:
-        # General strategy — use all available context
-        text = f"STRATEGY BRIEFING — Lap {current_lap}\n\n"
-
+        text = f"STRATEGY BRIEFING — {driver}, Lap {current_lap}\n\n"
+        text += f"P{position}, {compound} tyres (age {tyre_age}), pace {recent_pace:.1f}s, trend {pace_trend:+.2f}s/lap.\n"
         if drv_proj:
-            text += (
-                f"{driver}: Currently P{drv_proj.get('currentPos', '?')}, "
-                f"projected P{drv_proj.get('modePos', '?')} "
-                f"(range P{drv_proj.get('posRange', ['?','?'])[0]}-P{drv_proj.get('posRange', ['?','?'])[1]}). "
-                f"Podium probability: {drv_proj.get('podiumProb', 0)}%.\n\n"
-            )
-
-        drv_feats = features.get(driver, {})
-        if drv_feats:
-            text += (
-                f"Current state: {drv_feats.get('compoundName', '?')} tyres "
-                f"(age {drv_feats.get('tyreLife', '?')} laps), "
-                f"pace {drv_feats.get('recentPace', 0):.1f}s, "
-                f"trend {drv_feats.get('paceTrend', 0):+.2f}s/lap.\n"
-                f"Estimated laps to pit: {drv_feats.get('estLapsToPit', '?')}.\n\n"
-            )
+            exp = drv_proj.get('expectedPos', '?')
+            exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
+            text += f"MC projection: P{exp_str}, podium {drv_proj.get('podiumProb', 0)}%.\n"
+        text += f"Est. laps to pit: {est_pit}. Pit loss: ~{pit_loss:.0f}s.\n\n"
 
         if battles:
-            text += "Key battles:\n"
-            for b in battles[:2]:
-                text += f"  {b.get('driver2', '?')} -> {b.get('driver1', '?')}: {b.get('overtakeProb', 0)}% swap probability\n"
-            text += "\n"
+            b = battles[0]
+            text += f"Battle: {b.get('driver2','?')} vs {b.get('driver1','?')} ({b.get('overtakeProb',0)}% swap)\n"
 
-        if risks:
-            high = [r for r in risks if r.get('severity') == 'high']
-            if high:
-                text += f"WARNING: {high[0].get('description', high[0].get('message', ''))}\n\n"
-
-        text += (
-            f"Recommendation: Pit for HARD tyres in the next 3-5 laps to extend the final stint. "
-            f"Pit loss is ~{pit_loss:.0f}s."
-        )
+        pit_target = current_lap + max(3, min(est_pit, 10))
+        next_compound = 'HARD' if compound in ('SOFT', 'MEDIUM') else 'MEDIUM'
+        text += f"\nRecommendation: Pit for {next_compound} around lap {pit_target}."
 
         scenarios = [
             {
                 'id': 'recommended',
-                'label': f'Pit Lap {current_lap + 3}',
+                'label': f'Pit Lap {pit_target} ({next_compound})',
                 'driver': driver,
-                'stints': [{'compound': 'HARD', 'lap_start': current_lap + 3, 'length': 30}],
+                'risk': 'low',
+                'projected_position': cur_proj_pos,
+                'total_stops': 1,
+                'stints': [
+                    {'compound': compound, 'lap_start': 1, 'length': pit_target - 1},
+                    {'compound': next_compound, 'lap_start': pit_target, 'length': max_lap - pit_target + 1},
+                ],
             },
         ]
 

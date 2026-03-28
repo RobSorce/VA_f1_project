@@ -108,4 +108,26 @@ export const WINDOW_PRESETS = {
       { id: 'compare',     position: { left: '0%', top: '50%', width: '100%', height: '50%' } },
     ],
   },
+  simulator: {
+    label: 'Simulator',
+    description: 'Strategy Simulator + Strategy Timeline + Race Prediction',
+    dockedLayout: {
+      direction: 'vertical', ratio: 0.55,
+      children: [
+        {
+          direction: 'horizontal', ratio: 0.4,
+          children: [
+            { tabs: ['simulator'], activeTab: 'simulator' },
+            { tabs: ['strategy'], activeTab: 'strategy' },
+          ],
+        },
+        { tabs: ['prediction'], activeTab: 'prediction' },
+      ],
+    },
+    windows: [
+      { id: 'simulator',  position: { left: '0%', top: '0%', width: '40%', height: '55%' } },
+      { id: 'strategy',   position: { left: '40%', top: '0%', width: '60%', height: '55%' } },
+      { id: 'prediction', position: { left: '0%', top: '55%', width: '100%', height: '45%' } },
+    ],
+  },
 };

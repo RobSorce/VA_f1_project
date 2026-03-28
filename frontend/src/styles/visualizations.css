@@ -1239,6 +1239,294 @@
 }
 
 /* --------------------------------------------------------------------------
+   Strategy Engineer Console
+   -------------------------------------------------------------------------- */
+.strategy-console {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.strategy-console__briefing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 2px solid;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.strategy-console__driver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.strategy-console__team-bar {
+  width: 3px;
+  height: 20px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.strategy-console__abbr {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.strategy-console__team {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.strategy-console__stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.strategy-console__stat {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.strategy-console__tyre {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+}
+
+.strategy-console__no-driver {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: center;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.strategy-console__tabs {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.strategy-console__tab {
+  flex: 1;
+  padding: 6px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.strategy-console__tab:hover {
+  color: var(--color-text-secondary);
+}
+
+.strategy-console__tab--active {
+  color: var(--color-gemini);
+  border-bottom-color: var(--color-gemini);
+}
+
+.strategy-console__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.strategy-console__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.strategy-console__quick-btn {
+  padding: 4px 10px;
+  font-size: 9px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.strategy-console__quick-btn:hover:not(:disabled) {
+  background: rgba(245, 166, 35, 0.12);
+  border-color: rgba(245, 166, 35, 0.3);
+  color: var(--color-gemini);
+}
+
+.strategy-console__quick-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.strategy-console__compare-btn {
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, rgba(245, 166, 35, 0.15), rgba(245, 166, 35, 0.08));
+  border: 1px solid rgba(245, 166, 35, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--color-gemini);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.strategy-console__compare-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(245, 166, 35, 0.25), rgba(245, 166, 35, 0.15));
+  border-color: var(--color-gemini);
+}
+
+.strategy-console__compare-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.strategy-console__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.strategy-card {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.strategy-card:hover {
+  background: rgba(245, 166, 35, 0.06);
+  border-color: rgba(245, 166, 35, 0.2);
+}
+
+.strategy-card--active {
+  background: rgba(245, 166, 35, 0.1);
+  border-color: rgba(245, 166, 35, 0.4);
+}
+
+.strategy-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.strategy-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.strategy-card__risk {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 1px 6px;
+  border: 1px solid;
+  border-radius: 3px;
+}
+
+.strategy-card__stints {
+  position: relative;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+
+.strategy-card__outcome {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.strategy-card__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.strategy-card__metric-label {
+  font-size: 8px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.strategy-card__metric-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.strategy-card__overlay-hint {
+  font-size: 8px;
+  color: var(--color-text-muted);
+  text-align: right;
+  font-style: italic;
+}
+
+.strategy-card--active .strategy-card__overlay-hint {
+  color: var(--color-gemini);
+}
+
+.strategy-console__response {
+  padding: 8px 10px;
+  background: rgba(245, 166, 35, 0.06);
+  border: 1px solid rgba(245, 166, 35, 0.15);
+  border-radius: var(--radius-sm);
+}
+
+.strategy-console__response-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-gemini);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.strategy-console__response-text {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+}
+
+/* --------------------------------------------------------------------------
    Telemetry Strip Charts
    -------------------------------------------------------------------------- */
 .telem-chart-label {

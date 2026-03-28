@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import * as api from '../utils/apiClient';
 import { computePCA, procrustesAlign2D } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
+import { simulateRaceFinish } from '../utils/raceSimulation';
 import { WINDOW_PRESETS } from '../utils/windowPresets';
 
 /* ── Docked layout tree helpers ────────────────────────────────── */
@@ -461,6 +462,7 @@ export const useF1Store = create(persist((set, get) => ({
         raceSituationLap: null,
         raceSituationData: null,
         raceProjection: null,
+        simulatorStrategy: null, simulatorResult: null, simulatorComparisons: [], isSimulatorActive: false,
         _prevPcaResult: null,
         lstmPredictions: null,
         degradationRegression: null,
@@ -1617,6 +1619,11 @@ export const useF1Store = create(persist((set, get) => ({
       raceSituationLap: currentLap,
       _prevPcaResult: pcaResult,
     });
+
+    // Trigger Monte Carlo projection every 3 laps (after lap 5)
+    if (currentLap >= 5 && currentLap % 3 === 0) {
+      setTimeout(() => get().computeRaceProjection(), 0);
+    }
   },
 
   // ── Predictions ────────────────────────────────────────────────
@@ -1704,12 +1711,47 @@ export const useF1Store = create(persist((set, get) => ({
   },
 
   triggerPrediction: async (driver, lap) => {
-    const { year, round } = get();
+    const { year, round, maxLap, sessionData, isQualifyingReplay } = get();
     if (!year || !round || !driver) return;
-    set({ predictionLoading: true, lastPredictionTrigger: { driver, lap } });
+    if (isQualifyingReplay) return;
+
+    const currentLap = lap || get().currentLap;
+    const lapTimes = sessionData?.lap_times || [];
+    const driverLaps = lapTimes
+      .filter(d => d.Driver === driver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
+      .sort((a, b) => a.LapNumber - b.LapNumber)
+      .slice(-10);
+
+    if (driverLaps.length < 3) return;
+
+    const weather = sessionData?.weather_data;
+    const trackTemp = weather?.length ? (weather[0].TrackTemp ?? 30) : 30;
+
+    const last_10_laps = driverLaps.map(d => ({
+      lap_time: d.LapTimeSeconds,
+      tyre_life: d.TyreLife || 0,
+      compound: d.Compound || 'UNKNOWN',
+      sector1: d.Sector1TimeSeconds || 0,
+      sector2: d.Sector2TimeSeconds || 0,
+      sector3: d.Sector3TimeSeconds || 0,
+      position: d.Position || 10,
+      gap_to_leader: d.GapToLeader || 0,
+      gap_ahead: 0,
+      fuel_estimate: maxLap > 0 ? (maxLap - d.LapNumber + 1) / maxLap : 0.5,
+      track_temp: trackTemp,
+      drs: 0,
+      lap_number: d.LapNumber,
+    }));
+
+    set({ predictionLoading: true, lastPredictionTrigger: { driver, lap: currentLap } });
     try {
       const result = await api.predictLSTM({
-        year, round, driver, current_lap: lap, session_type: 'R'
+        last_10_laps,
+        driver,
+        year,
+        round,
+        current_lap: currentLap,
+        max_lap: maxLap,
       });
       set((s) => ({
         lstmPredictions: { ...s.lstmPredictions, [driver]: result },
@@ -1923,6 +1965,129 @@ export const useF1Store = create(persist((set, get) => ({
 
   setGeminiOverlays: (overlays) => set({ geminiOverlays: overlays }),
   setRaceProjection: (data) => set({ raceProjection: data }),
+
+  // ── Monte Carlo Race Projection ──────────────────────────────────
+  computeRaceProjection: () => {
+    const {
+      sessionData, currentLap, maxLap, raceSituationData, isQualifyingReplay,
+    } = get();
+
+    if (isQualifyingReplay) return;
+    if (!raceSituationData?.driverFeatures || currentLap < 5 || maxLap <= currentLap) return;
+
+    const lapTimes = sessionData?.lap_times;
+    const strategies = sessionData?.tyre_strategy || sessionData?.strategies || [];
+    const trackStatus = sessionData?.track_status || [];
+    if (!lapTimes?.length) return;
+
+    const result = simulateRaceFinish({
+      driverFeatures: raceSituationData.driverFeatures,
+      currentLap,
+      maxLap,
+      lapTimes,
+      strategies,
+      trackStatus,
+    });
+
+    if (result) set({ raceProjection: result });
+  },
+
+  // ── Strategy Simulator ───────────────────────────────────────────
+  simulatorStrategy: null,   // { driver, stints: [{compound, lapStart, length}] }
+  simulatorResult: null,     // { simProjection, baselineProjection, delta }
+  simulatorComparisons: [],  // [{ label, stints, result }]
+  isSimulatorActive: false,
+
+  setSimulatorStrategy: (strategy) => set({ simulatorStrategy: strategy }),
+  toggleSimulator: () => set((s) => ({ isSimulatorActive: !s.isSimulatorActive })),
+  clearSimulator: () => set({
+    simulatorStrategy: null, simulatorResult: null,
+    simulatorComparisons: [], isSimulatorActive: false,
+  }),
+
+  addSimulatorComparison: (label, stints, result) => set((s) => ({
+    simulatorComparisons: [...s.simulatorComparisons, { label, stints, result }],
+  })),
+
+  applyPCAPattern: (strategy) => set({
+    simulatorStrategy: strategy,
+    isSimulatorActive: true,
+  }),
+
+  applyGeminiScenario: (scenario) => {
+    if (!scenario?.stints) return;
+    const { focusDriver } = get();
+    set({
+      simulatorStrategy: { driver: focusDriver || scenario.driver, stints: scenario.stints },
+      isSimulatorActive: true,
+    });
+  },
+
+  runSimulation: () => {
+    const {
+      simulatorStrategy, sessionData, currentLap, maxLap,
+      raceSituationData, isQualifyingReplay,
+    } = get();
+
+    if (isQualifyingReplay || !simulatorStrategy?.stints?.length) return;
+    if (!raceSituationData?.driverFeatures || currentLap < 5 || maxLap <= currentLap) return;
+
+    const lapTimes = sessionData?.lap_times;
+    const strategies = sessionData?.tyre_strategy || sessionData?.strategies || [];
+    const trackStatus = sessionData?.track_status || [];
+    if (!lapTimes?.length) return;
+
+    // Baseline: standard projection (no override)
+    const baseline = simulateRaceFinish({
+      driverFeatures: raceSituationData.driverFeatures,
+      currentLap, maxLap, lapTimes, strategies, trackStatus,
+    });
+
+    // Custom: override the focused driver's strategy
+    const driver = simulatorStrategy.driver;
+    if (!driver || !raceSituationData.driverFeatures[driver]) return;
+
+    // Modify driver features to reflect custom strategy
+    const modifiedFeatures = { ...raceSituationData.driverFeatures };
+    const customStints = simulatorStrategy.stints;
+    // Find which stint the driver would be on at currentLap
+    let activeStint = customStints[0];
+    for (const stint of customStints) {
+      if (stint.lapStart <= currentLap) activeStint = stint;
+    }
+    if (activeStint) {
+      modifiedFeatures[driver] = {
+        ...modifiedFeatures[driver],
+        compoundName: activeStint.compound,
+        tyreLife: Math.max(0, currentLap - activeStint.lapStart),
+        stintNumber: customStints.indexOf(activeStint) + 1,
+      };
+    }
+
+    const simResult = simulateRaceFinish({
+      driverFeatures: modifiedFeatures,
+      currentLap, maxLap, lapTimes, strategies, trackStatus,
+    });
+
+    if (!baseline || !simResult) return;
+
+    const baseProj = baseline.projections.find((p) => p.driver === driver);
+    const simProj = simResult.projections.find((p) => p.driver === driver);
+    if (!baseProj || !simProj) return;
+
+    set({
+      simulatorResult: {
+        simProjection: simProj,
+        baselineProjection: baseProj,
+        delta: {
+          position: baseProj.expectedPos - simProj.expectedPos,
+          podium: simProj.podiumProb - baseProj.podiumProb,
+          points: simProj.pointsProb - baseProj.pointsProb,
+        },
+        fullProjection: simResult,
+      },
+    });
+  },
 }), {
   name: 'f1-settings',
   partialize: (state) => ({

@@ -31,6 +31,9 @@ export default function TelemetryStrip({ embedded = false }) {
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const focusDriver = useF1Store((s) => s.focusDriver);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
+  const highlightedDriver = useF1Store((s) => s.highlightedDriver);
+  const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
+  const selectedLapRange = useF1Store((s) => s.selectedLapRange);
   const currentLap = useF1Store((s) => s.currentLap);
   const sessionData = useF1Store((s) => s.sessionData);
   const circuitInfo = useF1Store((s) => s.circuitInfo);
@@ -114,6 +117,25 @@ export default function TelemetryStrip({ embedded = false }) {
     return () => clearTimeout(fetchTimerRef.current);
   }, [fetchTargets, telemetryCache, fetchDriverTelemetry, cacheKeySuffix]);
 
+  // Bridge selectedLapRange → telemetryCompareLaps (auto-populate in laps mode)
+  useEffect(() => {
+    if (!selectedLapRange || telemetryCompareMode !== 'laps') return;
+    const [start, end] = selectedLapRange;
+    if (!start || !end || start >= end) return;
+    // Pick up to 4 evenly-spaced laps from the brushed range
+    const rangeLen = end - start + 1;
+    const step = Math.max(1, Math.floor(rangeLen / 4));
+    const laps = [];
+    for (let l = start; l <= end && laps.length < 4; l += step) {
+      laps.push(l);
+    }
+    // Only update if different from current
+    const current = telemetryCompareLaps;
+    if (laps.length > 0 && JSON.stringify(laps) !== JSON.stringify(current)) {
+      setTelemetryCompareLaps(laps);
+    }
+  }, [selectedLapRange, telemetryCompareMode]);
+
   // Build resolved trace data
   const traces = useMemo(() => {
     return fetchTargets
@@ -127,10 +149,14 @@ export default function TelemetryStrip({ embedded = false }) {
         const isFocus = telemetryCompareMode === 'drivers'
           ? driver === focusDriver
           : i === 0;
-        return { driver, lap, data, color, isFocus, key };
+        // Determine if this trace should be dimmed (external hover highlighting)
+        const isDimmed = telemetryCompareMode === 'drivers'
+          && highlightedDriver
+          && highlightedDriver !== driver;
+        return { driver, lap, data, color, isFocus, isDimmed, key };
       })
       .filter(Boolean);
-  }, [fetchTargets, telemetryCache, focusDriver, telemetryCompareMode]);
+  }, [fetchTargets, telemetryCache, focusDriver, telemetryCompareMode, highlightedDriver]);
 
   // ── Incremental telemetry: update clip rects via ref (no React re-render) ──
   useEffect(() => {
@@ -372,8 +398,11 @@ export default function TelemetryStrip({ embedded = false }) {
     // Store xScale for crosshair use
     xScaleRef.current = xScale;
 
-    // Sort traces: non-focus first, focus on top
-    const sorted = [...traces].sort((a, b) => (a.isFocus ? 1 : 0) - (b.isFocus ? 1 : 0));
+    // Sort traces: dimmed first, then non-focus, then focus on top
+    const sorted = [...traces].sort((a, b) => {
+      if (a.isDimmed !== b.isDimmed) return a.isDimmed ? -1 : 1;
+      return (a.isFocus ? 1 : 0) - (b.isFocus ? 1 : 0);
+    });
 
     renderSpeedChart(speedRef.current, sorted, xScale, margin, sectorBoundaries, trackLength);
     renderDeltaChart(deltaRef.current, sorted, xScale, margin, sectorBoundaries);
@@ -526,12 +555,25 @@ export default function TelemetryStrip({ embedded = false }) {
               if (best && Math.abs(val - best) < 0.002) return '#a855f7';
               return 'rgba(255,255,255,0.85)';
             };
+            const isHighlighted = highlightedDriver === card.driver;
+            const isSelected = selectedDrivers.includes(card.driver);
             return (
-              <div className="telem-mfd-card" key={`${card.driver}-${card.lap}`}>
+              <div
+                className="telem-mfd-card"
+                key={`${card.driver}-${card.lap}`}
+                onMouseEnter={() => setHighlightedDriver(card.driver)}
+                onMouseLeave={() => setHighlightedDriver(null)}
+                onClick={() => setFocusDriver(card.driver)}
+                style={{
+                  cursor: 'pointer',
+                  outline: isHighlighted ? `1px solid ${card.color}` : undefined,
+                  boxShadow: isHighlighted ? `0 0 8px ${card.color}40` : undefined,
+                }}
+              >
                 {/* Close/remove button */}
                 <button
                   className="telem-mfd-card__close"
-                  onClick={() => handleRemoveDriver(card.driver)}
+                  onClick={(e) => { e.stopPropagation(); handleRemoveDriver(card.driver); }}
                   title={`Remove ${card.driver}`}
                 >
                   &times;
@@ -944,7 +986,8 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
     .curve(d3.curveMonotoneX);
 
   traces.forEach((t) => {
-    if (t.isFocus) {
+    const opacity = t.isDimmed ? 0.15 : 1;
+    if (t.isFocus && !t.isDimmed) {
       const area = d3.area()
         .x((d) => xScale(d.Distance))
         .y0(height - m.bottom)
@@ -957,7 +1000,8 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
     }
     g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-speed-line telem-speed-line--focus' : 'telem-speed-line')
-      .attr('d', line).attr('stroke', t.color);
+      .attr('d', line).attr('stroke', t.color)
+      .attr('opacity', opacity);
   });
 
   // Speed annotations at local min/max (wrapped in clippable group)
@@ -1165,6 +1209,7 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
     .curve(d3.curveMonotoneX);
 
   traces.forEach((t) => {
+    const opacity = t.isDimmed ? 0.15 : 1;
     const throttleColor = t.isFocus ? '#00e676' : t.color;
     const brakeColor = t.isFocus ? '#e10600' : t.color;
 
@@ -1172,23 +1217,27 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
     g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-throttle-area telem-throttle-area--focus' : 'telem-throttle-area')
       .attr('d', throttleArea)
-      .attr('fill', throttleColor);
+      .attr('fill', throttleColor)
+      .attr('opacity', t.isDimmed ? 0.08 : null);
 
     g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-brake-area telem-brake-area--focus' : 'telem-brake-area')
       .attr('d', brakeArea)
-      .attr('fill', brakeColor);
+      .attr('fill', brakeColor)
+      .attr('opacity', t.isDimmed ? 0.08 : null);
 
     // All drivers get the line; focus gets glow
     g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-throttle-line telem-throttle-line--focus' : 'telem-throttle-line')
       .attr('d', throttleLine)
-      .attr('stroke', throttleColor);
+      .attr('stroke', throttleColor)
+      .attr('opacity', opacity);
 
     g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-brake-line telem-brake-line--focus' : 'telem-brake-line')
       .attr('d', brakeLine)
-      .attr('stroke', brakeColor);
+      .attr('stroke', brakeColor)
+      .attr('opacity', opacity);
   });
 }
 
@@ -1226,7 +1275,8 @@ function renderGearChart(svgEl, traces, xScale, margin, sectorBoundaries) {
   traces.forEach((t) => {
     g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-gear-line telem-gear-line--focus' : 'telem-gear-line')
-      .attr('d', line).attr('stroke', t.color);
+      .attr('d', line).attr('stroke', t.color)
+      .attr('opacity', t.isDimmed ? 0.15 : 1);
   });
 }
 
@@ -1300,6 +1350,7 @@ function renderRPMChart(svgEl, traces, xScale, margin, sectorBoundaries) {
   traces.forEach((t) => {
     g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-rpm-line telem-rpm-line--focus' : 'telem-rpm-line')
-      .attr('d', line).attr('stroke', t.color);
+      .attr('d', line).attr('stroke', t.color)
+      .attr('opacity', t.isDimmed ? 0.15 : 1);
   });
 }

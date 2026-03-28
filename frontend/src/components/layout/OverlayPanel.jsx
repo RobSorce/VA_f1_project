@@ -1,19 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 
-const VIZ_OPTIONS = [
-  { id: 'laptimes', label: 'Lap Times' },
-  { id: 'sectors', label: 'Sectors' },
-  { id: 'tyres', label: 'Tyres' },
-  { id: 'speed', label: 'Charts' },
-  { id: 'consistency', label: 'Consistency' },
-  { id: 'ai', label: 'AI Assistant' },
-  { id: 'analytics', label: 'Analytics' },
-  { id: 'prediction', label: 'Prediction' },
-  { id: 'championship', label: 'Championship' },
-  { id: 'settings', label: 'Settings' },
-  { id: 'compare', label: 'Compare' },
-];
 
 export default function OverlayPanel({ title, tabId, children }) {
   const closeOverlay = useF1Store((s) => s.closeOverlay);
@@ -22,8 +9,6 @@ export default function OverlayPanel({ title, tabId, children }) {
   const tileState = useF1Store((s) => s.overlayTiles[tabId] || null);
   const tileOverlay = useF1Store((s) => s.tileOverlay);
   const clearTile = useF1Store((s) => s.clearTile);
-  const overlayViz = useF1Store((s) => s.overlayVizMapping[tabId] || tabId);
-  const setOverlayVisualization = useF1Store((s) => s.setOverlayVisualization);
   const [floating, setFloating] = useState(false);
 
   const panelRef = useRef(null);
@@ -212,31 +197,6 @@ export default function OverlayPanel({ title, tabId, children }) {
         onDoubleClick={handleHeaderDblClick}
       >
         <span className="overlay-panel__title">{title}</span>
-        <select
-          className="overlay-panel__viz-select"
-          value={overlayViz}
-          onChange={(e) => {
-            e.stopPropagation();
-            setOverlayVisualization(tabId, e.target.value);
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          style={{
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: 3,
-            color: 'rgba(255,255,255,0.7)',
-            fontSize: 10,
-            padding: '1px 4px',
-            marginLeft: 8,
-            cursor: 'pointer',
-            outline: 'none',
-            maxWidth: 110,
-          }}
-        >
-          {VIZ_OPTIONS.map((opt) => (
-            <option key={opt.id} value={opt.id}>{opt.label}</option>
-          ))}
-        </select>
         <div className="overlay-panel__controls">
           <button
             className="overlay-panel__btn"

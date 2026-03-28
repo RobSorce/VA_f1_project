@@ -31,6 +31,10 @@ export default function SectorsPanel() {
   const currentTime = useF1Store((s) => s.currentTime);
   const dnfMap = useF1Store((s) => s.dnfMap);
   const speedUnit = useF1Store((s) => s.speedUnit);
+  const selectedDrivers = useF1Store((s) => s.selectedDrivers);
+  const highlightedDriver = useF1Store((s) => s.highlightedDriver);
+  const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
+  const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const [view, setView] = useState('live');
   const panelRef = useRef(null);
   const handleExport = useCallback(() => {
@@ -310,8 +314,21 @@ export default function SectorsPanel() {
           <div className="sectors-panel__live-body">
             {liveRows.map((row) => {
               const color = getDriverColor(row.driver);
+              const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(row.driver);
+              const isHl = highlightedDriver === row.driver;
+              const isDimmed = highlightedDriver && !isHl;
               return (
-                <div key={row.driver} className="sectors-panel__live-row">
+                <div key={row.driver} className="sectors-panel__live-row"
+                  onMouseEnter={() => setHighlightedDriver(row.driver)}
+                  onMouseLeave={() => setHighlightedDriver(null)}
+                  onClick={() => setFocusDriver(row.driver)}
+                  style={{
+                    opacity: !isSelected ? 0.3 : isDimmed ? 0.5 : 1,
+                    background: isHl ? 'rgba(255,255,255,0.06)' : undefined,
+                    cursor: 'pointer',
+                    transition: 'opacity 0.15s, background 0.15s',
+                  }}
+                >
                   <span className="sectors-panel__live-pos">{row.pos}</span>
                   <span className="sectors-panel__team-bar" style={{ backgroundColor: color }} />
                   <span className="sectors-panel__live-drv">{row.driver}</span>
@@ -369,10 +386,22 @@ export default function SectorsPanel() {
                     const isBest = entry.is_session_best;
                     const gap = entry.best - (best || 0);
                     const barPct = range > 0 ? Math.max(0, 1 - gap / range) * 100 : 100;
+                    const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(entry.driver);
+                    const isHl = highlightedDriver === entry.driver;
+                    const isDimmed = highlightedDriver && !isHl;
                     return (
                       <div
                         key={entry.driver}
                         className={`sectors-panel__row${isBest ? ' sectors-panel__row--best' : ''}`}
+                        onMouseEnter={() => setHighlightedDriver(entry.driver)}
+                        onMouseLeave={() => setHighlightedDriver(null)}
+                        onClick={() => setFocusDriver(entry.driver)}
+                        style={{
+                          opacity: !isSelected ? 0.3 : isDimmed ? 0.5 : 1,
+                          background: isHl ? 'rgba(255,255,255,0.06)' : undefined,
+                          cursor: 'pointer',
+                          transition: 'opacity 0.15s, background 0.15s',
+                        }}
                       >
                         <span className="sectors-panel__rank">{entry.rank}</span>
                         <span className="sectors-panel__team-bar" style={{ backgroundColor: color }} />
@@ -431,10 +460,22 @@ export default function SectorsPanel() {
                   {items.map((entry) => {
                     const color = getDriverColor(entry.driver);
                     const isFastest = entry.rank === 1;
+                    const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(entry.driver);
+                    const isHl = highlightedDriver === entry.driver;
+                    const isDimmed = highlightedDriver && !isHl;
                     return (
                       <div
                         key={entry.driver}
                         className={`sectors-panel__row${isFastest ? ' sectors-panel__row--best' : ''}`}
+                        onMouseEnter={() => setHighlightedDriver(entry.driver)}
+                        onMouseLeave={() => setHighlightedDriver(null)}
+                        onClick={() => setFocusDriver(entry.driver)}
+                        style={{
+                          opacity: !isSelected ? 0.3 : isDimmed ? 0.5 : 1,
+                          background: isHl ? 'rgba(255,255,255,0.06)' : undefined,
+                          cursor: 'pointer',
+                          transition: 'opacity 0.15s, background 0.15s',
+                        }}
                       >
                         <span className="sectors-panel__rank">{entry.rank}</span>
                         <span className="sectors-panel__team-bar" style={{ backgroundColor: color }} />

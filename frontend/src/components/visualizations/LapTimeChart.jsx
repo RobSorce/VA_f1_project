@@ -78,6 +78,8 @@ export default function LapTimeChart() {
   const toggleDriver = useF1Store((s) => s.toggleDriver);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const focusDriver = useF1Store((s) => s.focusDriver);
+  const selectedLapRange = useF1Store((s) => s.selectedLapRange);
+  const setSelectedLapRange = useF1Store((s) => s.setSelectedLapRange);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const triggerPrediction = useF1Store((s) => s.triggerPrediction);
   const dnfMap = useF1Store((s) => s.dnfMap);
@@ -667,6 +669,134 @@ export default function LapTimeChart() {
           );
         })}
       </div>
+
+      {/* Lap range brush bar */}
+      {!isQualifying && maxLap > 1 && (
+        <LapRangeBrush
+          maxLap={maxLap}
+          currentLap={currentLap}
+          selectedRange={selectedLapRange}
+          onRangeChange={setSelectedLapRange}
+        />
+      )}
     </Panel>
+  );
+}
+
+/* ── Lap Range Brush: compact bar for selecting a lap window ──── */
+function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
+  const barRef = useRef(null);
+
+  const lapToX = useCallback((lap) => {
+    const el = barRef.current;
+    if (!el) return 0;
+    return ((lap - 1) / Math.max(1, maxLap - 1)) * el.clientWidth;
+  }, [maxLap]);
+
+  const xToLap = useCallback((x) => {
+    const el = barRef.current;
+    if (!el) return 1;
+    const ratio = Math.max(0, Math.min(1, x / el.clientWidth));
+    return Math.max(1, Math.min(maxLap, Math.round(ratio * (maxLap - 1) + 1)));
+  }, [maxLap]);
+
+  const handleMouseDown = useCallback((e) => {
+    const el = barRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    const startLap = xToLap(e.clientX - rect.left);
+
+    const onMove = (ev) => {
+      const endLap = xToLap(ev.clientX - rect.left);
+      const lo = Math.min(startLap, endLap);
+      const hi = Math.max(startLap, endLap);
+      if (hi - lo >= 1) onRangeChange([lo, hi]);
+    };
+
+    const onUp = (ev) => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      const endLap = xToLap(ev.clientX - rect.left);
+      const lo = Math.min(startLap, endLap);
+      const hi = Math.max(startLap, endLap);
+      if (hi - lo < 1) onRangeChange(null); // click = clear
+    };
+
+    document.body.style.cursor = 'crosshair';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [xToLap, onRangeChange]);
+
+  // Lap tick marks
+  const ticks = [];
+  const step = maxLap <= 30 ? 5 : maxLap <= 50 ? 10 : 15;
+  for (let l = step; l <= maxLap; l += step) ticks.push(l);
+
+  const selLeft = selectedRange ? lapToX(selectedRange[0]) : 0;
+  const selWidth = selectedRange ? lapToX(selectedRange[1]) - selLeft : 0;
+  const currentX = lapToX(currentLap);
+
+  return (
+    <div style={{
+      flexShrink: 0, padding: '4px 6px 6px',
+      borderTop: '1px solid rgba(255,255,255,0.06)',
+      background: 'rgba(15,15,35,0.6)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+        <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+          Lap Range
+        </span>
+        {selectedRange && (
+          <button
+            onClick={() => onRangeChange(null)}
+            style={{
+              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 3, padding: '1px 6px', fontSize: '8px', color: 'rgba(255,255,255,0.5)',
+              cursor: 'pointer',
+            }}
+          >
+            L{selectedRange[0]}–L{selectedRange[1]} ✕
+          </button>
+        )}
+      </div>
+      <div
+        ref={barRef}
+        onMouseDown={handleMouseDown}
+        style={{
+          position: 'relative', height: 16, borderRadius: 3,
+          background: 'rgba(255,255,255,0.04)', cursor: 'crosshair',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Selected range highlight */}
+        {selectedRange && (
+          <div style={{
+            position: 'absolute', top: 0, bottom: 0,
+            left: selLeft, width: selWidth,
+            background: 'rgba(100,180,255,0.2)',
+            borderLeft: '2px solid rgba(100,180,255,0.6)',
+            borderRight: '2px solid rgba(100,180,255,0.6)',
+          }} />
+        )}
+        {/* Current lap marker */}
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, width: 2,
+          left: currentX - 1,
+          background: 'rgba(255,255,255,0.4)',
+        }} />
+        {/* Tick labels */}
+        {ticks.map((l) => (
+          <span key={l} style={{
+            position: 'absolute', top: 2, fontSize: '7px',
+            color: 'rgba(255,255,255,0.2)', fontWeight: 600,
+            left: lapToX(l), transform: 'translateX(-50%)',
+          }}>{l}</span>
+        ))}
+      </div>
+    </div>
   );
 }

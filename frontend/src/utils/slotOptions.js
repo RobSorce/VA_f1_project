@@ -23,6 +23,7 @@ const TelemetryStrip     = lazy(() => import('../components/visualizations/Telem
 const StrategyAnalysis   = lazy(() => import('../components/visualizations/StrategyAnalysis'));
 const RacePaceGrid       = lazy(() => import('../components/visualizations/RacePaceGrid'));
 const SpeedPanel         = lazy(() => import('../components/visualizations/SpeedPanel'));
+const StrategySimulator  = lazy(() => import('../components/visualizations/StrategySimulator'));
 const SettingsTabContent = lazy(() => import('../components/tabs/SettingsTabContent'));
 
 export const SLOT_OPTIONS = [
@@ -44,6 +45,7 @@ export const SLOT_OPTIONS = [
   { id: 'telemetry',      label: 'Telemetry',            component: TelemetryStrip },
   { id: 'analysis',       label: 'Strategy Analysis',    component: StrategyAnalysis },
   { id: 'racepace',       label: 'Race Pace Grid',       component: RacePaceGrid },
+  { id: 'simulator',      label: 'Strategy Simulator',   component: StrategySimulator },
   { id: 'settings',       label: 'Settings',             component: SettingsTabContent },
 ];
 
@@ -52,5 +54,6 @@ export const PRESETS = {
   tyres:    { label: 'Tyres',      slotA: 'laptimes',   slotB: 'tiredeg',   slotC: 'tyrehealth', splitV: 0.55, splitH: 0.65 },
   pace:     { label: 'Pace',       slotA: 'laptimes',   slotB: 'trackmap',  slotC: 'lapdelta',   splitV: 0.5,  splitH: 0.65 },
   predict:  { label: 'Prediction', slotA: 'prediction', slotB: 'strategy',  slotC: 'gemini',     splitV: 0.5,  splitH: 0.55 },
-  overview: { label: 'Overview',   slotA: 'trackmap',   slotB: 'sectors',   slotC: 'racepace',   splitV: 0.5,  splitH: 0.5 },
+  overview:   { label: 'Overview',   slotA: 'trackmap',   slotB: 'sectors',   slotC: 'racepace',   splitV: 0.5,  splitH: 0.5 },
+  simulator:  { label: 'Simulator', slotA: 'simulator',  slotB: 'strategy',  slotC: 'prediction', splitV: 0.4,  splitH: 0.55 },
 };

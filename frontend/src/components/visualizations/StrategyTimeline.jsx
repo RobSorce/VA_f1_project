@@ -20,6 +20,11 @@ export default function StrategyTimeline({ showOverlays = false }) {
   const currentLap = useF1Store((s) => s.currentLap);
   const setSelectedStint = useF1Store((s) => s.setSelectedStint);
   const highlightedCompound = useF1Store((s) => s.highlightedCompound);
+  const selectedLapRange = useF1Store((s) => s.selectedLapRange);
+  const setSelectedLapRange = useF1Store((s) => s.setSelectedLapRange);
+  const simulatorStrategy = useF1Store((s) => s.simulatorStrategy);
+  const setSimulatorStrategy = useF1Store((s) => s.setSimulatorStrategy);
+  const raceProjection = useF1Store((s) => s.raceProjection);
 
   const strategies = useMemo(() => {
     const raw = sessionData?.tyre_strategy || sessionData?.strategies || [];
@@ -140,6 +145,18 @@ export default function StrategyTimeline({ showOverlays = false }) {
               lapStart,
               stintLength: fullLength,
             });
+          })
+          .on('dblclick', () => {
+            // Pre-fill simulator with this driver's full strategy
+            const driverStintArr = driverStrats.get(driver) || [];
+            const simStints = driverStintArr.map((s) => ({
+              compound: (s.Compound || 'MEDIUM').toUpperCase(),
+              lapStart: s.LapStart,
+              length: s.StintLength,
+            }));
+            if (simStints.length > 0) {
+              setSimulatorStrategy({ driver, stints: simStints });
+            }
           })
           .on('mouseenter', function (event) {
             setHighlightedDriver(driver);
@@ -276,10 +293,68 @@ export default function StrategyTimeline({ showOverlays = false }) {
       });
     }
 
+    // Simulator strategy ghost overlay
+    if (simulatorStrategy?.stints?.length && simulatorStrategy.driver) {
+      const driver = simulatorStrategy.driver;
+      if (y(driver) != null) {
+        simulatorStrategy.stints.forEach((stint) => {
+          const compound = (stint.compound || 'MEDIUM').toUpperCase();
+          const lapStart = stint.lapStart || 1;
+          const length = stint.length || 10;
+          g.append('rect')
+            .attr('x', x(lapStart))
+            .attr('y', y(driver) - 4)
+            .attr('width', Math.max(2, x(lapStart + length) - x(lapStart)))
+            .attr('height', y.bandwidth() + 8)
+            .attr('rx', 4)
+            .attr('fill', 'none')
+            .attr('stroke', TYRE_COLORS[compound] || '#888')
+            .attr('stroke-width', 2)
+            .attr('stroke-dasharray', '4,3')
+            .attr('opacity', 0.7);
+          // Compound label above
+          g.append('text')
+            .attr('x', x(lapStart) + 4)
+            .attr('y', y(driver) - 6)
+            .attr('fill', TYRE_COLORS[compound] || '#888')
+            .attr('font-size', '7px')
+            .attr('font-weight', 700)
+            .text(`SIM: ${compound[0]} L${lapStart}–${lapStart + length - 1}`);
+        });
+      }
+    }
+
+    // Selected lap range highlight
+    if (selectedLapRange) {
+      const [lo, hi] = selectedLapRange;
+      g.append('rect')
+        .attr('x', x(lo))
+        .attr('y', 0)
+        .attr('width', Math.max(1, x(hi) - x(lo)))
+        .attr('height', innerH)
+        .attr('fill', 'rgba(100,180,255,0.08)')
+        .attr('stroke', 'rgba(100,180,255,0.3)')
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,2')
+        .attr('pointer-events', 'none');
+    }
+
+    // Stint click → set selectedLapRange
+    svg.selectAll('.stint-bar').on('click.laprange', function () {
+      const d = d3.select(this);
+      const driver = d.attr('data-driver');
+      if (!driver) return;
+      const stint = strategies.find((s) => s.Driver === driver &&
+        Math.abs(x(s.LapStart) - parseFloat(d.attr('x'))) < 2);
+      if (stint) {
+        setSelectedLapRange([stint.LapStart, stint.LapStart + stint.StintLength - 1]);
+      }
+    });
+
     return () => {
       d3.select('body').select('.strat-tooltip').remove();
     };
-  }, [strategies, selectedDrivers, currentLap, lstmPredictions, tsneStrategyAnalysis, geminiOverlays, showOverlays, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound]);
+  }, [strategies, selectedDrivers, currentLap, lstmPredictions, tsneStrategyAnalysis, geminiOverlays, showOverlays, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound, selectedLapRange, setSelectedLapRange, simulatorStrategy]);
 
   // Lightweight highlight effect — updates opacity without full redraw
   useEffect(() => {

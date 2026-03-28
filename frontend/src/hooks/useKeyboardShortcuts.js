@@ -103,13 +103,13 @@ export function useKeyboardShortcuts() {
         '1': 'laptimes',
         '2': 'sectors',
         '3': 'tyres',
-        '4': 'consistency',
-        '5': 'prediction',
-        '6': 'ai',
-        '7': 'compare',
-        '8': 'analytics',
-        '9': 'championship',
-        '0': 'settings',
+        '4': 'speed',
+        '5': 'consistency',
+        '6': 'prediction',
+        '7': 'ai',
+        '8': 'compare',
+        '9': 'analytics',
+        '0': 'championship',
       };
       if (tabMap[e.key]) {
         e.preventDefault();
@@ -261,6 +261,13 @@ export function useKeyboardShortcuts() {
           // Enter pit wall mode
           state.setActiveTab('pitwall');
         }
+        return;
+      }
+
+      // M — open Strategy Simulator
+      if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        state.setActiveTab('simulator');
         return;
       }
 

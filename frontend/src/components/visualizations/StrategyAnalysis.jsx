@@ -8,6 +8,9 @@ export default function StrategyAnalysis() {
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const driversInfo = useF1Store((s) => s.drivers);
   const raceProjection = useF1Store((s) => s.raceProjection);
+  const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
+  const setFocusDriver = useF1Store((s) => s.setFocusDriver);
+  const triggerLSTMPredictions = useF1Store((s) => s.triggerLSTMPredictions);
 
   const driverInfoMap = useMemo(() => {
     const map = {};
@@ -212,9 +215,21 @@ export default function StrategyAnalysis() {
     return { clusterLabel, summary: summaryParts.join('. ') + '.', featureBars, insights, threats: threats.slice(0, 6), drivers };
   }, [raceSituationData, selectedDrivers, driverInfoMap]);
 
-  // ── Shared battle row renderer ──
+  // ── Shared battle row renderer (CLICKABLE: selects both drivers) ──
   const BattleRow = ({ t, i }) => (
-    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8, fontSize: 'var(--font-size-xs)', lineHeight: 1.5 }}>
+    <div
+      key={i}
+      onClick={() => setSelectedDrivers([t.behind, t.ahead])}
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8,
+        fontSize: 'var(--font-size-xs)', lineHeight: 1.5,
+        cursor: 'pointer', padding: '4px 6px', borderRadius: 'var(--radius-sm)',
+        transition: 'background 0.12s',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+      title="Click to select both drivers"
+    >
       <span style={{
         flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
         backgroundColor: t.color, color: '#000', fontWeight: 900,
@@ -297,9 +312,11 @@ export default function StrategyAnalysis() {
                 </h6>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {fieldOverview.pitSoon.map((d) => (
-                    <span key={d.abbr} style={{
+                    <span key={d.abbr}
+                      onClick={() => { setFocusDriver(d.abbr); triggerLSTMPredictions(); }}
+                      style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,
-                      padding: '3px 8px', borderRadius: 'var(--radius-sm)',
+                      padding: '3px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
                       background: d.laps <= 2 ? 'rgba(225,6,0,0.12)' : 'rgba(255,215,0,0.10)',
                       borderLeft: `2px solid ${d.laps <= 2 ? '#e10600' : '#ffd700'}`,
                       fontSize: 'var(--font-size-xs)',
@@ -342,6 +359,66 @@ export default function StrategyAnalysis() {
                   <div key={d.abbr} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 'var(--font-size-xs)' }}>
                     <strong style={{ color: getDriverColor(d.abbr), minWidth: 28 }}>{d.abbr}</strong>
                     <span style={{ color: '#00e676', fontWeight: 700 }}>+{d.gained} positions</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Monte Carlo projection battles */}
+            {raceProjection?.battles?.length > 0 && (
+              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Projected Overtakes (Monte Carlo)
+                </h6>
+                {raceProjection.battles.slice(0, 5).map((b, i) => (
+                  <div key={i}
+                    onClick={() => setSelectedDrivers([b.behind, b.ahead])}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
+                      fontSize: 'var(--font-size-xs)', cursor: 'pointer', padding: '3px 4px',
+                      borderRadius: 'var(--radius-sm)', transition: 'background 0.12s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span style={{
+                      fontSize: '9px', fontWeight: 800, color: b.prob >= 50 ? '#00e676' : b.prob >= 25 ? '#ffd700' : 'var(--color-text-muted)',
+                      minWidth: 28,
+                    }}>
+                      {b.prob}%
+                    </span>
+                    <strong style={{ color: getDriverColor(b.behind) }}>{b.behind}</strong>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '9px' }}>passes</span>
+                    <strong style={{ color: getDriverColor(b.ahead) }}>{b.ahead}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Monte Carlo risks */}
+            {raceProjection?.risks?.length > 0 && (
+              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Risk Alerts
+                </h6>
+                {raceProjection.risks.slice(0, 4).map((r, i) => (
+                  <div key={i}
+                    onClick={() => { setFocusDriver(r.driver); triggerLSTMPredictions(); }}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6,
+                      fontSize: 'var(--font-size-xs)', cursor: 'pointer', padding: '3px 4px',
+                      borderRadius: 'var(--radius-sm)', transition: 'background 0.12s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span style={{
+                      flexShrink: 0, fontSize: '7px', fontWeight: 800, padding: '2px 4px',
+                      borderRadius: 3, textTransform: 'uppercase',
+                      background: r.severity === 'high' ? 'rgba(225,6,0,0.15)' : 'rgba(255,215,0,0.1)',
+                      color: r.severity === 'high' ? '#e10600' : '#ffd700',
+                    }}>{r.type}</span>
+                    <span style={{ color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>{r.description}</span>
                   </div>
                 ))}
               </div>
@@ -460,10 +537,17 @@ export default function StrategyAnalysis() {
                 const proj = raceProjection?.projections.find((p) => p.driver === d.abbr);
 
                 return (
-                  <div key={d.abbr} style={{
-                    background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)',
-                    padding: '8px 12px', borderLeft: `3px solid ${getDriverColor(d.abbr)}`, marginBottom: 4,
-                  }}>
+                  <div key={d.abbr}
+                    onClick={() => { setFocusDriver(d.abbr); triggerLSTMPredictions(); }}
+                    style={{
+                      background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)',
+                      padding: '8px 12px', borderLeft: `3px solid ${getDriverColor(d.abbr)}`, marginBottom: 4,
+                      cursor: 'pointer', transition: 'background 0.12s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-bg-tertiary)'; }}
+                    title={`Double-click to focus ${d.abbr}`}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <strong style={{ color: getDriverColor(d.abbr), fontSize: 'var(--font-size-sm)' }}>{d.abbr}</strong>
                       <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>{d.team}</span>
