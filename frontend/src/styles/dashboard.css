@@ -285,7 +285,7 @@
 
 .app-sidebar .tower-body {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   min-height: 0;
 }
 
@@ -608,8 +608,9 @@
    Telemetry Strip (bottom comparison charts)
    -------------------------------------------------------------------------- */
 .telemetry-strip {
-  height: 320px;
-  flex-shrink: 0;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
   background: var(--glass-bg-heavy);
   backdrop-filter: blur(var(--glass-blur-heavy));
   -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
@@ -636,7 +637,7 @@
   gap: 6px;
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
+  overflow: hidden;
   flex-wrap: wrap;
 }
 
@@ -831,6 +832,104 @@
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
   width: 48px;
+}
+
+/* Lap add button */
+.telem-lap-add-btn {
+  padding: 1px 6px;
+  font-size: 8px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  background: rgba(100, 180, 255, 0.12);
+  border: 1px solid rgba(100, 180, 255, 0.3);
+  border-radius: var(--radius-sm);
+  color: rgba(100, 180, 255, 0.9);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.telem-lap-add-btn:hover:not(:disabled) {
+  background: rgba(100, 180, 255, 0.2);
+  color: #fff;
+}
+
+.telem-lap-add-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Lap comparison presets */
+.telem-lap-presets {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.telem-preset-btn {
+  padding: 2px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.telem-preset-btn:hover:not(:disabled) {
+  background: rgba(100, 180, 255, 0.15);
+  border-color: rgba(100, 180, 255, 0.35);
+  color: #fff;
+}
+
+.telem-preset-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.telem-preset-btn--best {
+  border-color: rgba(160, 32, 240, 0.3);
+  color: #a855f7;
+}
+
+.telem-preset-btn--best:hover:not(:disabled) {
+  background: rgba(160, 32, 240, 0.15);
+  border-color: rgba(160, 32, 240, 0.5);
+}
+
+.telem-preset-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.telem-lap-chip {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  background: rgba(100, 180, 255, 0.12);
+  border: 1px solid rgba(100, 180, 255, 0.4);
+  border-radius: var(--radius-full);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.12s;
+  line-height: 1.4;
+}
+
+.telem-lap-chip:hover {
+  background: rgba(225, 6, 0, 0.15);
+  border-color: rgba(225, 6, 0, 0.4);
+}
+
+.telem-lap-chip--active {
+  background: rgba(100, 180, 255, 0.12);
 }
 
 /* Charts area — vertical stack sharing X-axis */
@@ -1761,7 +1860,29 @@
 }
 
 /* ==========================================================================
-   Overlay Windows — multi-panel floating glass system
+   Utility Overlay Layer — floating panels over ANY mode
+   ========================================================================== */
+.utility-overlay-container {
+  position: fixed;
+  inset: 60px 20px 70px 20px; /* leave room for WeatherBar and BottomTabBar */
+  z-index: 100; /* above everything except modals */
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.utility-overlay-container .overlay-panel {
+  pointer-events: auto;
+  max-width: 500px;  /* initial cap before user resizes */
+}
+.utility-overlay-container .overlay-panel--floating {
+  max-width: unset;  /* allow free resize once user drags/resizes */
+  flex: none;
+}
+
+/* ==========================================================================
+   Overlay Windows — multi-panel floating glass system (legacy)
    ========================================================================== */
 /* Container for all overlay windows — centered over center area */
 .overlay-container {
@@ -1792,7 +1913,7 @@
   display: flex;
   flex-direction: column;
   animation: overlayScaleIn 200ms ease-out;
-  overflow: hidden;
+  overflow: visible;
   pointer-events: auto;
 }
 
@@ -1860,35 +1981,34 @@
   transition: left 200ms ease, top 200ms ease, width 200ms ease, height 200ms ease;
 }
 
-/* Resize handle (bottom-right corner) */
-/* ── Resize edges (invisible hit areas along each border) ── */
+/* ── Resize edges (inside panel boundary, 8px wide for easy grab) ── */
 .overlay-panel__edge {
   position: absolute;
   z-index: 2;
 }
-.overlay-panel__edge--n { top: -3px; left: 6px; right: 6px; height: 6px; cursor: ns-resize; }
-.overlay-panel__edge--s { bottom: -3px; left: 6px; right: 6px; height: 6px; cursor: ns-resize; }
-.overlay-panel__edge--w { left: -3px; top: 6px; bottom: 6px; width: 6px; cursor: ew-resize; }
-.overlay-panel__edge--e { right: -3px; top: 6px; bottom: 6px; width: 6px; cursor: ew-resize; }
+.overlay-panel__edge--n { top: 0; left: 6px; right: 6px; height: 6px; cursor: ns-resize; }
+.overlay-panel__edge--s { bottom: 0; left: 6px; right: 6px; height: 6px; cursor: ns-resize; }
+.overlay-panel__edge--w { left: 0; top: 6px; bottom: 6px; width: 6px; cursor: ew-resize; }
+.overlay-panel__edge--e { right: 0; top: 6px; bottom: 6px; width: 6px; cursor: ew-resize; }
 
-/* ── Resize corners (square hit areas at each corner) ── */
+/* ── Resize corners (inside panel boundary) ── */
 .overlay-panel__corner {
   position: absolute;
   width: 12px;
   height: 12px;
   z-index: 3;
 }
-.overlay-panel__corner--nw { top: -3px; left: -3px; cursor: nwse-resize; }
-.overlay-panel__corner--ne { top: -3px; right: -3px; cursor: nesw-resize; }
-.overlay-panel__corner--sw { bottom: -3px; left: -3px; cursor: nesw-resize; }
-.overlay-panel__corner--se { bottom: -3px; right: -3px; cursor: nwse-resize; }
+.overlay-panel__corner--nw { top: 0; left: 0; cursor: nwse-resize; }
+.overlay-panel__corner--ne { top: 0; right: 0; cursor: nesw-resize; }
+.overlay-panel__corner--sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.overlay-panel__corner--se { bottom: 0; right: 0; cursor: nwse-resize; }
 
 /* Visual grip indicator on bottom-right corner */
 .overlay-panel__corner--se::after {
   content: '';
   position: absolute;
-  bottom: 5px;
-  right: 5px;
+  bottom: 2px;
+  right: 2px;
   width: 8px;
   height: 8px;
   border-right: 2px solid rgba(255, 255, 255, 0.2);
@@ -2097,6 +2217,12 @@
   overflow: hidden;
 }
 
+.laptimes-tab__chart--full {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .laptimes-tab__delta {
   flex: 2;
   min-height: 0;
@@ -2149,7 +2275,7 @@
   overflow: hidden;
 }
 
-/* ---------- Analytics (t-SNE) Tab ---------- */
+/* ---------- Analytics (PCA) Tab ---------- */
 .analytics-tab {
   display: flex;
   flex-direction: row;
@@ -2273,7 +2399,8 @@
   flex-direction: column;
 }
 
-.speed-panel .telemetry-strip {
+.speed-panel .telemetry-strip,
+.panel-content > .telemetry-strip {
   height: 100%;
   max-height: none;
   border-top: none;
@@ -2437,15 +2564,15 @@
 
 .sectors-panel__col-body {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 2px 0;
 }
 
 .sectors-panel__row {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
+  gap: 4px;
+  padding: 2px 6px;
   transition: background var(--transition-fast);
 }
 
@@ -2571,7 +2698,8 @@
 
 .sectors-panel__live-body {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 2px 0;
 }
 
@@ -2661,18 +2789,19 @@
 
 .consistency-panel__grid {
   flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 10px;
-  overflow-y: auto;
+  gap: 6px;
+  overflow: hidden;
   align-content: start;
 }
 
 .consistency-card {
-  padding: 12px 14px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .consistency-card__header {
@@ -3599,7 +3728,7 @@
 
 .compare-panel__body {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
@@ -3742,8 +3871,7 @@
   backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   border-top: 1px solid rgba(255, 255, 255, 0.10);
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   animation: overlayScaleIn 200ms ease-out;
 }
 
@@ -4976,4 +5104,306 @@
     inset: 4px;
     gap: 4px;
   }
+}
+
+/* ==========================================================================
+   Global No-Scroll Policy (VA exam constraint)
+   ALL views overflow:hidden except justified design-constraint exceptions.
+   Justified: RacePaceGrid (archival laps), TimingTower (archival),
+              Gemini chat (message log), utility overlays (settings, menus).
+   ========================================================================== */
+
+/* Every flex child in the layout chain needs these */
+.app-body,
+.app-center,
+.app-sidebar {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Panel content areas — NEVER scroll */
+.panel-content,
+.viz-container {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* THE ONLY justified scrolls in the entire app */
+.race-pace-grid__body {
+  overflow-y: auto !important;  /* archival lap data — current always visible */
+}
+.utility-overlay-container .gemini-chat__messages {
+  overflow-y: auto !important;  /* chat log in floating overlay only */
+}
+
+/* ==========================================================================
+   Layout Preset Bar — Lightroom Classic style
+   ========================================================================== */
+
+.layout-preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  margin-left: 8px;
+}
+
+.layout-preset-bar__label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.25);
+  text-transform: uppercase;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.layout-preset-bar__sep {
+  /* kept for future use */
+}
+
+.layout-preset-bar__btn {
+  position: relative;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 10px;
+  height: 100%;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  white-space: nowrap;
+  font-family: var(--font-display, inherit);
+}
+
+.layout-preset-bar__btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 10px;
+  right: 10px;
+  height: 2px;
+  background: var(--color-f1-red, #e10600);
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+  border-radius: 1px 1px 0 0;
+}
+
+.layout-preset-bar__btn:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.layout-preset-bar__btn--active {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.layout-preset-bar__btn--active::after {
+  transform: scaleX(1);
+}
+
+/* Light theme overrides */
+[data-theme="light"] .layout-preset-bar {
+  border-left-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .layout-preset-bar__label {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .layout-preset-bar__btn {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] .layout-preset-bar__btn:hover {
+  color: rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="light"] .layout-preset-bar__btn--active {
+  color: rgba(0, 0, 0, 0.9);
+}
+
+/* ==========================================================================
+   Pit Wall Sector Panel — Red Bull pit wall style digital display
+   ========================================================================== */
+
+.pitwall-sector-panel {
+  width: 100%;
+  flex-shrink: 0;
+  background: rgba(8, 8, 20, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 8px 10px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  animation: overlayScaleIn 200ms ease-out;
+}
+
+.pitwall-sector-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.pitwall-sector-panel__team-bar {
+  width: 3px;
+  height: 18px;
+  border-radius: 1.5px;
+  flex-shrink: 0;
+}
+
+.pitwall-sector-panel__abbr {
+  font-family: var(--font-display, inherit);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: #fff;
+  flex: 1;
+}
+
+.pitwall-sector-panel__lap-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  padding: 1px 5px;
+  letter-spacing: 0.04em;
+}
+
+.pitwall-sector-panel__compound {
+  font-size: 9px;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+
+/* Total lap time — large digital */
+.pitwall-sector-panel__total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.pitwall-sector-panel__total-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.pitwall-sector-panel__total-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  font-feature-settings: "tnum";
+}
+
+/* Three sector columns */
+.pitwall-sector-panel__sectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.pitwall-sector-panel__sector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 3px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pitwall-sector-panel__sector-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.pitwall-sector-panel__sector-value {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  font-feature-settings: "tnum";
+}
+
+.pitwall-sector-panel__sector-delta {
+  font-size: 8px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.3);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+/* Previous laps row */
+.pitwall-sector-panel__prev {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.pitwall-sector-panel__prev-chip {
+  font-size: 8px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  padding: 2px 5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pitwall-sector-panel__prev-chip--best {
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #22c55e;
+}
+
+/* Light theme */
+[data-theme="light"] .pitwall-sector-panel {
+  background: rgba(245, 245, 255, 0.95);
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .pitwall-sector-panel__total {
+  background: rgba(0, 0, 0, 0.04);
+  border-left-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .pitwall-sector-panel__total-value {
+  color: rgba(0, 0, 0, 0.88);
+}
+
+[data-theme="light"] .pitwall-sector-panel__sector {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .pitwall-sector-panel__prev-chip {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.5);
 }

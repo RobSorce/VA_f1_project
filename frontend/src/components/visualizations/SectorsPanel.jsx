@@ -3,6 +3,7 @@ import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
 import { exportAsPng } from '../../utils/exportChart';
 
+
 function formatTime(seconds) {
   if (!seconds || seconds <= 0) return '—';
   const mins = Math.floor(seconds / 60);
@@ -37,6 +38,7 @@ export default function SectorsPanel() {
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const [view, setView] = useState('live');
   const panelRef = useRef(null);
+  const liveBodyRef = useRef(null);
   const handleExport = useCallback(() => {
     if (!panelRef.current) return;
     exportAsPng(panelRef.current, `sectors_${view}.png`);
@@ -311,7 +313,7 @@ export default function SectorsPanel() {
             <span className="sectors-panel__live-hdr-sec">LAP</span>
           </div>
           {/* Driver rows */}
-          <div className="sectors-panel__live-body">
+          <div ref={liveBodyRef} className="sectors-panel__live-body">
             {liveRows.map((row) => {
               const color = getDriverColor(row.driver);
               const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(row.driver);

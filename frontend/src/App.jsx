@@ -8,6 +8,7 @@ import BottomTabBar from './components/ui/BottomTabBar';
 import TimelinePlayer from './components/ui/TimelinePlayer';
 import DriverMFDCard from './components/ui/DriverMFDCard';
 import FocusDriverWidget from './components/ui/FocusDriverWidget';
+import PitWallSectorPanel from './components/ui/PitWallSectorPanel';
 import WelcomeToast from './components/ui/WelcomeToast';
 import GeminiFloatingButton from './components/ui/GeminiFloatingButton';
 
@@ -35,6 +36,15 @@ import AnalyticsTabContent from './components/tabs/AnalyticsTabContent';
 import RacePredictionPanel from './components/visualizations/RacePredictionPanel';
 import StrategySimulator from './components/visualizations/StrategySimulator';
 import StrategyTimeline from './components/visualizations/StrategyTimeline';
+import LapDeltaChart from './components/visualizations/LapDeltaChart';
+import TireDegradation from './components/visualizations/TireDegradation';
+import TyreHealth from './components/visualizations/TyreHealth';
+import TyreManagement from './components/visualizations/TyreManagement';
+import RaceSituationMap from './components/visualizations/RaceSituationMap';
+import TelemetryStrip from './components/visualizations/TelemetryStrip';
+import StrategyAnalysis from './components/visualizations/StrategyAnalysis';
+import RacePaceGrid from './components/visualizations/RacePaceGrid';
+import PositionByLap from './components/visualizations/PositionByLap';
 
 // Command Palette & Keyboard
 import CommandPalette from './components/CommandPalette/CommandPalette';
@@ -43,19 +53,29 @@ import ShortcutCheatsheet from './components/ShortcutCheatsheet/ShortcutCheatshe
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const OVERLAY_TABS = {
+  trackmap: { title: 'Track Map', Component: TrackMap },
   laptimes: { title: 'Lap Times', Component: LapTimesTabContent },
+  lapdelta: { title: 'Lap Delta', Component: LapDeltaChart },
   sectors: { title: 'Sectors & Speeds', Component: SectorsPanel },
   tyres: { title: 'Tyres', Component: TyresTabContent },
-  speed: { title: 'Charts', Component: SpeedPanel },
+  tiredeg: { title: 'Tyre Degradation', Component: TireDegradation },
+  tyrehealth: { title: 'Tyre Health', Component: TyreHealth },
+  tyremgmt: { title: 'Pace Retention', Component: TyreManagement },
+  speed: { title: 'Speed Rankings', Component: SpeedPanel },
   consistency: { title: 'Consistency', Component: ConsistencyPanel },
   ai: { title: 'AI Assistant', Component: AITabContent },
   analytics: { title: 'Analytics', Component: AnalyticsTabContent },
   prediction: { title: 'Race Prediction', Component: RacePredictionPanel },
   simulator: { title: 'Strategy Simulator', Component: StrategySimulator },
   strategy: { title: 'Strategy Timeline', Component: StrategyTimeline },
+  analysis: { title: 'Strategy Analysis', Component: StrategyAnalysis },
+  racesituation: { title: 'Race Situation', Component: RaceSituationMap },
+  racepace: { title: 'Race Pace Grid', Component: RacePaceGrid },
+  telemetry: { title: 'Telemetry', Component: TelemetryStrip },
   championship: { title: 'Championship', Component: ChampionshipTabContent },
   settings: { title: 'Settings', Component: SettingsTabContent },
   compare: { title: 'Driver Comparison', Component: DriverComparePanel },
+  positionlaps: { title: 'Position Tracker', Component: PositionByLap },
 };
 
 export default function App() {
@@ -74,9 +94,7 @@ export default function App() {
     return <SessionSelectorScreen />;
   }
 
-  // Pit Wall is a standalone full-screen mode (no sidebar, no overlays)
   const isPitWall = activeTab === 'pitwall';
-  // Docked layout mode (JetBrains-style split panes with tabs)
   const isDocked = !!dockedLayout && !isPitWall;
 
   return (
@@ -84,13 +102,14 @@ export default function App() {
       <WeatherBar />
       <div className="app-body">
         {isPitWall ? (
-          /* Pit Wall: full-width layout with its own sidebar */
+          /* Monitor mode: Pit Wall full-screen layout */
           <PitWallLayout />
         ) : isDocked ? (
-          /* Docked layout: JetBrains-style split panes */
+          /* Analyze mode: docked split-pane workspace */
           <>
             <aside className={`app-sidebar${leaderboardCollapsed ? ' app-sidebar--collapsed' : ''}`}>
               <Leaderboard collapsed={leaderboardCollapsed} />
+              {!leaderboardCollapsed && <PitWallSectorPanel />}
               {!leaderboardCollapsed && <FocusDriverWidget />}
             </aside>
             <div className="app-center">
@@ -98,39 +117,35 @@ export default function App() {
             </div>
           </>
         ) : (
-          /* Analysis mode: floating overlay windows */
+          /* Base state: no analysis workspace open */
           <>
             <aside className={`app-sidebar${leaderboardCollapsed ? ' app-sidebar--collapsed' : ''}`}>
               <Leaderboard collapsed={leaderboardCollapsed} />
               {!leaderboardCollapsed && <FocusDriverWidget />}
-              {openOverlays.length > 0 && (
-                <div className="track-minimap">
-                  <TrackMap compact />
-                </div>
-              )}
             </aside>
             <div className="app-center">
-              {/* Charts tab always renders underneath */}
               <ChartsTabContent />
-              {/* Floating overlay windows */}
-              {openOverlays.length > 0 && (
-                <div className={`overlay-container overlay-container--count-${openOverlays.length}`}>
-                  {openOverlays.map((tabId) => {
-                    const effectiveTabId = overlayVizMapping[tabId] || tabId;
-                    const config = OVERLAY_TABS[effectiveTabId];
-                    if (!config) return null;
-                    return (
-                      <OverlayPanel key={tabId} title={config.title} tabId={tabId}>
-                        <config.Component />
-                      </OverlayPanel>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </>
         )}
       </div>
+
+      {/* ── Utility floating overlays — render on top of ANY mode ── */}
+      {openOverlays.length > 0 && (
+        <div className="utility-overlay-container">
+          {openOverlays.map((tabId) => {
+            const effectiveTabId = overlayVizMapping[tabId] || tabId;
+            const config = OVERLAY_TABS[effectiveTabId];
+            if (!config) return null;
+            return (
+              <OverlayPanel key={tabId} title={config.title} tabId={tabId}>
+                <config.Component />
+              </OverlayPanel>
+            );
+          })}
+        </div>
+      )}
+
       <TimelinePlayer />
       <BottomTabBar />
       <DriverMFDCard />

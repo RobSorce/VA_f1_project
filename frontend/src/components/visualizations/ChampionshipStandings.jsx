@@ -75,6 +75,12 @@ export default function ChampionshipStandings() {
       .style('font-size', '8px')
       .attr('fill', 'rgba(255,255,255,0.5)');
 
+    // X axis label
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('x', innerW / 2).attr('y', innerH + margin.bottom - 2)
+      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('font-weight', 600).text('Points');
+
     // Grid lines
     g.append('g')
       .call(d3.axisBottom(x).ticks(6).tickSize(innerH).tickFormat(''))

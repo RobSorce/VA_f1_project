@@ -419,6 +419,7 @@ export default function RaceSituationMap() {
           `<div class="tooltip-row"><span class="tooltip-label">Trend</span><span class="tooltip-value">${trend}</span></div>` +
           `<div class="tooltip-row"><span class="tooltip-label">Tyre</span><span class="tooltip-value">${d.compoundName} (${d.tyreLife} laps)</span></div>` +
           `<div class="tooltip-row"><span class="tooltip-label">Stint</span><span class="tooltip-value">#${d.stintNumber}</span></div>` +
+          `<div class="tooltip-row"><span class="tooltip-label">Pit Stops</span><span class="tooltip-value">${d.pitStops ?? (d.stintNumber - 1)}</span></div>` +
           `<div class="tooltip-row"><span class="tooltip-label">Est. pit in</span><span class="tooltip-value">~${d.estLapsToPit} laps</span></div>` +
           `<div class="tooltip-row"><span class="tooltip-label">Pred. pace +5</span><span class="tooltip-value">${d.predictedPace5?.toFixed(1)}s</span></div>` +
           (trailLen > 1 ? `<div class="tooltip-row"><span class="tooltip-label">Trail</span><span class="tooltip-value">${trailLen} snapshots</span></div>` : '')

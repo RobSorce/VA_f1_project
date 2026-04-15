@@ -1,38 +1,195 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
-import { WINDOW_PRESETS } from '../../utils/windowPresets';
+const HOVER_ZONE_HEIGHT = 12;
 
-const TABS = [
-  { id: 'pitwall', label: 'Pit Wall', icon: 'M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5zM4 9h16M9 4v16', hint: 'P' },
-  { id: 'charts', label: 'Track Map', icon: 'M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4zM8 2v20M16 6v16', hint: 'X' },
-  { id: 'laptimes', label: 'Lap Times', icon: 'M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM12 6V2M10 2h4M12 12l2-2M22 12h-2M2 12h2M12 22v-2', hint: '1' },
-  { id: 'sectors', label: 'Sectors', icon: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5', hint: '2' },
-  { id: 'tyres', label: 'Tyres', icon: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', hint: '3' },
-  { id: 'speed', label: 'Speed', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z', hint: '4' },
-  { id: 'consistency', label: 'Consistency', icon: 'M22 12h-4l-3 9L9 3l-3 9H2', hint: '5' },
-  { id: 'prediction', label: 'Prediction', icon: 'M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', hint: '6' },
-  { id: 'simulator', label: 'Simulator', icon: 'M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0-6h18M3 15h18', hint: 'M' },
-  { id: 'ai', label: 'AI Assistant', icon: 'M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1.27A7 7 0 0 1 7 14H6a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 4-1.46V5.73A2 2 0 0 1 10 4a2 2 0 0 1 4 0z', hint: '7' },
-  { id: 'compare', label: 'Compare', icon: 'M16 3h5v5M8 3H3v5M3 16v5h5M21 16v5h-5M21 3l-7 7M3 3l7 7M3 21l7-7M21 21l-7-7', hint: '8' },
-  { id: 'analytics', label: 'Analytics', icon: 'M21 21H3V3m4 14l4-6 4 4 6-8', hint: '9' },
-  { id: 'championship', label: 'Championship', icon: 'M6 9H4.5a2.5 2.5 0 0 1 0-5H6m12 5h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22m10 0c0-1.76-.85-3.25-2.03-3.79A1.09 1.09 0 0 1 14 17v-2.34M18 2H6v7a6 6 0 0 0 12 0V2z', hint: '0' },
-  { id: 'settings', label: 'Settings', icon: 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z' },
+// The 4 core VA pipeline tabs that stay visible in the dock
+const CORE_TABS = [
+  { id: 'laptimes',   label: 'Lap Times',   icon: 'M12 6v6l4 2M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0z',   hint: '2' },
+  { id: 'analytics',  label: 'Analytics',   icon: 'M21 21H3V3m4 14l4-6 4 4 6-8',                             hint: '0' },
+  { id: 'strategy',   label: 'Strategy',    icon: 'M3 3h18v6H3zM3 15h18v6H3zM8 9v6M16 9v6',                 hint: 'S' },
+  { id: 'prediction', label: 'Prediction',  icon: 'M22 12h-4l-3 9L9 3l-3 9H2',                               hint: '7' },
 ];
 
-const HOVER_ZONE_HEIGHT = 12; // px from bottom edge that triggers reveal
+// Views available inside the Layouts popover (everything NOT in CORE_TABS)
+const POPOVER_VIEW_CATEGORIES = [
+  {
+    label: 'Track & Timing',
+    views: [
+      { id: 'trackmap', label: 'Track Map' },
+      { id: 'lapdelta', label: 'Lap Delta' },
+      { id: 'telemetry', label: 'Telemetry' },
+      { id: 'racepace', label: 'Race Pace Grid' },
+      { id: 'positionlaps', label: 'Position Tracker' },
+    ],
+  },
+  {
+    label: 'Tyres & Pace',
+    views: [
+      { id: 'tyres', label: 'Tyres' },
+      { id: 'tiredeg', label: 'Tyre Degradation' },
+      { id: 'tyrehealth', label: 'Tyre Health' },
+      { id: 'tyremgmt', label: 'Pace Retention' },
+      { id: 'sectors', label: 'Sectors & Speeds' },
+      { id: 'speed', label: 'Speed Rankings' },
+      { id: 'consistency', label: 'Consistency' },
+    ],
+  },
+  {
+    label: 'Strategy & Analysis',
+    views: [
+      { id: 'analysis', label: 'Strategy Analysis' },
+      { id: 'racesituation', label: 'Race Situation' },
+      { id: 'simulator', label: 'Strategy Simulator' },
+      { id: 'compare', label: 'Driver Compare' },
+    ],
+  },
+  {
+    label: 'Simulation & AI',
+    views: [
+      { id: 'ai', label: 'AI Strategist' },
+      { id: 'championship', label: 'Championship' },
+    ],
+  },
+];
 
+/* ─── Layout Selector Popover ─── */
+function LayoutPopover({ anchorRef, onClose }) {
+  const popoverRef = useRef(null);
+  const setActiveTab = useF1Store((s) => s.setActiveTab);
+  const [pos, setPos] = useState(null);
+
+  useEffect(() => {
+    if (!anchorRef.current) return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    setPos({
+      bottom: window.innerHeight - rect.top + 8,
+      left: rect.left + rect.width / 2,
+    });
+  }, [anchorRef]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target) &&
+          anchorRef.current && !anchorRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    const id = setTimeout(() => document.addEventListener('mousedown', handler), 50);
+    return () => { clearTimeout(id); document.removeEventListener('mousedown', handler); };
+  }, [onClose, anchorRef]);
+
+  if (!pos) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      ref={popoverRef}
+      style={{
+        position: 'fixed',
+        bottom: pos.bottom,
+        left: pos.left,
+        transform: 'translateX(-50%)',
+        zIndex: 10001,
+        background: 'rgba(18, 18, 36, 0.96)',
+        backdropFilter: 'blur(40px) saturate(1.8)',
+        WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 12,
+        padding: 8,
+        minWidth: 280,
+        maxWidth: 340,
+        boxShadow: '0 12px 48px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.3)',
+        animation: 'overlayScaleIn 150ms ease-out',
+      }}
+    >
+      {/* Views Section */}
+      <div style={{ padding: '6px 8px 4px' }}>
+        <span style={{
+          fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.35)',
+          textTransform: 'uppercase', letterSpacing: '0.08em',
+        }}>
+          Add view
+        </span>
+      </div>
+      {POPOVER_VIEW_CATEGORIES.map((cat) => (
+        <div key={cat.label} style={{ padding: '0 4px', marginBottom: 4 }}>
+          <span style={{
+            fontSize: 8, color: 'rgba(255,255,255,0.25)', fontWeight: 600,
+            padding: '0 6px', textTransform: 'uppercase', letterSpacing: '0.05em',
+          }}>
+            {cat.label}
+          </span>
+          {cat.views.map((v) => (
+            <div
+              key={v.id}
+              onClick={() => { setActiveTab(v.id); onClose(); }}
+              style={{
+                padding: '5px 8px', cursor: 'pointer', fontSize: 11,
+                color: 'rgba(255,255,255,0.7)', borderRadius: 6,
+                transition: 'background 0.12s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.color = '#fff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
+              }}
+            >
+              {v.label}
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* Close all / Home shortcut */}
+      <div style={{
+        padding: '6px 8px', marginTop: 4,
+        borderTop: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>
+          Number keys for quick access
+        </span>
+        <button
+          onClick={() => {
+            useF1Store.getState().closeAllOverlays();
+            onClose();
+          }}
+          style={{
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 6, padding: '3px 10px', fontSize: 9, color: 'rgba(255,255,255,0.5)',
+            cursor: 'pointer',
+          }}
+        >
+          Close all views
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ─── Main Hybrid BottomTabBar ─── */
 export default function BottomTabBar() {
   const activeTab = useF1Store((s) => s.activeTab);
   const openOverlays = useF1Store((s) => s.openOverlays);
   const dockedLayout = useF1Store((s) => s.dockedLayout);
   const setActiveTab = useF1Store((s) => s.setActiveTab);
   const showDashboard = useF1Store((s) => s.showDashboard);
-  const applyWindowPreset = useF1Store((s) => s.applyWindowPreset);
+  const toggleCommandPalette = useF1Store((s) => s.toggleCommandPalette);
+
   const [hoverRevealed, setHoverRevealed] = useState(false);
+  const [layoutPopoverOpen, setLayoutPopoverOpen] = useState(false);
   const navRef = useRef(null);
+  const layoutBtnRef = useRef(null);
   const hideTimerRef = useRef(null);
 
-  // Collect all tabs present in the docked layout tree
+  const isHidden = !showDashboard;
+  const isPitWall = activeTab === 'pitwall';
+
+  // Collect docked tabs for active state detection
   const dockedTabs = React.useMemo(() => {
     if (!dockedLayout) return [];
     const collect = (node) => {
@@ -43,31 +200,22 @@ export default function BottomTabBar() {
     return collect(dockedLayout);
   }, [dockedLayout]);
 
-  const isHidden = !showDashboard;
+  const isTabOpen = (tabId) =>
+    dockedLayout ? dockedTabs.includes(tabId) : openOverlays.includes(tabId);
 
-  // When auto-hidden, reveal on mouse near bottom edge
+  // Auto-hide reveal logic
   useEffect(() => {
-    if (!isHidden) {
-      setHoverRevealed(false);
-      return;
-    }
-
+    if (!isHidden) { setHoverRevealed(false); return; }
     const onMouseMove = (e) => {
-      const nearBottom = e.clientY >= window.innerHeight - HOVER_ZONE_HEIGHT;
-      if (nearBottom && !hoverRevealed) {
+      if (e.clientY >= window.innerHeight - HOVER_ZONE_HEIGHT && !hoverRevealed) {
         clearTimeout(hideTimerRef.current);
         setHoverRevealed(true);
       }
     };
-
     window.addEventListener('mousemove', onMouseMove);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      clearTimeout(hideTimerRef.current);
-    };
+    return () => { window.removeEventListener('mousemove', onMouseMove); clearTimeout(hideTimerRef.current); };
   }, [isHidden, hoverRevealed]);
 
-  // Hide again when mouse leaves the bar area
   const handleMouseLeave = useCallback(() => {
     if (!isHidden) return;
     hideTimerRef.current = setTimeout(() => setHoverRevealed(false), 400);
@@ -81,14 +229,10 @@ export default function BottomTabBar() {
 
   return (
     <>
-      {/* Invisible trigger zone at the very bottom when auto-hidden */}
       {isHidden && !hoverRevealed && (
         <div
           className="bottom-tab-bar__trigger"
-          onMouseEnter={() => {
-            clearTimeout(hideTimerRef.current);
-            setHoverRevealed(true);
-          }}
+          onMouseEnter={() => { clearTimeout(hideTimerRef.current); setHoverRevealed(true); }}
         />
       )}
       <nav
@@ -97,70 +241,97 @@ export default function BottomTabBar() {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {TABS.map((tab) => {
-          const isOpen = tab.id === 'charts'
-            ? (activeTab === 'charts' && openOverlays.length === 0 && !dockedLayout)
-            : tab.id === 'pitwall'
-              ? activeTab === 'pitwall'
-              : dockedLayout
-                ? dockedTabs.includes(tab.id)
-                : openOverlays.includes(tab.id);
+        {/* 1. Pit Wall */}
+        <button
+          className={`bottom-tab-bar__tab${isPitWall ? ' bottom-tab-bar__tab--active' : ''}`}
+          onClick={() => setActiveTab('pitwall')}
+          title="Pit Wall Mode [P]"
+        >
+          <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 3h18v18H3zM3 9h18M9 9v12M15 9v12" />
+          </svg>
+          <span className="bottom-tab-bar__label">Pit Wall</span>
+          <kbd className="tab-kbd">P</kbd>
+        </button>
 
+        {/* Separator */}
+        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)', margin: '0 2px', flexShrink: 0 }} />
+
+        {/* 2-5. Core VA Pipeline Tabs */}
+        {CORE_TABS.map((tab) => {
+          const isOpen = isTabOpen(tab.id);
           return (
             <button
               key={tab.id}
               className={`bottom-tab-bar__tab${isOpen ? ' bottom-tab-bar__tab--active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
-              title={tab.hint ? `${tab.label} [${tab.hint}]` : tab.label}
+              title={`${tab.label} [${tab.hint}]`}
             >
-              <svg
-                className="bottom-tab-bar__icon"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d={tab.icon} />
               </svg>
               <span className="bottom-tab-bar__label">{tab.label}</span>
-              {tab.hint && <kbd className="tab-kbd">{tab.hint}</kbd>}
+              <kbd className="tab-kbd">{tab.hint}</kbd>
             </button>
           );
         })}
-        <div style={{
-          display: 'flex', gap: 4, padding: '0 8px',
-          borderLeft: '1px solid rgba(255,255,255,0.08)',
-          marginLeft: 8, alignItems: 'center',
-        }}>
-          {Object.entries(WINDOW_PRESETS).map(([key, preset]) => (
-            <button
-              key={key}
-              className="bottom-tab-bar__preset-btn"
-              title={preset.description}
-              onClick={() => applyWindowPreset(preset)}
-              style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 4,
-                color: 'rgba(255,255,255,0.55)',
-                fontSize: 10,
-                padding: '4px 8px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                transition: 'all 0.15s',
-              }}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
+
+        {/* Separator */}
+        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)', margin: '0 2px', flexShrink: 0 }} />
+
+        {/* 6. Layout Selector (popover for presets + secondary views) */}
+        <button
+          ref={layoutBtnRef}
+          className={`bottom-tab-bar__tab${layoutPopoverOpen ? ' bottom-tab-bar__tab--active' : ''}`}
+          onClick={() => setLayoutPopoverOpen((v) => !v)}
+          title="Layout presets & additional views"
+        >
+          <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="9" rx="1" />
+            <rect x="14" y="3" width="7" height="5" rx="1" />
+            <rect x="14" y="12" width="7" height="9" rx="1" />
+            <rect x="3" y="16" width="7" height="5" rx="1" />
+          </svg>
+          <span className="bottom-tab-bar__label">Layouts</span>
+        </button>
+
+        {/* 7. Command Palette */}
+        <button
+          className="bottom-tab-bar__tab"
+          onClick={() => toggleCommandPalette?.()}
+          title="Command Palette [Ctrl+K]"
+        >
+          <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-4.35-4.35" />
+          </svg>
+          <span className="bottom-tab-bar__label">&#8984;K</span>
+        </button>
+
+        {/* 8. Settings */}
+        <button
+          className="bottom-tab-bar__tab"
+          onClick={() => setActiveTab('settings')}
+          title="Settings"
+        >
+          <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+          </svg>
+          <span className="bottom-tab-bar__label">Settings</span>
+        </button>
       </nav>
+
+      {/* Layout Popover */}
+      {layoutPopoverOpen && (
+        <LayoutPopover
+          anchorRef={layoutBtnRef}
+          onClose={() => setLayoutPopoverOpen(false)}
+        />
+      )}
     </>
   );
 }

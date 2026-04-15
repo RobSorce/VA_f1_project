@@ -216,6 +216,18 @@ function RacePaceGrid() {
     return Array.from(driverSet.values()).sort((a, b) => a.position - b.position);
   }, [lapTimes, raceResults, drivers]);
 
+  // -- Pit stop count per driver (up to currentLap) --
+  const pitCountByDriver = useMemo(() => {
+    const counts = {};
+    for (const lt of lapTimes) {
+      if (!lt.Driver || lt.LapNumber > currentLap) continue;
+      if (lt.PitInTime > 0) {
+        counts[lt.Driver] = (counts[lt.Driver] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [lapTimes, currentLap]);
+
   // -- Pre-compute lap lookup, session best, personal bests, and driver medians --
   const { lapLookup, sessionBest, driverBests, driverMedians } = useMemo(() => {
     const lookup = {};
@@ -362,7 +374,17 @@ function RacePaceGrid() {
                   onMouseEnter={() => handleMouseEnter(d.abbr)}
                   onMouseLeave={handleMouseLeave}
                 >
-                  {d.abbr}
+                  <div style={{ lineHeight: 1.1 }}>
+                    {d.abbr}
+                    {(pitCountByDriver[d.abbr] || 0) > 0 && (
+                      <div style={{
+                        fontSize: 7, fontWeight: 400, opacity: 0.75,
+                        letterSpacing: '0.03em', marginTop: 1,
+                      }}>
+                        {pitCountByDriver[d.abbr]}P
+                      </div>
+                    )}
+                  </div>
                 </th>
               );
             })}

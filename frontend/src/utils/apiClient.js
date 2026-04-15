@@ -21,7 +21,7 @@ export const getLapTimes = (year, round, driver) => {
 };
 export const getTelemetry = (year, round, driver, lap, sessionType = 'R') => {
   const params = { ...(lap ? { lap } : {}), session_type: sessionType };
-  return client.get(`/telemetry/${year}/${round}/${driver}`, { params }).then((r) => r.data);
+  return client.get(`/telemetry/${year}/${round}/${driver}`, { params, timeout: 600000 }).then((r) => r.data);
 };
 export const getCircuit = (year, round) =>
   client.get(`/circuit/${year}/${round}`, { timeout: 600000 }).then((r) => r.data);
@@ -40,11 +40,10 @@ export const getWeather = (year, round) =>
 export const getReplayData = (year, round, type = 'R') =>
   client.get(`/session/${year}/${round}/${type}/replay`).then((r) => r.data);
 
-// ── t-SNE & PCA ────────────────────────────────────────────────────
-export const getTSNEEmbeddings = () =>
-  client.get('/tsne/embeddings').then((r) => r.data);
+// ── PCA ──────────────────────────────────────────────────────────────
 export const getPCAEmbeddings = () =>
   client.get('/pca/embeddings').then((r) => r.data);
+// Backend endpoint still named tsne — kept for compatibility
 export const analyzeTSNESelection = (pointIds) =>
   client.post('/tsne/analyze-selection', { point_ids: pointIds }).then((r) => r.data);
 

@@ -16,9 +16,6 @@ const FEATURE_DISPLAY = {
   max_stint_length: 'Max Stint',
   degradation_rate: 'Tyre Deg.',
   grid_position: 'Grid Pos.',
-  finish_position: 'Finish Pos.',
-  position_change: 'Pos. Gained',
-  fuel_corrected_pace: 'Fuel-Adj Pace',
   gap_to_leader_mean: 'Gap to Leader',
   rolling_pace_3: 'Last 3 Pace',
   rolling_pace_5: 'Last 5 Pace',
@@ -45,11 +42,11 @@ function magnitudeColor(effectSize) {
 export default function StrategyBriefing() {
   const radarRef = useRef(null);
   const barsRef = useRef(null);
-  const tsneStrategyAnalysis = useF1Store((s) => s.tsneStrategyAnalysis);
+  const pcaStrategyAnalysis = useF1Store((s) => s.pcaStrategyAnalysis);
 
   const featureImportance = useMemo(
-    () => tsneStrategyAnalysis?.feature_importance || [],
-    [tsneStrategyAnalysis]
+    () => pcaStrategyAnalysis?.feature_importance || [],
+    [pcaStrategyAnalysis]
   );
 
   const topFeatures = useMemo(
@@ -197,7 +194,7 @@ export default function StrategyBriefing() {
     });
   }, [featureImportance]);
 
-  if (!tsneStrategyAnalysis?.feature_importance?.length) return null;
+  if (!pcaStrategyAnalysis?.feature_importance?.length) return null;
 
   return (
     <div style={{

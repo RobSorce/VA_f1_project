@@ -29,10 +29,10 @@ const MEDAL_BG = {
 };
 
 /* ── Layout constants ───────────────────────────────────────────────── */
-const ROW_HEIGHT = 28;
+const DEFAULT_ROW_HEIGHT = 28;
 
 /* ── Column display modes ───────────────────────────────────────────── */
-const COLUMN_MODES = ['INT', 'GAP', 'TYRE'];
+const COLUMN_MODES = ['INT', 'GAP', 'TYRE', 'PIT'];
 
 const TYRE_DISPLAY_NAMES = {
   SOFT: 'SOFT',
@@ -74,11 +74,13 @@ export default function Leaderboard({ collapsed }) {
 
   /* ── Refs ────────────────────────────────────────────────────────── */
   const containerRef = useRef(null);
+  const towerWrapRef = useRef(null);
   const previousPositionsRef = useRef({});
   const previousLapRef = useRef(null);
   const rowRefsMap = useRef({});
   const animatingRowsRef = useRef(new Set());
   const clearChangesTimerRef = useRef(null);
+  const [dynamicRowHeight, setDynamicRowHeight] = useState(DEFAULT_ROW_HEIGHT);
 
   /* ── Replay started gate ───────────────────────────────────────── */
   const replayStarted = currentFrameIndex > 0 || currentLap > 1;
@@ -263,6 +265,7 @@ export default function Leaderboard({ collapsed }) {
 
     const drivers = new Map();
     const prevLapByDriver = new Map(); // track previous lap for lap time fallback
+    const pitCountByDriver = new Map(); // count pit stops per driver up to currentLap
 
     lapTimes
       .filter((d) => d.LapNumber <= currentLap)
@@ -273,6 +276,10 @@ export default function Leaderboard({ collapsed }) {
         if (!existing || d.LapNumber > existing.LapNumber) {
           if (existing) prevLapByDriver.set(d.Driver, existing);
           drivers.set(d.Driver, d);
+        }
+        // Count pit entries
+        if (d.PitInTime > 0) {
+          pitCountByDriver.set(d.Driver, (pitCountByDriver.get(d.Driver) || 0) + 1);
         }
       });
 
@@ -303,6 +310,7 @@ export default function Leaderboard({ collapsed }) {
           retiredStatus: isRetired ? dnf.status : null,
           retiredLap: isRetired ? dnf.lastLap : null,
           isGrid: false,
+          pitStops: pitCountByDriver.get(d.Driver) || 0,
         };
       });
 
@@ -312,6 +320,22 @@ export default function Leaderboard({ collapsed }) {
     retired.forEach((r, i) => { r.pos = active.length + i + 1; });
     return [...active, ...retired];
   }, [sessionData, currentLap, currentTime, dnfMap, replayStarted, isQualifyingReplay, frameData, currentFrameIndex]);
+
+  /* ── Battle detection (consecutive drivers within 1.0s) ───────────── */
+  const battles = useMemo(() => {
+    const map = {}; // driver → { rival, gap, side: 'ahead'|'behind' }
+    const active = standings.filter((d) => !d.isRetired && !d.isGrid);
+    for (let i = 0; i < active.length - 1; i++) {
+      const ahead = active[i];
+      const behind = active[i + 1];
+      const gap = behind.interval;
+      if (gap != null && typeof gap === 'number' && Math.abs(gap) <= 1.0 && Math.abs(gap) > 0) {
+        map[ahead.abbr] = { rival: behind.abbr, gap: Math.abs(gap), side: 'behind' };
+        map[behind.abbr] = { rival: ahead.abbr, gap: Math.abs(gap), side: 'ahead' };
+      }
+    }
+    return map;
+  }, [standings]);
 
   /* ── Position change computation ──────────────────────────────────── */
   const [displayedChanges, setDisplayedChanges] = useState({});
@@ -362,6 +386,22 @@ export default function Leaderboard({ collapsed }) {
   useEffect(() => () => {
     if (clearChangesTimerRef.current) clearTimeout(clearChangesTimerRef.current);
   }, []);
+
+  /* ── Dynamic row height from available space ─────────────────────── */
+  useEffect(() => {
+    if (!towerWrapRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      const h = entries[0].contentRect.height;
+      const driverCount = standings.length || 20;
+      if (h > 0 && driverCount > 0) {
+        setDynamicRowHeight(Math.max(20, Math.min(DEFAULT_ROW_HEIGHT, Math.floor(h / driverCount))));
+      }
+    });
+    observer.observe(towerWrapRef.current);
+    return () => observer.disconnect();
+  }, [standings.length]);
+
+  const ROW_HEIGHT = dynamicRowHeight;
 
   /* ── Position-change highlight flash (CSS transition handles the slide) */
   useEffect(() => {
@@ -471,6 +511,26 @@ export default function Leaderboard({ collapsed }) {
             {TYRE_DISPLAY_NAMES[d.compound] || '?'}
           </span>
           <span className="tower-tyre-age">L{d.tyreLife}</span>
+        </span>
+      );
+    }
+
+    if (mode === 'PIT') {
+      const gridPos = gridPositionMap[d.abbr];
+      const gridDelta = (!d.isGrid && gridPos != null) ? gridPos - d.pos : null;
+      return (
+        <span className="tower-col-value tower-col-value--pit-info">
+          <span className="tower-pit-count" title="Pit stops">
+            {d.pitStops || 0}<span className="tower-pit-label">P</span>
+          </span>
+          {gridDelta != null && gridDelta !== 0 && (
+            <span className={`tower-grid-delta ${gridDelta > 0 ? 'tower-grid-delta--up' : 'tower-grid-delta--down'}`} title={`${gridDelta > 0 ? '+' : ''}${gridDelta} from grid`}>
+              {gridDelta > 0 ? '\u25B2' : '\u25BC'}{Math.abs(gridDelta)}
+            </span>
+          )}
+          {gridDelta === 0 && (
+            <span className="tower-grid-delta tower-grid-delta--same">=</span>
+          )}
         </span>
       );
     }
@@ -652,6 +712,7 @@ export default function Leaderboard({ collapsed }) {
       </div>
 
       {/* Driver rows */}
+      <div ref={towerWrapRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
       <div
         className="tower-body"
         ref={containerRef}
@@ -675,6 +736,7 @@ export default function Leaderboard({ collapsed }) {
             : 0;
 
           const isWinner = raceFinished && isP1 && !d.isRetired;
+          const inBattle = !!battles[d.abbr];
           const rowClasses = [
             'tower-row',
             isSelected && 'tower-row--selected',
@@ -684,6 +746,7 @@ export default function Leaderboard({ collapsed }) {
             isWinner && 'tower-row--winner',
             isOdd && 'tower-row--odd',
             d.isRetired && 'tower-row--retired',
+            inBattle && 'tower-row--battle',
           ]
             .filter(Boolean)
             .join(' ');
@@ -782,6 +845,11 @@ export default function Leaderboard({ collapsed }) {
                     color: '#A020F0', fontWeight: 800, letterSpacing: '0.04em',
                   }}>FL</span>
                 )}
+                {!raceFinished && battles[d.abbr] && (
+                  <span className="tower-row__battle-badge" title={`Battle with ${battles[d.abbr].rival} (${battles[d.abbr].gap.toFixed(3)}s)`}>
+                    {'\u2694'}
+                  </span>
+                )}
               </span>
 
               <span className="tower-row__value">
@@ -815,6 +883,7 @@ export default function Leaderboard({ collapsed }) {
             <span>{sessionData ? 'Press play to start' : 'Load a session to see standings'}</span>
           </div>
         )}
+      </div>
       </div>
 
       {lstmPredictions && (

@@ -81,6 +81,39 @@ export default function TelemetryStrip({ embedded = false }) {
     }));
   }, [drivers]);
 
+  // Racing laps for the focused driver (for presets)
+  const driverRacingLaps = useMemo(() => {
+    if (!sessionData?.lap_times) return [];
+    const driver = focusDriver || selectedDrivers[0];
+    if (!driver) return [];
+    return sessionData.lap_times
+      .filter((lt) => lt.Driver === driver && lt.LapTimeSeconds > 0 && lt.LapNumber <= currentLap && lt.LapTimeSeconds < 300)
+      .sort((a, b) => a.LapNumber - b.LapNumber);
+  }, [sessionData, focusDriver, selectedDrivers, currentLap]);
+
+  // Best lap for focused driver
+  const bestLapNumber = useMemo(() => {
+    if (driverRacingLaps.length === 0) return null;
+    let best = driverRacingLaps[0];
+    for (const lt of driverRacingLaps) {
+      if (lt.LapTimeSeconds < best.LapTimeSeconds) best = lt;
+    }
+    return best.LapNumber;
+  }, [driverRacingLaps]);
+
+  // First stint laps (before first pit stop)
+  const firstStintLastLap = useMemo(() => {
+    if (!sessionData?.tyre_strategy) return null;
+    const driver = focusDriver || selectedDrivers[0];
+    if (!driver) return null;
+    const stints = sessionData.tyre_strategy
+      .filter((s) => s.Driver === driver)
+      .sort((a, b) => (a.StintNumber || a.StartLap) - (b.StintNumber || b.StartLap));
+    if (stints.length < 2) return null;
+    // End of first stint = start of second stint - 1
+    return (stints[1].StartLap || stints[1].LapNumber || 2) - 1;
+  }, [sessionData, focusDriver, selectedDrivers]);
+
   // Determine which driver+lap combos to fetch
   const fetchTargets = useMemo(() => {
     if (!sessionData || currentLap < 1) return [];
@@ -92,9 +125,9 @@ export default function TelemetryStrip({ embedded = false }) {
     } else {
       const driver = focusDriver || selectedDrivers[0];
       if (!driver) return [];
-      const laps = telemetryCompareLaps.length > 0
-        ? telemetryCompareLaps.slice(0, 4)
-        : [currentLap];
+      // Always include current lap as reference, plus selected comparison laps
+      const compareLaps = telemetryCompareLaps.filter((l) => l !== currentLap);
+      const laps = [currentLap, ...compareLaps].slice(0, 4);
       return laps.map((l) => ({ driver, lap: l }));
     }
   }, [selectedDrivers, focusDriver, currentLap, sessionData, telemetryCompareMode, telemetryCompareLaps]);
@@ -138,6 +171,7 @@ export default function TelemetryStrip({ embedded = false }) {
 
   // Build resolved trace data
   const traces = useMemo(() => {
+    const totalLaps = fetchTargets.length;
     return fetchTargets
       .map(({ driver, lap }, i) => {
         const key = `${driver}-${lap}${cacheKeySuffix}`;
@@ -153,7 +187,13 @@ export default function TelemetryStrip({ embedded = false }) {
         const isDimmed = telemetryCompareMode === 'drivers'
           && highlightedDriver
           && highlightedDriver !== driver;
-        return { driver, lap, data, color, isFocus, isDimmed, key };
+        // In laps mode: reference lap (i=0) is solid, others are faded + dashed
+        const isReference = telemetryCompareMode === 'laps' && i === 0;
+        const lapOpacity = telemetryCompareMode === 'laps' && totalLaps > 1
+          ? (i === 0 ? 1 : Math.max(0.35, 1 - i * 0.25))
+          : 1;
+        const lapDashed = telemetryCompareMode === 'laps' && i > 0;
+        return { driver, lap, data, color, isFocus, isDimmed, isReference, lapOpacity, lapDashed, key };
       })
       .filter(Boolean);
   }, [fetchTargets, telemetryCache, focusDriver, telemetryCompareMode, highlightedDriver]);
@@ -471,16 +511,28 @@ export default function TelemetryStrip({ embedded = false }) {
     setCrosshairInfo(null);
   }, []);
 
-  // Handle adding laps in laps mode
-  const handleAddLap = useCallback((e) => {
-    if (e.key === 'Enter') {
-      const lap = parseInt(lapInput, 10);
-      if (lap > 0 && lap <= maxLap && !telemetryCompareLaps.includes(lap)) {
-        setTelemetryCompareLaps([...telemetryCompareLaps, lap].slice(0, 4));
-      }
-      setLapInput('');
+  // Toggle a lap in/out of comparison
+  const handleToggleLap = useCallback((lap) => {
+    if (lap === currentLap) return; // current lap is always the reference
+    if (telemetryCompareLaps.includes(lap)) {
+      setTelemetryCompareLaps(telemetryCompareLaps.filter((l) => l !== lap));
+    } else {
+      setTelemetryCompareLaps([...telemetryCompareLaps, lap].slice(0, 3)); // max 3 comparison laps + current
     }
-  }, [lapInput, maxLap, telemetryCompareLaps, setTelemetryCompareLaps]);
+  }, [currentLap, telemetryCompareLaps, setTelemetryCompareLaps]);
+
+  // Handle adding laps via number input
+  const addLapFromInput = useCallback(() => {
+    const lap = parseInt(lapInput, 10);
+    if (lap > 0 && lap <= maxLap && lap !== currentLap && !telemetryCompareLaps.includes(lap)) {
+      setTelemetryCompareLaps([...telemetryCompareLaps, lap].slice(0, 3));
+    }
+    setLapInput('');
+  }, [lapInput, maxLap, currentLap, telemetryCompareLaps, setTelemetryCompareLaps]);
+
+  const handleAddLap = useCallback((e) => {
+    if (e.key === 'Enter') addLapFromInput();
+  }, [addLapFromInput]);
 
   const handleRemoveLap = useCallback((lap) => {
     setTelemetryCompareLaps(telemetryCompareLaps.filter((l) => l !== lap));
@@ -546,7 +598,7 @@ export default function TelemetryStrip({ embedded = false }) {
           )}
 
           {/* Driver comparison cards — F1 TV MFD style */}
-          {driverCards.map((card) => {
+          {driverCards.map((card, cardIdx) => {
             const tyreColor = TYRE_COLORS[card.compound] || TYRE_COLORS.UNKNOWN;
             const isDarkTyre = card.compound === 'HARD' || card.compound === 'MEDIUM';
             // Sector color: personal best = green, else default
@@ -556,40 +608,65 @@ export default function TelemetryStrip({ embedded = false }) {
               return 'rgba(255,255,255,0.85)';
             };
             const isHighlighted = highlightedDriver === card.driver;
-            const isSelected = selectedDrivers.includes(card.driver);
+            const isLapsMode = telemetryCompareMode === 'laps';
+            const isRef = isLapsMode && cardIdx === 0;
             return (
               <div
                 className="telem-mfd-card"
                 key={`${card.driver}-${card.lap}`}
-                onMouseEnter={() => setHighlightedDriver(card.driver)}
-                onMouseLeave={() => setHighlightedDriver(null)}
-                onClick={() => setFocusDriver(card.driver)}
+                onMouseEnter={() => !isLapsMode && setHighlightedDriver(card.driver)}
+                onMouseLeave={() => !isLapsMode && setHighlightedDriver(null)}
+                onClick={() => !isLapsMode && setFocusDriver(card.driver)}
                 style={{
-                  cursor: 'pointer',
+                  cursor: isLapsMode ? 'default' : 'pointer',
                   outline: isHighlighted ? `1px solid ${card.color}` : undefined,
                   boxShadow: isHighlighted ? `0 0 8px ${card.color}40` : undefined,
+                  borderLeft: `3px solid ${card.color}`,
                 }}
               >
-                {/* Close/remove button */}
-                <button
-                  className="telem-mfd-card__close"
-                  onClick={(e) => { e.stopPropagation(); handleRemoveDriver(card.driver); }}
-                  title={`Remove ${card.driver}`}
-                >
-                  &times;
-                </button>
-                {/* Row 1: driver name + tyre + lap badge */}
+                {/* Close/remove button — drivers mode: remove driver; laps mode: remove lap */}
+                {isLapsMode ? (
+                  !isRef && (
+                    <button
+                      className="telem-mfd-card__close"
+                      onClick={(e) => { e.stopPropagation(); handleRemoveLap(card.lap); }}
+                      title={`Remove lap ${card.lap}`}
+                    >
+                      &times;
+                    </button>
+                  )
+                ) : (
+                  <button
+                    className="telem-mfd-card__close"
+                    onClick={(e) => { e.stopPropagation(); handleRemoveDriver(card.driver); }}
+                    title={`Remove ${card.driver}`}
+                  >
+                    &times;
+                  </button>
+                )}
+                {/* Row 1: driver/lap label + tyre */}
                 <div className="telem-mfd-card__top">
-                  <div className="telem-mfd-card__driver">
-                    <span className="telem-mfd-card__bar" style={{ background: card.color }} />
-                    <span className="telem-mfd-card__abbr">{card.driver}</span>
-                  </div>
+                  {isLapsMode ? (
+                    <div className="telem-mfd-card__driver">
+                      <span className="telem-mfd-card__bar" style={{ background: card.color }} />
+                      <span className="telem-mfd-card__abbr">{card.driver}</span>
+                      <span style={{ fontSize: 9, color: card.color, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>L{card.lap}</span>
+                      {isRef && <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.35)', marginLeft: 2 }}>REF</span>}
+                    </div>
+                  ) : (
+                    <div className="telem-mfd-card__driver">
+                      <span className="telem-mfd-card__bar" style={{ background: card.color }} />
+                      <span className="telem-mfd-card__abbr">{card.driver}</span>
+                    </div>
+                  )}
                   <span className="telem-mfd-card__tyre" style={{ background: tyreColor, color: isDarkTyre ? '#000' : '#fff' }}>
                     {card.compound?.[0] || '?'}
                   </span>
-                  <span className="telem-mfd-card__lap-badge" style={{ borderColor: card.color }}>
-                    Lap {card.lap}
-                  </span>
+                  {!isLapsMode && (
+                    <span className="telem-mfd-card__lap-badge" style={{ borderColor: card.color }}>
+                      Lap {card.lap}
+                    </span>
+                  )}
                 </div>
                 {/* Row 2: lap time + tyre life */}
                 <div className="telem-mfd-card__mid">
@@ -628,34 +705,83 @@ export default function TelemetryStrip({ embedded = false }) {
 
         <div className="telemetry-strip__header-right">
           {telemetryCompareMode === 'laps' && (
-            <>
+            <div className="telem-lap-presets">
+              {/* Quick preset buttons */}
+              <button
+                className={`telem-preset-btn${telemetryCompareLaps.length === 0 ? '' : ''}`}
+                onClick={() => {
+                  const laps = driverRacingLaps.slice(-4, -1).map((l) => l.LapNumber);
+                  setTelemetryCompareLaps(laps);
+                }}
+                disabled={driverRacingLaps.length < 2}
+                title="Compare current lap vs the last 3 laps"
+              >
+                Last 3
+              </button>
+              <button
+                className="telem-preset-btn"
+                onClick={() => {
+                  const laps = driverRacingLaps.slice(-6, -1);
+                  const pick = laps.length <= 3 ? laps : [laps[0], laps[Math.floor(laps.length / 2)], laps[laps.length - 1]];
+                  setTelemetryCompareLaps(pick.map((l) => l.LapNumber));
+                }}
+                disabled={driverRacingLaps.length < 3}
+                title="Compare current lap vs 3 evenly-spaced from the last 5"
+              >
+                Last 5
+              </button>
+              {bestLapNumber && bestLapNumber !== currentLap && (
+                <button
+                  className="telem-preset-btn telem-preset-btn--best"
+                  onClick={() => setTelemetryCompareLaps([bestLapNumber])}
+                  title={`Compare current lap vs personal best (L${bestLapNumber})`}
+                >
+                  vs Best
+                </button>
+              )}
+              {firstStintLastLap && firstStintLastLap !== currentLap && (
+                <button
+                  className="telem-preset-btn"
+                  onClick={() => setTelemetryCompareLaps([firstStintLastLap])}
+                  title={`Compare current lap vs end of first stint (L${firstStintLastLap})`}
+                >
+                  vs Stint 1
+                </button>
+              )}
+              <span className="telem-preset-divider" />
+              {/* Selected comparison laps */}
               {telemetryCompareLaps.map((lap, i) => (
                 <span
                   key={lap}
-                  className="telem-sector-badge"
-                  style={{
-                    background: `${LAP_COLORS[i]}30`,
-                    color: LAP_COLORS[i],
-                    cursor: 'pointer',
-                    fontSize: '9px',
-                    padding: '1px 5px',
-                  }}
+                  className="telem-lap-chip telem-lap-chip--active"
+                  style={{ borderColor: LAP_COLORS[i + 1] || '#888', color: LAP_COLORS[i + 1] || '#888' }}
                   onClick={() => handleRemoveLap(lap)}
+                  title={`Remove lap ${lap}`}
                 >
-                  L{lap} x
+                  L{lap} ×
                 </span>
               ))}
+              {/* Manual lap input */}
               <input
                 className="telem-lap-picker"
                 type="number"
                 min={1}
                 max={maxLap}
-                placeholder="Lap"
+                placeholder="Lap #"
                 value={lapInput}
                 onChange={(e) => setLapInput(e.target.value)}
                 onKeyDown={handleAddLap}
+                style={{ width: 48 }}
               />
-            </>
+              <button
+                className="telem-lap-add-btn"
+                onClick={addLapFromInput}
+                disabled={!lapInput}
+                title="Add lap to comparison"
+              >
+                + ADD
+              </button>
+            </div>
           )}
 
           <div className="telem-mode-toggle">
@@ -787,7 +913,9 @@ export default function TelemetryStrip({ embedded = false }) {
                 {crosshairInfo.values.map((v) => (
                   <div className="telem-crosshair-tooltip__row" key={`${v.driver}-${v.lap}`}>
                     <span className="telem-crosshair-tooltip__dot" style={{ background: v.color }} />
-                    <span className="telem-crosshair-tooltip__driver">{v.driver}</span>
+                    <span className="telem-crosshair-tooltip__driver">
+                      {telemetryCompareMode === 'laps' ? `L${v.lap}` : v.driver}
+                    </span>
                     <span className="telem-crosshair-tooltip__val">
                       {v.speed != null ? `${Math.round(v.speed)} kph` : '—'}
                     </span>
@@ -986,8 +1114,8 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
     .curve(d3.curveMonotoneX);
 
   traces.forEach((t) => {
-    const opacity = t.isDimmed ? 0.15 : 1;
-    if (t.isFocus && !t.isDimmed) {
+    const opacity = t.isDimmed ? 0.15 : (t.lapOpacity || 1);
+    if (t.isFocus && !t.isDimmed && !t.lapDashed) {
       const area = d3.area()
         .x((d) => xScale(d.Distance))
         .y0(height - m.bottom)
@@ -998,10 +1126,28 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
         .attr('class', 'telem-speed-area--focus')
         .attr('d', area).attr('fill', t.color);
     }
-    g.append('path').datum(t.data)
+    const path = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-speed-line telem-speed-line--focus' : 'telem-speed-line')
       .attr('d', line).attr('stroke', t.color)
-      .attr('opacity', opacity);
+      .attr('opacity', opacity)
+      .attr('stroke-width', t.lapDashed ? 1.2 : null);
+    if (t.lapDashed) path.attr('stroke-dasharray', '6,3');
+
+    // Lap label at end of trace in laps mode
+    if (t.lapDashed != null && traces.length > 1) {
+      const lastPt = t.data[t.data.length - 1];
+      if (lastPt?.Distance != null && lastPt?.Speed != null) {
+        g.append('text')
+          .attr('x', xScale(lastPt.Distance) + 3)
+          .attr('y', yScale(lastPt.Speed))
+          .attr('fill', t.color)
+          .attr('font-size', '8px')
+          .attr('font-weight', 600)
+          .attr('dominant-baseline', 'middle')
+          .attr('opacity', opacity)
+          .text(`L${t.lap}`);
+      }
+    }
   });
 
   // Speed annotations at local min/max (wrapped in clippable group)
@@ -1209,35 +1355,39 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
     .curve(d3.curveMonotoneX);
 
   traces.forEach((t) => {
-    const opacity = t.isDimmed ? 0.15 : 1;
-    const throttleColor = t.isFocus ? '#00e676' : t.color;
-    const brakeColor = t.isFocus ? '#e10600' : t.color;
+    const opacity = t.isDimmed ? 0.15 : (t.lapOpacity || 1);
+    const throttleColor = t.isFocus && !t.lapDashed ? '#00e676' : t.color;
+    const brakeColor = t.isFocus && !t.lapDashed ? '#e10600' : t.color;
 
-    // All drivers get area fill; focus gets special class for lower opacity + glow
-    g.append('path').datum(t.data)
-      .attr('class', t.isFocus ? 'telem-throttle-area telem-throttle-area--focus' : 'telem-throttle-area')
-      .attr('d', throttleArea)
-      .attr('fill', throttleColor)
-      .attr('opacity', t.isDimmed ? 0.08 : null);
+    // Area fill only for focus/reference (not dashed comparison laps)
+    if (!t.lapDashed) {
+      g.append('path').datum(t.data)
+        .attr('class', t.isFocus ? 'telem-throttle-area telem-throttle-area--focus' : 'telem-throttle-area')
+        .attr('d', throttleArea)
+        .attr('fill', throttleColor)
+        .attr('opacity', t.isDimmed ? 0.08 : null);
 
-    g.append('path').datum(t.data)
-      .attr('class', t.isFocus ? 'telem-brake-area telem-brake-area--focus' : 'telem-brake-area')
-      .attr('d', brakeArea)
-      .attr('fill', brakeColor)
-      .attr('opacity', t.isDimmed ? 0.08 : null);
+      g.append('path').datum(t.data)
+        .attr('class', t.isFocus ? 'telem-brake-area telem-brake-area--focus' : 'telem-brake-area')
+        .attr('d', brakeArea)
+        .attr('fill', brakeColor)
+        .attr('opacity', t.isDimmed ? 0.08 : null);
+    }
 
-    // All drivers get the line; focus gets glow
-    g.append('path').datum(t.data)
+    // Lines
+    const tLine = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-throttle-line telem-throttle-line--focus' : 'telem-throttle-line')
       .attr('d', throttleLine)
       .attr('stroke', throttleColor)
       .attr('opacity', opacity);
+    if (t.lapDashed) tLine.attr('stroke-dasharray', '6,3').attr('stroke-width', 1.2);
 
-    g.append('path').datum(t.data)
+    const bLine = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-brake-line telem-brake-line--focus' : 'telem-brake-line')
       .attr('d', brakeLine)
       .attr('stroke', brakeColor)
       .attr('opacity', opacity);
+    if (t.lapDashed) bLine.attr('stroke-dasharray', '6,3').attr('stroke-width', 1.2);
   });
 }
 
@@ -1273,10 +1423,12 @@ function renderGearChart(svgEl, traces, xScale, margin, sectorBoundaries) {
     .curve(d3.curveStepAfter);
 
   traces.forEach((t) => {
-    g.append('path').datum(t.data)
+    const opacity = t.isDimmed ? 0.15 : (t.lapOpacity || 1);
+    const path = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-gear-line telem-gear-line--focus' : 'telem-gear-line')
       .attr('d', line).attr('stroke', t.color)
-      .attr('opacity', t.isDimmed ? 0.15 : 1);
+      .attr('opacity', opacity);
+    if (t.lapDashed) path.attr('stroke-dasharray', '6,3').attr('stroke-width', 1.2);
   });
 }
 
@@ -1348,9 +1500,11 @@ function renderRPMChart(svgEl, traces, xScale, margin, sectorBoundaries) {
     .curve(d3.curveMonotoneX);
 
   traces.forEach((t) => {
-    g.append('path').datum(t.data)
+    const opacity = t.isDimmed ? 0.15 : (t.lapOpacity || 1);
+    const path = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-rpm-line telem-rpm-line--focus' : 'telem-rpm-line')
       .attr('d', line).attr('stroke', t.color)
-      .attr('opacity', t.isDimmed ? 0.15 : 1);
+      .attr('opacity', opacity);
+    if (t.lapDashed) path.attr('stroke-dasharray', '6,3').attr('stroke-width', 1.2);
   });
 }

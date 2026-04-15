@@ -147,15 +147,24 @@ def _save_to_disk(path: Path, data):
         logger.warning(f"Disk cache write failed for {path}: {e}")
 
 
-def get_raw_session(year: int, round_num: int, session_type: str = "R"):
+def get_raw_session(year: int, round_num: int, session_type: str = "R", offline=False, **load_kwargs):
     """Get or load a raw FastF1 session object (cached in memory).
 
     NOTE: Callers must hold _fastf1_lock when calling this for uncached sessions.
+    Extra kwargs are forwarded to extractor.get_session (laps, telemetry, weather, messages).
+    When offline=True, FastF1 uses only its local cache (no network requests).
     """
+    import fastf1
     cache_key = get_cache_key(year, round_num, session_type)
     if cache_key in raw_session_cache:
         return raw_session_cache[cache_key]
-    session = extractor.get_session(year, round_num, session_type)
+    if offline:
+        fastf1.Cache.offline_mode(True)
+    try:
+        session = extractor.get_session(year, round_num, session_type, **load_kwargs)
+    finally:
+        if offline:
+            fastf1.Cache.offline_mode(False)
     raw_session_cache[cache_key] = session
     return session
 
@@ -196,6 +205,20 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
     if disk_data is not None:
         logger.info(f"Loaded session from disk cache: {disk_path.name}")
         session_cache[cache_key] = disk_data
+        # Pre-load raw FastF1 session in background for telemetry readiness
+        # Only load laps + telemetry (skip weather/messages for speed)
+        if cache_key not in raw_session_cache:
+            def _preload():
+                try:
+                    with _fastf1_lock:
+                        if cache_key not in raw_session_cache:
+                            logger.info(f"Background pre-loading raw session: {cache_key}")
+                            get_raw_session(year, round_num, session_type, offline=True,
+                                            laps=True, telemetry=True, weather=False, messages=False)
+                            logger.info(f"Raw session ready: {cache_key}")
+                except Exception as e:
+                    logger.warning(f"Background raw session load failed: {e}")
+            threading.Thread(target=_preload, daemon=True).start()
         return disk_data
 
     # 3. Full extraction from FastF1 (slow — first time only, thread-safe)
@@ -349,25 +372,37 @@ async def get_lap_times(year: int, round_num: int, driver: Optional[str] = None)
 async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[int] = None, session_type: str = "R"):
     """Get telemetry data for a specific driver."""
     try:
+        # Disk cache for telemetry (keyed by driver + lap)
+        lap_key = lap if lap else "fastest"
+        cache_path = DISK_CACHE_DIR / f"telemetry_{year}_{round_num}_{session_type}_{driver}_{lap_key}.json"
+        cached = _load_from_disk(cache_path)
+        if cached is not None:
+            logger.info(f"Telemetry from disk cache: {driver} lap {lap_key}")
+            return cached
+
         def _fetch():
             with _fastf1_lock:
-                session = get_raw_session(year, round_num, session_type)
+                session = get_raw_session(year, round_num, session_type, offline=True,
+                                          laps=True, telemetry=True, weather=False, messages=False)
                 return extractor.extract_telemetry(session, driver, lap)
 
         telemetry = await asyncio.to_thread(_fetch)
 
         if telemetry is None or (hasattr(telemetry, 'empty') and telemetry.empty):
-            return {
+            result = {
                 "driver": driver,
-                "lap": lap if lap else "fastest",
+                "lap": lap_key,
                 "telemetry": []
             }
+        else:
+            result = {
+                "driver": driver,
+                "lap": lap_key,
+                "telemetry": clean_dataframe_for_json(telemetry)
+            }
 
-        return {
-            "driver": driver,
-            "lap": lap if lap else "fastest",
-            "telemetry": clean_dataframe_for_json(telemetry)
-        }
+        _save_to_disk(cache_path, result)
+        return result
     except Exception as e:
         logger.error(f"Error fetching telemetry: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

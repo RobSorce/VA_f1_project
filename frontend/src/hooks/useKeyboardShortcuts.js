@@ -237,10 +237,10 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // s — open AI/Strategy overlay
+      // s — open Strategy Timeline
       if (e.key === 's') {
         e.preventDefault();
-        state.setActiveTab('ai');
+        state.setActiveTab('strategy');
         return;
       }
 

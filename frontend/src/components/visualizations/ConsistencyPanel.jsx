@@ -3,6 +3,7 @@ import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
 import { exportAsPng } from '../../utils/exportChart';
 
+
 function formatTime(seconds) {
   if (!seconds || seconds <= 0) return '—';
   const mins = Math.floor(seconds / 60);
@@ -29,6 +30,7 @@ export default function ConsistencyPanel() {
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
 
   const panelRef = useRef(null);
+  const gridRef = useRef(null);
   const handleExport = useCallback(() => {
     if (!panelRef.current) return;
     exportAsPng(panelRef.current, 'consistency_analysis.png');
@@ -218,7 +220,7 @@ export default function ConsistencyPanel() {
         </span>
       </div>
 
-      <div className="consistency-panel__grid">
+      <div ref={gridRef} className="consistency-panel__grid">
         {drivers.map((d) => {
           const color = getDriverColor(d.driver);
           const compoundEntries = Object.entries(d.compounds || {});

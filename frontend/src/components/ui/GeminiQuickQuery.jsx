@@ -112,7 +112,7 @@ export default function GeminiQuickQuery() {
           background: 'rgba(255,255,255,0.03)',
           borderRadius: 6, fontSize: 10, color: '#bbc',
           lineHeight: 1.5, whiteSpace: 'pre-wrap',
-          maxHeight: 120, overflowY: 'auto',
+          maxHeight: 120, overflow: 'hidden',
           fontFamily: "'JetBrains Mono', monospace",
         }}>
           {response}

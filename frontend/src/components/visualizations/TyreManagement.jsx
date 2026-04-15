@@ -157,6 +157,11 @@ export default function TyreManagement() {
     yAxisG.selectAll('text').attr('fill', 'rgba(255,255,255,0.3)').attr('font-size', '8px').attr('font-family', 'var(--font-mono)');
     yAxisG.selectAll('line').attr('stroke', 'rgba(255,255,255,0.1)');
     yAxisG.select('.domain').attr('stroke', 'rgba(255,255,255,0.08)');
+    // Y-axis label
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('transform', 'rotate(-90)').attr('x', -innerH / 2).attr('y', -32)
+      .attr('fill', 'rgba(255,255,255,0.3)').attr('font-size', '8px')
+      .attr('font-weight', 700).text('Pace Retention (%)');
 
     // Pit stop markers
     chartData.stints.forEach((stint, i) => {

@@ -12,18 +12,28 @@ import { useF1Store } from '../../store/useF1Store';
  */
 
 const VIZ_TABS = [
+  { id: 'trackmap', label: 'Track Map' },
   { id: 'laptimes', label: 'Lap Times' },
+  { id: 'lapdelta', label: 'Lap Delta' },
   { id: 'sectors', label: 'Sectors' },
   { id: 'tyres', label: 'Tyres' },
+  { id: 'tiredeg', label: 'Tyre Degradation' },
+  { id: 'tyrehealth', label: 'Tyre Health' },
+  { id: 'tyremgmt', label: 'Pace Retention' },
   { id: 'speed', label: 'Speed' },
   { id: 'consistency', label: 'Consistency' },
   { id: 'prediction', label: 'Prediction' },
   { id: 'simulator', label: 'Strategy Simulator' },
   { id: 'strategy', label: 'Strategy Timeline' },
+  { id: 'analysis', label: 'Strategy Analysis' },
+  { id: 'racesituation', label: 'Race Situation' },
+  { id: 'racepace', label: 'Race Pace Grid' },
+  { id: 'telemetry', label: 'Telemetry' },
   { id: 'ai', label: 'AI Assistant' },
   { id: 'compare', label: 'Compare' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'championship', label: 'Championship' },
+  { id: 'positionlaps', label: 'Position Tracker' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -90,13 +100,24 @@ function TabPickerDropdown({ availableTabs, onAddTab, onClose, anchorRef }) {
   const [pos, setPos] = useState(null);
   const dropdownRef = useRef(null);
 
-  // Position the dropdown using the anchor button's bounding rect
+  // Position the dropdown using the anchor button's bounding rect, clamped to viewport
   React.useEffect(() => {
-    if (anchorRef.current) {
-      const r = anchorRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 2, left: r.left });
+    if (!anchorRef.current) return;
+    const r = anchorRef.current.getBoundingClientRect();
+    const dropH = Math.min(260, availableTabs.length * 28 + 8);
+    const dropW = 160;
+    let top = r.bottom + 2;
+    let left = r.left;
+    // If dropdown would go below viewport, open upward
+    if (top + dropH > window.innerHeight) {
+      top = Math.max(4, r.top - dropH - 2);
     }
-  }, [anchorRef]);
+    // Clamp left so it doesn't go off the right edge
+    if (left + dropW > window.innerWidth) {
+      left = Math.max(4, window.innerWidth - dropW - 4);
+    }
+    setPos({ top, left });
+  }, [anchorRef, availableTabs.length]);
 
   // Close on outside click — but NOT if clicking inside the dropdown itself
   React.useEffect(() => {
@@ -146,14 +167,15 @@ function TabPickerDropdown({ availableTabs, onAddTab, onClose, anchorRef }) {
   );
 }
 
-function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizComponents }) {
+function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizComponents, allDockedTabs }) {
   const { tabs, activeTab } = pane;
   const config = vizComponents[activeTab];
   const Component = config?.Component;
   const [showTabPicker, setShowTabPicker] = useState(false);
   const addBtnRef = useRef(null);
 
-  const availableTabs = VIZ_TABS.filter((t) => !tabs.includes(t.id));
+  // Filter out tabs already docked anywhere (not just this pane)
+  const availableTabs = VIZ_TABS.filter((t) => !allDockedTabs.includes(t.id));
 
   return (
     <div style={{
@@ -267,7 +289,7 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
 }
 
 /* ────────────────────── Split: two children with a splitter ────────────────────── */
-function SplitPane({ node, onUpdate, vizComponents }) {
+function SplitPane({ node, onUpdate, vizComponents, allDockedTabs }) {
   const containerRef = useRef(null);
   const isH = node.direction === 'horizontal';
   const ratio = node.ratio || 0.5;
@@ -293,6 +315,7 @@ function SplitPane({ node, onUpdate, vizComponents }) {
         <LayoutNode
           node={node.children[0]}
           vizComponents={vizComponents}
+          allDockedTabs={allDockedTabs}
           onUpdate={(updated) => onUpdate({ ...node, children: [updated, node.children[1]] })}
         />
       </div>
@@ -306,6 +329,7 @@ function SplitPane({ node, onUpdate, vizComponents }) {
         <LayoutNode
           node={node.children[1]}
           vizComponents={vizComponents}
+          allDockedTabs={allDockedTabs}
           onUpdate={(updated) => onUpdate({ ...node, children: [node.children[0], updated] })}
         />
       </div>
@@ -318,7 +342,7 @@ function SplitPane({ node, onUpdate, vizComponents }) {
  * Dispatches to DockedPane (leaf) or SplitPane (split).
  * This is a pure dispatcher — no hooks — so it can safely branch.
  */
-function LayoutNode({ node, onUpdate, vizComponents }) {
+function LayoutNode({ node, onUpdate, vizComponents, allDockedTabs }) {
   if (!node) return null;
 
   // Leaf node: has tabs
@@ -327,8 +351,16 @@ function LayoutNode({ node, onUpdate, vizComponents }) {
       <DockedPane
         pane={node}
         vizComponents={vizComponents}
+        allDockedTabs={allDockedTabs}
         onTabChange={(tabId) => onUpdate({ ...node, activeTab: tabId })}
-        onAddTab={(tabId) => onUpdate({ ...node, tabs: [...node.tabs, tabId], activeTab: tabId })}
+        onAddTab={(tabId) => {
+          // Already in this pane — just activate
+          if (node.tabs.includes(tabId)) {
+            onUpdate({ ...node, activeTab: tabId });
+            return;
+          }
+          onUpdate({ ...node, tabs: [...node.tabs, tabId], activeTab: tabId });
+        }}
         onCloseTab={(tabId) => {
           const newTabs = node.tabs.filter((t) => t !== tabId);
           // Signal removal when last tab is closed (cleanupTree handles collapse)
@@ -346,6 +378,7 @@ function LayoutNode({ node, onUpdate, vizComponents }) {
       node={node}
       onUpdate={onUpdate}
       vizComponents={vizComponents}
+      allDockedTabs={allDockedTabs}
     />
   );
 }
@@ -372,6 +405,13 @@ function countPanes(node) {
   if (!node) return 0;
   if (!node.children) return 1;
   return countPanes(node.children[0]) + countPanes(node.children[1]);
+}
+
+/** Collect all tab IDs from every leaf pane */
+function collectAllTabs(node) {
+  if (!node) return [];
+  if (!node.children) return node.tabs || [];
+  return [...collectAllTabs(node.children[0]), ...collectAllTabs(node.children[1])];
 }
 
 const MAX_PANES = 4;
@@ -458,6 +498,7 @@ export default function DockedLayout({ vizComponents }) {
         <LayoutNode
           node={dockedLayout}
           vizComponents={vizComponents}
+          allDockedTabs={collectAllTabs(dockedLayout)}
           onUpdate={handleUpdate}
         />
       </div>

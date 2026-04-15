@@ -151,7 +151,7 @@ export default function StrategySimulator() {
 
   return (
     <Panel title="Strategy Simulator">
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'hidden' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
 
           {/* ── Driver Selector ── */}

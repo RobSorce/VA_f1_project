@@ -80,7 +80,7 @@ export default function RaceControlFeed() {
       {messages.length === 0 ? (
         <div style={{ color: '#555', fontSize: 11 }}>No race control messages</div>
       ) : (
-        <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ maxHeight: 120, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {messages.map((msg, i) => (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', gap: 6,

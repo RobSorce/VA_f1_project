@@ -177,6 +177,7 @@ export function extractRaceSituationFeatures({
     driverFeatures[driver] = {
       position, gapToLeader, recentPace, paceTrend,
       tyreLife, compoundName, compoundNum, stintNumber,
+      pitStops: Math.max(0, stintNumber - 1),
       predictedPace5, estLapsToPit, positionTrend,
     };
   }

@@ -99,6 +99,7 @@ export default function DriverComparePanel() {
   const totalFrames = useF1Store((s) => s.totalFrames);
   const driversList = useF1Store((s) => s.drivers);
   const speedUnit = useF1Store((s) => s.speedUnit);
+  const lstmPredictions = useF1Store((s) => s.lstmPredictions);
 
   const panelRef = useRef(null);
   const gapChartRef = useRef(null);
@@ -365,6 +366,15 @@ export default function DriverComparePanel() {
     g.append('text').attr('x', w / 2).attr('y', -6)
       .attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', '10px')
       .attr('text-anchor', 'middle').attr('font-weight', '600').text('Gap Evolution');
+    // Axis labels
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('x', w / 2).attr('y', h + 24)
+      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('font-weight', 600).text('Lap');
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('transform', 'rotate(-90)').attr('x', -h / 2).attr('y', -40)
+      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('font-weight', 600).text('Gap (s)');
 
     // Clean up axis lines
     svg.selectAll('.domain').attr('stroke', 'rgba(255,255,255,0.1)');
@@ -420,6 +430,30 @@ export default function DriverComparePanel() {
         .attr('r', 3).attr('fill', colorB).attr('stroke', '#fff').attr('stroke-width', 1);
     });
 
+    // LSTM prediction overlay (dashed lines for next 3 laps)
+    [{ drv: driverA, color: colorA, laps: racingA },
+     { drv: driverB, color: colorB, laps: racingB }].forEach(({ drv, color, laps }) => {
+      const pred = lstmPredictions?.[drv] || lstmPredictions?.driver_predictions?.[drv];
+      if (!pred?.predicted_times?.length || laps.length === 0) return;
+      const lastLap = laps[laps.length - 1];
+      const predPoints = [{ LapNumber: lastLap.LapNumber, LapTimeSeconds: lastLap.LapTimeSeconds }];
+      pred.predicted_times.slice(0, 3).forEach((t, i) => {
+        if (t > 0 && t < 300) {
+          predPoints.push({ LapNumber: lastLap.LapNumber + i + 1, LapTimeSeconds: t });
+        }
+      });
+      if (predPoints.length > 1) {
+        const predLine = d3.line().x((d) => x(d.LapNumber)).y((d) => y(d.LapTimeSeconds)).curve(d3.curveMonotoneX);
+        g.append('path').datum(predPoints).attr('d', predLine)
+          .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5)
+          .attr('stroke-dasharray', '4,3').attr('opacity', 0.6);
+        predPoints.slice(1).forEach((pt) => {
+          g.append('circle').attr('cx', x(pt.LapNumber)).attr('cy', y(pt.LapTimeSeconds))
+            .attr('r', 2).attr('fill', color).attr('opacity', 0.5).attr('stroke', 'none');
+        });
+      }
+    });
+
     // Axes
     g.append('g').attr('transform', `translate(0,${h})`).call(d3.axisBottom(x).ticks(Math.min(currentLap, 10)).tickFormat(d3.format('d')))
       .selectAll('text').attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', '9px');
@@ -440,10 +474,19 @@ export default function DriverComparePanel() {
     g.append('text').attr('x', w / 2).attr('y', -6)
       .attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', '10px')
       .attr('text-anchor', 'middle').attr('font-weight', '600').text('Lap Times');
+    // Axis labels
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('x', w / 2).attr('y', h + 24)
+      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('font-weight', 600).text('Lap');
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('transform', 'rotate(-90)').attr('x', -h / 2).attr('y', -40)
+      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('font-weight', 600).text('Time (s)');
 
     svg.selectAll('.domain').attr('stroke', 'rgba(255,255,255,0.1)');
     svg.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.08)');
-  }, [racingA, racingB, lapsA, lapsB, driverA, driverB, colorA, colorB, currentLap]);
+  }, [racingA, racingB, lapsA, lapsB, driverA, driverB, colorA, colorB, currentLap, lstmPredictions]);
 
   // ── Empty state ──
   if (!driverA || !driverB) {

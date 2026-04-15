@@ -198,7 +198,7 @@
   z-index: 10;
   pointer-events: none;
   max-width: calc(100% - 20px);
-  overflow-x: auto;
+  overflow: hidden;
 }
 
 .track-telemetry-hud {
@@ -466,7 +466,7 @@
   stroke-dasharray: 4, 2;
 }
 
-.stint-bar--tsne-ghost {
+.stint-bar--pca-ghost {
   opacity: 0.35;
   stroke: rgba(255, 255, 255, 0.4);
   stroke-width: 1;
@@ -479,27 +479,27 @@
 }
 
 /* --------------------------------------------------------------------------
-   t-SNE Scatterplot
+   PCA Scatterplot
    -------------------------------------------------------------------------- */
-.tsne-point {
+.pca-point {
   cursor: pointer;
   transition: opacity 300ms ease, transform 300ms ease;
 }
 
-.tsne-point:hover {
+.pca-point:hover {
   opacity: 1 !important;
 }
 
-.tsne-point.selected {
+.pca-point.selected {
   stroke: #fff;
   stroke-width: 2;
 }
 
-.tsne-point.dimmed {
+.pca-point.dimmed {
   opacity: 0.15;
 }
 
-.tsne-point--current {
+.pca-point--current {
   stroke: #fff;
   stroke-width: 1.5;
 }
@@ -1024,6 +1024,51 @@
   font-weight: 600;
 }
 
+/* ── PIT column mode ─────────────────────────────────────────────────── */
+.tower-col-value--pit-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.tower-pit-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: rgba(255, 255, 255, 0.9);
+  font-variant-numeric: tabular-nums;
+}
+
+.tower-pit-label {
+  font-size: 7px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.03em;
+}
+
+.tower-grid-delta {
+  font-size: 9px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  min-width: 18px;
+  text-align: center;
+}
+
+.tower-grid-delta--up {
+  color: #22c55e;
+}
+
+.tower-grid-delta--down {
+  color: #ef4444;
+}
+
+.tower-grid-delta--same {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 8px;
+}
+
 /* ── Tyre compound dot (far right) ──────────────────────────────────── */
 .tower-row__tyre-dot {
   width: 16px;
@@ -1068,6 +1113,23 @@
   border-radius: 2px;
   line-height: 1.4;
   vertical-align: middle;
+}
+
+/* ── Battle indicator ─────────────────────────────────────────────── */
+.tower-row--battle {
+  background: rgba(255, 140, 0, 0.06) !important;
+}
+
+.tower-row__battle-badge {
+  font-size: 8px;
+  margin-left: 3px;
+  color: #ff8c00;
+  animation: battle-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes battle-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 .tower-row__pos--retired {
@@ -1348,7 +1410,7 @@
 
 .strategy-console__body {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -1834,12 +1896,12 @@
   stroke: rgba(0, 0, 0, 0.06);
 }
 
-/* ── t-SNE Scatterplot ─────────────────────────────────────────────── */
-[data-theme="light"] .tsne-point--current {
+/* ── PCA Scatterplot ─────────────────────────────────────────────── */
+[data-theme="light"] .pca-point--current {
   stroke: #000;
 }
 
-[data-theme="light"] .tsne-point.selected {
+[data-theme="light"] .pca-point.selected {
   stroke: #000;
 }
 
@@ -1904,5 +1966,270 @@
 
 [data-theme="light"] .grid line {
   stroke: rgba(0, 0, 0, 0.06);
+}
+
+/* ==========================================================================
+   Speed Trace chart — toggle and playhead
+   ========================================================================== */
+
+.lap-chart-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  font-family: var(--font-display, inherit);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.lap-chart-mode-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.lap-chart-mode-toggle--active {
+  background: rgba(225, 6, 0, 0.15);
+  border-color: rgba(225, 6, 0, 0.4);
+  color: #ff6b6b;
+}
+
+.lap-chart-mode-toggle--active:hover {
+  background: rgba(225, 6, 0, 0.22);
+}
+
+.speed-playhead-badge {
+  pointer-events: none;
+}
+
+.speed-trace-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.04em;
+}
+
+/* Light theme */
+[data-theme="light"] .lap-chart-mode-toggle {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] .lap-chart-mode-toggle:hover {
+  background: rgba(0, 0, 0, 0.09);
+  color: rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="light"] .lap-chart-mode-toggle--active {
+  background: rgba(225, 6, 0, 0.08);
+  border-color: rgba(225, 6, 0, 0.3);
+  color: #c00;
+}
+
+/* ==========================================================================
+   Position By Lap Chart
+   ========================================================================== */
+
+/* Toggle buttons in header */
+.pos-chart-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.pos-chart-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.pos-chart-toggle--active {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #22c55e;
+}
+
+/* Brush clear badge */
+.pos-chart-clear-brush {
+  background: rgba(225, 6, 0, 0.12);
+  border: 1px solid rgba(225, 6, 0, 0.35);
+  border-radius: 4px;
+  color: #ff6b6b;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pos-chart-clear-brush:hover {
+  background: rgba(225, 6, 0, 0.2);
+}
+
+/* D3 brush styling */
+.pos-chart__brush .selection {
+  fill: rgba(225, 6, 0, 0.07);
+  stroke: rgba(225, 6, 0, 0.35);
+  stroke-width: 1;
+}
+
+.pos-chart__brush .handle {
+  fill: rgba(225, 6, 0, 0.5);
+  stroke: none;
+  rx: 2;
+}
+
+/* Undercut band */
+.pos-undercut-band {
+  pointer-events: none;
+}
+
+.pos-undercut-label {
+  pointer-events: none;
+  fill: #22c55e;
+  font-family: var(--font-mono, monospace);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Projected line */
+.pos-projection-label {
+  font-family: var(--font-display, inherit);
+  font-size: 9px;
+  font-style: italic;
+  font-weight: 600;
+}
+
+/* Driver end-labels */
+.pos-driver-label {
+  font-family: var(--font-display, inherit);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+
+/* Legend */
+.pos-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pos-chart-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pos-chart-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pos-chart-legend__dash {
+  width: 14px;
+  height: 2px;
+  border-top: 2px dashed;
+  flex-shrink: 0;
+}
+
+/* Tooltip */
+.pos-chart-tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: rgba(10, 10, 25, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 1000;
+  min-width: 140px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.pos-chart-tooltip__driver {
+  font-family: var(--font-display, inherit);
+  font-weight: 800;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.pos-chart-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 2px;
+}
+
+.pos-chart-tooltip__row span:last-child {
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 600;
+}
+
+/* Light theme */
+[data-theme="light"] .pos-chart-toggle {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] .pos-chart-toggle--active {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #16a34a;
+}
+
+[data-theme="light"] .pos-chart-tooltip {
+  background: rgba(250, 250, 255, 0.96);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.85);
 }
 

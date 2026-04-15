@@ -24,6 +24,7 @@ const StrategyAnalysis   = lazy(() => import('../components/visualizations/Strat
 const RacePaceGrid       = lazy(() => import('../components/visualizations/RacePaceGrid'));
 const SpeedPanel         = lazy(() => import('../components/visualizations/SpeedPanel'));
 const StrategySimulator  = lazy(() => import('../components/visualizations/StrategySimulator'));
+const PositionByLap      = lazy(() => import('../components/visualizations/PositionByLap'));
 const SettingsTabContent = lazy(() => import('../components/tabs/SettingsTabContent'));
 
 export const SLOT_OPTIONS = [
@@ -46,6 +47,7 @@ export const SLOT_OPTIONS = [
   { id: 'analysis',       label: 'Strategy Analysis',    component: StrategyAnalysis },
   { id: 'racepace',       label: 'Race Pace Grid',       component: RacePaceGrid },
   { id: 'simulator',      label: 'Strategy Simulator',   component: StrategySimulator },
+  { id: 'positionlaps',   label: 'Position Tracker',     component: PositionByLap },
   { id: 'settings',       label: 'Settings',             component: SettingsTabContent },
 ];
 

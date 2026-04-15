@@ -73,17 +73,31 @@ export const WINDOW_PRESETS = {
   },
   prediction: {
     label: 'Prediction',
-    description: 'Race Prediction + AI Assistant',
+    description: 'Position Tracker + Race Prediction + AI Assistant',
     dockedLayout: {
-      direction: 'horizontal', ratio: 0.5,
+      direction: 'horizontal', ratio: 0.55,
       children: [
-        { tabs: ['prediction'], activeTab: 'prediction' },
-        { tabs: ['ai'], activeTab: 'ai' },
+        {
+          direction: 'vertical', ratio: 0.55,
+          children: [
+            { tabs: ['positionlaps'], activeTab: 'positionlaps' },
+            { tabs: ['laptimes'], activeTab: 'laptimes' },
+          ],
+        },
+        {
+          direction: 'vertical', ratio: 0.5,
+          children: [
+            { tabs: ['prediction'], activeTab: 'prediction' },
+            { tabs: ['ai'], activeTab: 'ai' },
+          ],
+        },
       ],
     },
     windows: [
-      { id: 'prediction', position: { left: '0%', top: '0%', width: '50%', height: '100%' } },
-      { id: 'ai',         position: { left: '50%', top: '0%', width: '50%', height: '100%' } },
+      { id: 'positionlaps', position: { left: '0%', top: '0%', width: '55%', height: '55%' } },
+      { id: 'laptimes',     position: { left: '0%', top: '55%', width: '55%', height: '45%' } },
+      { id: 'prediction',   position: { left: '55%', top: '0%', width: '45%', height: '50%' } },
+      { id: 'ai',           position: { left: '55%', top: '50%', width: '45%', height: '50%' } },
     ],
   },
   overview: {

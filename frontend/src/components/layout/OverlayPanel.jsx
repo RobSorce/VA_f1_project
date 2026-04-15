@@ -233,7 +233,7 @@ export default function OverlayPanel({ title, tabId, children }) {
       </div>
       {!isPositioned && (
         <>
-          {/* Edge handles */}
+          {/* Edge handles — inside panel boundary for overflow:hidden compat */}
           <div className="overlay-panel__edge overlay-panel__edge--n" onMouseDown={(e) => handleResizeStart('n', e)} />
           <div className="overlay-panel__edge overlay-panel__edge--s" onMouseDown={(e) => handleResizeStart('s', e)} />
           <div className="overlay-panel__edge overlay-panel__edge--w" onMouseDown={(e) => handleResizeStart('w', e)} />

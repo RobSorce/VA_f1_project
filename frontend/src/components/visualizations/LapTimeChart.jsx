@@ -1,4 +1,5 @@
-import React, { useMemo, useCallback, useState, useRef } from 'react';
+import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
+import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS, countryFlag } from '../../utils/colors';
 import Panel from '../ui/Panel';
@@ -70,6 +71,15 @@ function fmtGap(gap) {
 }
 
 export default function LapTimeChart() {
+  const timingContainerRef = useRef(null);
+  const speedSvgRef = useRef(null);
+  const speedDataRef = useRef(null);
+
+  const [chartMode, setChartMode] = useState('laptimes'); // 'laptimes' | 'speed'
+  const [speedData, setSpeedData] = useState(null);       // { driver, distance[], speed[] }[]
+  const [speedLoading, setSpeedLoading] = useState(false);
+  const [playheadX, setPlayheadX] = useState(null);       // pixel X position
+
   const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
@@ -88,6 +98,10 @@ export default function LapTimeChart() {
   const currentTime = useF1Store((s) => s.currentTime);
   const drivers = useF1Store((s) => s.drivers);
   const maxLap = useF1Store((s) => s.maxLap);
+  const lstmPredictions = useF1Store((s) => s.lstmPredictions);
+  const fetchDriverTelemetry = useF1Store((s) => s.fetchDriverTelemetry);
+  const setTrackProgress = useF1Store((s) => s.setTrackProgress);
+  const brushLapRange = useF1Store((s) => s.brushLapRange);
 
   const sessionType = useF1Store((s) => s.sessionType);
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
@@ -217,14 +231,263 @@ export default function LapTimeChart() {
     return TIME_COLORS.normal;
   }, []);
 
+  /* ── Speed Trace: fetch telemetry when mode is 'speed' ─────── */
+  useEffect(() => {
+    if (chartMode !== 'speed' || !focusDriver || !sessionData) return;
+
+    const driverLaps = lapTimes.filter(d =>
+      d.Driver === focusDriver && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300 && d.LapNumber <= currentLap
+    );
+    if (!driverLaps.length) return;
+    const latestLap = Math.max(...driverLaps.map(d => d.LapNumber));
+
+    const driversToFetch = [focusDriver, ...selectedDrivers.filter(d => d !== focusDriver).slice(0, 2)];
+
+    setSpeedLoading(true);
+    Promise.all(
+      driversToFetch.map(driver =>
+        fetchDriverTelemetry(driver, latestLap)
+          .then(telemetry => {
+            if (!telemetry?.length) return null;
+            return {
+              driver,
+              distance: telemetry.map(t => t.Distance),
+              speed: telemetry.map(t => t.Speed),
+            };
+          })
+          .catch(() => null)
+      )
+    ).then(results => {
+      const valid = results.filter(Boolean);
+      setSpeedData(valid);
+      speedDataRef.current = valid;
+      setSpeedLoading(false);
+    });
+  }, [chartMode, focusDriver, selectedDrivers, sessionData, lapTimes, currentLap, fetchDriverTelemetry]);
+
+  /* ── Speed Trace: D3 render ────────────────────────────────── */
+  useEffect(() => {
+    if (chartMode !== 'speed' || !speedData?.length || !speedSvgRef.current) return;
+
+    const container = speedSvgRef.current.parentElement;
+    const { width: W, height: H } = container.getBoundingClientRect();
+    if (W < 80 || H < 60) return;
+
+    const margin = { top: 20, right: 16, bottom: 30, left: 48 };
+    const innerW = W - margin.left - margin.right;
+    const innerH = H - margin.top - margin.bottom;
+
+    const svg = d3.select(speedSvgRef.current);
+    svg.selectAll('*').remove();
+    svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const maxDistance = d3.max(speedData, d => d3.max(d.distance)) || 5000;
+    const maxSpeed = d3.max(speedData, d => d3.max(d.speed)) || 350;
+
+    const xScale = d3.scaleLinear().domain([0, maxDistance]).range([0, innerW]);
+    const yScale = d3.scaleLinear().domain([0, maxSpeed * 1.08]).range([innerH, 0]);
+
+    // Grid lines
+    g.append('g')
+      .call(d3.axisLeft(yScale).ticks(6).tickSize(-innerW).tickFormat(''))
+      .attr('color', 'rgba(255,255,255,0.04)')
+      .select('.domain').remove();
+
+    // X axis
+    g.append('g')
+      .attr('transform', `translate(0,${innerH})`)
+      .call(d3.axisBottom(xScale).ticks(8).tickFormat(d => `${Math.round(d)}m`))
+      .attr('color', 'rgba(255,255,255,0.4)')
+      .selectAll('text')
+      .style('font-size', '8px')
+      .attr('fill', 'rgba(255,255,255,0.4)');
+
+    // X axis label
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('x', innerW / 2).attr('y', innerH + margin.bottom - 4)
+      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('font-weight', 600).text('Distance (m)');
+
+    // Y axis
+    g.append('g')
+      .call(d3.axisLeft(yScale).ticks(6).tickFormat(d => `${Math.round(d)}`))
+      .attr('color', 'rgba(255,255,255,0.4)')
+      .selectAll('text')
+      .style('font-size', '8px')
+      .attr('fill', 'rgba(255,255,255,0.4)');
+
+    // Y axis label
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('transform', `rotate(-90)`)
+      .attr('x', -innerH / 2).attr('y', -margin.left + 12)
+      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('font-weight', 600).text('Speed (km/h)');
+
+    // Speed lines
+    const line = d3.line().defined(d => d[1] > 0).curve(d3.curveMonotoneX);
+
+    speedData.forEach((driverData) => {
+      const isFocus = driverData.driver === focusDriver;
+      const color = getDriverColor(driverData.driver);
+      const points = driverData.distance.map((dist, i) => [xScale(dist), yScale(driverData.speed[i])]);
+
+      g.append('path')
+        .datum(points)
+        .attr('d', line)
+        .attr('fill', 'none')
+        .attr('stroke', color)
+        .attr('stroke-width', isFocus ? 2.5 : 1.5)
+        .attr('opacity', isFocus ? 1 : 0.4);
+
+      // Driver label at end of line
+      if (points.length > 0) {
+        const lastPt = points[points.length - 1];
+        g.append('text')
+          .attr('x', lastPt[0] - 4)
+          .attr('y', lastPt[1] - 6)
+          .attr('fill', color)
+          .attr('font-size', '8px')
+          .attr('font-weight', 700)
+          .attr('text-anchor', 'end')
+          .attr('opacity', isFocus ? 1 : 0.5)
+          .text(driverData.driver);
+      }
+    });
+
+    // Peak speed line for focus driver
+    const focusData = speedData.find(d => d.driver === focusDriver);
+    if (focusData) {
+      const peakSpeed = d3.max(focusData.speed);
+      if (peakSpeed) {
+        const peakY = yScale(peakSpeed);
+        g.append('line')
+          .attr('x1', 0).attr('x2', innerW)
+          .attr('y1', peakY).attr('y2', peakY)
+          .attr('stroke', 'rgba(255,255,255,0.25)')
+          .attr('stroke-dasharray', '4 3')
+          .attr('stroke-width', 1);
+        g.append('text')
+          .attr('x', innerW - 2).attr('y', peakY - 4)
+          .attr('text-anchor', 'end')
+          .attr('fill', 'rgba(255,255,255,0.6)')
+          .attr('font-size', '9px')
+          .attr('font-weight', 700)
+          .attr('font-family', "var(--font-mono, monospace)")
+          .text(`\u25B2 ${Math.round(peakSpeed)} km/h`);
+      }
+    }
+
+    // Playhead group
+    const playheadG = g.append('g').attr('class', 'speed-playhead').style('display', 'none');
+    playheadG.append('line')
+      .attr('y1', 0).attr('y2', innerH)
+      .attr('stroke', '#fff').attr('stroke-width', 1)
+      .attr('stroke-dasharray', '3 2').attr('opacity', 0.8);
+    playheadG.append('rect')
+      .attr('y', -16).attr('rx', 3).attr('ry', 3)
+      .attr('height', 14).attr('fill', 'rgba(10,10,30,0.9)')
+      .attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 0.5);
+    playheadG.append('text')
+      .attr('y', -6).attr('fill', '#fff')
+      .attr('font-size', '9px').attr('font-weight', 700)
+      .attr('font-family', "var(--font-mono, monospace)")
+      .attr('text-anchor', 'middle');
+
+    // Store refs for mouse handler
+    svg._scales = { xScale, yScale, margin, innerW, innerH, maxDistance };
+    svg._playheadG = playheadG;
+
+    // Mouse interaction
+    const hitArea = g.append('rect')
+      .attr('width', innerW).attr('height', innerH)
+      .attr('fill', 'transparent').attr('cursor', 'crosshair');
+
+    hitArea
+      .on('mousemove', function (event) {
+        const [mx] = d3.pointer(event);
+        const dist = xScale.invert(mx);
+        const fraction = Math.max(0, Math.min(1, dist / maxDistance));
+        setTrackProgress(fraction);
+
+        // Find nearest speed for focus driver
+        const fd = speedDataRef.current?.find(d => d.driver === focusDriver);
+        if (!fd) return;
+        let nearIdx = 0;
+        let minDiff = Infinity;
+        for (let i = 0; i < fd.distance.length; i++) {
+          const diff = Math.abs(fd.distance[i] - dist);
+          if (diff < minDiff) { minDiff = diff; nearIdx = i; }
+        }
+        const spd = fd.speed[nearIdx];
+        const px = xScale(fd.distance[nearIdx]);
+
+        playheadG.style('display', null);
+        playheadG.attr('transform', `translate(${px},0)`);
+        playheadG.select('line').attr('y2', innerH);
+        const label = `${Math.round(spd)} km/h`;
+        const txt = playheadG.select('text').text(label);
+        const txtLen = txt.node().getComputedTextLength();
+        playheadG.select('rect')
+          .attr('x', -txtLen / 2 - 5)
+          .attr('width', txtLen + 10);
+        txt.attr('x', 0);
+      })
+      .on('mouseleave', function () {
+        playheadG.style('display', 'none');
+        setTrackProgress(null);
+      });
+
+  }, [chartMode, speedData, focusDriver, setTrackProgress]);
+
+  /* ── Speed Trace: replay sync ──────────────────────────────── */
+  useEffect(() => {
+    if (chartMode !== 'speed' || !replayActive) return;
+    if (!speedData?.length || !speedSvgRef.current) return;
+    const svg = d3.select(speedSvgRef.current);
+    const scales = svg._scales;
+    const playheadG = svg._playheadG;
+    if (!scales || !playheadG) return;
+
+    // Estimate fraction from currentFrameIndex / totalFrames
+    const fraction = totalFrames > 0 ? currentFrameIndex / totalFrames : 0;
+    setTrackProgress(fraction);
+
+    const dist = fraction * scales.maxDistance;
+    const px = scales.xScale(dist);
+
+    const fd = speedDataRef.current?.find(d => d.driver === focusDriver);
+    if (!fd) return;
+    let nearIdx = 0;
+    let minDiff = Infinity;
+    for (let i = 0; i < fd.distance.length; i++) {
+      const diff = Math.abs(fd.distance[i] - dist);
+      if (diff < minDiff) { minDiff = diff; nearIdx = i; }
+    }
+    const spd = fd.speed[nearIdx];
+
+    playheadG.style('display', null);
+    playheadG.attr('transform', `translate(${px},0)`);
+    const label = `${Math.round(spd)} km/h`;
+    const txt = playheadG.select('text').text(label);
+    const txtLen = txt.node().getComputedTextLength();
+    playheadG.select('rect')
+      .attr('x', -txtLen / 2 - 5)
+      .attr('width', txtLen + 10);
+  }, [chartMode, replayActive, currentFrameIndex, totalFrames, speedData, focusDriver, setTrackProgress]);
+
   /* ── Build timing rows for current lap ──────────────────────── */
   const timingRows = useMemo(() => {
     if (lapTimes.length === 0) return [];
 
     const effectiveLap = replayActive ? currentLap : Infinity;
+    // When brushLapRange is set from PositionByLap, restrict to that window
+    const brushMin = brushLapRange ? brushLapRange[0] : 0;
+    const brushMax = brushLapRange ? brushLapRange[1] : Infinity;
     const drivers = new Map();
     lapTimes
-      .filter((d) => d.LapNumber <= effectiveLap)
+      .filter((d) => d.LapNumber <= effectiveLap && d.LapNumber >= brushMin && d.LapNumber <= brushMax)
       .forEach((d) => {
         // During replay: skip laps the driver hasn't started yet
         if (replayActive && hasTimeOffset && d.LapStartTime > 0 && currentTime < d.LapStartTime - sessionTimeOffset) return;
@@ -317,7 +580,7 @@ export default function LapTimeChart() {
         if (!a.isRetired && b.isRetired) return -1;
         return (a.pos || 99) - (b.pos || 99);
       });
-  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, sessionBests, getTimeColor, dnfMap, replayActive, hasTimeOffset, driverInfoMap, qualiSegmentMap]);
+  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, sessionBests, getTimeColor, dnfMap, replayActive, hasTimeOffset, driverInfoMap, qualiSegmentMap, brushLapRange]);
 
   /* ── All drivers shown; qualifying filter applied if active ── */
   const displayRows = useMemo(() => {
@@ -361,6 +624,27 @@ export default function LapTimeChart() {
     document.body.style.userSelect = 'none';
   }, []);
 
+  /* ── Dynamic row sizing based on available height ──────────── */
+  const [timingHeight, setTimingHeight] = useState(500);
+  useEffect(() => {
+    if (!timingContainerRef.current) return;
+    const obs = new ResizeObserver((entries) => {
+      const h = entries[0].contentRect.height;
+      if (h > 0) setTimingHeight(h);
+    });
+    obs.observe(timingContainerRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  const rowCount = displayRows.length || 20;
+  const rowBudget = rowCount > 0 ? timingHeight / rowCount : 28;
+  // Row padding: shrink from 2px to 0px as space gets tight
+  const rowPadV = Math.max(0, Math.min(2, Math.floor((rowBudget - 18) / 2)));
+  // Font sizes: shrink when rows are very tight
+  const compactTiming = rowBudget < 22;
+  const rowFontSize = compactTiming ? '9px' : '10px';
+  const rowLapFontSize = compactTiming ? '9px' : '11px';
+
   /* ── Render ─────────────────────────────────────────────────── */
   const headerStyle = {
     display: 'grid',
@@ -383,13 +667,20 @@ export default function LapTimeChart() {
     alignItems: 'center',
     justifyContent: 'flex-end',
     fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-    fontSize: '10px',
+    fontSize: rowFontSize,
     fontVariantNumeric: 'tabular-nums',
     whiteSpace: 'nowrap',
   };
 
   const controls = (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '9px' }}>
+      <button
+        className={`lap-chart-mode-toggle${chartMode === 'speed' ? ' lap-chart-mode-toggle--active' : ''}`}
+        onClick={() => setChartMode(m => m === 'laptimes' ? 'speed' : 'laptimes')}
+        title={chartMode === 'laptimes' ? 'Switch to Speed Trace' : 'Switch to Lap Times'}
+      >
+        {chartMode === 'laptimes' ? '\u26A1 SPEED' : '\u23F1 TIMES'}
+      </button>
       {isQualifying && (
         <>
           {['ALL', 'Q1', 'Q2', 'Q3'].map((seg) => (
@@ -422,8 +713,27 @@ export default function LapTimeChart() {
     </div>
   );
 
+  const brushTitle = brushLapRange
+    ? `Timing Sheet  (LAP ${brushLapRange[0]}–${brushLapRange[1]})`
+    : 'Timing Sheet';
+
   return (
-    <Panel title="Timing Sheet" controls={controls} focused={focusedView === 'laptimes'} shortcutKey="2">
+    <Panel title={brushTitle} controls={controls} focused={focusedView === 'laptimes'} shortcutKey="2" style={brushLapRange ? { borderColor: 'rgba(225,6,0,0.35)' } : undefined}>
+      {chartMode === 'speed' ? (
+        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+          {speedLoading && !speedData?.length && (
+            <div className="speed-trace-loading">Loading telemetry\u2026</div>
+          )}
+          {!focusDriver && !speedLoading && (
+            <div className="speed-trace-loading">Double-click a driver to see speed trace</div>
+          )}
+          <svg
+            ref={speedSvgRef}
+            style={{ width: '100%', height: '100%', display: 'block' }}
+          />
+        </div>
+      ) : (
+      <>
       {/* Column headers with drag-to-resize handles */}
       <div style={headerStyle}>
         {COLUMN_DEFS.map((col, i) => (
@@ -461,10 +771,9 @@ export default function LapTimeChart() {
       </div>
 
       {/* Timing rows */}
-      <div style={{
+      <div ref={timingContainerRef} style={{
         flex: 1,
-        overflowY: 'auto',
-        overflowX: 'hidden',
+        overflow: 'hidden',
         minHeight: 0,
       }}>
         {displayRows.length === 0 && (
@@ -487,7 +796,7 @@ export default function LapTimeChart() {
                 display: 'grid',
                 gridTemplateColumns: gridColumns,
                 gap: '2px',
-                padding: '3px 6px',
+                padding: `${rowPadV}px 6px`,
                 cursor: 'pointer',
                 borderBottom: '1px solid rgba(255,255,255,0.04)',
                 opacity: retiredOpacity,
@@ -518,7 +827,7 @@ export default function LapTimeChart() {
                 ...cellStyle,
                 justifyContent: 'center',
                 fontWeight: 800,
-                fontSize: row.isRetired ? '8px' : '11px',
+                fontSize: row.isRetired ? '8px' : rowLapFontSize,
                 color: row.isRetired ? '#e10600' : '#fff',
                 letterSpacing: row.isRetired ? '0.02em' : undefined,
               }}>
@@ -543,8 +852,8 @@ export default function LapTimeChart() {
                     src={row.teamLogo}
                     alt=""
                     style={{
-                      width: 20,
-                      height: 20,
+                      width: compactTiming ? 16 : 20,
+                      height: compactTiming ? 16 : 20,
                       objectFit: 'contain',
                       filter: 'brightness(1.1)',
                     }}
@@ -556,7 +865,7 @@ export default function LapTimeChart() {
               <span style={{
                 ...cellStyle,
                 justifyContent: 'flex-start',
-                fontSize: '10px',
+                fontSize: compactTiming ? '9px' : '10px',
                 color: '#fff',
                 fontFamily: "'Formula1', 'Titillium Web', sans-serif",
                 overflow: 'hidden',
@@ -619,7 +928,7 @@ export default function LapTimeChart() {
                 ...cellStyle,
                 color: row.isRetired ? 'rgba(255,255,255,0.35)' : row.isPit ? TIME_COLORS.pit : row.lapColor,
                 fontWeight: 700,
-                fontSize: row.isRetired ? '9px' : '11px',
+                fontSize: row.isRetired ? '9px' : rowLapFontSize,
               }}>
                 {row.isRetired ? row.retiredStatus : row.isPit ? 'PIT' : fmtTime(row.lapTime)}
               </span>
@@ -668,6 +977,154 @@ export default function LapTimeChart() {
             </div>
           );
         })}
+
+        {/* LSTM predicted rows — show predicted times as table rows */}
+        {focusDriver && lstmPredictions && (() => {
+          const pred = lstmPredictions[focusDriver] || lstmPredictions?.driver_predictions?.[focusDriver];
+          const predTimes = pred?.predicted_times?.filter((t) => t > 0 && t < 300) || [];
+          if (predTimes.length === 0) return null;
+
+          const focusRow = displayRows.find((r) => r.driver === focusDriver);
+          if (!focusRow) return null;
+
+          const pitProb = pred?.pit_probability;
+
+          return (
+            <>
+              {/* Prediction header separator */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '4px 8px',
+                background: 'rgba(245, 166, 35, 0.06)',
+                borderTop: '1px solid rgba(245, 166, 35, 0.15)',
+                borderBottom: '1px solid rgba(245, 166, 35, 0.08)',
+              }}>
+                <span style={{
+                  fontSize: '8px', fontWeight: 800, color: '#f5a623',
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                }}>LSTM Forecast</span>
+                <span style={{
+                  fontSize: '8px', color: 'rgba(255,255,255,0.35)',
+                }}>{focusDriver} — next {predTimes.length} laps</span>
+                {pitProb != null && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    fontSize: '8px', fontWeight: 700,
+                    padding: '1px 5px', borderRadius: 3,
+                    background: pitProb > 0.6 ? 'rgba(225,6,0,0.15)' : pitProb > 0.3 ? 'rgba(245,166,35,0.15)' : 'rgba(34,197,94,0.1)',
+                    color: pitProb > 0.6 ? '#e10600' : pitProb > 0.3 ? '#f5a623' : '#22c55e',
+                  }}>
+                    PIT {(pitProb * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
+
+              {/* Predicted lap rows */}
+              {predTimes.map((time, i) => {
+                const predLap = currentLap + i + 1;
+                // Compute delta vs last actual lap
+                const lastActualTime = focusRow.lapTime;
+                const delta = lastActualTime && lastActualTime > 0 ? time - lastActualTime : null;
+
+                return (
+                  <div
+                    key={`pred-${predLap}`}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: gridColumns,
+                      gap: '2px',
+                      padding: '3px 6px',
+                      borderBottom: '1px solid rgba(245, 166, 35, 0.06)',
+                      background: i % 2 === 0 ? 'rgba(245, 166, 35, 0.03)' : 'rgba(245, 166, 35, 0.015)',
+                    }}
+                  >
+                    {/* Position — show predicted lap number */}
+                    <span style={{
+                      ...cellStyle, justifyContent: 'center',
+                      fontWeight: 700, fontSize: '9px',
+                      color: '#f5a623', fontStyle: 'italic',
+                    }}>
+                      L{predLap}
+                    </span>
+
+                    {/* Team color bar */}
+                    <span style={{
+                      width: 3, alignSelf: 'stretch', borderRadius: 1.5,
+                      background: focusRow.color, opacity: 0.5,
+                    }} />
+
+                    {/* Team logo */}
+                    <span style={{ ...cellStyle, justifyContent: 'center' }}>
+                      {focusRow.teamLogo && (
+                        <img src={focusRow.teamLogo} alt="" style={{ width: 16, height: 16, objectFit: 'contain', opacity: 0.5 }} />
+                      )}
+                    </span>
+
+                    {/* Driver name */}
+                    <span style={{
+                      ...cellStyle, justifyContent: 'flex-start',
+                      fontSize: '9px', fontStyle: 'italic',
+                      color: 'rgba(245, 166, 35, 0.6)',
+                      fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+                    }}>
+                      <span style={{ fontWeight: 700 }}>{focusRow.surname}</span>
+                      <span style={{ fontSize: '7px', marginLeft: 4, color: 'rgba(245,166,35,0.35)' }}>predicted</span>
+                    </span>
+
+                    {/* S1 — empty for predicted */}
+                    <span style={{ ...cellStyle, color: 'rgba(255,255,255,0.15)', fontSize: '9px' }}>—</span>
+                    {/* S2 */}
+                    <span style={{ ...cellStyle, color: 'rgba(255,255,255,0.15)', fontSize: '9px' }}>—</span>
+                    {/* S3 */}
+                    <span style={{ ...cellStyle, color: 'rgba(255,255,255,0.15)', fontSize: '9px' }}>—</span>
+
+                    {/* Predicted Lap Time */}
+                    <span style={{
+                      ...cellStyle, fontWeight: 700, fontSize: '11px',
+                      color: '#f5a623', fontStyle: 'italic',
+                    }}>
+                      {fmtTime(time)}
+                    </span>
+
+                    {/* Delta vs last actual */}
+                    <span style={{
+                      ...cellStyle, fontSize: '9px',
+                      color: delta != null ? (delta > 0 ? '#e10600' : '#22c55e') : 'rgba(255,255,255,0.2)',
+                    }}>
+                      {delta != null ? (delta > 0 ? `+${delta.toFixed(3)}` : delta.toFixed(3)) : ''}
+                    </span>
+
+                    {/* Tyre — inherit from current */}
+                    <span style={{ ...cellStyle, justifyContent: 'center', gap: 3, opacity: 0.5 }}>
+                      <span style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: TYRE_COLORS[focusRow.compound] || '#888',
+                      }} />
+                    </span>
+
+                    {/* Tyre life — estimate */}
+                    <span style={{
+                      ...cellStyle, justifyContent: 'center',
+                      color: 'rgba(255,255,255,0.25)', fontSize: '9px', fontStyle: 'italic',
+                    }}>
+                      {focusRow.tyreLife + i + 1}
+                    </span>
+                  </div>
+                );
+              })}
+            </>
+          );
+        })()}
+
+        {/* LSTM forecast mini-chart for focused driver */}
+        {focusDriver && (
+          <LSTMForecastChart
+            focusDriver={focusDriver}
+            lstmPredictions={lstmPredictions}
+            lapTimes={lapTimes}
+            currentLap={currentLap}
+          />
+        )}
       </div>
 
       {/* Lap range brush bar */}
@@ -678,6 +1135,8 @@ export default function LapTimeChart() {
           selectedRange={selectedLapRange}
           onRangeChange={setSelectedLapRange}
         />
+      )}
+      </>
       )}
     </Panel>
   );
@@ -797,6 +1256,208 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
           }}>{l}</span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ── LSTM Forecast Mini-Chart: D3 pace trend + prediction overlay ── */
+function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap }) {
+  const svgRef = useRef(null);
+  const tooltipRef = useRef(null);
+
+  const pred = lstmPredictions?.[focusDriver] || lstmPredictions?.driver_predictions?.[focusDriver];
+  const predTimes = useMemo(() => {
+    if (!pred?.predicted_times?.length) return [];
+    return pred.predicted_times.slice(0, 5).filter((t) => t > 0 && t < 300);
+  }, [pred]);
+
+  // Recent racing laps for the focused driver (last 15 laps, no pit laps)
+  const recentLaps = useMemo(() => {
+    return lapTimes
+      .filter((d) => d.Driver === focusDriver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300 && !d.PitInTime && !d.PitOutTime)
+      .sort((a, b) => a.LapNumber - b.LapNumber)
+      .slice(-15);
+  }, [lapTimes, focusDriver, currentLap]);
+
+  useEffect(() => {
+    if (!svgRef.current || recentLaps.length < 2) return;
+    const container = svgRef.current.parentElement;
+    const { width: W } = container.getBoundingClientRect();
+    const H = 90;
+    const margin = { top: 14, right: 12, bottom: 18, left: 42 };
+    const w = W - margin.left - margin.right;
+    const h = H - margin.top - margin.bottom;
+    if (w < 40 || h < 20) return;
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+    svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+    const driverColor = getDriverColor(focusDriver);
+
+    // Build data points
+    const actualPoints = recentLaps.map((d) => ({ lap: d.LapNumber, time: d.LapTimeSeconds, type: 'actual' }));
+    const lastActual = actualPoints[actualPoints.length - 1];
+
+    const predPoints = predTimes.map((t, i) => ({ lap: lastActual.lap + i + 1, time: t, type: 'predicted' }));
+    // Connection point for seamless join
+    const connectionPoint = { lap: lastActual.lap, time: lastActual.time, type: 'predicted' };
+    const fullPredLine = [connectionPoint, ...predPoints];
+
+    const allPoints = [...actualPoints, ...predPoints];
+    const allTimes = allPoints.map((d) => d.time);
+    const yMin = d3.min(allTimes);
+    const yMax = d3.max(allTimes);
+    const yPad = (yMax - yMin) * 0.15 || 0.5;
+
+    const xScale = d3.scaleLinear()
+      .domain([actualPoints[0].lap, predPoints.length > 0 ? predPoints[predPoints.length - 1].lap : lastActual.lap])
+      .range([0, w]);
+    const yScale = d3.scaleLinear()
+      .domain([yMin - yPad, yMax + yPad])
+      .range([h, 0]);
+
+    // Grid lines
+    g.append('g').attr('transform', `translate(0,${h})`).call(
+      d3.axisBottom(xScale).ticks(Math.min(allPoints.length, 8)).tickSize(-h).tickFormat('')
+    ).selectAll('line').attr('stroke', 'rgba(255,255,255,0.04)');
+    g.selectAll('.domain').remove();
+
+    // Uncertainty band (±0.3s) around predictions
+    if (predPoints.length > 0) {
+      const uncertainty = d3.area()
+        .x((d) => xScale(d.lap))
+        .y0((d) => yScale(d.time + 0.3))
+        .y1((d) => yScale(d.time - 0.3))
+        .curve(d3.curveMonotoneX);
+      g.append('path')
+        .datum(predPoints)
+        .attr('d', uncertainty)
+        .attr('fill', driverColor)
+        .attr('opacity', 0.06);
+    }
+
+    // Vertical separator at forecast boundary
+    if (predPoints.length > 0) {
+      g.append('line')
+        .attr('x1', xScale(lastActual.lap)).attr('x2', xScale(lastActual.lap))
+        .attr('y1', 0).attr('y2', h)
+        .attr('stroke', 'rgba(255,255,255,0.12)').attr('stroke-dasharray', '2,2');
+    }
+
+    // Actual pace line (solid)
+    const line = d3.line().x((d) => xScale(d.lap)).y((d) => yScale(d.time)).curve(d3.curveMonotoneX);
+    g.append('path').datum(actualPoints).attr('d', line)
+      .attr('fill', 'none').attr('stroke', driverColor).attr('stroke-width', 1.8).attr('opacity', 0.9);
+
+    // Predicted pace line (dashed)
+    if (fullPredLine.length > 1) {
+      const predLine = d3.line().x((d) => xScale(d.lap)).y((d) => yScale(d.time)).curve(d3.curveMonotoneX);
+      g.append('path').datum(fullPredLine).attr('d', predLine)
+        .attr('fill', 'none').attr('stroke', driverColor).attr('stroke-width', 1.8)
+        .attr('stroke-dasharray', '6,4').attr('opacity', 0.7);
+    }
+
+    // Actual lap dots
+    g.selectAll('.actual-dot')
+      .data(actualPoints)
+      .join('circle')
+      .attr('cx', (d) => xScale(d.lap)).attr('cy', (d) => yScale(d.time))
+      .attr('r', 2).attr('fill', driverColor).attr('opacity', 0.6);
+
+    // Predicted lap dots (larger, with white stroke)
+    g.selectAll('.pred-dot')
+      .data(predPoints)
+      .join('circle')
+      .attr('cx', (d) => xScale(d.lap)).attr('cy', (d) => yScale(d.time))
+      .attr('r', 3.5).attr('fill', driverColor).attr('stroke', '#fff').attr('stroke-width', 1)
+      .attr('opacity', 0.8).style('cursor', 'pointer');
+
+    // Tooltip interaction on predicted dots
+    const tooltip = tooltipRef.current;
+    g.selectAll('.pred-dot')
+      .on('mouseenter', function (event, d) {
+        if (!tooltip) return;
+        const mins = Math.floor(d.time / 60);
+        const secs = (d.time % 60).toFixed(3);
+        const timeStr = mins > 0 ? `${mins}:${secs.padStart(6, '0')}` : secs;
+        tooltip.textContent = `L${d.lap}: ${timeStr}`;
+        tooltip.style.opacity = '1';
+        tooltip.style.left = `${event.offsetX + 8}px`;
+        tooltip.style.top = `${event.offsetY - 18}px`;
+      })
+      .on('mouseleave', function () {
+        if (tooltip) tooltip.style.opacity = '0';
+      });
+
+    // "LSTM Forecast" label
+    if (predPoints.length > 0) {
+      g.append('text')
+        .attr('x', xScale(predPoints[0].lap))
+        .attr('y', -4)
+        .attr('fill', driverColor)
+        .attr('font-size', '7px')
+        .attr('font-weight', 700)
+        .attr('opacity', 0.6)
+        .text('LSTM Forecast');
+    }
+
+    // Driver label + pit probability
+    g.append('text')
+      .attr('x', 0).attr('y', -4)
+      .attr('fill', driverColor)
+      .attr('font-size', '8px')
+      .attr('font-weight', 800)
+      .text(focusDriver);
+
+    if (pred?.pit_probability != null) {
+      const pitProb = pred.pit_probability;
+      g.append('text')
+        .attr('x', w).attr('y', -4)
+        .attr('text-anchor', 'end')
+        .attr('fill', pitProb > 0.5 ? '#f5a623' : 'rgba(255,255,255,0.35)')
+        .attr('font-size', '7px')
+        .attr('font-weight', 700)
+        .text(`PIT ${(pitProb * 100).toFixed(0)}%`);
+    }
+
+    // X-axis
+    g.append('g').attr('transform', `translate(0,${h})`).call(
+      d3.axisBottom(xScale).ticks(Math.min(allPoints.length, 8)).tickFormat(d3.format('d'))
+    ).selectAll('text').attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px');
+    g.selectAll('.domain').attr('stroke', 'rgba(255,255,255,0.06)');
+    g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)');
+
+    // Y-axis (time)
+    g.append('g').call(
+      d3.axisLeft(yScale).ticks(3).tickFormat((d) => {
+        const m = Math.floor(d / 60);
+        const s = (d % 60).toFixed(1);
+        return m > 0 ? `${m}:${s.padStart(4, '0')}` : s;
+      })
+    ).selectAll('text').attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px');
+  }, [recentLaps, predTimes, focusDriver, pred, currentLap]);
+
+  if (recentLaps.length < 2 && predTimes.length === 0) return null;
+
+  return (
+    <div style={{
+      flexShrink: 0,
+      borderTop: '1px solid rgba(255,255,255,0.08)',
+      background: 'rgba(15,15,35,0.5)',
+      position: 'relative',
+      height: 90,
+      overflow: 'hidden',
+    }}>
+      <div ref={tooltipRef} style={{
+        position: 'absolute', pointerEvents: 'none', opacity: 0,
+        background: 'rgba(10,10,25,0.9)', border: '1px solid rgba(255,255,255,0.15)',
+        borderRadius: 4, padding: '2px 6px', fontSize: '9px', color: '#f5a623',
+        fontWeight: 700, fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap',
+        zIndex: 5, transition: 'opacity 0.1s',
+      }} />
+      <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
     </div>
   );
 }

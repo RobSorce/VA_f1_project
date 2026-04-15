@@ -1,7 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
 import Panel from '../ui/Panel';
+
+/* ── Shared tab pill style helper ── */
+const tabPillStyle = (active) => ({
+  padding: '3px 8px', fontSize: '9px', fontWeight: 600,
+  borderRadius: 4, border: 'none', cursor: 'pointer',
+  background: active ? 'rgba(100,180,255,0.15)' : 'transparent',
+  color: active ? '#fff' : 'rgba(255,255,255,0.45)',
+  transition: 'background 0.12s, color 0.12s',
+});
 
 export default function StrategyAnalysis() {
   const raceSituationData = useF1Store((s) => s.raceSituationData);
@@ -11,6 +20,9 @@ export default function StrategyAnalysis() {
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const triggerLSTMPredictions = useF1Store((s) => s.triggerLSTMPredictions);
+
+  const [fieldTab, setFieldTab] = useState('overview');
+  const [clusterTab, setClusterTab] = useState('summary');
 
   const driverInfoMap = useMemo(() => {
     const map = {};
@@ -260,174 +272,225 @@ export default function StrategyAnalysis() {
     </div>
   );
 
+  /* ── Build field-mode tab definitions ── */
+  const fieldTabs = useMemo(() => {
+    if (!fieldOverview) return [];
+    const tabs = [{ id: 'overview', label: 'Overview' }];
+    if (fieldOverview.battles.length > 0 || raceProjection?.battles?.length > 0)
+      tabs.push({ id: 'battles', label: `Battles (${fieldOverview.battles.length})` });
+    if (fieldOverview.pitSoon.length > 0 || fieldOverview.degrading.length > 0 || fieldOverview.gainers.length > 0 || raceProjection?.risks?.length > 0)
+      tabs.push({ id: 'alerts', label: 'Alerts' });
+    return tabs;
+  }, [fieldOverview, raceProjection]);
+
+  /* ── Build cluster-mode tab definitions ── */
+  const clusterTabs = useMemo(() => {
+    if (!liveAnalysis) return [];
+    const tabs = [{ id: 'summary', label: 'Summary' }];
+    if (liveAnalysis.threats.length > 0)
+      tabs.push({ id: 'threats', label: `Threats (${liveAnalysis.threats.length})` });
+    if (liveAnalysis.insights.length > 0 || liveAnalysis.featureBars.length > 0)
+      tabs.push({ id: 'insights', label: 'Insights' });
+    if (liveAnalysis.drivers.length > 0)
+      tabs.push({ id: 'drivers', label: `Drivers (${liveAnalysis.drivers.length})` });
+    return tabs;
+  }, [liveAnalysis]);
+
   return (
     <Panel title="Race Analysis">
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
         {/* ══════════ FIELD OVERVIEW (no selection) ══════════ */}
 
         {fieldOverview && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-
-            {/* Compound distribution bar */}
-            <div style={{
-              background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)',
-            }}>
-              <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                Field Tyre Distribution
-              </h6>
-              <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 6 }}>
-                {Object.entries(fieldOverview.compoundCounts).sort((a, b) => b[1] - a[1]).map(([compound, count]) => (
-                  <div key={compound} style={{
-                    width: `${(count / fieldOverview.totalDrivers) * 100}%`,
-                    backgroundColor: TYRE_COLORS[compound] || '#888',
-                  }} />
+          <>
+            {/* Tab pills */}
+            {fieldTabs.length > 1 && (
+              <div style={{
+                display: 'flex', gap: 4, padding: '4px 8px', flexShrink: 0,
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+              }}>
+                {fieldTabs.map(s => (
+                  <button key={s.id} onClick={() => setFieldTab(s.id)} style={tabPillStyle(fieldTab === s.id)}>
+                    {s.label}
+                  </button>
                 ))}
-              </div>
-              <div style={{ display: 'flex', gap: 10, fontSize: '9px', color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
-                {Object.entries(fieldOverview.compoundCounts).sort((a, b) => b[1] - a[1]).map(([compound, count]) => (
-                  <span key={compound}>
-                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: TYRE_COLORS[compound] || '#888', marginRight: 3, verticalAlign: 'middle' }} />
-                    {compound} ({count})
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Key battles */}
-            {fieldOverview.battles.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Key Battles
-                </h6>
-                {fieldOverview.battles.map((t, i) => <BattleRow key={i} t={t} i={i} />)}
               </div>
             )}
 
-            {/* Pit stop alerts */}
-            {fieldOverview.pitSoon.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Pit Window Open
-                </h6>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {fieldOverview.pitSoon.map((d) => (
-                    <span key={d.abbr}
-                      onClick={() => { setFocusDriver(d.abbr); triggerLSTMPredictions(); }}
-                      style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                      padding: '3px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                      background: d.laps <= 2 ? 'rgba(225,6,0,0.12)' : 'rgba(255,215,0,0.10)',
-                      borderLeft: `2px solid ${d.laps <= 2 ? '#e10600' : '#ffd700'}`,
-                      fontSize: 'var(--font-size-xs)',
-                    }}>
-                      <strong style={{ color: getDriverColor(d.abbr) }}>{d.abbr}</strong>
-                      <span style={{ color: 'var(--color-text-muted)' }}>~{d.laps}L</span>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: TYRE_COLORS[d.compound] || '#888' }} />
-                    </span>
-                  ))}
+            {/* Tab content — takes all remaining space */}
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: 'var(--spacing-sm)' }}>
+
+              {fieldTab === 'overview' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                  {/* Compound distribution bar */}
+                  <div style={{
+                    background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)',
+                  }}>
+                    <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Field Tyre Distribution
+                    </h6>
+                    <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 6 }}>
+                      {Object.entries(fieldOverview.compoundCounts).sort((a, b) => b[1] - a[1]).map(([compound, count]) => (
+                        <div key={compound} style={{
+                          width: `${(count / fieldOverview.totalDrivers) * 100}%`,
+                          backgroundColor: TYRE_COLORS[compound] || '#888',
+                        }} />
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, fontSize: '9px', color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
+                      {Object.entries(fieldOverview.compoundCounts).sort((a, b) => b[1] - a[1]).map(([compound, count]) => (
+                        <span key={compound}>
+                          <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: TYRE_COLORS[compound] || '#888', marginRight: 3, verticalAlign: 'middle' }} />
+                          {compound} ({count})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '4px 0' }}>
+                    Select drivers on the map or leaderboard for detailed cluster analysis
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Degradation alerts */}
-            {fieldOverview.degrading.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Losing Pace
-                </h6>
-                {fieldOverview.degrading.map((d) => (
-                  <div key={d.abbr} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 'var(--font-size-xs)' }}>
-                    <strong style={{ color: getDriverColor(d.abbr), minWidth: 28 }}>{d.abbr}</strong>
-                    <span style={{ color: '#e10600' }}>+{d.trend.toFixed(2)}s/lap</span>
-                    <span style={{ color: 'var(--color-text-muted)' }}>
-                      <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: TYRE_COLORS[d.compound] || '#888', marginRight: 3, verticalAlign: 'middle' }} />
-                      {d.compound} L{d.tyreLife}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+              {fieldTab === 'battles' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                  {fieldOverview.battles.length > 0 && (
+                    <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                      <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        Key Battles
+                      </h6>
+                      {fieldOverview.battles.slice(0, 8).map((t, i) => <BattleRow key={i} t={t} i={i} />)}
+                    </div>
+                  )}
 
-            {/* Drivers gaining */}
-            {fieldOverview.gainers.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  On The Move
-                </h6>
-                {fieldOverview.gainers.map((d) => (
-                  <div key={d.abbr} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 'var(--font-size-xs)' }}>
-                    <strong style={{ color: getDriverColor(d.abbr), minWidth: 28 }}>{d.abbr}</strong>
-                    <span style={{ color: '#00e676', fontWeight: 700 }}>+{d.gained} positions</span>
-                  </div>
-                ))}
-              </div>
-            )}
+                  {raceProjection?.battles?.length > 0 && (
+                    <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                      <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        Projected Overtakes (Monte Carlo)
+                      </h6>
+                      {raceProjection.battles.slice(0, 8).map((b, i) => (
+                        <div key={i}
+                          onClick={() => setSelectedDrivers([b.behind, b.ahead])}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
+                            fontSize: 'var(--font-size-xs)', cursor: 'pointer', padding: '3px 4px',
+                            borderRadius: 'var(--radius-sm)', transition: 'background 0.12s',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <span style={{
+                            fontSize: '9px', fontWeight: 800, color: b.prob >= 50 ? '#00e676' : b.prob >= 25 ? '#ffd700' : 'var(--color-text-muted)',
+                            minWidth: 28,
+                          }}>
+                            {b.prob}%
+                          </span>
+                          <strong style={{ color: getDriverColor(b.behind) }}>{b.behind}</strong>
+                          <span style={{ color: 'var(--color-text-muted)', fontSize: '9px' }}>passes</span>
+                          <strong style={{ color: getDriverColor(b.ahead) }}>{b.ahead}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
-            {/* Monte Carlo projection battles */}
-            {raceProjection?.battles?.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Projected Overtakes (Monte Carlo)
-                </h6>
-                {raceProjection.battles.slice(0, 5).map((b, i) => (
-                  <div key={i}
-                    onClick={() => setSelectedDrivers([b.behind, b.ahead])}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
-                      fontSize: 'var(--font-size-xs)', cursor: 'pointer', padding: '3px 4px',
-                      borderRadius: 'var(--radius-sm)', transition: 'background 0.12s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <span style={{
-                      fontSize: '9px', fontWeight: 800, color: b.prob >= 50 ? '#00e676' : b.prob >= 25 ? '#ffd700' : 'var(--color-text-muted)',
-                      minWidth: 28,
-                    }}>
-                      {b.prob}%
-                    </span>
-                    <strong style={{ color: getDriverColor(b.behind) }}>{b.behind}</strong>
-                    <span style={{ color: 'var(--color-text-muted)', fontSize: '9px' }}>passes</span>
-                    <strong style={{ color: getDriverColor(b.ahead) }}>{b.ahead}</strong>
-                  </div>
-                ))}
-              </div>
-            )}
+              {fieldTab === 'alerts' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                  {/* Pit stop alerts */}
+                  {fieldOverview.pitSoon.length > 0 && (
+                    <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                      <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        Pit Window Open
+                      </h6>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {fieldOverview.pitSoon.map((d) => (
+                          <span key={d.abbr}
+                            onClick={() => { setFocusDriver(d.abbr); triggerLSTMPredictions(); }}
+                            style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            padding: '3px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                            background: d.laps <= 2 ? 'rgba(225,6,0,0.12)' : 'rgba(255,215,0,0.10)',
+                            borderLeft: `2px solid ${d.laps <= 2 ? '#e10600' : '#ffd700'}`,
+                            fontSize: 'var(--font-size-xs)',
+                          }}>
+                            <strong style={{ color: getDriverColor(d.abbr) }}>{d.abbr}</strong>
+                            <span style={{ color: 'var(--color-text-muted)' }}>~{d.laps}L</span>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: TYRE_COLORS[d.compound] || '#888' }} />
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-            {/* Monte Carlo risks */}
-            {raceProjection?.risks?.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Risk Alerts
-                </h6>
-                {raceProjection.risks.slice(0, 4).map((r, i) => (
-                  <div key={i}
-                    onClick={() => { setFocusDriver(r.driver); triggerLSTMPredictions(); }}
-                    style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6,
-                      fontSize: 'var(--font-size-xs)', cursor: 'pointer', padding: '3px 4px',
-                      borderRadius: 'var(--radius-sm)', transition: 'background 0.12s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <span style={{
-                      flexShrink: 0, fontSize: '7px', fontWeight: 800, padding: '2px 4px',
-                      borderRadius: 3, textTransform: 'uppercase',
-                      background: r.severity === 'high' ? 'rgba(225,6,0,0.15)' : 'rgba(255,215,0,0.1)',
-                      color: r.severity === 'high' ? '#e10600' : '#ffd700',
-                    }}>{r.type}</span>
-                    <span style={{ color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>{r.description}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+                  {/* Degradation alerts */}
+                  {fieldOverview.degrading.length > 0 && (
+                    <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                      <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        Losing Pace
+                      </h6>
+                      {fieldOverview.degrading.map((d) => (
+                        <div key={d.abbr} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 'var(--font-size-xs)' }}>
+                          <strong style={{ color: getDriverColor(d.abbr), minWidth: 28 }}>{d.abbr}</strong>
+                          <span style={{ color: '#e10600' }}>+{d.trend.toFixed(2)}s/lap</span>
+                          <span style={{ color: 'var(--color-text-muted)' }}>
+                            <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', backgroundColor: TYRE_COLORS[d.compound] || '#888', marginRight: 3, verticalAlign: 'middle' }} />
+                            {d.compound} L{d.tyreLife}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-            <div style={{ fontSize: '9px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '4px 0' }}>
-              Select drivers on the map or leaderboard for detailed cluster analysis
+                  {/* Drivers gaining */}
+                  {fieldOverview.gainers.length > 0 && (
+                    <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                      <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        On The Move
+                      </h6>
+                      {fieldOverview.gainers.map((d) => (
+                        <div key={d.abbr} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 'var(--font-size-xs)' }}>
+                          <strong style={{ color: getDriverColor(d.abbr), minWidth: 28 }}>{d.abbr}</strong>
+                          <span style={{ color: '#00e676', fontWeight: 700 }}>+{d.gained} positions</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Monte Carlo risks */}
+                  {raceProjection?.risks?.length > 0 && (
+                    <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                      <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        Risk Alerts
+                      </h6>
+                      {raceProjection.risks.map((r, i) => (
+                        <div key={i}
+                          onClick={() => { setFocusDriver(r.driver); triggerLSTMPredictions(); }}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6,
+                            fontSize: 'var(--font-size-xs)', cursor: 'pointer', padding: '3px 4px',
+                            borderRadius: 'var(--radius-sm)', transition: 'background 0.12s',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <span style={{
+                            flexShrink: 0, fontSize: '7px', fontWeight: 800, padding: '2px 4px',
+                            borderRadius: 3, textTransform: 'uppercase',
+                            background: r.severity === 'high' ? 'rgba(225,6,0,0.15)' : 'rgba(255,215,0,0.1)',
+                            color: r.severity === 'high' ? '#e10600' : '#ffd700',
+                          }}>{r.type}</span>
+                          <span style={{ color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>{r.description}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
+          </>
         )}
 
         {/* ── No data yet ── */}
@@ -445,141 +508,162 @@ export default function StrategyAnalysis() {
         {/* ══════════ CLUSTER ANALYSIS (selected drivers) ══════════ */}
 
         {liveAnalysis && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(0,230,118,0.08) 0%, rgba(0,230,118,0.02) 100%)',
-              borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)', borderLeft: '3px solid #00e676',
-            }}>
-              <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: '#00e676', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                {liveAnalysis.clusterLabel}
-              </div>
-              <div style={{ fontSize: 'var(--font-size-sm)', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>
-                {liveAnalysis.summary}
-              </div>
-            </div>
-
-            {liveAnalysis.threats.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Threats & Opportunities
-                </h6>
-                {liveAnalysis.threats.map((t, i) => <BattleRow key={i} t={t} i={i} />)}
-              </div>
-            )}
-
-            {liveAnalysis.insights.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Strategic Insights
-                </h6>
-                {liveAnalysis.insights.map((ins, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6, fontSize: 'var(--font-size-xs)', lineHeight: 1.5 }}>
-                    <span style={{
-                      flexShrink: 0, width: 16, height: 16, borderRadius: 3,
-                      backgroundColor: ins.color, color: '#000', fontWeight: 900,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px',
-                    }}>
-                      {ins.icon}
-                    </span>
-                    <span style={{ color: 'var(--color-text-primary)' }}>{ins.text}</span>
-                  </div>
+          <>
+            {/* Tab pills */}
+            {clusterTabs.length > 1 && (
+              <div style={{
+                display: 'flex', gap: 4, padding: '4px 8px', flexShrink: 0,
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+              }}>
+                {clusterTabs.map(s => (
+                  <button key={s.id} onClick={() => setClusterTab(s.id)} style={tabPillStyle(clusterTab === s.id)}>
+                    {s.label}
+                  </button>
                 ))}
               </div>
             )}
 
-            {liveAnalysis.featureBars.length > 0 && (
-              <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                  What makes this cluster different
-                </h6>
-                <div style={{ display: 'flex', gap: 10, marginBottom: 8, fontSize: '8px', color: 'var(--color-text-muted)' }}>
-                  <span><span style={{ color: '#00e676' }}>{'\u25CF'}</span> Better for selected</span>
-                  <span><span style={{ color: '#e10600' }}>{'\u25CF'}</span> Worse for selected</span>
-                </div>
-                {liveAnalysis.featureBars.slice(0, 8).map((fb) => {
-                  const barColor = fb.lowerBetter === true
-                    ? (fb.direction === 'lower' ? '#00e676' : '#e10600')
-                    : fb.lowerBetter === false
-                      ? (fb.direction === 'higher' ? '#00e676' : '#e10600')
-                      : (fb.direction === 'higher' ? '#64C4FF' : '#ffd700');
-                  const barWidth = Math.min(100, (fb.effectSize / 2) * 100);
-                  return (
-                    <div key={fb.key} style={{ marginBottom: 6 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-size-xs)', marginBottom: 2 }}>
-                        <span style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>{fb.label}</span>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: '9px' }}>
-                          {fb.selMean.toFixed(1)} vs {fb.restMean.toFixed(1)} {fb.unit}
-                          <span style={{ color: barColor, marginLeft: 4, fontWeight: 700 }}>
-                            {fb.direction === 'higher' ? '\u2191' : '\u2193'} {fb.magnitude}
-                          </span>
-                        </span>
-                      </div>
-                      <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', borderRadius: 2, backgroundColor: barColor, width: `${barWidth}%`, transition: 'width 0.3s ease' }} />
-                      </div>
-                    </div>
-                  );
-                })}
-                <div style={{ fontSize: '8px', color: 'var(--color-text-muted)', marginTop: 6 }}>
-                  Bar length = Cohen's d effect size (how different from rest of field)
-                </div>
-              </div>
-            )}
+            {/* Tab content */}
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: 'var(--spacing-sm)' }}>
 
-            <div>
-              <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700, paddingLeft: 2 }}>
-                Driver Details
-              </h6>
-              {liveAnalysis.drivers.map((d) => {
-                const trendStr = d.paceTrend > 0.05 ? `+${d.paceTrend.toFixed(2)}s/lap` : d.paceTrend < -0.05 ? `${d.paceTrend.toFixed(2)}s/lap` : 'stable';
-                const trendColor = d.paceTrend > 0.05 ? '#e10600' : d.paceTrend < -0.05 ? '#00e676' : 'var(--color-text-muted)';
-                const proj = raceProjection?.projections.find((p) => p.driver === d.abbr);
-
-                return (
-                  <div key={d.abbr}
-                    onClick={() => { setFocusDriver(d.abbr); triggerLSTMPredictions(); }}
-                    style={{
-                      background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)',
-                      padding: '8px 12px', borderLeft: `3px solid ${getDriverColor(d.abbr)}`, marginBottom: 4,
-                      cursor: 'pointer', transition: 'background 0.12s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-bg-tertiary)'; }}
-                    title={`Double-click to focus ${d.abbr}`}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                      <strong style={{ color: getDriverColor(d.abbr), fontSize: 'var(--font-size-sm)' }}>{d.abbr}</strong>
-                      <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>{d.team}</span>
-                      <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>
-                        P{d.position}
-                        {proj && Math.abs(proj.delta) >= 0.5 && (
-                          <span style={{ fontSize: '9px', marginLeft: 4, color: proj.delta > 0 ? '#00e676' : '#e10600' }}>
-                            {'\u2192'}P{proj.modePos}
-                            <span style={{ fontSize: '7px', marginLeft: 2 }}>({proj.podiumProb}% pod)</span>
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 12, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', flexWrap: 'wrap' }}>
-                      <span>
-                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: TYRE_COLORS[d.compoundName] || '#888', marginRight: 4, verticalAlign: 'middle' }} />
-                        {d.compoundName} L{d.tyreLife}
-                      </span>
-                      <span>Pace: {d.recentPace?.toFixed(1)}s</span>
-                      <span style={{ color: trendColor }}>Trend: {trendStr}</span>
-                      <span>Pit ~{d.estLapsToPit}L</span>
-                      {d.positionTrend !== 0 && (
-                        <span style={{ color: d.positionTrend > 0 ? '#00e676' : '#e10600' }}>
-                          {d.positionTrend > 0 ? '+' : ''}{d.positionTrend} pos
-                        </span>
-                      )}
-                    </div>
+              {clusterTab === 'summary' && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(0,230,118,0.08) 0%, rgba(0,230,118,0.02) 100%)',
+                  borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)', borderLeft: '3px solid #00e676',
+                }}>
+                  <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: '#00e676', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                    {liveAnalysis.clusterLabel}
                   </div>
-                );
-              })}
+                  <div style={{ fontSize: 'var(--font-size-sm)', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>
+                    {liveAnalysis.summary}
+                  </div>
+                </div>
+              )}
+
+              {clusterTab === 'threats' && liveAnalysis.threats.length > 0 && (
+                <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                  <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Threats & Opportunities
+                  </h6>
+                  {liveAnalysis.threats.map((t, i) => <BattleRow key={i} t={t} i={i} />)}
+                </div>
+              )}
+
+              {clusterTab === 'insights' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                  {liveAnalysis.insights.length > 0 && (
+                    <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                      <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        Strategic Insights
+                      </h6>
+                      {liveAnalysis.insights.map((ins, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6, fontSize: 'var(--font-size-xs)', lineHeight: 1.5 }}>
+                          <span style={{
+                            flexShrink: 0, width: 16, height: 16, borderRadius: 3,
+                            backgroundColor: ins.color, color: '#000', fontWeight: 900,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px',
+                          }}>
+                            {ins.icon}
+                          </span>
+                          <span style={{ color: 'var(--color-text-primary)' }}>{ins.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {liveAnalysis.featureBars.length > 0 && (
+                    <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
+                      <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                        What makes this cluster different
+                      </h6>
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 8, fontSize: '8px', color: 'var(--color-text-muted)' }}>
+                        <span><span style={{ color: '#00e676' }}>{'\u25CF'}</span> Better for selected</span>
+                        <span><span style={{ color: '#e10600' }}>{'\u25CF'}</span> Worse for selected</span>
+                      </div>
+                      {liveAnalysis.featureBars.slice(0, 8).map((fb) => {
+                        const barColor = fb.lowerBetter === true
+                          ? (fb.direction === 'lower' ? '#00e676' : '#e10600')
+                          : fb.lowerBetter === false
+                            ? (fb.direction === 'higher' ? '#00e676' : '#e10600')
+                            : (fb.direction === 'higher' ? '#64C4FF' : '#ffd700');
+                        const barWidth = Math.min(100, (fb.effectSize / 2) * 100);
+                        return (
+                          <div key={fb.key} style={{ marginBottom: 6 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-size-xs)', marginBottom: 2 }}>
+                              <span style={{ color: 'var(--color-text-primary)', fontWeight: 600 }}>{fb.label}</span>
+                              <span style={{ color: 'var(--color-text-muted)', fontSize: '9px' }}>
+                                {fb.selMean.toFixed(1)} vs {fb.restMean.toFixed(1)} {fb.unit}
+                                <span style={{ color: barColor, marginLeft: 4, fontWeight: 700 }}>
+                                  {fb.direction === 'higher' ? '\u2191' : '\u2193'} {fb.magnitude}
+                                </span>
+                              </span>
+                            </div>
+                            <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', borderRadius: 2, backgroundColor: barColor, width: `${barWidth}%`, transition: 'width 0.3s ease' }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{ fontSize: '8px', color: 'var(--color-text-muted)', marginTop: 6 }}>
+                        Bar length = Cohen's d effect size (how different from rest of field)
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {clusterTab === 'drivers' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {liveAnalysis.drivers.map((d) => {
+                    const trendStr = d.paceTrend > 0.05 ? `+${d.paceTrend.toFixed(2)}s/lap` : d.paceTrend < -0.05 ? `${d.paceTrend.toFixed(2)}s/lap` : 'stable';
+                    const trendColor = d.paceTrend > 0.05 ? '#e10600' : d.paceTrend < -0.05 ? '#00e676' : 'var(--color-text-muted)';
+                    const proj = raceProjection?.projections.find((p) => p.driver === d.abbr);
+                    return (
+                      <div key={d.abbr}
+                        onClick={() => { setFocusDriver(d.abbr); triggerLSTMPredictions(); }}
+                        style={{
+                          background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)',
+                          padding: '8px 12px', borderLeft: `3px solid ${getDriverColor(d.abbr)}`,
+                          cursor: 'pointer', transition: 'background 0.12s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-bg-tertiary)'; }}
+                        title={`Double-click to focus ${d.abbr}`}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <strong style={{ color: getDriverColor(d.abbr), fontSize: 'var(--font-size-sm)' }}>{d.abbr}</strong>
+                          <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>{d.team}</span>
+                          <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>
+                            P{d.position}
+                            {proj && Math.abs(proj.delta) >= 0.5 && (
+                              <span style={{ fontSize: '9px', marginLeft: 4, color: proj.delta > 0 ? '#00e676' : '#e10600' }}>
+                                {'\u2192'}P{proj.modePos}
+                                <span style={{ fontSize: '7px', marginLeft: 2 }}>({proj.podiumProb}% pod)</span>
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', flexWrap: 'wrap' }}>
+                          <span>
+                            <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: TYRE_COLORS[d.compoundName] || '#888', marginRight: 4, verticalAlign: 'middle' }} />
+                            {d.compoundName} L{d.tyreLife}
+                          </span>
+                          <span>Pace: {d.recentPace?.toFixed(1)}s</span>
+                          <span style={{ color: trendColor }}>Trend: {trendStr}</span>
+                          <span>Pit ~{d.estLapsToPit}L</span>
+                          {d.positionTrend !== 0 && (
+                            <span style={{ color: d.positionTrend > 0 ? '#00e676' : '#e10600' }}>
+                              {d.positionTrend > 0 ? '+' : ''}{d.positionTrend} pos
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
+          </>
         )}
       </div>
     </Panel>

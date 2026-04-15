@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import SessionMenu from './SessionMenu';
 import CommandBar from '../CommandPalette/CommandBar';
+import LayoutPresetBar from './LayoutPresetBar';
 
 /* ── Minimal line-style weather condition icons ── */
 function WeatherIcon({ rainfall, humidity, className }) {
@@ -201,6 +202,9 @@ export default function WeatherBar() {
             </span>
           </div>
         )}
+
+        {/* Layout presets — Lightroom Classic style */}
+        <LayoutPresetBar />
 
         {/* Right: Session info + Flag status */}
         <div className="weather-bar__right">

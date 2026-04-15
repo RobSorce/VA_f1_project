@@ -12,9 +12,9 @@ export default function PCABiplot() {
 
   const pcaEmbeddings = useF1Store((s) => s.pcaEmbeddings);
   const loadPCAEmbeddings = useF1Store((s) => s.loadPCAEmbeddings);
-  const selectedTSNEPoints = useF1Store((s) => s.selectedTSNEPoints);
-  const setSelectedTSNEPoints = useF1Store((s) => s.setSelectedTSNEPoints);
-  const fetchTSNEAnalysis = useF1Store((s) => s.fetchTSNEAnalysis);
+  const selectedPCAPoints = useF1Store((s) => s.selectedPCAPoints);
+  const setSelectedPCAPoints = useF1Store((s) => s.setSelectedPCAPoints);
+  const fetchPCAAnalysis = useF1Store((s) => s.fetchPCAAnalysis);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const year = useF1Store((s) => s.year);
@@ -175,10 +175,10 @@ export default function PCABiplot() {
       .data(points)
       .join('path')
       .attr('class', (d) => {
-        let cls = 'tsne-point'; // reuse same CSS class
-        if (isCurrentRace(d)) cls += ' tsne-point--current';
-        if (selectedTSNEPoints.includes(d.id)) cls += ' selected';
-        else if (selectedTSNEPoints.length > 0) cls += ' dimmed';
+        let cls = 'pca-point'; // reuse same CSS class
+        if (isCurrentRace(d)) cls += ' pca-point--current';
+        if (selectedPCAPoints.includes(d.id)) cls += ' selected';
+        else if (selectedPCAPoints.length > 0) cls += ' dimmed';
         return cls;
       })
       .attr('transform', (d) => `translate(${x(d.x)},${y(d.y)})`)
@@ -205,12 +205,12 @@ export default function PCABiplot() {
         d3.select('.pca-tooltip').classed('visible', false).style('opacity', 0);
       })
       .on('click', (event, d) => {
-        const ids = selectedTSNEPoints.includes(d.id)
-          ? selectedTSNEPoints.filter((id) => id !== d.id)
-          : [...selectedTSNEPoints, d.id];
-        setSelectedTSNEPoints(ids);
+        const ids = selectedPCAPoints.includes(d.id)
+          ? selectedPCAPoints.filter((id) => id !== d.id)
+          : [...selectedPCAPoints, d.id];
+        setSelectedPCAPoints(ids);
         if (ids.length > 0) {
-          fetchTSNEAnalysis(ids);
+          fetchPCAAnalysis(ids);
           const uniqueDrivers = [...new Set(ids.map((id) => points.find((p) => p.id === id)?.driver).filter(Boolean))];
           setSelectedDrivers(uniqueDrivers);
         } else {
@@ -241,9 +241,9 @@ export default function PCABiplot() {
       getPoints: () =>
         points.map((d) => ({ x: x(d.x), y: y(d.y), id: d.id })),
       onSelect: (ids) => {
-        setSelectedTSNEPoints(ids);
+        setSelectedPCAPoints(ids);
         if (ids.length > 0) {
-          fetchTSNEAnalysis(ids);
+          fetchPCAAnalysis(ids);
           const uniqueDrivers = [...new Set(ids.map((id) => points.find((p) => p.id === id)?.driver).filter(Boolean))];
           setSelectedDrivers(uniqueDrivers);
         } else {
@@ -261,17 +261,17 @@ export default function PCABiplot() {
       .text('Arrows show which features drive each axis | Shift+drag to lasso');
 
     // Selected count
-    if (selectedTSNEPoints.length > 0) {
+    if (selectedPCAPoints.length > 0) {
       g.append('text')
         .attr('x', innerW - 4).attr('y', 12)
         .attr('text-anchor', 'end')
         .attr('fill', 'var(--color-f1-red)')
         .attr('font-size', 10)
         .attr('font-weight', 700)
-        .text(`${selectedTSNEPoints.length} selected`);
+        .text(`${selectedPCAPoints.length} selected`);
     }
 
-  }, [pcaEmbeddings, selectedTSNEPoints, selectedDrivers, year, round, setSelectedTSNEPoints, setSelectedDrivers, fetchTSNEAnalysis]);
+  }, [pcaEmbeddings, selectedPCAPoints, selectedDrivers, year, round, setSelectedPCAPoints, setSelectedDrivers, fetchPCAAnalysis]);
 
   // Cleanup lasso on unmount
   useEffect(() => () => { if (cleanupRef.current) cleanupRef.current(); }, []);

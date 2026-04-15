@@ -826,7 +826,7 @@ export const useF1Store = create(persist((set, get) => ({
   focusedView: null,         // 'trackmap' | 'leaderboard' | 'laptimes' | 'strategy' | 'tires' | null
   compareMode: false,
   compareDrivers: [],        // max 2 driver abbreviations
-  leaderboardColumnMode: 0,  // index into ['INT','GAP','TYRE']
+  leaderboardColumnMode: 0,  // index into ['INT','GAP','TYRE','PIT']
   shortcutHintsVisible: true,
   cheatsheetOpen: false,
 
@@ -839,7 +839,7 @@ export const useF1Store = create(persist((set, get) => ({
     compareMode: !s.compareMode,
     compareDrivers: s.compareMode ? [] : s.compareDrivers,
   })),
-  cycleLeaderboardColumn: () => set(s => ({ leaderboardColumnMode: (s.leaderboardColumnMode + 1) % 3 })),
+  cycleLeaderboardColumn: () => set(s => ({ leaderboardColumnMode: (s.leaderboardColumnMode + 1) % 4 })),
   addCompareDriver: (driver) => set(s => {
     if (s.compareDrivers.includes(driver)) {
       return { compareDrivers: s.compareDrivers.filter(d => d !== driver) };
@@ -869,50 +869,76 @@ export const useF1Store = create(persist((set, get) => ({
   rotateTrackCW: () => set(s => ({ trackRotationOffset: (s.trackRotationOffset - 90 + 360) % 360 })),
   rotateTrackCCW: () => set(s => ({ trackRotationOffset: (s.trackRotationOffset + 90) % 360 })),
   resetTrackRotation: () => set({ trackRotationOffset: 0 }),
+  setTrackRotationAbsolute: (deg) => set({ trackRotationOffset: ((deg % 360) + 360) % 360 }),
 
   // ── Tab / Panel system (multi-window) ──────────────────────────
   activeTab: 'pitwall',
   openOverlays: [],
 
   setActiveTab: (tab) => {
-    if (tab === 'charts' || tab === 'pitwall') {
-      // Standalone modes: close all overlays, exit docked layout
-      set({ activeTab: tab, openOverlays: [], overlayTiles: {}, overlayVizMapping: {}, dockedLayout: null, _arrangeIdx: 0 });
-    } else {
-      set((s) => {
-        // ── Docked layout mode: add/remove tab within the layout tree ──
-        if (s.dockedLayout) {
-          const allTabs = _collectDockedTabs(s.dockedLayout);
-          if (allTabs.includes(tab)) {
-            // Tab exists — remove it (toggle off), collapsing empty panes
-            const newLayout = _removeTabFromTree(s.dockedLayout, tab);
-            if (!newLayout) {
-              // All panes empty — exit docked mode
-              return { dockedLayout: null, activeTab: 'charts', _arrangeIdx: 0 };
-            }
-            return { dockedLayout: newLayout, activeTab: 'charts' };
-          }
-          // Tab not in layout — add as new pane if under limit, else add to existing pane
-          const paneCount = _countPanes(s.dockedLayout);
-          if (paneCount < MAX_PANES) {
-            return { dockedLayout: _appendPane(s.dockedLayout, tab), activeTab: 'charts' };
-          }
-          // At limit — add to first leaf pane as an extra tab
-          return { dockedLayout: _addTabToFirstLeaf(s.dockedLayout, tab), activeTab: 'charts' };
-        }
+    const UTILITY_TABS = new Set(['settings', 'championship', 'ai']);
 
-        // ── Floating overlay mode ──
+    // ── Mode switches ──
+    if (tab === 'pitwall') {
+      set((s) => ({
+        activeTab: 'pitwall',
+        dockedLayout: null,
+        _arrangeIdx: 0,
+        // Keep utility overlays open
+      }));
+      return;
+    }
+
+    if (tab === 'charts') {
+      set((s) => ({
+        activeTab: 'charts',
+        dockedLayout: null,
+        _arrangeIdx: 0,
+      }));
+      return;
+    }
+
+    // ── Utility tabs → floating overlay (works over ANY mode) ──
+    if (UTILITY_TABS.has(tab)) {
+      set((s) => {
         const already = s.openOverlays.includes(tab);
         if (already) {
+          // Toggle off
           const next = s.openOverlays.filter((t) => t !== tab);
-          const tiles = { ...s.overlayTiles };
-          delete tiles[tab];
-          return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles, _arrangeIdx: 0 };
+          return { openOverlays: next };
         }
-        const next = [...s.openOverlays, tab];
-        return { openOverlays: next, activeTab: tab, _arrangeIdx: 0 };
+        // Toggle on — add to overlays without changing active mode
+        return { openOverlays: [...s.openOverlays, tab] };
       });
+      return;
     }
+
+    // ── Analysis tabs → docked layout ──
+    set((s) => {
+      if (s.dockedLayout) {
+        const allTabs = _collectDockedTabs(s.dockedLayout);
+        if (allTabs.includes(tab)) {
+          // Tab exists in layout — remove it (toggle off)
+          const newLayout = _removeTabFromTree(s.dockedLayout, tab);
+          if (!newLayout) return { dockedLayout: null, activeTab: s.activeTab === 'pitwall' ? 'pitwall' : 'charts', _arrangeIdx: 0 };
+          return { dockedLayout: newLayout };
+        }
+        // Tab not in layout — add it
+        const paneCount = _countPanes(s.dockedLayout);
+        if (paneCount < MAX_PANES) {
+          return { dockedLayout: _appendPane(s.dockedLayout, tab), activeTab: 'charts' };
+        }
+        return { dockedLayout: _addTabToFirstLeaf(s.dockedLayout, tab), activeTab: 'charts' };
+      }
+
+      // No docked layout exists yet — create one with this tab
+      return {
+        dockedLayout: { tabs: [tab], activeTab: tab },
+        activeTab: 'charts',
+        openOverlays: s.openOverlays.filter((t) => UTILITY_TABS.has(t)),
+        _arrangeIdx: 0,
+      };
+    });
   },
 
   focusOverlay: (tab) => set((s) => {
@@ -921,18 +947,22 @@ export const useF1Store = create(persist((set, get) => ({
   }),
 
   closeOverlay: (tab) => set((s) => {
+    // Utility overlays live in openOverlays — always check there first
+    if (s.openOverlays.includes(tab)) {
+      const next = s.openOverlays.filter((t) => t !== tab);
+      const tiles = { ...s.overlayTiles };
+      delete tiles[tab];
+      const vizMap = { ...s.overlayVizMapping };
+      delete vizMap[tab];
+      return { openOverlays: next, overlayTiles: tiles, overlayVizMapping: vizMap };
+    }
     // In docked mode: remove tab from the layout tree
     if (s.dockedLayout) {
       const newLayout = _removeTabFromTree(s.dockedLayout, tab);
       if (!newLayout) return { dockedLayout: null, activeTab: 'charts', _arrangeIdx: 0 };
       return { dockedLayout: newLayout };
     }
-    const next = s.openOverlays.filter((t) => t !== tab);
-    const tiles = { ...s.overlayTiles };
-    delete tiles[tab];
-    const vizMap = { ...s.overlayVizMapping };
-    delete vizMap[tab];
-    return { openOverlays: next, activeTab: next.length > 0 ? next[0] : 'charts', overlayTiles: tiles, overlayVizMapping: vizMap };
+    return {};
   }),
 
   /** Close the most recently added tab (last leaf, last tab). Works in both modes. */
@@ -955,7 +985,14 @@ export const useF1Store = create(persist((set, get) => ({
     return { openOverlays: next, activeTab: next.length > 0 ? next[next.length - 1] : 'charts', overlayTiles: tiles, overlayVizMapping: vizMap };
   }),
 
-  closeAllOverlays: () => set({ openOverlays: [], activeTab: 'charts', overlayTiles: {}, overlayVizMapping: {}, dockedLayout: null, _arrangeIdx: 0 }),
+  closeAllOverlays: () => set({
+    openOverlays: [],
+    activeTab: 'pitwall',
+    overlayTiles: {},
+    overlayVizMapping: {},
+    dockedLayout: null,
+    _arrangeIdx: 0,
+  }),
 
   cycleOverlay: (direction = 1) => set((s) => {
     if (s.openOverlays.length === 0) return s;
@@ -1033,16 +1070,18 @@ export const useF1Store = create(persist((set, get) => ({
     };
   }),
   applyWindowPreset: (preset) => {
+    const UTILITY_TABS = new Set(['settings', 'championship', 'ai']);
     // If preset has a docked layout tree, use the JetBrains-style docked mode
     if (preset.dockedLayout) {
-      set({
+      set((s) => ({
         activeTab: 'charts',
-        openOverlays: [],
+        // Keep utility overlays open, clear analysis overlays
+        openOverlays: s.openOverlays.filter((t) => UTILITY_TABS.has(t)),
         overlayTiles: {},
         overlayVizMapping: {},
         dockedLayout: JSON.parse(JSON.stringify(preset.dockedLayout)),
         _arrangeIdx: 0,
-      });
+      }));
       return;
     }
     // Fallback: floating overlays with percentage positions
@@ -1103,7 +1142,7 @@ export const useF1Store = create(persist((set, get) => ({
     predictionLoading: false,
     lastPredictionTrigger: null,
     degradationRegression: null,
-    tsneStrategyAnalysis: null,
+    pcaStrategyAnalysis: null,
     raceSituationData: null,
     raceSituationLap: null,
     raceProjection: null,
@@ -1136,13 +1175,19 @@ export const useF1Store = create(persist((set, get) => ({
   highlightedDriver: null,
   highlightedDriverPosition: null, // {x, y} | null — for MFD card positioning
   selectedLapRange: null, // [startLap, endLap]
-  selectedTSNEPoints: [],
+  brushLapRange: null, // [startLap, endLap] — set by PositionByLap brush, consumed by LapTimeChart
+  setBrushLapRange: (range) => set({ brushLapRange: range }),
+  selectedPCAPoints: [],
 
   // ── Focus driver system ───────────────────────────────────────
   focusDriver: null,      // driver abbreviation string or null
   focusTeam: null,        // team name or null — auto-set when focusDriver changes
   watchedRivals: [],      // array of driver abbreviations considered rivals
   lapDeltaBaseDriver: null, // driver abbreviation for delta chart base
+
+  // ── Track progress (Speed Trace ↔ TrackMap coordination) ──────
+  trackProgress: null,       // 0.0–1.0 fraction along track for playhead sync
+  setTrackProgress: (frac) => set({ trackProgress: frac }),
 
   // ── Stint selection (for TireSilhouette ↔ StrategyTimeline) ──
   selectedStint: null,       // {driver, stintNumber, compound, lapStart, stintLength}
@@ -1192,7 +1237,7 @@ export const useF1Store = create(persist((set, get) => ({
     highlightedDriverPosition: abbr ? pos : null,
   }),
   setSelectedLapRange: (range) => set({ selectedLapRange: range }),
-  setSelectedTSNEPoints: (ids) => set({ selectedTSNEPoints: ids }),
+  setSelectedPCAPoints: (ids) => set({ selectedPCAPoints: ids }),
 
   clearSelection: () =>
     set({
@@ -1200,7 +1245,7 @@ export const useF1Store = create(persist((set, get) => ({
       highlightedDriver: null,
       highlightedDriverPosition: null,
       selectedLapRange: null,
-      selectedTSNEPoints: [],
+      selectedPCAPoints: [],
       focusDriver: null,
       focusTeam: null,
       watchedRivals: [],
@@ -1629,7 +1674,7 @@ export const useF1Store = create(persist((set, get) => ({
   // ── Predictions ────────────────────────────────────────────────
   lstmPredictions: null,
   degradationRegression: null,
-  tsneStrategyAnalysis: null,
+  pcaStrategyAnalysis: null,
   rivalContext: [],
 
   fetchLSTMPrediction: async (params) => {
@@ -1651,12 +1696,12 @@ export const useF1Store = create(persist((set, get) => ({
     }
   },
 
-  fetchTSNEAnalysis: async (pointIds) => {
+  fetchPCAAnalysis: async (pointIds) => {
     try {
-      const data = await api.analyzeTSNESelection(pointIds);
-      set({ tsneStrategyAnalysis: data });
+      const data = await api.analyzeTSNESelection(pointIds); // Backend endpoint still named tsne — kept for compatibility
+      set({ pcaStrategyAnalysis: data });
     } catch (e) {
-      console.error('t-SNE analysis failed', e);
+      console.error('PCA analysis failed', e);
     }
   },
 
@@ -1865,19 +1910,8 @@ export const useF1Store = create(persist((set, get) => ({
   setChampionshipView: (view) => set({ championshipView: view }),
   toggleChampionshipPredictions: () => set((s) => ({ showChampionshipPredictions: !s.showChampionshipPredictions })),
 
-  // ── t-SNE & PCA Embeddings ────────────────────────────────────
-  tsneEmbeddings: null,
+  // ── PCA Embeddings ───────────────────────────────────────────
   pcaEmbeddings: null,
-  projectionMode: 'live', // 'live' | 'tsne' | 'pca'
-
-  loadTSNEEmbeddings: async () => {
-    try {
-      const data = await api.getTSNEEmbeddings();
-      set({ tsneEmbeddings: data });
-    } catch (e) {
-      console.error('Failed to load t-SNE embeddings', e);
-    }
-  },
 
   loadPCAEmbeddings: async () => {
     try {
@@ -1888,15 +1922,15 @@ export const useF1Store = create(persist((set, get) => ({
     }
   },
 
-  setProjectionMode: (mode) => set({ projectionMode: mode }),
-
   // ── Gemini ────────────────────────────────────────────────────
   geminiMessages: [],
   geminiOverlays: [],
 
   sendGeminiQuery: async (query) => {
-    const { year, round, currentLap, selectedDrivers, lstmPredictions,
-            raceProjection, raceSituationData, degradationRegression } = get();
+    const { year, round, currentLap, maxLap, selectedDrivers, focusDriver,
+            lstmPredictions, raceProjection, raceSituationData,
+            degradationRegression, simulatorResult, pcaStrategyAnalysis,
+            rivalContext, sessionData } = get();
     set((s) => ({
       geminiMessages: [
         ...s.geminiMessages,
@@ -1904,8 +1938,15 @@ export const useF1Store = create(persist((set, get) => ({
       ],
     }));
 
-    // Build rich race context from all prediction sources
+    // Build rich race context from ALL analytical sources
     const raceContext = {};
+
+    // Session info
+    if (sessionData?.session_info) raceContext.session = sessionData.session_info;
+    const weather = sessionData?.weather_data;
+    if (weather?.length) raceContext.weather = weather[weather.length - 1];
+
+    // Monte Carlo projections
     if (raceProjection) {
       raceContext.monteCarloProjections = (raceProjection.projections || []).slice(0, 10).map((p) => ({
         driver: p.driver, currentPos: p.currentPos, expectedPos: p.expectedPos,
@@ -1925,6 +1966,8 @@ export const useF1Store = create(persist((set, get) => ({
         };
       }
     }
+
+    // Driver features from live PCA
     if (raceSituationData?.driverFeatures && selectedDrivers.length > 0) {
       const feats = {};
       for (const d of selectedDrivers) {
@@ -1932,9 +1975,77 @@ export const useF1Store = create(persist((set, get) => ({
       }
       if (Object.keys(feats).length > 0) raceContext.driverFeatures = feats;
     }
+
+    // Degradation regression
     if (degradationRegression) {
       raceContext.degradationRegression = degradationRegression;
     }
+
+    // Simulator what-if result
+    if (simulatorResult) {
+      raceContext.simulator = {
+        customPos: simulatorResult.simProjection?.expectedPos,
+        baselinePos: simulatorResult.baselineProjection?.expectedPos,
+        delta: simulatorResult.delta,
+      };
+    }
+
+    // PCA cluster strategy patterns
+    if (pcaStrategyAnalysis?.strategies?.length) {
+      raceContext.pcaPatterns = pcaStrategyAnalysis.strategies.slice(0, 3);
+    }
+
+    // Rival context for focus driver
+    if (rivalContext?.length) {
+      raceContext.rivals = rivalContext.slice(0, 4);
+    }
+
+    // LSTM predictions for focus driver
+    const target = focusDriver || (selectedDrivers.length === 1 ? selectedDrivers[0] : null);
+    if (target && lstmPredictions?.[target]) {
+      const pred = lstmPredictions[target];
+      raceContext.lstm = {
+        driver: target,
+        predictedTimes: pred.predicted_times,
+        predictedLapTime: pred.predicted_lap_time,
+        pitProbability: pred.pit_probability,
+      };
+    }
+
+    // Tyre strategy summary for selected drivers
+    const tyreStrats = sessionData?.tyre_strategy || sessionData?.strategies || [];
+    if (tyreStrats.length > 0) {
+      const targetDrivers = selectedDrivers.length > 0 ? selectedDrivers : (target ? [target] : []);
+      if (targetDrivers.length > 0) {
+        raceContext.tyreStrategy = {};
+        for (const drv of targetDrivers) {
+          const stints = tyreStrats
+            .filter((s) => s.Driver === drv && (s.LapStart || s.StartLap || 1) <= currentLap)
+            .map((s) => ({
+              compound: s.Compound, startLap: s.LapStart || s.StartLap || 1,
+              length: s.StintLength || s.TotalLaps || 10, stintNumber: s.StintNumber,
+            }));
+          if (stints.length > 0) raceContext.tyreStrategy[drv] = stints;
+        }
+      }
+    }
+
+    // Recent lap times for focus driver
+    if (target && sessionData?.lap_times) {
+      raceContext.recentLaps = sessionData.lap_times
+        .filter((lt) => lt.Driver === target && lt.LapNumber <= currentLap && lt.LapTimeSeconds > 0)
+        .sort((a, b) => b.LapNumber - a.LapNumber)
+        .slice(0, 5)
+        .map((lt) => ({
+          lap: lt.LapNumber, time: lt.LapTimeSeconds,
+          compound: lt.Compound, tyreLife: lt.TyreLife,
+          s1: lt.Sector1TimeSeconds, s2: lt.Sector2TimeSeconds, s3: lt.Sector3TimeSeconds,
+        }));
+      raceContext.focusDriver = target;
+    }
+    raceContext.selectedDrivers = selectedDrivers;
+    raceContext.currentLap = currentLap;
+    raceContext.maxLap = maxLap;
 
     try {
       const resp = await api.queryGemini({

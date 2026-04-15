@@ -12,7 +12,7 @@ export default function DriverMFDCard() {
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
   const drivers = useF1Store((s) => s.drivers);
-  const tsneEmbeddings = useF1Store((s) => s.tsneEmbeddings);
+  const pcaEmbeddings = useF1Store((s) => s.pcaEmbeddings);
   const frameData = useF1Store((s) => s.frameData);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
 
@@ -63,6 +63,34 @@ export default function DriverMFDCard() {
     const std = d3.deviation(times) || 0;
     return { avg, best, consistency: std };
   }, [driverLaps]);
+
+  // Session-wide and driver-personal best sector times
+  const sectorBests = useMemo(() => {
+    const session = { s1: Infinity, s2: Infinity, s3: Infinity };
+    const personal = { s1: Infinity, s2: Infinity, s3: Infinity };
+    lapTimes.forEach((d) => {
+      if (d.LapNumber > currentLap) return;
+      for (const [key, prop] of [['s1', 'Sector1TimeSeconds'], ['s2', 'Sector2TimeSeconds'], ['s3', 'Sector3TimeSeconds']]) {
+        const v = d[prop];
+        if (v > 0 && v < 120) {
+          if (v < session[key]) session[key] = v;
+          if (d.Driver === highlightedDriver && v < personal[key]) personal[key] = v;
+        }
+      }
+    });
+    return { session, personal };
+  }, [lapTimes, currentLap, highlightedDriver]);
+
+  // Current lap sector times for the highlighted driver
+  const currentSectors = useMemo(() => {
+    if (!highlightedDriver || driverLaps.length === 0) return null;
+    const lastLap = driverLaps[driverLaps.length - 1];
+    const s1 = lastLap.Sector1TimeSeconds;
+    const s2 = lastLap.Sector2TimeSeconds;
+    const s3 = lastLap.Sector3TimeSeconds;
+    if (!s1 && !s2 && !s3) return null;
+    return { s1, s2, s3, lapNum: lastLap.LapNumber };
+  }, [highlightedDriver, driverLaps]);
 
   // Position history for sparkline — qualifying shows all positions, race filters by currentLap
   const posHistory = useMemo(() => {
@@ -228,6 +256,33 @@ export default function DriverMFDCard() {
                     Last lap: {fmtTime(driverLaps[driverLaps.length - 1]?.LapTimeSeconds)}
                   </div>
                 )}
+                {currentSectors && (
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                    {[
+                      { label: 'S1', val: currentSectors.s1, sb: sectorBests.session.s1, pb: sectorBests.personal.s1 },
+                      { label: 'S2', val: currentSectors.s2, sb: sectorBests.session.s2, pb: sectorBests.personal.s2 },
+                      { label: 'S3', val: currentSectors.s3, sb: sectorBests.session.s3, pb: sectorBests.personal.s3 },
+                    ].map(({ label, val, sb, pb }) => {
+                      const isSB = val > 0 && val <= sb + 0.001;
+                      const isPB = val > 0 && val <= pb + 0.001;
+                      return (
+                        <div key={label} style={{
+                          flex: 1, textAlign: 'center', padding: '3px 2px',
+                          borderRadius: 4,
+                          background: isSB ? 'rgba(160,32,240,0.2)' : isPB ? 'rgba(0,255,0,0.12)' : 'rgba(255,255,255,0.04)',
+                        }}>
+                          <div style={{ fontSize: '7px', color: 'rgba(255,255,255,0.35)', marginBottom: 1 }}>{label}</div>
+                          <div style={{
+                            fontSize: '10px', fontWeight: 600, fontFamily: 'var(--font-mono)',
+                            color: isSB ? '#A855F7' : isPB ? '#22C55E' : 'rgba(255,255,255,0.8)',
+                          }}>
+                            {val > 0 ? val.toFixed(3) : '—'}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ color: 'rgba(255,255,255,0.3)' }}>No tyre data</div>
@@ -261,9 +316,9 @@ export default function DriverMFDCard() {
 
         {page === 3 && (
           <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>
-            {tsneEmbeddings?.points ? (
+            {pcaEmbeddings?.points ? (
               (() => {
-                const point = tsneEmbeddings.points.find((p) => p.driver === highlightedDriver);
+                const point = pcaEmbeddings.points.find((p) => p.driver === highlightedDriver);
                 if (!point) return <span>No feature data for this driver</span>;
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

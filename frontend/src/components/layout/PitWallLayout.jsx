@@ -1,6 +1,7 @@
 import React from 'react';
 import TimingTower from '../visualizations/TimingTower';
 import FocusDriverWidget from '../ui/FocusDriverWidget';
+import PitWallSectorPanel from '../ui/PitWallSectorPanel';
 import RacePaceGrid from '../visualizations/RacePaceGrid';
 import TrackMap from '../visualizations/TrackMap';
 import SessionInfoBar from '../ui/SessionInfoBar';
@@ -48,6 +49,7 @@ export default function PitWallLayout() {
         <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
           <TimingTower />
         </div>
+        <PitWallSectorPanel />
         <FocusDriverWidget />
       </aside>
 

@@ -86,7 +86,7 @@ function LiveRaceControlOverlay() {
           Lap {currentLap}/{totalRaceLaps || '?'}
         </span>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+      <div style={{ flex: 1, overflow: 'hidden', padding: '4px 0' }}>
         {messages.length === 0 ? (
           <div style={{ padding: '12px 10px', fontSize: 9, color: '#555', textAlign: 'center' }}>
             No race control messages yet
@@ -169,6 +169,7 @@ export default function TrackMap({ compact = false }) {
   const rotateTrackCW = useF1Store((s) => s.rotateTrackCW);
   const rotateTrackCCW = useF1Store((s) => s.rotateTrackCCW);
   const resetTrackRotation = useF1Store((s) => s.resetTrackRotation);
+  const setTrackRotationAbsolute = useF1Store((s) => s.setTrackRotationAbsolute);
 
   // Individual sector toggles (local refinement)
   const [showSector1, setShowSector1] = useState(true);
@@ -1200,6 +1201,50 @@ export default function TrackMap({ compact = false }) {
     fontFamily: "'Space Grotesk', sans-serif",
   };
 
+  /* ── Track Progress Highlight (from Speed Trace playhead) ──── */
+  const trackProgress = useF1Store((s) => s.trackProgress);
+  const focusDriverForTrack = useF1Store((s) => s.focusDriver);
+
+  useEffect(() => {
+    if (!gRef.current) return;
+    const g = gRef.current; // already a D3 selection
+
+    // Remove previous marker
+    g.selectAll('.track-progress-marker').remove();
+
+    if (trackProgress == null || !focusDriverForTrack) return;
+
+    // Find the track outline path
+    const pathEl = g.select('.outline-layer .track-outline').node();
+    if (!pathEl) return;
+
+    try {
+      const totalLen = pathEl.getTotalLength();
+      const pt = pathEl.getPointAtLength(trackProgress * totalLen);
+      const color = getDriverColor(focusDriverForTrack);
+
+      const markerG = g.append('g').attr('class', 'track-progress-marker');
+
+      // Outer glow
+      markerG.append('circle')
+        .attr('cx', pt.x).attr('cy', pt.y)
+        .attr('r', 12)
+        .attr('fill', color)
+        .attr('opacity', 0.15);
+
+      // Inner dot
+      markerG.append('circle')
+        .attr('cx', pt.x).attr('cy', pt.y)
+        .attr('r', 5)
+        .attr('fill', color)
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 1.5)
+        .attr('opacity', 0.9);
+    } catch {
+      // Path not ready yet
+    }
+  }, [trackProgress, focusDriverForTrack]);
+
   const controls = (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
       <button style={zoomBtnStyle} onClick={rotateTrackCW} title="Rotate clockwise (R)">
@@ -1310,6 +1355,13 @@ export default function TrackMap({ compact = false }) {
         position: 'relative',
       }}>
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+
+        {/* Compass Rose */}
+        <CompassRose
+          trackRotationOffset={trackRotationOffset}
+          circuitRotation={circuitInfo?.rotation || 0}
+          onClickCardinal={(angle) => setTrackRotationAbsolute(-angle)}
+        />
 
         {/* Winner overlay at race end */}
         {raceFinished && winnerAbbr && (
@@ -1424,5 +1476,66 @@ export default function TrackMap({ compact = false }) {
         )}
       </div>
     </Panel>
+  );
+}
+
+/* ── Compass Rose: shows geographic north, click cardinal to orient ── */
+function CompassRose({ trackRotationOffset, circuitRotation, onClickCardinal }) {
+  // Total geographic rotation = FastF1 base + user offset
+  // Compass needle must point to TRUE north → rotate inversely
+  const totalRotation = (circuitRotation || 0) + (trackRotationOffset || 0);
+  const compassAngle = -totalRotation;
+
+  const cardinals = [
+    { label: 'N', angle: 0, color: '#e10600' },
+    { label: 'E', angle: 90, color: 'rgba(255,255,255,0.45)' },
+    { label: 'S', angle: 180, color: 'rgba(255,255,255,0.45)' },
+    { label: 'W', angle: 270, color: 'rgba(255,255,255,0.45)' },
+  ];
+
+  return (
+    <svg
+      viewBox="-28 -28 56 56"
+      style={{
+        position: 'absolute', bottom: 8, right: 8, zIndex: 10,
+        width: 56, height: 56, maxWidth: 56, maxHeight: 56,
+        pointerEvents: 'auto', cursor: 'default',
+        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))',
+      }}
+    >
+      {/* Background */}
+      <circle r="20" fill="rgba(10,10,25,0.7)" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
+
+      {/* Needle group: rotates to always point north */}
+      <g transform={`rotate(${compassAngle})`}>
+        {/* North arrow (red) */}
+        <path d="M0,-15 L-3.5,0 L3.5,0 Z" fill="#e10600" opacity="0.9" />
+        {/* South arrow (dim) */}
+        <path d="M0,15 L-3.5,0 L3.5,0 Z" fill="rgba(255,255,255,0.2)" />
+      </g>
+
+      {/* Cardinal labels: positioned at compass-rotated angles */}
+      {cardinals.map(({ label, angle, color }) => {
+        const rad = ((angle + compassAngle) * Math.PI) / 180;
+        const r = 24;
+        const cx = Math.sin(rad) * r;
+        const cy = -Math.cos(rad) * r;
+        return (
+          <text
+            key={label}
+            x={cx} y={cy}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={color}
+            fontSize="8"
+            fontWeight="700"
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => onClickCardinal(angle)}
+          >
+            {label}
+          </text>
+        );
+      })}
+    </svg>
   );
 }

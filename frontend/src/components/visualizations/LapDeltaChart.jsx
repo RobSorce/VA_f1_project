@@ -64,18 +64,13 @@ export default function LapDeltaChart() {
 
     // Always read fresh container dimensions so the chart fits its space
     const container = svgRef.current.parentElement;
-    const rect = container.getBoundingClientRect();
-    const width = Math.round(rect.width) || 500;
-    const height = Math.round(rect.height) || 250;
-    const margin = { top: 18, right: 70, bottom: 32, left: 54 };
-    const innerW = width - margin.left - margin.right;
-    const innerH = height - margin.top - margin.bottom;
+    const cRect = container.getBoundingClientRect();
+    const width = Math.round(cRect.width) || 500;
+    const height = Math.round(cRect.height) || 250;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
     svg.attr('viewBox', `0 0 ${width} ${height}`);
-
-    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
     const baseCum = driverCumTimes[baseDriver];
     if (!baseCum?.length) return;
@@ -120,6 +115,31 @@ export default function LapDeltaChart() {
       return;
     }
 
+    // Measure actual label widths using a hidden SVG text element
+    const labelTexts = [baseDriver];
+    deltaData.forEach(({ driver, deltas }) => {
+      const last = deltas[deltas.length - 1];
+      if (last) labelTexts.push(`${driver} ${last.delta > 0 ? '+' : ''}${last.delta.toFixed(1)}s`);
+    });
+    const probe = svg.append('text')
+      .attr('font-size', '10px').attr('font-weight', '800')
+      .attr('font-family', 'var(--font-display)')
+      .style('visibility', 'hidden');
+    let maxLabelPx = 0;
+    labelTexts.forEach((t) => {
+      probe.text(t);
+      const w = probe.node().getComputedTextLength();
+      if (w > maxLabelPx) maxLabelPx = w;
+    });
+    probe.remove();
+    const dynamicRight = Math.max(60, Math.ceil(maxLabelPx) + 14);
+
+    const margin = { top: 18, right: dynamicRight, bottom: 28, left: 54 };
+    const innerW = width - margin.left - margin.right;
+    const innerH = height - margin.top - margin.bottom;
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
     // Pad
     const yPad = Math.max(0.5, (maxDelta - minDelta) * 0.1);
     const x = d3.scaleLinear().domain([1, maxVisibleLap]).range([0, innerW]);
@@ -143,20 +163,27 @@ export default function LapDeltaChart() {
       .attr('stroke-dasharray', '6,3')
       .attr('opacity', 0.6);
 
-    // Base driver label
-    g.append('text')
-      .attr('x', innerW + 4).attr('y', y(0))
-      .attr('fill', getDriverColor(baseDriver))
-      .attr('font-size', '11px').attr('font-weight', '800')
-      .attr('dominant-baseline', 'middle')
-      .attr('font-family', 'var(--font-display)')
-      .text(baseDriver);
+    // Collect all end-labels for collision resolution
+    const labelEntries = [
+      { driver: baseDriver, yPos: y(0), text: baseDriver, color: getDriverColor(baseDriver) },
+    ];
 
     // Axes
     g.append('g').attr('class', 'axis').attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(x).ticks(Math.min(12, maxVisibleLap)).tickFormat(d3.format('d')));
     g.append('g').attr('class', 'axis')
       .call(d3.axisLeft(y).ticks(6).tickFormat((d) => `${d > 0 ? '+' : ''}${d.toFixed(1)}s`));
+
+    // Axis labels
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('x', innerW / 2).attr('y', innerH + margin.bottom - 4)
+      .attr('fill', 'rgba(255,255,255,0.4)').attr('font-size', '9px')
+      .attr('font-weight', 600).text('Lap');
+    g.append('text').attr('text-anchor', 'middle')
+      .attr('transform', `rotate(-90)`)
+      .attr('x', -innerH / 2).attr('y', -margin.left + 12)
+      .attr('fill', 'rgba(255,255,255,0.4)').attr('font-size', '9px')
+      .attr('font-weight', 600).text('Delta (s)');
 
     // Area + Line per driver
     const areaAbove = d3.area()
@@ -206,19 +233,49 @@ export default function LapDeltaChart() {
         .attr('stroke-width', 2)
         .attr('opacity', 0.85);
 
-      // End label
+      // Collect end label
       const last = deltas[deltas.length - 1];
       if (last) {
-        g.append('text')
-          .attr('x', innerW + 4)
-          .attr('y', y(last.delta))
-          .attr('fill', color)
-          .attr('font-size', '11px')
-          .attr('font-weight', '800')
-          .attr('dominant-baseline', 'middle')
-          .attr('font-family', 'var(--font-display)')
-          .text(`${driver} ${last.delta > 0 ? '+' : ''}${last.delta.toFixed(1)}s`);
+        labelEntries.push({
+          driver, yPos: y(last.delta),
+          text: `${driver} ${last.delta > 0 ? '+' : ''}${last.delta.toFixed(1)}s`,
+          color,
+        });
       }
+    });
+
+    // Resolve label overlaps: iterative relaxation
+    const minGap = 13;
+    labelEntries.sort((a, b) => a.yPos - b.yPos);
+    for (let pass = 0; pass < 10; pass++) {
+      let moved = false;
+      for (let i = 1; i < labelEntries.length; i++) {
+        const diff = labelEntries[i].yPos - labelEntries[i - 1].yPos;
+        if (diff < minGap) {
+          const shift = (minGap - diff) / 2 + 0.5;
+          labelEntries[i - 1].yPos -= shift;
+          labelEntries[i].yPos += shift;
+          moved = true;
+        }
+      }
+      // Clamp within chart area after each pass
+      labelEntries.forEach((l) => {
+        l.yPos = Math.max(6, Math.min(innerH - 2, l.yPos));
+      });
+      if (!moved) break;
+    }
+
+    // Render all end labels (margin sized to fit)
+    labelEntries.forEach((l) => {
+      g.append('text')
+        .attr('x', innerW + 4)
+        .attr('y', l.yPos)
+        .attr('fill', l.color)
+        .attr('font-size', '10px')
+        .attr('font-weight', '800')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-family', 'var(--font-display)')
+        .text(l.text);
     });
 
     // Tooltip overlay
@@ -259,13 +316,6 @@ export default function LapDeltaChart() {
         tooltipLine.style('display', 'none');
         tooltip.classed('visible', false).style('opacity', 0);
       });
-
-    // Axis labels
-    svg.append('text').attr('text-anchor', 'middle')
-      .attr('x', margin.left + innerW / 2).attr('y', height - 2)
-      .attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', 11)
-      .attr('font-weight', '600')
-      .text('Lap');
 
     return () => { d3.selectAll('.delta-tooltip').remove(); };
   }, [baseDriver, displayDrivers, driverCumTimes, currentLap]);

@@ -35,90 +35,162 @@ class GeminiRequest(BaseModel):
 def _build_prompt(request: GeminiRequest) -> str:
     """Build a structured prompt for Gemini with full race intelligence."""
     parts = [
-        "You are a senior F1 race strategy engineer. You have access to real-time data "
-        "including Monte Carlo simulations, LSTM lap time predictions, tyre degradation models, "
-        "and driver performance features. Your job is to give clear, actionable strategy calls "
-        "that a team principal or race engineer could radio to the driver.",
+        "You are a senior F1 race strategy engineer with access to live analytical data. "
+        "Your job is to give clear, actionable strategy calls that a race engineer could "
+        "radio to the driver.",
         "",
-        "Be concise and decisive. Prioritize: when to pit, which compound, and how to handle "
-        "specific battles. Reference the data to justify your recommendations.",
+        "CRITICAL RULES:",
+        "1. ONLY use the data provided below. NEVER invent lap times, positions, or probabilities.",
+        "2. Always reference specific numbers to justify recommendations (e.g. 'pace trend +0.08s/lap', 'pit loss 22s').",
+        "3. If the data for a topic is missing, say 'I don't have data for this' — do NOT guess.",
+        "4. Structure your response around actionable decisions: when to pit, which compound, how to handle battles.",
+        "5. Be concise and decisive. No filler or hedging.",
         "",
     ]
 
+    ctx = request.race_context or {}
+
+    # Race header
     if request.year:
         parts.append(f"Race: {request.year} Round {request.round}")
-    if request.current_lap:
-        parts.append(f"Current Lap: {request.current_lap}")
-    if request.drivers:
-        parts.append(f"Focus Drivers: {', '.join(request.drivers)}")
+    lap = request.current_lap or ctx.get('currentLap')
+    max_lap = ctx.get('maxLap')
+    if lap:
+        remaining = f", {max_lap - lap} laps remaining" if max_lap and max_lap > lap else ""
+        parts.append(f"Current Lap: {lap}/{max_lap or '?'}{remaining}")
+    focus = ctx.get('focusDriver')
+    selected = ctx.get('selectedDrivers') or request.drivers or []
+    if focus:
+        parts.append(f"Focus Driver: {focus}")
+    if selected:
+        parts.append(f"Selected Drivers: {', '.join(selected)}")
 
-    if request.lstm_predictions:
-        parts.append(f"\n## LSTM Lap Time Predictions (next 5-10 laps)")
+    # Session & weather
+    if ctx.get('session'):
+        s = ctx['session']
+        parts.append(f"\n## Session: {s.get('EventName', '?')} — {s.get('SessionName', '?')}")
+    if ctx.get('weather'):
+        w = ctx['weather']
+        parts.append(f"Weather: {w.get('AirTemp', '?')}°C air, {w.get('TrackTemp', '?')}°C track, "
+                      f"rain {w.get('Rainfall', 'no')}, humidity {w.get('Humidity', '?')}%")
+
+    # Driver features (live PCA-derived)
+    if ctx.get('driverFeatures'):
+        parts.append("\n## Driver State (live features)")
+        for drv, feats in ctx['driverFeatures'].items():
+            compound = feats.get('compoundName', '?')
+            parts.append(
+                f"  {drv}: P{feats.get('position','?')}, "
+                f"pace {feats.get('recentPace', 0):.1f}s, "
+                f"tyre {compound} (age {feats.get('tyreLife', '?')} laps), "
+                f"trend {feats.get('paceTrend', 0):+.2f}s/lap, "
+                f"est. {feats.get('estLapsToPit', '?')} laps to pit"
+            )
+
+    # Recent lap times
+    if ctx.get('recentLaps'):
+        parts.append(f"\n## Recent Laps ({focus or '?'})")
+        for lt in ctx['recentLaps']:
+            sectors = ""
+            if lt.get('s1') and lt.get('s2') and lt.get('s3'):
+                sectors = f" [S1:{lt['s1']:.1f} S2:{lt['s2']:.1f} S3:{lt['s3']:.1f}]"
+            parts.append(
+                f"  L{lt['lap']}: {lt['time']:.3f}s on {lt.get('compound','?')} "
+                f"(tyre age {lt.get('tyreLife','?')}){sectors}"
+            )
+
+    # Tyre strategy history
+    if ctx.get('tyreStrategy'):
+        parts.append("\n## Tyre Strategy (stints completed)")
+        for drv, stints in ctx['tyreStrategy'].items():
+            stint_str = " → ".join(
+                f"{s['compound']}(L{s['startLap']}, {s['length']}laps)" for s in stints
+            )
+            parts.append(f"  {drv}: {stint_str}")
+
+    # LSTM predictions
+    if ctx.get('lstm'):
+        lstm = ctx['lstm']
+        parts.append(f"\n## LSTM Predictions ({lstm.get('driver', '?')})")
+        if lstm.get('predictedTimes'):
+            for i, t in enumerate(lstm['predictedTimes']):
+                parts.append(f"  Lap +{i+1}: {t:.3f}s")
+        if lstm.get('pitProbability') is not None:
+            parts.append(f"  Pit probability: {lstm['pitProbability']*100:.0f}%")
+    elif request.lstm_predictions:
+        parts.append("\n## LSTM Lap Time Predictions")
         parts.append(json.dumps(request.lstm_predictions, default=str, indent=2))
 
-    if request.race_context:
-        ctx = request.race_context
-        if ctx.get('monteCarloProjections'):
-            parts.append("\n## Monte Carlo Race Predictions (100 simulations, real session data)")
-            for p in ctx['monteCarloProjections']:
-                exp = p.get('expectedPos', '?')
-                exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
-                r = p.get('posRange', ['?', '?'])
-                parts.append(
-                    f"  {p['driver']}: Current P{p.get('currentPos','?')} -> "
-                    f"Expected P{exp_str} (range P{r[0]}-P{r[1]}), "
-                    f"Podium: {p.get('podiumProb', 0)}%, Points: {p.get('pointsProb', 0)}%"
-                )
-        if ctx.get('battles'):
-            parts.append("\n## Key Battles (overtake probabilities)")
-            for b in ctx['battles']:
-                parts.append(
-                    f"  {b.get('driver2','?')} vs {b.get('driver1','?')}: "
-                    f"{b.get('overtakeProb', 0)}% chance of position swap "
-                    f"({b.get('type', 'unknown')})"
-                )
-        if ctx.get('risks'):
-            parts.append("\n## Risk Alerts")
-            for r in ctx['risks']:
-                parts.append(
-                    f"  [{r.get('severity','?').upper()}] {r.get('driver','?')}: "
-                    f"{r.get('description', r.get('message', ''))}"
-                )
-        if ctx.get('raceParams'):
-            rp = ctx['raceParams']
-            parts.append("\n## Race Parameters (computed from session data)")
-            pl = rp.get('pitLoss', {})
-            parts.append(f"  Pit stop time loss: {pl.get('mean', '?')}s +/-{pl.get('stdDev', '?')}s")
-            sc = rp.get('scRate', 0)
-            parts.append(f"  Safety car probability: {sc*100:.1f}% per lap")
-            ln = rp.get('lapNoise', 0)
-            parts.append(f"  Lap time variance: +/-{ln:.2f}s")
-        if ctx.get('driverFeatures'):
-            parts.append("\n## Selected Driver Features (current state)")
-            for drv, feats in ctx['driverFeatures'].items():
-                compound = feats.get('compoundName', '?')
-                parts.append(
-                    f"  {drv}: P{feats.get('position','?')}, "
-                    f"pace {feats.get('recentPace', 0):.1f}s, "
-                    f"tyre {compound} (age {feats.get('tyreLife', '?')} laps), "
-                    f"trend {feats.get('paceTrend', 0):+.2f}s/lap, "
-                    f"est. {feats.get('estLapsToPit', '?')} laps to pit"
-                )
-        if ctx.get('degradationRegression'):
-            deg = ctx['degradationRegression']
-            parts.append(f"\n## Tyre Degradation Regression: {json.dumps(deg, default=str)}")
+    # Monte Carlo projections
+    if ctx.get('monteCarloProjections'):
+        parts.append("\n## Monte Carlo Race Predictions (100 simulations)")
+        for p in ctx['monteCarloProjections']:
+            exp = p.get('expectedPos', '?')
+            exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
+            r = p.get('posRange', ['?', '?'])
+            parts.append(
+                f"  {p['driver']}: P{p.get('currentPos','?')} → "
+                f"Expected P{exp_str} (range P{r[0]}-P{r[1]}), "
+                f"Podium: {p.get('podiumProb', 0)}%, Points: {p.get('pointsProb', 0)}%"
+            )
+    if ctx.get('battles'):
+        parts.append("\n## Battles (overtake probabilities)")
+        for b in ctx['battles']:
+            parts.append(
+                f"  {b.get('driver2','?')} vs {b.get('driver1','?')}: "
+                f"{b.get('overtakeProb', 0)}% swap ({b.get('type', '')})"
+            )
+    if ctx.get('risks'):
+        parts.append("\n## Risk Alerts")
+        for r in ctx['risks']:
+            parts.append(
+                f"  [{r.get('severity','?').upper()}] {r.get('driver','?')}: "
+                f"{r.get('description', r.get('message', ''))}"
+            )
+
+    # Race parameters
+    if ctx.get('raceParams'):
+        rp = ctx['raceParams']
+        pl = rp.get('pitLoss', {})
+        parts.append(f"\n## Race Parameters")
+        parts.append(f"  Pit loss: {pl.get('mean', '?')}s ±{pl.get('stdDev', '?')}s")
+        sc = rp.get('scRate', 0)
+        parts.append(f"  Safety car prob: {sc*100:.1f}%/lap")
+
+    # Degradation regression
+    if ctx.get('degradationRegression'):
+        deg = ctx['degradationRegression']
+        parts.append(f"\n## Tyre Degradation: {json.dumps(deg, default=str)}")
+
+    # Simulator what-if
+    if ctx.get('simulator'):
+        sim = ctx['simulator']
+        parts.append(f"\n## Strategy Simulator Result")
+        parts.append(f"  Custom strategy → P{sim.get('customPos', '?')}")
+        parts.append(f"  Baseline → P{sim.get('baselinePos', '?')}")
+        parts.append(f"  Delta: {sim.get('delta', '?')}")
+
+    # PCA strategy patterns
+    if ctx.get('pcaPatterns'):
+        parts.append(f"\n## Historical Strategy Patterns (PCA cluster analysis)")
+        for i, pat in enumerate(ctx['pcaPatterns']):
+            parts.append(f"  Pattern {i+1}: {json.dumps(pat, default=str)}")
+
+    # Rival context
+    if ctx.get('rivals'):
+        parts.append(f"\n## Rival Context")
+        for r in ctx['rivals']:
+            parts.append(f"  {json.dumps(r, default=str)}")
 
     parts.extend([
         "",
         f"User Question: {request.query}",
         "",
         "Respond with:",
-        "1. A clear, actionable strategy recommendation (what to radio to the driver)",
-        "2. In a separate JSON block marked ```json, provide strategy scenarios:",
+        "1. A clear, actionable strategy recommendation referencing specific data points above.",
+        "2. In a separate JSON block marked ```json, provide 2-3 strategy scenarios:",
         '[{"id": "scenario_1", "label": "Strategy Name", "driver": "DRIVER_ABBR", '
         '"stints": [{"compound": "MEDIUM", "lap_start": 1, "length": 25}]}]',
-        "",
-        "Provide 2-3 realistic scenarios grounded in the data above.",
     ])
 
     return '\n'.join(parts)
@@ -162,9 +234,7 @@ def _mock_response(request: GeminiRequest) -> dict:
     drv_feats = features.get(driver, {})
     drv_proj = next((p for p in projections if p['driver'] == driver), None) if projections else None
     pit_loss = race_params.get('pitLoss', {}).get('mean', 22)
-    max_lap = 57  # reasonable default
-    if drv_proj and drv_proj.get('posRange'):
-        pass  # we have projections
+    max_lap = ctx.get('maxLap') or 57
 
     # Current driver state
     compound = drv_feats.get('compoundName', 'MEDIUM')
