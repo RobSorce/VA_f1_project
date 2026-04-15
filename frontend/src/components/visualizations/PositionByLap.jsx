@@ -390,7 +390,7 @@ export default function PositionByLap() {
       const laps = driverLapMap[driver];
       const last = laps[laps.length - 1];
       return { driver, lap: last.LapNumber, pos: last.Position };
-    }).sort((a, b) => a.pos - b.pos).slice(0, 10);
+    }).sort((a, b) => a.pos - b.pos);
 
     driverFinals.forEach(({ driver, lap, pos }) => {
       const isFocus = driver === focusDriver;
@@ -411,7 +411,7 @@ export default function PositionByLap() {
 
     /* ── Axes ──────────────────────────────────────────────────── */
     // Y axis
-    const yTicks = positions.filter(p => p <= 10 || p === 15 || p === 20);
+    const yTicks = positions;
     axesG.append('g')
       .attr('transform', `translate(${MARGIN.left},0)`)
       .call(d3.axisLeft(yScale)
