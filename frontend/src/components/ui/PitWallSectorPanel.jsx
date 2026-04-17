@@ -44,6 +44,8 @@ export default function PitWallSectorPanel() {
   const focusDriver = useF1Store((s) => s.focusDriver);
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
+  const currentTime = useF1Store((s) => s.currentTime);
+  const totalFrames = useF1Store((s) => s.totalFrames);
   const frameData = useF1Store((s) => s.frameData);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
 
@@ -51,6 +53,17 @@ export default function PitWallSectorPanel() {
     if (!focusDriver || !sessionData?.lap_times?.length) return null;
 
     const lapTimes = sessionData.lap_times;
+    const replayActive = totalFrames > 0;
+    // Session time offset: frame.t is 0-based, LapStartTime is session-absolute
+    let offset = 0;
+    for (const d of lapTimes) {
+      if (d.LapStartTime > 0 && (d.Time > 0 || d.LapTimeSeconds > 0) && d.LapNumber >= 1) {
+        offset = d.LapStartTime;
+        break;
+      }
+    }
+    const hasOffset = offset > 0;
+
     const driverLaps = lapTimes
       .filter((lt) => lt.Driver === focusDriver && lt.LapNumber <= currentLap)
       .sort((a, b) => a.LapNumber - b.LapNumber);
@@ -99,14 +112,60 @@ export default function PitWallSectorPanel() {
     // Previous 3 laps
     const prevLaps = completedLaps.slice(-4, -1).reverse();
 
+    // In-progress lap: the driver's latest historic lap whose Time hasn't been reached yet
+    let inProgressLt = null;
+    if (replayActive && hasOffset) {
+      // Look at the driver's latest lap_time row where LapStartTime <= currentTime + offset < Time
+      for (let i = driverLaps.length - 1; i >= 0; i--) {
+        const lt = driverLaps[i];
+        if (lt.LapStartTime > 0) {
+          const startFT = lt.LapStartTime - offset;
+          const endFT = lt.Time > 0 ? lt.Time - offset : null;
+          if (currentTime >= startFT && (endFT == null || currentTime < endFT)) {
+            inProgressLt = lt;
+            break;
+          }
+        }
+      }
+    }
+
+    // Compute live chrono fields from the in-progress lap
+    let liveLapChrono = null;
+    let liveS1 = null, liveS2 = null, liveS3 = null;
+    let activeSector = null; // 1|2|3
+    if (inProgressLt && hasOffset) {
+      const lapStartFT = inProgressLt.LapStartTime - offset;
+      liveLapChrono = Math.max(0, currentTime - lapStartFT);
+
+      const s1EndFT = inProgressLt.Sector1SessionTime > 0 ? inProgressLt.Sector1SessionTime - offset : null;
+      const s2EndFT = inProgressLt.Sector2SessionTime > 0 ? inProgressLt.Sector2SessionTime - offset : null;
+      const s3EndFT = inProgressLt.Sector3SessionTime > 0 ? inProgressLt.Sector3SessionTime - offset : null;
+
+      const s1Done = s1EndFT != null ? currentTime >= s1EndFT : inProgressLt.Sector1TimeSeconds > 0;
+      const s2Done = s2EndFT != null ? currentTime >= s2EndFT : inProgressLt.Sector2TimeSeconds > 0;
+      const s3Done = s3EndFT != null ? currentTime >= s3EndFT : inProgressLt.Sector3TimeSeconds > 0;
+
+      liveS1 = s1Done ? inProgressLt.Sector1TimeSeconds : null;
+      liveS2 = s2Done ? inProgressLt.Sector2TimeSeconds : null;
+      liveS3 = s3Done ? inProgressLt.Sector3TimeSeconds : null;
+
+      if (!s1Done) activeSector = 1;
+      else if (!s2Done) activeSector = 2;
+      else if (!s3Done) activeSector = 3;
+    }
+
     return {
       latest,
       prevLaps,
       bestS1, bestS2, bestS3, bestLap,
       sessBestS1, sessBestS2, sessBestS3, sessBestLap,
-      lapNumber: latest?.LapNumber || currentLap,
+      lapNumber: inProgressLt?.LapNumber || latest?.LapNumber || currentLap,
+      inProgress: inProgressLt != null,
+      liveLapChrono,
+      liveS1, liveS2, liveS3,
+      activeSector,
     };
-  }, [focusDriver, sessionData, currentLap]);
+  }, [focusDriver, sessionData, currentLap, currentTime, totalFrames]);
 
   // Current tyre compound from frame data
   const compound = useMemo(() => {
@@ -120,16 +179,18 @@ export default function PitWallSectorPanel() {
   if (!focusDriver || !data) return null;
 
   const color = getDriverColor(focusDriver);
+  // While a lap is in progress, show the live (partial) values; otherwise show the last completed lap.
+  const inProg = data.inProgress;
   const lt = data.latest;
-  const s1 = lt?.Sector1TimeSeconds;
-  const s2 = lt?.Sector2TimeSeconds;
-  const s3 = lt?.Sector3TimeSeconds;
-  const lapTime = lt?.LapTimeSeconds;
+  const s1 = inProg ? data.liveS1 : lt?.Sector1TimeSeconds;
+  const s2 = inProg ? data.liveS2 : lt?.Sector2TimeSeconds;
+  const s3 = inProg ? data.liveS3 : lt?.Sector3TimeSeconds;
+  const lapTime = inProg ? null : lt?.LapTimeSeconds;
 
   const sectors = [
-    { label: 'S1', time: s1, best: data.bestS1, sessBest: data.sessBestS1 },
-    { label: 'S2', time: s2, best: data.bestS2, sessBest: data.sessBestS2 },
-    { label: 'S3', time: s3, best: data.bestS3, sessBest: data.sessBestS3 },
+    { label: 'S1', time: s1, best: data.bestS1, sessBest: data.sessBestS1, sectorNum: 1 },
+    { label: 'S2', time: s2, best: data.bestS2, sessBest: data.sessBestS2, sectorNum: 2 },
+    { label: 'S3', time: s3, best: data.bestS3, sessBest: data.sessBestS3, sectorNum: 3 },
   ];
 
   const compoundColor = compound ? (TYRE_COLORS[compound] || '#888') : '#888';
@@ -155,27 +216,52 @@ export default function PitWallSectorPanel() {
         <span className="pitwall-sector-panel__total-label">LAP TIME</span>
         <span
           className="pitwall-sector-panel__total-value"
-          style={{ color: getLapColor(lapTime, data.bestLap, data.sessBestLap) }}
+          style={{
+            color: inProg
+              ? '#fbbf24'
+              : getLapColor(lapTime, data.bestLap, data.sessBestLap),
+            fontVariantNumeric: 'tabular-nums',
+          }}
         >
-          {fmtLap(lapTime)}
+          {inProg && data.liveLapChrono != null
+            ? fmtLap(data.liveLapChrono)
+            : fmtLap(lapTime)}
         </span>
       </div>
 
       <div className="pitwall-sector-panel__sectors">
         {sectors.map((sec) => {
-          const sColor = getSectorColor(sec.time, sec.best, sec.sessBest);
+          const isActive = inProg && data.activeSector === sec.sectorNum;
+          const sColor = isActive
+            ? '#fbbf24'
+            : getSectorColor(sec.time, sec.best, sec.sessBest);
           const delta = (sec.time && sec.time > 0 && sec.best) ? sec.time - sec.best : null;
           const deltaColor = delta != null
             ? (delta <= 0 ? '#22c55e' : delta > 0.3 ? '#ef4444' : 'rgba(255,255,255,0.4)')
             : 'rgba(255,255,255,0.3)';
+          // For the active (in-progress) sector, show a running counter
+          const displayVal = isActive && data.liveLapChrono != null
+            ? (() => {
+                // elapsed within the active sector
+                if (sec.sectorNum === 1) return data.liveLapChrono.toFixed(1);
+                if (sec.sectorNum === 2 && data.liveS1 != null) return (data.liveLapChrono - data.liveS1).toFixed(1);
+                if (sec.sectorNum === 3 && data.liveS1 != null && data.liveS2 != null) {
+                  return (data.liveLapChrono - data.liveS1 - data.liveS2).toFixed(1);
+                }
+                return data.liveLapChrono.toFixed(1);
+              })()
+            : fmtSector(sec.time);
           return (
             <div key={sec.label} className="pitwall-sector-panel__sector">
               <span className="pitwall-sector-panel__sector-label">{sec.label}</span>
-              <span className="pitwall-sector-panel__sector-value" style={{ color: sColor }}>
-                {fmtSector(sec.time)}
+              <span
+                className="pitwall-sector-panel__sector-value"
+                style={{ color: sColor, fontVariantNumeric: 'tabular-nums' }}
+              >
+                {displayVal}
               </span>
               <span className="pitwall-sector-panel__sector-delta" style={{ color: deltaColor }}>
-                {fmtDelta(delta)}
+                {isActive ? '' : fmtDelta(delta)}
               </span>
             </div>
           );

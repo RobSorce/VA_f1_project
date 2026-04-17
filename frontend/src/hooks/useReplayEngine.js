@@ -25,7 +25,7 @@ export function useReplayEngine() {
 
   const isLiveMode = useF1Store((s) => s.isLiveMode);
 
-  const intervalRef = useRef(null);
+  const rafRef = useRef(null);
 
   // ── Status code mapping ──────────────────────────────────────────
   const STATUS_MAP = {
@@ -262,31 +262,64 @@ export function useReplayEngine() {
     return events;
   }, [trackStatus, sessionData, frameData, lapFrameMap, maxLap, isQualifyingReplay]);
 
-  // ── Tick function: advance one frame ───────────────────────────
-  const tick = useCallback(() => {
-    const state = useF1Store.getState();
-    const { currentFrameIndex: idx, totalFrames: total } = state;
-    if (idx >= total - 1) {
-      state.setIsPlaying(false);
-      return;
-    }
-    state.setCurrentFrameIndex(idx + 1);
-  }, []);
-
-  // ── Playback interval management (frame-based only, disabled in live mode) ──
+  // ── Playback loop: RAF + wall-clock driven ─────────────────────
+  // setInterval at 400ms felt sticky: chronos only updated 2.5× per second.
+  // Using requestAnimationFrame, we advance currentTime smoothly (~60Hz) and
+  // bump currentFrameIndex only when the target session time crosses a frame
+  // boundary. Wall-clock math self-corrects if the JS thread stalls.
   useEffect(() => {
     if (isLiveMode) return; // In live mode, frames arrive via WebSocket
-    if (isPlaying && totalFrames > 1) {
-      const interval = Math.max(16, (frameDt * 1000) / playSpeed);
-      intervalRef.current = setInterval(tick, interval);
-    }
+    if (!isPlaying || totalFrames <= 1) return;
+
+    const frames = useF1Store.getState().frameData?.frames;
+    if (!frames?.length) return;
+
+    let wallStart = performance.now();
+    let lastIdx = useF1Store.getState().currentFrameIndex;
+    let sessionStart = frames[lastIdx]?.t ?? 0;
+
+    const loop = (now) => {
+      const state = useF1Store.getState();
+
+      // Detect external seek — rebase the wall-clock baseline.
+      if (state.currentFrameIndex !== lastIdx) {
+        wallStart = now;
+        lastIdx = state.currentFrameIndex;
+        sessionStart = frames[lastIdx]?.t ?? 0;
+      }
+
+      const elapsedWall = (now - wallStart) / 1000;
+      const targetT = sessionStart + elapsedWall * playSpeed;
+
+      // Advance frame index to the last frame whose t ≤ targetT.
+      let idx = lastIdx;
+      while (idx < frames.length - 1 && frames[idx + 1].t <= targetT) idx++;
+
+      if (idx >= frames.length - 1) {
+        state.setCurrentFrameIndex(frames.length - 1);
+        state.setIsPlaying(false);
+        return;
+      }
+
+      if (idx !== lastIdx) {
+        state.setCurrentFrameIndex(idx);
+        lastIdx = idx;
+      }
+
+      // Smoothly interpolate currentTime for chronos between frame boundaries.
+      state.setCurrentTime(targetT);
+
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    rafRef.current = requestAnimationFrame(loop);
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
       }
     };
-  }, [isLiveMode, isPlaying, playSpeed, totalFrames, frameDt, tick]);
+  }, [isLiveMode, isPlaying, playSpeed, totalFrames]);
 
   // ── Transport controls ──────────────────────────────────────────
   const play = useCallback(() => {

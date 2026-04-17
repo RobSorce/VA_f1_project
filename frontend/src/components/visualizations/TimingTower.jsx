@@ -28,6 +28,13 @@ function formatLapTime(seconds) {
   return mins > 0 ? `${mins}:${secs.padStart(6, '0')}` : secs;
 }
 
+function formatRunningLap(seconds) {
+  if (seconds == null || seconds < 0) return '-';
+  const mins = Math.floor(seconds / 60);
+  const secs = (seconds % 60).toFixed(1);
+  return mins > 0 ? `${mins}:${secs.padStart(4, '0')}` : secs;
+}
+
 function formatSectorTime(seconds) {
   if (!seconds || seconds <= 0) return '-';
   return seconds.toFixed(3);
@@ -151,6 +158,7 @@ const TimingRow = React.memo(function TimingRow({
     gap, interval,
     s1, s2, s3, lapTime,
     s1Color, s2Color, s3Color, lapTimeColor,
+    s1Chrono, s2Chrono, s3Chrono, lapChrono,
     compound, tyreLife, lapNumber,
     statusColor, statusLabel, isDnf, dnfStatus,
     isEvenRow,
@@ -255,23 +263,39 @@ const TimingRow = React.memo(function TimingRow({
       </td>
 
       {/* S1 */}
-      <td style={{ ...cellBase, width: COL.s1, color: s1Color, fontWeight: 500 }}>
-        {formatSectorTime(s1)}
+      <td style={{
+        ...cellBase, width: COL.s1,
+        color: s1Chrono != null ? '#fbbf24' : s1Color,
+        fontWeight: 500,
+      }}>
+        {s1Chrono != null ? s1Chrono.toFixed(1) : formatSectorTime(s1)}
       </td>
 
       {/* S2 */}
-      <td style={{ ...cellBase, width: COL.s2, color: s2Color, fontWeight: 500 }}>
-        {formatSectorTime(s2)}
+      <td style={{
+        ...cellBase, width: COL.s2,
+        color: s2Chrono != null ? '#fbbf24' : s2Color,
+        fontWeight: 500,
+      }}>
+        {s2Chrono != null ? s2Chrono.toFixed(1) : formatSectorTime(s2)}
       </td>
 
       {/* S3 */}
-      <td style={{ ...cellBase, width: COL.s3, color: s3Color, fontWeight: 500 }}>
-        {formatSectorTime(s3)}
+      <td style={{
+        ...cellBase, width: COL.s3,
+        color: s3Chrono != null ? '#fbbf24' : s3Color,
+        fontWeight: 500,
+      }}>
+        {s3Chrono != null ? s3Chrono.toFixed(1) : formatSectorTime(s3)}
       </td>
 
       {/* LAP TIME */}
-      <td style={{ ...cellBase, width: COL.lapTime, color: lapTimeColor, fontWeight: 500 }}>
-        {formatLapTime(lapTime)}
+      <td style={{
+        ...cellBase, width: COL.lapTime,
+        color: lapChrono != null ? '#fbbf24' : lapTimeColor,
+        fontWeight: 500,
+      }}>
+        {lapChrono != null ? formatRunningLap(lapChrono) : formatLapTime(lapTime)}
       </td>
 
       {/* LAP */}
@@ -299,6 +323,8 @@ export default function TimingTower() {
   const sessionData = useF1Store((s) => s.sessionData);
   const drivers = useF1Store((s) => s.drivers);
   const currentLap = useF1Store((s) => s.currentLap);
+  const currentTime = useF1Store((s) => s.currentTime);
+  const totalFrames = useF1Store((s) => s.totalFrames);
   const maxLap = useF1Store((s) => s.maxLap);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
@@ -334,6 +360,17 @@ export default function TimingTower() {
     if (!sessionData?.lap_times?.length) return [];
 
     const lapTimes = sessionData.lap_times;
+    const replayActive = totalFrames > 0;
+
+    // Session time offset: frame.t is 0-based, lap_times SessionTime fields are absolute
+    let offset = 0;
+    for (const d of lapTimes) {
+      if (d.LapStartTime > 0 && (d.Time > 0 || d.LapTimeSeconds > 0) && d.LapNumber >= 1) {
+        offset = d.LapStartTime;
+        break;
+      }
+    }
+    const hasOffset = offset > 0;
 
     let sessionBestS1 = Infinity, sessionBestS2 = Infinity;
     let sessionBestS3 = Infinity, sessionBestLap = Infinity;
@@ -342,27 +379,38 @@ export default function TimingTower() {
     const latestByDriver = {};
     const prevLapByDriver = {}; // track previous lap for lap time fallback
 
+    // Helper: true if a SessionTime has been reached in replay time.
+    // When replay is not active or offset is unknown, default to "reached".
+    const reached = (sessionT) => {
+      if (!replayActive || !hasOffset) return true;
+      if (sessionT == null || sessionT <= 0) return false;
+      return currentTime >= sessionT - offset;
+    };
+
     for (const lt of lapTimes) {
       if (lt.LapNumber > currentLap) continue;
       const drv = lt.Driver;
       if (!drv) continue;
 
-      if (lt.Sector1TimeSeconds > 0) {
+      // Only count sectors whose SessionTime has been reached in the replay
+      if (lt.Sector1TimeSeconds > 0 && reached(lt.Sector1SessionTime)) {
         if (!personalBestS1[drv] || lt.Sector1TimeSeconds < personalBestS1[drv])
           personalBestS1[drv] = lt.Sector1TimeSeconds;
         if (lt.Sector1TimeSeconds < sessionBestS1) sessionBestS1 = lt.Sector1TimeSeconds;
       }
-      if (lt.Sector2TimeSeconds > 0) {
+      if (lt.Sector2TimeSeconds > 0 && reached(lt.Sector2SessionTime)) {
         if (!personalBestS2[drv] || lt.Sector2TimeSeconds < personalBestS2[drv])
           personalBestS2[drv] = lt.Sector2TimeSeconds;
         if (lt.Sector2TimeSeconds < sessionBestS2) sessionBestS2 = lt.Sector2TimeSeconds;
       }
-      if (lt.Sector3TimeSeconds > 0) {
+      if (lt.Sector3TimeSeconds > 0 && reached(lt.Sector3SessionTime)) {
         if (!personalBestS3[drv] || lt.Sector3TimeSeconds < personalBestS3[drv])
           personalBestS3[drv] = lt.Sector3TimeSeconds;
         if (lt.Sector3TimeSeconds < sessionBestS3) sessionBestS3 = lt.Sector3TimeSeconds;
       }
-      if (lt.LapTimeSeconds > 0 && lt.LapTimeSeconds < 300) {
+      // Lap time counts only once the lap has ended in replay time
+      const lapEndReached = !replayActive || !hasOffset || (lt.Time > 0 && currentTime >= lt.Time - offset);
+      if (lt.LapTimeSeconds > 0 && lt.LapTimeSeconds < 300 && lapEndReached) {
         if (!personalBestLap[drv] || lt.LapTimeSeconds < personalBestLap[drv])
           personalBestLap[drv] = lt.LapTimeSeconds;
         if (lt.LapTimeSeconds < sessionBestLap) sessionBestLap = lt.LapTimeSeconds;
@@ -397,12 +445,48 @@ export default function TimingTower() {
         statusLabel = 'Pit';
       }
 
-      const s1Val = lt.Sector1TimeSeconds > 0 ? lt.Sector1TimeSeconds : null;
-      const s2Val = lt.Sector2TimeSeconds > 0 ? lt.Sector2TimeSeconds : null;
-      const s3Val = lt.Sector3TimeSeconds > 0 ? lt.Sector3TimeSeconds : null;
-      const rawLapVal = lt.LapTimeSeconds > 0 && lt.LapTimeSeconds < 300 ? lt.LapTimeSeconds : null;
+      // Frame-time checkpoints for progressive reveal / chrono
+      const lapStartFT = hasOffset && lt.LapStartTime > 0 ? lt.LapStartTime - offset : null;
+      const s1EndFT   = hasOffset && lt.Sector1SessionTime > 0 ? lt.Sector1SessionTime - offset : null;
+      const s2EndFT   = hasOffset && lt.Sector2SessionTime > 0 ? lt.Sector2SessionTime - offset : null;
+      const s3EndFT   = hasOffset && lt.Sector3SessionTime > 0 ? lt.Sector3SessionTime - offset : null;
+      const lapEndFT  = hasOffset && lt.Time > 0 ? lt.Time - offset : null;
+
+      const showS1 = !replayActive || !hasOffset
+        ? (lt.Sector1TimeSeconds > 0)
+        : (s1EndFT != null ? currentTime >= s1EndFT : lt.Sector1TimeSeconds > 0);
+      const showS2 = !replayActive || !hasOffset
+        ? (lt.Sector2TimeSeconds > 0)
+        : (s2EndFT != null ? currentTime >= s2EndFT : lt.Sector2TimeSeconds > 0);
+      const showS3 = !replayActive || !hasOffset
+        ? (lt.Sector3TimeSeconds > 0)
+        : (s3EndFT != null ? currentTime >= s3EndFT : lt.Sector3TimeSeconds > 0);
+      const showLapFinal = !replayActive || !hasOffset
+        ? (lt.LapTimeSeconds > 0 && lt.LapTimeSeconds < 300)
+        : (lapEndFT != null && currentTime >= lapEndFT && lt.LapTimeSeconds > 0 && lt.LapTimeSeconds < 300);
+
+      const s1Val = showS1 && lt.Sector1TimeSeconds > 0 ? lt.Sector1TimeSeconds : null;
+      const s2Val = showS2 && lt.Sector2TimeSeconds > 0 ? lt.Sector2TimeSeconds : null;
+      const s3Val = showS3 && lt.Sector3TimeSeconds > 0 ? lt.Sector3TimeSeconds : null;
+      const rawLapVal = showLapFinal ? lt.LapTimeSeconds : null;
       const prevLt = prevLapByDriver[drv];
       const lapVal = rawLapVal || (prevLt?.LapTimeSeconds > 0 && prevLt.LapTimeSeconds < 300 ? prevLt.LapTimeSeconds : null);
+
+      // Live chronometer: running counter in the sector currently in progress
+      let s1Chrono = null, s2Chrono = null, s3Chrono = null, lapChrono = null;
+      if (replayActive && hasOffset && !isDnf && !isPitIn && lapStartFT != null && currentTime >= lapStartFT) {
+        const lapRunning = Math.max(0, currentTime - lapStartFT);
+        // Show live lap counter while the lap is still in progress
+        if (!showLapFinal) lapChrono = lapRunning;
+        // Show chrono in the active sector (pending, not yet completed)
+        if (!showS1) {
+          s1Chrono = lapRunning;
+        } else if (!showS2 && s1EndFT != null) {
+          s2Chrono = Math.max(0, currentTime - s1EndFT);
+        } else if (!showS3 && s2EndFT != null) {
+          s3Chrono = Math.max(0, currentTime - s2EndFT);
+        }
+      }
 
       return {
         pos: lt.Position || 99,
@@ -412,6 +496,7 @@ export default function TimingTower() {
         gap: null,  // formatted after sorting
         gapRaw: lt.GapToLeader,
         s1: s1Val, s2: s2Val, s3: s3Val, lapTime: lapVal,
+        s1Chrono, s2Chrono, s3Chrono, lapChrono,
         s1Color: getTimingColor(s1Val, sessionBestS1, personalBestS1[drv], isPitIn, isPitOut),
         s2Color: getTimingColor(s2Val, sessionBestS2, personalBestS2[drv], isPitIn, isPitOut),
         s3Color: getTimingColor(s3Val, sessionBestS3, personalBestS3[drv], isPitIn, isPitOut),
@@ -443,7 +528,7 @@ export default function TimingTower() {
       const gap = formatGap(entry.gapRaw, entry.pos === 1);
       return { ...entry, gap, interval, isEvenRow: idx % 2 === 0 };
     });
-  }, [sessionData, currentLap, driverInfoMap, dnfMap]);
+  }, [sessionData, currentLap, currentTime, totalFrames, driverInfoMap, dnfMap]);
 
   /* -- Flag status banner ------------------------------------------------ */
   const flagBanner = useMemo(() => {

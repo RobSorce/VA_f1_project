@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback, useRef, useEffect } from 'react';
+import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 
@@ -28,7 +29,13 @@ const CELL_STYLES = {
   'empty':         { color: 'rgba(255,255,255,0.15)' },
   'future':        { background: 'rgba(255,255,255,0.008)', color: 'transparent' },
   'dnf':           { background: 'rgba(255,60,60,0.12)', color: '#FF4444', fontWeight: 700 },
+  'live-chrono':   { background: 'rgba(251,191,36,0.14)', color: '#fbbf24', fontWeight: 700 },
 };
+
+/* -- D3 threshold scale for pace classification (delta from driver median) -- */
+const paceColorScale = d3.scaleThreshold()
+  .domain([-0.3, 0.5, 2.0])
+  .range(['good', 'default', 'slower', 'very-slow']);
 
 /* -- Classify a cell ------------------------------------------------------- */
 function classifyCell(lapEntry, lap, currentLap, sessionBest, driverBest, dnfInfo, driverMedian) {
@@ -69,13 +76,10 @@ function classifyCell(lapEntry, lap, currentLap, sessionBest, driverBest, dnfInf
   if (driverBest && Math.abs(time - driverBest) < 0.010)
     return { label, style: 'personal-best' };
 
-  // Median-based classification
+  // D3 threshold scale: delta from driver median → pace classification
   if (driverMedian) {
     const delta = time - driverMedian;
-    if (delta < -0.3)  return { label, style: 'good' };       // >0.3s faster than median
-    if (delta <= 0.5)   return { label, style: 'default' };    // within -0.3 to +0.5 of median
-    if (delta <= 2.0)   return { label, style: 'slower' };     // 0.5 to 2.0s above median
-    return { label, style: 'very-slow' };                      // >2.0s above median
+    return { label, style: paceColorScale(delta) };
   }
 
   return { label, style: 'default' };
@@ -165,6 +169,8 @@ function RacePaceGrid() {
   const sessionData = useF1Store((s) => s.sessionData);
   const drivers = useF1Store((s) => s.sessionData?.drivers || s.drivers || []);
   const currentLap = useF1Store((s) => s.currentLap);
+  const currentTime = useF1Store((s) => s.currentTime);
+  const totalFrames = useF1Store((s) => s.totalFrames);
   const maxLap = useF1Store((s) => s.maxLap);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -312,6 +318,18 @@ function RacePaceGrid() {
     }
   }, [currentLap]);
 
+  // -- Session time offset: frame.t is 0-based, lap_times SessionTime fields are absolute --
+  const { timeOffset, replayActive } = useMemo(() => {
+    let off = 0;
+    for (const d of lapTimes) {
+      if (d.LapStartTime > 0 && (d.Time > 0 || d.LapTimeSeconds > 0) && d.LapNumber >= 1) {
+        off = d.LapStartTime;
+        break;
+      }
+    }
+    return { timeOffset: off, replayActive: totalFrames > 0 };
+  }, [lapTimes, totalFrames]);
+
   // -- Render --
   if (!lapTimes.length || !sortedDrivers.length) {
     return (
@@ -423,9 +441,29 @@ function RacePaceGrid() {
                   const driverBest = driverBests[abbr] || null;
                   const driverMedian = driverMedians[abbr] || null;
 
-                  const { label, style: styleKey } = classifyCell(
-                    lapEntry, lap, currentLap, sessionBest, driverBest, dnfInfo, driverMedian
-                  );
+                  let label, styleKey;
+                  const hasOffset = timeOffset > 0;
+                  // Live chrono: driver's lap is still running in replay time
+                  const lapStartFT = lapEntry && hasOffset && lapEntry.LapStartTime > 0
+                    ? lapEntry.LapStartTime - timeOffset : null;
+                  const lapEndFT = lapEntry && hasOffset && lapEntry.Time > 0
+                    ? lapEntry.Time - timeOffset : null;
+                  const inProgress = replayActive && hasOffset
+                    && lapStartFT != null && lapEndFT != null
+                    && currentTime >= lapStartFT && currentTime < lapEndFT
+                    && !(lapEntry.PitInTime) && !(dnfInfo && lap > dnfInfo.lastLap);
+
+                  if (inProgress) {
+                    const elapsed = Math.max(0, currentTime - lapStartFT);
+                    label = formatLapTime(elapsed);
+                    styleKey = 'live-chrono';
+                  } else {
+                    const classified = classifyCell(
+                      lapEntry, lap, currentLap, sessionBest, driverBest, dnfInfo, driverMedian
+                    );
+                    label = classified.label;
+                    styleKey = classified.style;
+                  }
 
                   const tooltip = buildTooltip(abbr, lap, lapEntry);
                   const isHighlighted = highlightedDriver === abbr;

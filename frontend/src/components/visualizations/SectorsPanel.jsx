@@ -132,8 +132,12 @@ export default function SectorsPanel() {
 
         // Live chronometer for current sector
         let chrono = null;
+        let runningLap = null;
         if (isCurrentLap && hasTimeOffset) {
           const lapStart = d.LapStartTime > 0 ? d.LapStartTime - sessionTimeOffset : null;
+          if (lapStart != null && currentTime >= lapStart) {
+            runningLap = Math.max(0, currentTime - lapStart);
+          }
           if (!showS1 && lapStart != null) {
             chrono = { sector: 1, elapsed: Math.max(0, currentTime - lapStart) };
           } else if (showS1 && !showS2 && s1SessionT != null) {
@@ -149,6 +153,7 @@ export default function SectorsPanel() {
           lap: d.LapNumber,
           sectors,
           chrono,
+          runningLap,
           lapTime: showLapTime ? d.LapTimeSeconds : null,
         };
       });
@@ -291,11 +296,19 @@ export default function SectorsPanel() {
       <div className="sectors-panel__legend">
         <span className="sectors-panel__legend-item">
           <span className="sectors-panel__legend-dot" style={{ background: '#A020F0' }} />
-          Overall Best
+          Session Best
         </span>
         <span className="sectors-panel__legend-item">
           <span className="sectors-panel__legend-dot" style={{ background: '#00FF00' }} />
           Personal Best
+        </span>
+        <span className="sectors-panel__legend-item">
+          <span className="sectors-panel__legend-dot" style={{ background: '#FFD700' }} />
+          Improving
+        </span>
+        <span className="sectors-panel__legend-item" style={{ opacity: 0.5 }}>
+          <span className="sectors-panel__legend-dot" style={{ background: 'rgba(255,255,255,0.6)' }} />
+          Standard
         </span>
       </div>
 
@@ -353,8 +366,17 @@ export default function SectorsPanel() {
                       </span>
                     );
                   })}
-                  <span className="sectors-panel__live-sec sectors-panel__live-sec--lap">
-                    {row.lapTime ? formatTime(row.lapTime) : '—'}
+                  <span
+                    className="sectors-panel__live-sec sectors-panel__live-sec--lap"
+                    style={!row.lapTime && row.runningLap != null
+                      ? { color: '#fbbf24', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }
+                      : undefined}
+                  >
+                    {row.lapTime
+                      ? formatTime(row.lapTime)
+                      : row.runningLap != null
+                        ? row.runningLap.toFixed(1)
+                        : '—'}
                   </span>
                 </div>
               );
