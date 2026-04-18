@@ -12,6 +12,12 @@ function formatLapTime(seconds) {
   return `${mins}:${secs}`;
 }
 
+// Axis tick formatter — seconds in time mode, kilometers in distance mode.
+function xTickFormat(mode) {
+  if (mode === 'time') return (d) => `${d.toFixed(0)}s`;
+  return (d) => `${(d / 1000).toFixed(1)}k`;
+}
+
 export default function TelemetryStrip({ embedded = false }) {
   const speedRef = useRef(null);
   const deltaRef = useRef(null);
@@ -27,6 +33,7 @@ export default function TelemetryStrip({ embedded = false }) {
   const brushRef = useRef(null);
   const clipRectsRef = useRef([]);       // clipPath rects for progressive reveal
   const currentDistRef = useRef(null);   // current driver distance (no re-render)
+  const playheadRef = useRef(null);      // live playhead DOM handles on speed chart
 
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const focusDriver = useF1Store((s) => s.focusDriver);
@@ -59,6 +66,10 @@ export default function TelemetryStrip({ embedded = false }) {
 
   // ── Brush zoom state ──────────────────────────────────────────
   const [zoomDomain, setZoomDomain] = useState(null); // null = full view, or [minDist, maxDist]
+  // ── X-axis mode: 'distance' (meters) or 'time' (seconds from lap start) ──
+  const [xAxisMode, setXAxisMode] = useState('distance');
+  // ── Reference-lap ghost overlay (Pi Toolbox style): dims other cached laps of focus driver ──
+  const [showGhosts, setShowGhosts] = useState(false);
 
   // ResizeObserver
   useEffect(() => {
@@ -72,14 +83,50 @@ export default function TelemetryStrip({ embedded = false }) {
     return () => ro.disconnect();
   }, []);
 
-  // Available drivers for the selector
+  // Available drivers for the selector — fall back through multiple sources so
+  // the dropdown is never empty when a session is loaded.
   const driverList = useMemo(() => {
-    return (drivers || []).map((d) => ({
-      abbr: d.Abbreviation,
-      name: d.FullName || d.Abbreviation,
-      color: getDriverColor(d.Abbreviation),
-    }));
-  }, [drivers]);
+    if (drivers && drivers.length > 0) {
+      return drivers.map((d) => ({
+        abbr: d.Abbreviation,
+        name: d.FullName || d.Abbreviation,
+        color: getDriverColor(d.Abbreviation),
+      }));
+    }
+    const infoFromSession = sessionData?.driver_info;
+    if (infoFromSession && infoFromSession.length > 0) {
+      return infoFromSession.map((d) => ({
+        abbr: d.Abbreviation,
+        name: d.FullName || d.Abbreviation,
+        color: getDriverColor(d.Abbreviation),
+      }));
+    }
+    const results = sessionData?.race_results;
+    if (results && results.length > 0) {
+      const seen = new Set();
+      const out = [];
+      for (const r of results) {
+        const abbr = r.Abbreviation || r.Driver;
+        if (!abbr || seen.has(abbr)) continue;
+        seen.add(abbr);
+        out.push({ abbr, name: r.FullName || r.BroadcastName || abbr, color: getDriverColor(abbr) });
+      }
+      if (out.length > 0) return out;
+    }
+    const laps = sessionData?.lap_times;
+    if (laps && laps.length > 0) {
+      const seen = new Set();
+      const out = [];
+      for (const lt of laps) {
+        const abbr = lt.Driver;
+        if (!abbr || seen.has(abbr)) continue;
+        seen.add(abbr);
+        out.push({ abbr, name: abbr, color: getDriverColor(abbr) });
+      }
+      return out;
+    }
+    return [];
+  }, [drivers, sessionData]);
 
   // Racing laps for the focused driver (for presets)
   const driverRacingLaps = useMemo(() => {
@@ -172,11 +219,16 @@ export default function TelemetryStrip({ embedded = false }) {
   // Build resolved trace data
   const traces = useMemo(() => {
     const totalLaps = fetchTargets.length;
-    return fetchTargets
+    const resolved = fetchTargets
       .map(({ driver, lap }, i) => {
         const key = `${driver}-${lap}${cacheKeySuffix}`;
-        const data = telemetryCache[key];
-        if (!data || data.length === 0) return null;
+        const rawData = telemetryCache[key];
+        if (!rawData || rawData.length === 0) return null;
+        // When xAxisMode is 'time', remap Distance ← Time so all render code (which keys
+        // off d.Distance) transparently plots against lap-time seconds.
+        const data = xAxisMode === 'time'
+          ? rawData.map((d) => ({ ...d, Distance: d.Time != null ? d.Time : d.Distance, _origDistance: d.Distance }))
+          : rawData;
         const color = telemetryCompareMode === 'drivers'
           ? getDriverColor(driver)
           : (LAP_COLORS[i] || '#888');
@@ -196,88 +248,229 @@ export default function TelemetryStrip({ embedded = false }) {
         return { driver, lap, data, color, isFocus, isDimmed, isReference, lapOpacity, lapDashed, key };
       })
       .filter(Boolean);
-  }, [fetchTargets, telemetryCache, focusDriver, telemetryCompareMode, highlightedDriver]);
+    const mainTraces = resolved;
+    if (!showGhosts || !focusDriver) return mainTraces;
 
-  // ── Incremental telemetry: update clip rects via ref (no React re-render) ──
-  useEffect(() => {
-    if (!frameData?.frames?.length || currentFrameIndex <= 0) {
-      currentDistRef.current = null;
+    // Inject dim ghost traces: other cached laps of focus driver not already displayed
+    const activeKeys = new Set(mainTraces.map((t) => t.key));
+    const prefix = `${focusDriver}-`;
+    const ghosts = [];
+    for (const key of Object.keys(telemetryCache)) {
+      if (!key.startsWith(prefix)) continue;
+      if (activeKeys.has(key)) continue;
+      if (!key.endsWith(cacheKeySuffix)) continue;
+      const data = telemetryCache[key];
+      if (!data || data.length === 0) continue;
+      const lapMatch = key.slice(prefix.length).split('-')[0];
+      const lapNum = Number(lapMatch);
+      if (!Number.isFinite(lapNum)) continue;
+      const ghostData = xAxisMode === 'time'
+        ? data.map((d) => ({ ...d, Distance: d.Time != null ? d.Time : d.Distance, _origDistance: d.Distance }))
+        : data;
+      ghosts.push({
+        driver: focusDriver,
+        lap: lapNum,
+        data: ghostData,
+        color: '#888',
+        isFocus: false,
+        isDimmed: true,
+        isReference: false,
+        lapOpacity: 0.18,
+        lapDashed: true,
+        isGhost: true,
+        key: `ghost-${key}`,
+      });
+      if (ghosts.length >= 5) break;
+    }
+    // Ghosts first, so they render underneath the main traces
+    return [...ghosts, ...mainTraces];
+  }, [fetchTargets, telemetryCache, focusDriver, telemetryCompareMode, highlightedDriver, xAxisMode, showGhosts, cacheKeySuffix]);
+
+  // Position the speed-chart playhead at the focus driver's current distance
+  // and stamp its bubble with the instant speed. Reads refs directly so it
+  // doesn't trigger a React re-render when called from the RAF loop.
+  const updatePlayhead = useCallback(() => {
+    const ph = playheadRef.current;
+    if (!ph) return;
+    const dist = currentDistRef.current;
+    const xScale = ph.xScale;
+    if (!ph.focusTrace || dist == null || dist <= 0 || !xScale) {
+      ph.group.style('display', 'none');
       return;
     }
+    const data = ph.focusTrace.data;
+    if (!data?.length) {
+      ph.group.style('display', 'none');
+      return;
+    }
+    // In time mode, samples carry Distance = Time and _origDistance = real meters.
+    // Locate the sample by real distance, then read its Distance (time) for the scale.
+    const isTimeMode = data[0]?._origDistance != null;
+    let dPoint;
+    if (isTimeMode) {
+      const idx = d3.bisector((d) => d._origDistance).left(data, dist);
+      dPoint = data[Math.min(idx, data.length - 1)];
+    } else {
+      const idx = d3.bisector((d) => d.Distance).left(data, dist);
+      dPoint = data[Math.min(idx, data.length - 1)];
+    }
+    if (!dPoint || dPoint.Speed == null) {
+      ph.group.style('display', 'none');
+      return;
+    }
+    const domainX = dPoint.Distance;
+    const [d0, d1] = xScale.domain();
+    if (domainX < d0 || domainX > d1) {
+      ph.group.style('display', 'none');
+      return;
+    }
+    const x = xScale(domainX);
+    const y = ph.yScale(dPoint.Speed);
+    ph.line.attr('x1', x).attr('x2', x);
+    ph.circle.attr('cx', x).attr('cy', y);
+    const bw = 46;
+    const [xMin, xMax] = xScale.range();
+    const cx = Math.max(xMin + bw / 2, Math.min(xMax - bw / 2, x));
+    ph.bubbleBg.attr('x', cx - bw / 2).attr('width', bw);
+    ph.bubbleText.attr('x', cx).text(`${Math.round(dPoint.Speed)} kph`);
+    ph.group.style('display', null);
+  }, []);
 
-    const frame = frameData.frames[Math.min(currentFrameIndex, frameData.frames.length - 1)];
-    if (!frame?.drivers) { currentDistRef.current = null; return; }
-
-    const driver = focusDriver || selectedDrivers[0];
-    if (!driver) { currentDistRef.current = null; return; }
-
-    const driverData = frame.drivers[driver];
-    if (!driverData) { currentDistRef.current = null; return; }
-
-    // Try to compute distance from track coordinates (most accurate)
-    if (circuitInfo?.track_coordinates?.length) {
-      const dx = driverData.x;
-      const dy = driverData.y;
-      const trackCoords = circuitInfo.track_coordinates;
-
+  // ── Smooth incremental telemetry reveal (RAF-driven) ─────────
+  // The replay engine updates currentFrameIndex every ~400ms but drives
+  // currentTime smoothly at wall-clock speed. We run a RAF loop that reads
+  // both imperatively and linearly interpolates the focus driver's x/y
+  // between frames, so the clip rect and playhead slide smoothly instead
+  // of jumping 2.5× per second. No React re-renders — all DOM writes go
+  // through refs.
+  useEffect(() => {
+    let rafId;
+    const nearestDistance = (coords, x, y) => {
       let minDistSq = Infinity;
-      let nearestDistance = 0;
-      for (const coord of trackCoords) {
-        const ddx = coord.X - dx;
-        const ddy = coord.Y - dy;
+      let nearest = 0;
+      for (const coord of coords) {
+        const ddx = coord.X - x;
+        const ddy = coord.Y - y;
         const distSq = ddx * ddx + ddy * ddy;
         if (distSq < minDistSq) {
           minDistSq = distSq;
-          nearestDistance = coord.Distance;
+          nearest = coord.Distance;
         }
       }
-      currentDistRef.current = nearestDistance;
-    } else {
-      // Fallback: no track coordinates — estimate from frame progress
-      currentDistRef.current = null;
-    }
+      return nearest;
+    };
 
-    // Update clip rects directly (lightweight — no re-render)
-    const xScale = xScaleRef.current;
-    if (!xScale || clipRectsRef.current.length === 0) return;
-    const dist = currentDistRef.current;
-    const clipX = (dist != null && dist > 0) ? xScale(dist) : null;
-    clipRectsRef.current.forEach((rect) => {
-      if (rect) rect.attr('width', clipX != null ? Math.max(0, clipX) : 9999);
-    });
-  }, [frameData, currentFrameIndex, circuitInfo, focusDriver, selectedDrivers]);
+    const loop = () => {
+      const state = useF1Store.getState();
+      const frames = state.frameData?.frames;
+      const idx = state.currentFrameIndex;
+      const focus = state.focusDriver || state.selectedDrivers?.[0];
+      const coords = state.circuitInfo?.track_coordinates;
+
+      if (!frames?.length || idx <= 0 || !focus || !coords?.length) {
+        currentDistRef.current = null;
+      } else {
+        const f0 = frames[Math.min(idx, frames.length - 1)];
+        const f1 = frames[Math.min(idx + 1, frames.length - 1)];
+        const d0 = f0?.drivers?.[focus];
+        const d1 = f1?.drivers?.[focus];
+        if (!d0) {
+          currentDistRef.current = null;
+        } else {
+          // Interpolate x/y with alpha = (currentTime - f0.t) / (f1.t - f0.t).
+          // Falls back to d0's raw position when no next frame or no
+          // useful delta; finds nearest track coord after interpolation so
+          // start/finish wrap behaves correctly.
+          let x = d0.x;
+          let y = d0.y;
+          if (d1 && f1 && f1.t > f0.t) {
+            const alpha = Math.max(0, Math.min(1, (state.currentTime - f0.t) / (f1.t - f0.t)));
+            x = d0.x + (d1.x - d0.x) * alpha;
+            y = d0.y + (d1.y - d0.y) * alpha;
+          }
+          currentDistRef.current = nearestDistance(coords, x, y);
+        }
+      }
+
+      const xScale = xScaleRef.current;
+      const dist = currentDistRef.current;
+      if (xScale && clipRectsRef.current.length > 0) {
+        // In time mode, xScale's domain is seconds — convert real distance
+        // to the corresponding time via the focus trace before scaling.
+        let domainX = dist;
+        const ph = playheadRef.current;
+        const data = ph?.focusTrace?.data;
+        if (data?.length && data[0]?._origDistance != null && dist != null) {
+          const idx = d3.bisector((d) => d._origDistance).left(data, dist);
+          const sample = data[Math.min(idx, data.length - 1)];
+          domainX = sample?.Distance;
+        }
+        const clipX = (domainX != null && domainX > 0) ? xScale(domainX) : null;
+        clipRectsRef.current.forEach((rect) => {
+          if (rect) rect.attr('width', clipX != null ? Math.max(0, clipX) : 9999);
+        });
+      }
+      updatePlayhead();
+
+      rafId = requestAnimationFrame(loop);
+    };
+
+    rafId = requestAnimationFrame(loop);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [updatePlayhead]);
 
   // Sector boundaries from circuit info
   const sectorBoundaries = useMemo(() => {
     if (!circuitInfo?.track_coordinates?.length) return [];
     const coords = circuitInfo.track_coordinates;
-    const boundaries = [];
+    const distBoundaries = [];
     for (let i = 1; i < coords.length; i++) {
       if (coords[i].Sector !== coords[i - 1].Sector && coords[i].Distance) {
-        boundaries.push({ sector: coords[i].Sector, distance: coords[i].Distance });
+        distBoundaries.push({ sector: coords[i].Sector, distance: coords[i].Distance });
       }
     }
-    return boundaries;
-  }, [circuitInfo]);
+    // In time mode, remap each distance boundary to the Time at that distance on the
+    // first reference trace (fallback: proportional mapping from track length).
+    if (xAxisMode === 'time' && traces.length > 0) {
+      const ref = traces[0].data; // remapped data: Distance = Time, _origDistance = real distance
+      if (ref.length === 0) return distBoundaries;
+      return distBoundaries.map((b) => {
+        // Find sample with _origDistance closest to b.distance
+        let best = ref[0], bestDiff = Infinity;
+        for (const d of ref) {
+          if (d._origDistance == null) continue;
+          const diff = Math.abs(d._origDistance - b.distance);
+          if (diff < bestDiff) { bestDiff = diff; best = d; }
+        }
+        return { sector: b.sector, distance: best.Distance };
+      });
+    }
+    return distBoundaries;
+  }, [circuitInfo, xAxisMode, traces]);
 
-  // Track length
+  // Track length — mode-aware: meters in distance mode, seconds in time mode.
+  // The circuit fallback is meters only, so skip it in time mode to avoid
+  // crushing the domain (e.g. 5700m) against a ~85s trace.
   const trackLength = useMemo(() => {
     let max = 0;
     for (const t of traces) {
       const last = t.data[t.data.length - 1];
       if (last?.Distance > max) max = last.Distance;
     }
-    if (circuitInfo?.track_coordinates?.length) {
+    if (xAxisMode === 'distance' && circuitInfo?.track_coordinates?.length) {
       const last = circuitInfo.track_coordinates[circuitInfo.track_coordinates.length - 1];
       if (last?.Distance > max) max = last.Distance;
     }
-    return max || 5000;
-  }, [traces, circuitInfo]);
+    if (max > 0) return max;
+    return xAxisMode === 'time' ? 90 : 5000;
+  }, [traces, circuitInfo, xAxisMode]);
 
-  // Reset zoom when track data changes
+  // Reset zoom when track data or x-axis mode changes
   useEffect(() => {
     setZoomDomain(null);
-  }, [trackLength]);
+  }, [trackLength, xAxisMode]);
 
   // Driver info for comparison cards (enriched with tyre + weather)
   const driverCards = useMemo(() => {
@@ -340,10 +533,18 @@ export default function TelemetryStrip({ embedded = false }) {
       return;
     }
 
-    const clipDist = currentDistRef.current;
+    // Progressive-clip threshold. In time mode, convert real distance →
+    // time via the first trace, so the comparison matches `distance` units.
+    let clipDist = currentDistRef.current;
+    if (xAxisMode === 'time' && clipDist != null && traces[0]?.data?.length) {
+      const refData = traces[0].data;
+      const idx = d3.bisector((d) => d._origDistance ?? d.Distance).left(refData, clipDist);
+      const sample = refData[Math.min(idx, refData.length - 1)];
+      clipDist = sample?.Distance;
+    }
 
-    // Find values at this distance for each trace
-    const values = traces.map((t) => {
+    // Find values at this distance for each trace (exclude ghost overlays)
+    const values = traces.filter((t) => !t.isGhost).map((t) => {
       // If beyond the progressive clip point, show no value
       if (clipDist != null && clipDist > 0 && distance > clipDist) {
         return {
@@ -371,8 +572,8 @@ export default function TelemetryStrip({ embedded = false }) {
       };
     });
 
-    setCrosshairInfo({ x: mouseX, distance: Math.round(distance), values });
-  }, [traces, effectiveDomain]);
+    setCrosshairInfo({ x: mouseX, distance, values });
+  }, [traces, effectiveDomain, xAxisMode]);
 
   const handleMouseLeave = useCallback(() => {
     setCrosshairInfo(null);
@@ -444,11 +645,11 @@ export default function TelemetryStrip({ embedded = false }) {
       return (a.isFocus ? 1 : 0) - (b.isFocus ? 1 : 0);
     });
 
-    renderSpeedChart(speedRef.current, sorted, xScale, margin, sectorBoundaries, trackLength);
-    renderDeltaChart(deltaRef.current, sorted, xScale, margin, sectorBoundaries);
-    renderThrottleBrakeChart(throttleRef.current, sorted, xScale, margin, sectorBoundaries);
-    renderGearChart(gearRef.current, sorted, xScale, margin, sectorBoundaries);
-    renderRPMChart(rpmRef.current, sorted, xScale, margin, sectorBoundaries);
+    renderSpeedChart(speedRef.current, sorted, xScale, margin, sectorBoundaries, trackLength, playheadRef, xAxisMode);
+    renderDeltaChart(deltaRef.current, sorted, xScale, margin, sectorBoundaries, xAxisMode);
+    renderThrottleBrakeChart(throttleRef.current, sorted, xScale, margin, sectorBoundaries, xAxisMode);
+    renderGearChart(gearRef.current, sorted, xScale, margin, sectorBoundaries, xAxisMode);
+    renderRPMChart(rpmRef.current, sorted, xScale, margin, sectorBoundaries, xAxisMode);
 
     // Add clipPaths for progressive reveal (only clips trace <path> elements)
     const svgRefs = [speedRef, deltaRef, throttleRef, gearRef, rpmRef];
@@ -475,7 +676,11 @@ export default function TelemetryStrip({ embedded = false }) {
 
       return clipRect;
     });
-  }, [traces, dims, effectiveDomain, trackLength, sectorBoundaries]);
+
+    // Position the playhead immediately so it's visible without waiting for
+    // the next frame tick (important when focusDriver / zoom changes).
+    updatePlayhead();
+  }, [traces, dims, effectiveDomain, trackLength, sectorBoundaries, updatePlayhead, xAxisMode]);
 
   // ── Toolbar handlers ──────────────────────────────────────────
 
@@ -801,6 +1006,31 @@ export default function TelemetryStrip({ embedded = false }) {
         </div>
       </div>
 
+      {/* Channel legend */}
+      <div style={{
+        display: 'flex', gap: 10, padding: '4px 8px', flexShrink: 0,
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        fontSize: 8, color: 'rgba(255,255,255,0.5)', alignItems: 'center',
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span style={{
+            width: 12, height: 2,
+            background: 'linear-gradient(90deg, #e10600 0%, #00d2be 50%, #0600ef 100%)',
+            display: 'inline-block',
+          }} /> Lines colored by team
+        </span>
+        <span style={{ opacity: 0.4 }}>|</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span style={{ width: 12, height: 2, background: '#00e676', display: 'inline-block' }} /> Focus throttle
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span style={{ width: 12, height: 2, background: '#e10600', display: 'inline-block' }} /> Focus brake
+        </span>
+        <span style={{ marginLeft: 'auto', fontSize: 7, opacity: 0.5 }}>
+          Shift+drag to brush distance
+        </span>
+      </div>
+
       {/* Charts container with crosshair overlay */}
       <div
         className="telemetry-strip__charts"
@@ -844,6 +1074,50 @@ export default function TelemetryStrip({ embedded = false }) {
             {/* Toolbar */}
             {hasData && (
               <div className="telem-toolbar">
+                <div className="telem-axis-toggle" style={{ display: 'flex', gap: 2, marginRight: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 4, padding: 2 }}>
+                  <button
+                    className="telem-toolbar__btn"
+                    onClick={() => setXAxisMode('distance')}
+                    title="X axis: track distance (m)"
+                    style={{
+                      padding: '2px 7px',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: xAxisMode === 'distance' ? '#fff' : 'rgba(255,255,255,0.45)',
+                      background: xAxisMode === 'distance' ? 'rgba(59,130,246,0.35)' : 'transparent',
+                      border: 'none',
+                      borderRadius: 3,
+                    }}
+                  >DIST</button>
+                  <button
+                    className="telem-toolbar__btn"
+                    onClick={() => setXAxisMode('time')}
+                    title="X axis: lap time (s)"
+                    style={{
+                      padding: '2px 7px',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: xAxisMode === 'time' ? '#fff' : 'rgba(255,255,255,0.45)',
+                      background: xAxisMode === 'time' ? 'rgba(59,130,246,0.35)' : 'transparent',
+                      border: 'none',
+                      borderRadius: 3,
+                    }}
+                  >TIME</button>
+                </div>
+                <button
+                  className="telem-toolbar__btn"
+                  onClick={() => setShowGhosts((g) => !g)}
+                  title={`${showGhosts ? 'Hide' : 'Show'} ghost reference laps (dimmed traces from focus driver's other cached laps)`}
+                  style={{
+                    padding: '2px 7px',
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: showGhosts ? '#fff' : 'rgba(255,255,255,0.45)',
+                    background: showGhosts ? 'rgba(168,85,247,0.35)' : 'rgba(255,255,255,0.04)',
+                    borderRadius: 3,
+                    marginRight: 4,
+                  }}
+                >GHOSTS</button>
                 <button
                   className="telem-toolbar__btn"
                   onClick={handleZoomIn}
@@ -880,7 +1154,9 @@ export default function TelemetryStrip({ embedded = false }) {
             {/* Zoom range indicator */}
             {zoomDomain && (
               <div className="telem-zoom-indicator">
-                {Math.round(zoomDomain[0])}m — {Math.round(zoomDomain[1])}m
+                {xAxisMode === 'time'
+                  ? `${zoomDomain[0].toFixed(1)}s — ${zoomDomain[1].toFixed(1)}s`
+                  : `${Math.round(zoomDomain[0])}m — ${Math.round(zoomDomain[1])}m`}
               </div>
             )}
 
@@ -908,7 +1184,9 @@ export default function TelemetryStrip({ embedded = false }) {
                 }}
               >
                 <div className="telem-crosshair-tooltip__dist">
-                  {crosshairInfo.distance}m
+                  {xAxisMode === 'time'
+                    ? `${crosshairInfo.distance.toFixed(2)}s`
+                    : `${Math.round(crosshairInfo.distance)}m`}
                 </div>
                 {crosshairInfo.values.map((v) => (
                   <div className="telem-crosshair-tooltip__row" key={`${v.driver}-${v.lap}`}>
@@ -1057,9 +1335,12 @@ function computeDelta(referenceData, comparisonData) {
 
 // ── Chart Renderers ────────────
 
-function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, trackLength) {
+function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, trackLength, playheadRef, xAxisMode) {
   const ctx = prepSvg(svgEl);
-  if (!ctx) return;
+  if (!ctx) {
+    if (playheadRef) playheadRef.current = null;
+    return;
+  }
   const { g, width, height } = ctx;
   const m = { ...margin, bottom: 14 };
 
@@ -1098,7 +1379,7 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
   // X axis
   g.append('g').attr('class', 'telem-axis')
     .attr('transform', `translate(0,${height - m.bottom})`)
-    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat((d) => `${(d / 1000).toFixed(1)}k`))
+    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat(xTickFormat(xAxisMode)))
     .call((el) => el.select('.domain').remove());
 
   // Label
@@ -1170,9 +1451,55 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
       .attr('fill', a.color)
       .text(a.speed);
   });
+
+  // ── Live playhead (positioned by updatePlayhead on every frame tick) ──
+  // Kept outside clippable groups so it's always visible, and drawn last so
+  // it renders above the trace lines.
+  if (playheadRef) {
+    const focusTrace = traces.find((t) => t.isFocus) || traces[0] || null;
+    const phGroup = g.append('g')
+      .attr('class', 'telem-playhead')
+      .style('display', 'none')
+      .style('pointer-events', 'none');
+    const phLine = phGroup.append('line')
+      .attr('y1', m.top)
+      .attr('y2', height - m.bottom)
+      .attr('stroke', '#fbbf24')
+      .attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', '3,2')
+      .attr('opacity', 0.85);
+    const phCircle = phGroup.append('circle')
+      .attr('r', 3.5)
+      .attr('fill', '#fbbf24')
+      .attr('stroke', '#0a0a0a')
+      .attr('stroke-width', 1);
+    const phBubbleBg = phGroup.append('rect')
+      .attr('y', m.top + 1)
+      .attr('height', 13)
+      .attr('rx', 3)
+      .attr('fill', '#fbbf24');
+    const phBubbleText = phGroup.append('text')
+      .attr('y', m.top + 10)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#0a0a0a')
+      .attr('font-size', '9px')
+      .attr('font-weight', 700)
+      .style('pointer-events', 'none');
+
+    playheadRef.current = {
+      group: phGroup,
+      line: phLine,
+      circle: phCircle,
+      bubbleBg: phBubbleBg,
+      bubbleText: phBubbleText,
+      xScale,
+      yScale,
+      focusTrace,
+    };
+  }
 }
 
-function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries) {
+function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisMode) {
   const ctx = prepSvg(svgEl);
   if (!ctx) return;
   const { g, width, height } = ctx;
@@ -1235,7 +1562,7 @@ function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries) {
   // X axis
   g.append('g').attr('class', 'telem-axis')
     .attr('transform', `translate(0,${height - m.bottom})`)
-    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat((d) => `${(d / 1000).toFixed(1)}k`))
+    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat(xTickFormat(xAxisMode)))
     .call((el) => el.select('.domain').remove());
 
   deltaTraces.forEach((dt) => {
@@ -1271,7 +1598,7 @@ function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries) {
   });
 }
 
-function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundaries) {
+function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisMode) {
   const ctx = prepSvg(svgEl);
   if (!ctx) return;
   const { g, width, height } = ctx;
@@ -1317,7 +1644,7 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
   // X axis
   g.append('g').attr('class', 'telem-axis')
     .attr('transform', `translate(0,${height - m.bottom})`)
-    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat((d) => `${(d / 1000).toFixed(1)}k`))
+    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat(xTickFormat(xAxisMode)))
     .call((el) => el.select('.domain').remove());
 
   // ── Throttle area (transparent fill) + line (solid border) ──
@@ -1391,7 +1718,7 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
   });
 }
 
-function renderGearChart(svgEl, traces, xScale, margin, sectorBoundaries) {
+function renderGearChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisMode) {
   const ctx = prepSvg(svgEl);
   if (!ctx) return;
   const { g, width, height } = ctx;
@@ -1413,7 +1740,7 @@ function renderGearChart(svgEl, traces, xScale, margin, sectorBoundaries) {
   // X axis
   g.append('g').attr('class', 'telem-axis')
     .attr('transform', `translate(0,${height - m.bottom})`)
-    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat((d) => `${(d / 1000).toFixed(1)}k`))
+    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat(xTickFormat(xAxisMode)))
     .call((el) => el.select('.domain').remove());
 
   const line = d3.line()
@@ -1432,7 +1759,7 @@ function renderGearChart(svgEl, traces, xScale, margin, sectorBoundaries) {
   });
 }
 
-function renderRPMChart(svgEl, traces, xScale, margin, sectorBoundaries) {
+function renderRPMChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisMode) {
   const ctx = prepSvg(svgEl);
   if (!ctx) return;
   const { g, width, height } = ctx;
@@ -1456,7 +1783,7 @@ function renderRPMChart(svgEl, traces, xScale, margin, sectorBoundaries) {
 
     g.append('g').attr('class', 'telem-axis')
       .attr('transform', `translate(0,${height - rpmMargin.bottom})`)
-      .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat((d) => `${(d / 1000).toFixed(1)}k`))
+      .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat(xTickFormat(xAxisMode)))
       .call((el) => el.select('.domain').remove());
     return;
   }
@@ -1485,13 +1812,13 @@ function renderRPMChart(svgEl, traces, xScale, margin, sectorBoundaries) {
 
   g.append('g').attr('class', 'telem-axis')
     .attr('transform', `translate(0,${height - rpmMargin.bottom})`)
-    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat((d) => `${(d / 1000).toFixed(1)}k`))
+    .call(d3.axisBottom(xScale).ticks(8).tickSize(-3).tickFormat(xTickFormat(xAxisMode)))
     .call((el) => el.select('.domain').remove());
 
   g.append('text').attr('class', 'telem-chart-label telem-chart-label--right')
     .attr('x', width - margin.right - 4).attr('y', height - rpmMargin.bottom - 4)
     .attr('text-anchor', 'end')
-    .text('Distance (m)');
+    .text(xAxisMode === 'time' ? 'Lap time (s)' : 'Distance (m)');
 
   const line = d3.line()
     .x((d) => xScale(d.Distance))

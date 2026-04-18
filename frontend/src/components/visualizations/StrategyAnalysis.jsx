@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
+import { generateInsights } from '../../utils/insightsGenerator';
 import Panel from '../ui/Panel';
 
 /* ── Shared tab pill style helper ── */
@@ -19,10 +20,38 @@ export default function StrategyAnalysis() {
   const raceProjection = useF1Store((s) => s.raceProjection);
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
+  const setComparisonDriver = useF1Store((s) => s.setComparisonDriver);
   const triggerLSTMPredictions = useF1Store((s) => s.triggerLSTMPredictions);
 
+  // Fire-and-forget helper: when an insight names a driver pair (behind, ahead)
+  // route it to every cross-panel hook — selection, focus, and the shared
+  // comparison driver used by Sector Delta Waterfall + Undercut Calculator.
+  // The car closing up becomes the focus (the one weighing the undercut);
+  // the car ahead becomes the comparison/rival.
+  const selectPair = (behind, ahead) => {
+    setSelectedDrivers([behind, ahead]);
+    setFocusDriver(behind);
+    setComparisonDriver(ahead);
+  };
+  const lstmPredictions = useF1Store((s) => s.lstmPredictions);
+  const degradationRegression = useF1Store((s) => s.degradationRegression);
+  const pcaStrategyAnalysis = useF1Store((s) => s.pcaStrategyAnalysis);
+  const currentLap = useF1Store((s) => s.currentLap);
+  const maxLap = useF1Store((s) => s.maxLap);
+  const focusDriver = useF1Store((s) => s.focusDriver);
+
+  const [mainSection, setMainSection] = useState('insights');
   const [fieldTab, setFieldTab] = useState('overview');
   const [clusterTab, setClusterTab] = useState('summary');
+
+  // Auto-generated insights from all analytical outputs
+  const insights = useMemo(() => generateInsights({
+    raceProjection, raceSituationData, lstmPredictions,
+    degradationRegression, pcaStrategyAnalysis,
+    currentLap, maxLap, focusDriver,
+  }), [raceProjection, raceSituationData, lstmPredictions,
+      degradationRegression, pcaStrategyAnalysis,
+      currentLap, maxLap, focusDriver]);
 
   const driverInfoMap = useMemo(() => {
     const map = {};
@@ -227,11 +256,11 @@ export default function StrategyAnalysis() {
     return { clusterLabel, summary: summaryParts.join('. ') + '.', featureBars, insights, threats: threats.slice(0, 6), drivers };
   }, [raceSituationData, selectedDrivers, driverInfoMap]);
 
-  // ── Shared battle row renderer (CLICKABLE: selects both drivers) ──
+  // ── Shared battle row renderer (CLICKABLE: selects both drivers + syncs Sector Delta / Undercut) ──
   const BattleRow = ({ t, i }) => (
     <div
       key={i}
-      onClick={() => setSelectedDrivers([t.behind, t.ahead])}
+      onClick={() => selectPair(t.behind, t.ahead)}
       style={{
         display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8,
         fontSize: 'var(--font-size-xs)', lineHeight: 1.5,
@@ -299,6 +328,32 @@ export default function StrategyAnalysis() {
   return (
     <Panel title="Race Analysis">
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
+        {/* ── Top-level section toggle ── */}
+        <div style={{
+          display: 'flex', gap: 4, padding: '4px 8px', flexShrink: 0,
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          <button onClick={() => setMainSection('insights')} style={tabPillStyle(mainSection === 'insights')}>
+            Insights{insights.length > 0 ? ` (${insights.length})` : ''}
+          </button>
+          <button onClick={() => setMainSection('analysis')} style={tabPillStyle(mainSection === 'analysis')}>
+            Analysis
+          </button>
+        </div>
+
+        {/* ══════════ INSIGHTS TAB ══════════ */}
+        {mainSection === 'insights' && (
+          <InsightsList
+            insights={insights}
+            onFocusPair={selectPair}
+            onFocusOne={setFocusDriver}
+          />
+        )}
+
+        {/* ══════════ ANALYSIS TAB ══════════ */}
+        {mainSection === 'analysis' && (
+          <>
 
         {/* ══════════ FIELD OVERVIEW (no selection) ══════════ */}
 
@@ -372,7 +427,7 @@ export default function StrategyAnalysis() {
                       </h6>
                       {raceProjection.battles.slice(0, 8).map((b, i) => (
                         <div key={i}
-                          onClick={() => setSelectedDrivers([b.behind, b.ahead])}
+                          onClick={() => selectPair(b.behind, b.ahead)}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
                             fontSize: 'var(--font-size-xs)', cursor: 'pointer', padding: '3px 4px',
@@ -507,7 +562,7 @@ export default function StrategyAnalysis() {
 
         {/* ══════════ CLUSTER ANALYSIS (selected drivers) ══════════ */}
 
-        {liveAnalysis && (
+        {liveAnalysis && selectedDrivers.length > 0 && (
           <>
             {/* Tab pills */}
             {clusterTabs.length > 1 && (
@@ -665,7 +720,99 @@ export default function StrategyAnalysis() {
             </div>
           </>
         )}
+
+          </>
+        )}
       </div>
     </Panel>
+  );
+}
+
+/* ── InsightsList component ── */
+function InsightsList({ insights, onFocusPair, onFocusOne }) {
+  const severityColor = {
+    high: '#e10600',
+    notable: '#ffd700',
+    info: 'rgba(100,180,255,0.8)',
+  };
+
+  const categoryIcon = {
+    battle: '\u2694',
+    risk: '\u26A0',
+    opportunity: '\u2191',
+    pattern: '\u25C9',
+    forecast: '\u2192',
+    degradation: '\u25BE',
+  };
+
+  if (insights.length === 0) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, textAlign: 'center' }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 6 }}>
+            No insights yet
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+            Insights appear as the race progresses and you interact with the PCA biplot,
+            telemetry brush, or driver selection.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 4, padding: 6 }}>
+      {insights.map((ins) => (
+        <div
+          key={ins.id}
+          style={{
+            padding: '8px 10px',
+            background: 'rgba(255,255,255,0.03)',
+            borderLeft: `3px solid ${severityColor[ins.severity]}`,
+            borderRadius: 4,
+            fontSize: 11,
+            lineHeight: 1.45,
+            cursor: ins.actions?.[0] ? 'pointer' : 'default',
+            transition: 'background 0.12s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+          onClick={() => {
+            const action = ins.actions?.[0];
+            if (!action) return;
+            const ds = action.drivers;
+            if (Array.isArray(ds) && ds.length >= 2) {
+              // Two-driver insight → syncs focus + comparison with Sector Delta / Undercut.
+              // Convention: ds[0] = car behind / the one acting, ds[1] = target.
+              onFocusPair(ds[0], ds[1]);
+            } else if (Array.isArray(ds) && ds.length === 1) {
+              onFocusOne(ds[0]);
+            }
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <span style={{ color: severityColor[ins.severity], fontWeight: 700, fontSize: 11 }}>
+              {categoryIcon[ins.category] || '\u2022'}
+            </span>
+            <div style={{ flex: 1, color: 'var(--color-text-primary)' }}>
+              {ins.text}
+            </div>
+          </div>
+          {ins.actions?.[0] && (
+            <div style={{ marginTop: 4, fontSize: 9, color: 'rgba(100,180,255,0.6)', fontWeight: 600 }}>
+              {'\u2192'} {ins.actions[0].label}
+            </div>
+          )}
+          <div style={{
+            marginTop: 3, display: 'flex', justifyContent: 'space-between',
+            fontSize: 8, color: 'rgba(255,255,255,0.3)',
+          }}>
+            <span>{ins.category}</span>
+            <span>conf. {Math.round(ins.confidence * 100)}%</span>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

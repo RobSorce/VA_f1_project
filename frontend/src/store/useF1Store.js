@@ -5,6 +5,36 @@ import { computePCA, procrustesAlign2D } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
 import { simulateRaceFinish } from '../utils/raceSimulation';
 import { WINDOW_PRESETS } from '../utils/windowPresets';
+import { SLOT_IDS } from '../utils/slotOptions';
+
+/* ── Customizable dock ─────────────────────────────────────────── */
+
+export const DOCK_DEFAULTS = [
+  'pitwall',
+  'laptimes',
+  'tyres',
+  'strategy',
+  'analytics',
+  'prediction',
+  'ai',
+  'championship',
+];
+
+export const DOCK_STORAGE_KEY = 'va-dock-items-v1';
+
+function loadDockItems() {
+  try {
+    const raw = localStorage.getItem(DOCK_STORAGE_KEY);
+    if (!raw) return [...DOCK_DEFAULTS];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return [...DOCK_DEFAULTS];
+    // Silently drop ids that no longer exist in the registry.
+    const cleaned = parsed.filter((id) => typeof id === 'string' && SLOT_IDS.has(id));
+    return cleaned.length > 0 ? cleaned : [...DOCK_DEFAULTS];
+  } catch {
+    return [...DOCK_DEFAULTS];
+  }
+}
 
 /* ── Docked layout tree helpers ────────────────────────────────── */
 
@@ -826,6 +856,7 @@ export const useF1Store = create(persist((set, get) => ({
   focusedView: null,         // 'trackmap' | 'leaderboard' | 'laptimes' | 'strategy' | 'tires' | null
   compareMode: false,
   compareDrivers: [],        // max 2 driver abbreviations
+  comparisonDriver: null,    // shared focus-vs-comparison target for Sector Delta / Undercut Calculator
   leaderboardColumnMode: 0,  // index into ['INT','GAP','TYRE','PIT']
   shortcutHintsVisible: true,
   cheatsheetOpen: false,
@@ -853,6 +884,8 @@ export const useF1Store = create(persist((set, get) => ({
   removeCompareDriver: (driver) => set(s => ({
     compareDrivers: s.compareDrivers.filter(d => d !== driver),
   })),
+  setComparisonDriver: (driver) => set({ comparisonDriver: driver }),
+  clearComparisonDriver: () => set({ comparisonDriver: null }),
   toggleShortcutHints: () => set(s => ({ shortcutHintsVisible: !s.shortcutHintsVisible })),
   toggleCheatsheet: () => set(s => ({ cheatsheetOpen: !s.cheatsheetOpen })),
   openCheatsheet: () => set({ cheatsheetOpen: true }),
@@ -875,8 +908,40 @@ export const useF1Store = create(persist((set, get) => ({
   activeTab: 'pitwall',
   openOverlays: [],
 
+  // ── Customizable dock ──────────────────────────────────────────
+  dockItems: loadDockItems(),
+
+  setDockItems: (items) => set({ dockItems: items }),
+
+  addDockItem: (id, position = -1) => set((s) => {
+    if (s.dockItems.includes(id)) return s;
+    if (!SLOT_IDS.has(id)) return s;
+    const next = [...s.dockItems];
+    if (position < 0 || position > next.length) next.push(id);
+    else next.splice(position, 0, id);
+    return { dockItems: next };
+  }),
+
+  removeDockItem: (id) => set((s) => {
+    if (s.dockItems.length <= 1) return s; // never allow empty dock
+    if (!s.dockItems.includes(id)) return s;
+    return { dockItems: s.dockItems.filter((t) => t !== id) };
+  }),
+
+  moveDockItem: (id, direction) => set((s) => {
+    const idx = s.dockItems.indexOf(id);
+    if (idx < 0) return s;
+    const newIdx = direction === 'left' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= s.dockItems.length) return s;
+    const next = [...s.dockItems];
+    [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+    return { dockItems: next };
+  }),
+
+  resetDockItems: () => set({ dockItems: [...DOCK_DEFAULTS] }),
+
   setActiveTab: (tab) => {
-    const UTILITY_TABS = new Set(['settings', 'championship', 'ai']);
+    const UTILITY_TABS = new Set(['settings']);
 
     // ── Mode switches ──
     if (tab === 'pitwall') {
@@ -1018,9 +1083,9 @@ export const useF1Store = create(persist((set, get) => ({
   leaderboardCollapsed: false,
   telemetryChannels: { speed: true, delta: true, throttle: true, brake: true, gear: true, rpm: true },
 
-  setTheme: (theme) => {
-    document.documentElement.setAttribute('data-theme', theme);
-    set({ theme });
+  setTheme: () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    set({ theme: 'dark' });
   },
   setTempUnit: (tempUnit) => set({ tempUnit }),
   toggleLeaderboard: () => set((s) => ({ leaderboardCollapsed: !s.leaderboardCollapsed })),
@@ -1070,7 +1135,7 @@ export const useF1Store = create(persist((set, get) => ({
     };
   }),
   applyWindowPreset: (preset) => {
-    const UTILITY_TABS = new Set(['settings', 'championship', 'ai']);
+    const UTILITY_TABS = new Set(['settings']);
     // If preset has a docked layout tree, use the JetBrains-style docked mode
     if (preset.dockedLayout) {
       set((s) => ({
@@ -1164,6 +1229,7 @@ export const useF1Store = create(persist((set, get) => ({
     focusedView: null,
     compareMode: false,
     compareDrivers: [],
+    comparisonDriver: null,
     cheatsheetOpen: false,
     qualiSegments: null,
     qualiSegment: 'Q3',
@@ -2213,8 +2279,7 @@ export const useF1Store = create(persist((set, get) => ({
     sessionType: state.sessionType,
   }),
   onRehydrateStorage: () => (state) => {
-    if (state?.theme) {
-      document.documentElement.setAttribute('data-theme', state.theme);
-    }
+    document.documentElement.setAttribute('data-theme', 'dark');
+    if (state) state.theme = 'dark';
   },
 }));
