@@ -1,9 +1,26 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS, TYRE_LABELS } from '../../utils/colors';
+import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+
+/* Simple least-squares linear regression: y = intercept + slope * x */
+function linearRegression(points) {
+  const n = points.length;
+  if (n < 2) return null;
+  const xMean = d3.mean(points, (p) => p.x);
+  const yMean = d3.mean(points, (p) => p.y);
+  let num = 0, den = 0;
+  points.forEach((p) => {
+    num += (p.x - xMean) * (p.y - yMean);
+    den += (p.x - xMean) * (p.x - xMean);
+  });
+  if (den === 0) return null;
+  const slope = num / den;
+  const intercept = yMean - slope * xMean;
+  return { slope, intercept };
+}
 
 export default function TireDegradation() {
   const svgRef = useRef(null);
@@ -14,8 +31,25 @@ export default function TireDegradation() {
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
   const degradationRegression = useF1Store((s) => s.degradationRegression);
+  const fetchDegradationRegression = useF1Store((s) => s.fetchDegradationRegression);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const dnfMap = useF1Store((s) => s.dnfMap);
+  const selectedLapRange = useF1Store((s) => s.selectedLapRange);
+  const brushLapRange = useF1Store((s) => s.brushLapRange);
+  const year = useF1Store((s) => s.year);
+  const round = useF1Store((s) => s.round);
+
+  // Auto-trigger degradation regression when a lap range is selected via visual interaction
+  const activeRange = brushLapRange || selectedLapRange;
+  useEffect(() => {
+    const driver = focusDriver || selectedDrivers[0];
+    if (!activeRange || !driver || !year || !round) return;
+    fetchDegradationRegression({
+      year, round, drivers: [driver],
+      lap_start: activeRange[0],
+      lap_end: activeRange[1],
+    });
+  }, [activeRange, focusDriver, selectedDrivers, year, round, fetchDegradationRegression]);
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
 
@@ -27,18 +61,17 @@ export default function TireDegradation() {
   const driverDnf = driver ? dnfMap[driver] : null;
   const isDriverRetired = driverDnf && driverDnf.lastLap <= currentLap;
 
-  // Build stint-based degradation data using the correct formula:
-  // degradation_delta(i) = (laptime(i) - laptime(i-1)) / laptime(i)
+  // Build stint data with linear regression per stint
   const chartData = useMemo(() => {
-    if (!driver || lapTimes.length === 0) return { stints: [], maxTyreLap: 1 };
+    if (!driver || lapTimes.length === 0) return { stints: [], yExtent: [80, 100] };
 
     const driverLaps = lapTimes
       .filter((d) => d.Driver === driver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
       .sort((a, b) => a.LapNumber - b.LapNumber);
 
-    if (driverLaps.length === 0) return { stints: [], maxTyreLap: 1 };
+    if (driverLaps.length === 0) return { stints: [], yExtent: [80, 100] };
 
-    // Group into stints by compound change or tyre life reset
+    // Group into stints by compound change or tyre life reset at pit stop
     const stints = [];
     let current = { compound: driverLaps[0].Compound || 'UNKNOWN', laps: [] };
 
@@ -46,7 +79,6 @@ export default function TireDegradation() {
       const compound = lap.Compound || 'UNKNOWN';
       const isPitOut = !!lap.PitOutTime;
       const compoundChanged = compound !== current.compound;
-      // Only treat TyreLife reset as new stint if compound also changed or it's a pit out
       const tyreLifeReset = lap.TyreLife != null && lap.TyreLife <= 1 && current.laps.length > 2;
       if ((compoundChanged || (tyreLifeReset && isPitOut)) && current.laps.length > 0) {
         stints.push(current);
@@ -63,59 +95,37 @@ export default function TireDegradation() {
     });
     if (current.laps.length > 0) stints.push(current);
 
-    // Compute degradation delta per stint
-    let maxTyreLap = 1;
-    stints.forEach((stint) => {
-      // Filter outliers: > 1.3x median (pit in/out, safety cars)
+    // Filter outliers and compute linear regression per stint
+    const allCleanTimes = [];
+    stints.forEach((stint, idx) => {
       const times = stint.laps.map((l) => l.lapTime);
       const median = d3.median(times);
       const threshold = median * 1.3;
 
-      // Mark outliers: pit in/out laps, SC laps (abnormally slow)
+      // Mark outliers: pit in/out, abnormally slow (SC, VSC, red flag)
       stint.laps.forEach((lap) => {
         lap.isOutlier = lap.lapTime > threshold || lap.isPitIn || lap.isPitOut;
       });
 
-      // Compute degradation_delta(i) = (laptime(i) - laptime(i-1)) / laptime(i)
-      // Only for valid (non-outlier) consecutive laps
-      stint.deltas = [];
-      for (let i = 1; i < stint.laps.length; i++) {
-        const prev = stint.laps[i - 1];
-        const curr = stint.laps[i];
+      // Clean laps for regression and rendering
+      stint.cleanLaps = stint.laps.filter((l) => !l.isOutlier);
+      stint.cleanLaps.forEach((l) => allCleanTimes.push(l.lapTime));
 
-        if (prev.isOutlier || curr.isOutlier) continue;
+      // Linear regression: lapTime = intercept + slope * tyreLife
+      const regressionPoints = stint.cleanLaps.map((l) => ({ x: l.tyreLife, y: l.lapTime }));
+      stint.regression = linearRegression(regressionPoints);
 
-        if (curr.lapTime <= 0) continue;
-        const delta = (curr.lapTime - prev.lapTime) / curr.lapTime;
-        if (!isFinite(delta)) continue;
-        stint.deltas.push({
-          tyreLap: i + 1, // laps on this tyre set (1-indexed, delta starts from lap 2)
-          lapNumber: curr.lapNumber,
-          delta,
-          lapTime: curr.lapTime,
-          tyreLife: curr.tyreLife,
-        });
-      }
-
-      // Apply rolling average smoothing (window=3)
-      stint.smoothed = stint.deltas.map((d, i, arr) => {
-        const start = Math.max(0, i - 1);
-        const end = Math.min(arr.length, i + 2);
-        const window = arr.slice(start, end);
-        const avgDelta = d3.mean(window, (w) => w.delta);
-        return { ...d, smoothedDelta: avgDelta };
-      });
-
+      stint.stintIndex = idx;
       stint.startLap = stint.laps[0]?.lapNumber;
       stint.endLap = stint.laps[stint.laps.length - 1]?.lapNumber;
-
-      if (stint.smoothed.length > 0) {
-        const maxTL = d3.max(stint.smoothed, (d) => d.tyreLap);
-        if (maxTL > maxTyreLap) maxTyreLap = maxTL;
-      }
     });
 
-    return { stints, maxTyreLap };
+    // Y-axis extent from clean lap times
+    const yExtent = allCleanTimes.length > 0
+      ? [d3.min(allCleanTimes), d3.max(allCleanTimes)]
+      : [80, 100];
+
+    return { stints, yExtent };
   }, [driver, lapTimes, maxLap, currentLap]);
 
   // Pit window info
@@ -156,7 +166,7 @@ export default function TireDegradation() {
     }));
   }, [chartData]);
 
-  // D3 rendering
+  // D3 rendering — scatter plot with regression lines
   useEffect(() => {
     if (!svgRef.current) return;
 
@@ -164,7 +174,7 @@ export default function TireDegradation() {
     const rect = container.getBoundingClientRect();
     const width = rect.width || 600;
     const height = rect.height || 250;
-    const margin = { top: 12, right: 16, bottom: 30, left: 50 };
+    const margin = { top: 12, right: 16, bottom: 30, left: 54 };
     const innerW = width - margin.left - margin.right;
     const innerH = height - margin.top - margin.bottom;
 
@@ -183,11 +193,9 @@ export default function TireDegradation() {
       return;
     }
 
-    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Collect all smoothed delta values for Y domain
-    const allDeltas = chartData.stints.flatMap((s) => s.smoothed.map((d) => d.smoothedDelta)).filter(isFinite);
-    if (allDeltas.length === 0) {
+    // Check we have data
+    const hasData = chartData.stints.some((s) => s.cleanLaps.length >= 2);
+    if (!hasData) {
       svg.append('text')
         .attr('x', width / 2).attr('y', height / 2)
         .attr('text-anchor', 'middle')
@@ -197,22 +205,28 @@ export default function TireDegradation() {
       return;
     }
 
-    const yMin = Math.min(d3.min(allDeltas), -0.002);
-    const yMax = Math.max(d3.max(allDeltas), 0.002);
-    const yPad = (yMax - yMin) * 0.15;
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // X scale: laps on tyre set
+    // Compute global max tyre life across stints
+    let maxTyreLife = 1;
+    chartData.stints.forEach((s) => {
+      s.cleanLaps.forEach((l) => {
+        if (l.tyreLife > maxTyreLife) maxTyreLife = l.tyreLife;
+      });
+    });
+
+    // Scales
     const x = d3.scaleLinear()
-      .domain([1, chartData.maxTyreLap + 1])
+      .domain([0, maxTyreLife + 1])
       .range([0, innerW]);
 
-    // Y scale: degradation delta
+    const yPad = (chartData.yExtent[1] - chartData.yExtent[0]) * 0.12 || 1;
     const y = d3.scaleLinear()
-      .domain([yMin - yPad, yMax + yPad])
+      .domain([chartData.yExtent[0] - yPad, chartData.yExtent[1] + yPad])
       .range([innerH, 0]);
 
-    // Subtle vertical grid lines
-    const xTicks = x.ticks(Math.min(12, chartData.maxTyreLap));
+    // Grid lines
+    const xTicks = x.ticks(Math.min(12, maxTyreLife));
     g.selectAll('.grid-v')
       .data(xTicks)
       .enter()
@@ -222,27 +236,28 @@ export default function TireDegradation() {
       .attr('stroke', 'rgba(255,255,255,0.04)')
       .attr('stroke-width', 1);
 
-    // Reference line at y=0
-    g.append('line')
+    const yTicks = y.ticks(5);
+    g.selectAll('.grid-h')
+      .data(yTicks)
+      .enter()
+      .append('line')
       .attr('x1', 0).attr('x2', innerW)
-      .attr('y1', y(0)).attr('y2', y(0))
-      .attr('stroke', 'rgba(255,255,255,0.2)')
-      .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '4,4');
+      .attr('y1', (d) => y(d)).attr('y2', (d) => y(d))
+      .attr('stroke', 'rgba(255,255,255,0.04)')
+      .attr('stroke-width', 1);
 
     // X-axis
     const xAxisG = g.append('g')
       .attr('transform', `translate(0,${innerH})`)
-      .call(d3.axisBottom(x).ticks(Math.min(12, chartData.maxTyreLap)).tickFormat(d3.format('d')).tickSize(3));
+      .call(d3.axisBottom(x).ticks(Math.min(12, maxTyreLife)).tickFormat(d3.format('d')).tickSize(3));
 
     xAxisG.selectAll('text')
       .attr('fill', 'rgba(255,255,255,0.35)')
       .attr('font-size', '9px')
-      .attr('font-family', "var(--font-mono)");
+      .attr('font-family', 'var(--font-mono)');
     xAxisG.selectAll('line').attr('stroke', 'rgba(255,255,255,0.15)');
     xAxisG.select('.domain').attr('stroke', 'rgba(255,255,255,0.1)');
 
-    // X-axis label
     g.append('text')
       .attr('x', innerW / 2).attr('y', innerH + 24)
       .attr('text-anchor', 'middle')
@@ -250,74 +265,110 @@ export default function TireDegradation() {
       .attr('font-size', '8px')
       .attr('font-weight', 700)
       .attr('font-family', "'Titillium Web', sans-serif")
-      .text('Laps on tyre set');
+      .text('Tyre life (laps)');
 
-    // Y-axis
+    // Y-axis — format as m:ss.sss
+    const formatLapTime = (sec) => {
+      const m = Math.floor(sec / 60);
+      const s = (sec % 60).toFixed(1).padStart(4, '0');
+      return `${m}:${s}`;
+    };
     const yAxisG = g.append('g')
-      .call(d3.axisLeft(y).ticks(5).tickFormat((d) => `${(d * 100).toFixed(1)}%`).tickSize(3));
+      .call(d3.axisLeft(y).ticks(5).tickFormat(formatLapTime).tickSize(3));
 
     yAxisG.selectAll('text')
       .attr('fill', 'rgba(255,255,255,0.3)')
       .attr('font-size', '8px')
-      .attr('font-family', "var(--font-mono)");
+      .attr('font-family', 'var(--font-mono)');
     yAxisG.selectAll('line').attr('stroke', 'rgba(255,255,255,0.1)');
     yAxisG.select('.domain').attr('stroke', 'rgba(255,255,255,0.08)');
 
-    // Y-axis label (rotated)
     g.append('text')
       .attr('transform', 'rotate(-90)')
-      .attr('x', -innerH / 2).attr('y', -38)
+      .attr('x', -innerH / 2).attr('y', -42)
       .attr('text-anchor', 'middle')
       .attr('fill', 'rgba(255,255,255,0.3)')
       .attr('font-size', '8px')
       .attr('font-weight', 700)
       .attr('font-family', "'Titillium Web', sans-serif")
-      .text('Degradation \u0394 (s/lap)');
+      .text('Lap time');
 
-    // Draw degradation curves per stint
-    chartData.stints.forEach((stint, i) => {
-      if (stint.smoothed.length < 2) return;
-
+    // Draw each stint: scatter points + regression line + slope annotation
+    chartData.stints.forEach((stint) => {
+      if (stint.cleanLaps.length < 2) return;
       const compoundColor = TYRE_COLORS[stint.compound] || '#888';
 
-      // Line
-      const line = d3.line()
-        .x((d) => x(d.tyreLap))
-        .y((d) => y(d.smoothedDelta))
-        .curve(d3.curveMonotoneX);
-
-      g.append('path')
-        .datum(stint.smoothed)
-        .attr('d', line)
-        .attr('fill', 'none')
-        .attr('stroke', compoundColor)
-        .attr('stroke-width', 2)
-        .attr('opacity', 0.85);
-
-      // Data point dots
-      g.selectAll(`.dot-stint-${i}`)
-        .data(stint.smoothed)
+      // Scatter points (clean laps)
+      g.selectAll(`.dot-stint-${stint.stintIndex}`)
+        .data(stint.cleanLaps)
         .enter()
         .append('circle')
-        .attr('cx', (d) => x(d.tyreLap))
-        .attr('cy', (d) => y(d.smoothedDelta))
-        .attr('r', 2.5)
+        .attr('cx', (d) => x(d.tyreLife))
+        .attr('cy', (d) => y(d.lapTime))
+        .attr('r', 3)
         .attr('fill', compoundColor)
-        .attr('opacity', 0.6);
+        .attr('opacity', 0.55)
+        .attr('stroke', compoundColor)
+        .attr('stroke-width', 0.5)
+        .attr('stroke-opacity', 0.3);
 
-      // Stint label at start
-      if (stint.smoothed.length > 0) {
-        const first = stint.smoothed[0];
+      // Outlier laps — small hollow circles
+      const outliers = stint.laps.filter((l) => l.isOutlier && l.lapTime <= chartData.yExtent[1] + yPad);
+      g.selectAll(`.outlier-stint-${stint.stintIndex}`)
+        .data(outliers)
+        .enter()
+        .append('circle')
+        .attr('cx', (d) => x(d.tyreLife))
+        .attr('cy', (d) => y(d.lapTime))
+        .attr('r', 2)
+        .attr('fill', 'none')
+        .attr('stroke', 'rgba(255,255,255,0.15)')
+        .attr('stroke-width', 0.8);
+
+      // Regression fit line
+      if (stint.regression) {
+        const { slope, intercept } = stint.regression;
+        const tyreMin = d3.min(stint.cleanLaps, (l) => l.tyreLife);
+        const tyreMax = d3.max(stint.cleanLaps, (l) => l.tyreLife);
+
+        g.append('line')
+          .attr('x1', x(tyreMin))
+          .attr('y1', y(intercept + slope * tyreMin))
+          .attr('x2', x(tyreMax))
+          .attr('y2', y(intercept + slope * tyreMax))
+          .attr('stroke', compoundColor)
+          .attr('stroke-width', 1.8)
+          .attr('opacity', 0.9)
+          .attr('stroke-dasharray', '6,3');
+
+        // Slope annotation near end of fit line
+        const slopeSign = slope >= 0 ? '+' : '';
+        const slopeLabel = `${slopeSign}${slope.toFixed(3)} s/lap`;
+        const annotX = tyreMax;
+        const annotY = intercept + slope * tyreMax;
+
         g.append('text')
-          .attr('x', x(first.tyreLap) + 4)
-          .attr('y', y(first.smoothedDelta) - 6)
+          .attr('x', x(annotX) + 4)
+          .attr('y', y(annotY) - 5)
           .attr('fill', compoundColor)
-          .attr('font-size', '8px')
+          .attr('font-size', '9px')
           .attr('font-weight', 700)
-          .attr('font-family', "var(--font-mono)")
-          .attr('opacity', 0.7)
-          .text(`S${i + 1}`);
+          .attr('font-family', 'var(--font-mono)')
+          .attr('opacity', 0.9)
+          .text(slopeLabel);
       }
+
+      // Stint label at first point
+      const first = stint.cleanLaps[0];
+      g.append('text')
+        .attr('x', x(first.tyreLife) - 2)
+        .attr('y', y(first.lapTime) - 8)
+        .attr('fill', compoundColor)
+        .attr('font-size', '8px')
+        .attr('font-weight', 700)
+        .attr('font-family', 'var(--font-mono)')
+        .attr('opacity', 0.65)
+        .text(`S${stint.stintIndex + 1}`);
     });
 
     // Tooltip on hover
@@ -326,59 +377,66 @@ export default function TireDegradation() {
       .attr('fill', 'transparent')
       .attr('cursor', 'crosshair')
       .on('mousemove', (event) => {
-        const [mx] = d3.pointer(event);
-        const hoveredTyreLap = x.invert(mx);
+        const [mx, my] = d3.pointer(event);
+        const hoveredTyreLife = x.invert(mx);
+        const hoveredLapTime = y.invert(my);
 
-        // Find closest data point across all stints
+        // Find closest clean data point across all stints
         let closest = null;
         let closestStint = null;
         let minDist = Infinity;
         chartData.stints.forEach((stint) => {
-          stint.smoothed.forEach((d) => {
-            const dist = Math.abs(d.tyreLap - hoveredTyreLap);
+          stint.cleanLaps.forEach((d) => {
+            // Normalize distance across both axes
+            const dx = (d.tyreLife - hoveredTyreLife) / (maxTyreLife || 1);
+            const dy = (d.lapTime - hoveredLapTime) / ((chartData.yExtent[1] - chartData.yExtent[0]) || 1);
+            const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < minDist) { minDist = dist; closest = d; closestStint = stint; }
           });
         });
 
-        // Remove old crosshair
-        g.selectAll('.hover-line, .hover-dot').remove();
+        g.selectAll('.hover-line-v, .hover-line-h, .hover-dot').remove();
         d3.select('.deg-tooltip').classed('visible', false).style('opacity', 0);
 
-        if (!closest || minDist > 1.5) return;
+        if (!closest || minDist > 0.15) return;
 
         const compColor = TYRE_COLORS[closestStint.compound] || '#888';
 
-        // Vertical hover line
+        // Crosshair
         g.append('line')
-          .attr('class', 'hover-line')
-          .attr('x1', x(closest.tyreLap)).attr('x2', x(closest.tyreLap))
+          .attr('class', 'hover-line-v')
+          .attr('x1', x(closest.tyreLife)).attr('x2', x(closest.tyreLife))
           .attr('y1', 0).attr('y2', innerH)
-          .attr('stroke', 'rgba(255,255,255,0.15)')
+          .attr('stroke', 'rgba(255,255,255,0.12)')
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '3,3');
+        g.append('line')
+          .attr('class', 'hover-line-h')
+          .attr('x1', 0).attr('x2', innerW)
+          .attr('y1', y(closest.lapTime)).attr('y2', y(closest.lapTime))
+          .attr('stroke', 'rgba(255,255,255,0.08)')
           .attr('stroke-width', 1)
           .attr('stroke-dasharray', '3,3');
 
-        // Dot on curve
         g.append('circle')
           .attr('class', 'hover-dot')
-          .attr('cx', x(closest.tyreLap))
-          .attr('cy', y(closest.smoothedDelta))
-          .attr('r', 4)
+          .attr('cx', x(closest.tyreLife))
+          .attr('cy', y(closest.lapTime))
+          .attr('r', 4.5)
           .attr('fill', compColor)
           .attr('stroke', '#fff')
           .attr('stroke-width', 1.5);
 
-        // Format delta as seconds
-        const deltaSign = closest.smoothedDelta >= 0 ? '+' : '';
-        const deltaSec = (closest.smoothedDelta * closest.lapTime).toFixed(3);
-        const deltaPercent = (closest.smoothedDelta * 100).toFixed(2);
-
-        // Tooltip
+        // Tooltip content
+        const slopeText = closestStint.regression
+          ? `${closestStint.regression.slope >= 0 ? '+' : ''}${closestStint.regression.slope.toFixed(3)} s/lap`
+          : '—';
         const tooltipHtml = `
           <div style="color:${driverColor};font-weight:700;font-size:11px">${driver}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,0.5)">Lap ${closest.lapNumber} (tyre lap ${closest.tyreLap})</div>
-          <div style="font-size:11px;font-weight:700">${deltaSign}${deltaSec}s (${deltaSign}${deltaPercent}%)</div>
-          <div style="font-size:9px;color:${compColor}">${closestStint.compound} &mdash; L${closest.tyreLife}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,0.4)">${Math.floor(closest.lapTime / 60)}:${(closest.lapTime % 60).toFixed(3).padStart(6, '0')}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,0.5)">Lap ${closest.lapNumber} · tyre lap ${closest.tyreLife}</div>
+          <div style="font-size:12px;font-weight:700">${Math.floor(closest.lapTime / 60)}:${(closest.lapTime % 60).toFixed(3).padStart(6, '0')}</div>
+          <div style="font-size:9px;color:${compColor}">${closestStint.compound} — S${closestStint.stintIndex + 1}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,0.5)">Deg: ${slopeText}</div>
         `;
         let tooltip = d3.select('.deg-tooltip');
         if (!tooltip.size()) {
@@ -392,7 +450,7 @@ export default function TireDegradation() {
           .style('opacity', 1);
       })
       .on('mouseleave', () => {
-        g.selectAll('.hover-line, .hover-dot').remove();
+        g.selectAll('.hover-line-v, .hover-line-h, .hover-dot').remove();
         d3.select('.deg-tooltip').classed('visible', false).style('opacity', 0);
       });
 

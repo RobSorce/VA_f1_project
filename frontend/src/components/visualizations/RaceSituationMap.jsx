@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import { getDriverColor, getTeamColor, TYRE_COLORS } from '../../utils/colors';
 import { FEATURE_LABELS } from '../../utils/raceSituationFeatures';
 import { attachLasso } from '../../utils/lasso';
 import Panel from '../ui/Panel';
@@ -592,19 +592,41 @@ export default function RaceSituationMap() {
     smoothedPositionsRef.current = {};
   }, [sessionKey]);
 
-  const tyreLegend = [
-    { label: 'Soft', color: COMPOUND_COLORS.SOFT },
-    { label: 'Med', color: COMPOUND_COLORS.MEDIUM },
-    { label: 'Hard', color: COMPOUND_COLORS.HARD },
-    { label: 'Inter', color: COMPOUND_COLORS.INTERMEDIATE },
-    { label: 'Wet', color: COMPOUND_COLORS.WET },
-  ];
+  // Build team legend from current drivers (matches primary dot encoding)
+  const teamLegend = useMemo(() => {
+    if (!driversInfo || driversInfo.length === 0) return [];
+    const seen = new Set();
+    const items = [];
+    for (const d of driversInfo) {
+      const team = d.TeamName;
+      if (!team || seen.has(team)) continue;
+      seen.add(team);
+      items.push({ label: team, color: getTeamColor(team) });
+    }
+    return items;
+  }, [driversInfo]);
 
   return (
-    <Panel title={`Race Situation ${raceSituationData?.computedAtLap ? `— Lap ${raceSituationData.computedAtLap}` : ''}`} controls={<Legend items={tyreLegend} shape="circle" />}>
-      <div className="viz-container">
+    <Panel title={`Race Situation ${raceSituationData?.computedAtLap ? `— Lap ${raceSituationData.computedAtLap}` : ''}`} controls={<Legend items={teamLegend} shape="circle" />}>
+      <div className="viz-container" style={{ position: 'relative' }}>
         {raceSituationData ? (
-          <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+          <>
+            <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+            {selectedDrivers.length > 0 && (
+              <button
+                onClick={() => setSelectedDrivers([])}
+                style={{
+                  position: 'absolute', top: 6, left: 6,
+                  background: 'rgba(225, 6, 0, 0.15)', border: '1px solid rgba(225, 6, 0, 0.4)',
+                  borderRadius: 4, padding: '2px 8px', fontSize: '9px', fontWeight: 600,
+                  color: 'rgba(255,255,255,0.8)', cursor: 'pointer', zIndex: 2,
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                Clear {selectedDrivers.length} selected
+              </button>
+            )}
+          </>
         ) : currentLap < 3 ? (
           <div className="loading-placeholder">
             <span style={{ color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6 }}>

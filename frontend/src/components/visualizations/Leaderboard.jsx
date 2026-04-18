@@ -68,6 +68,7 @@ export default function Leaderboard({ collapsed }) {
   const cycleLeaderboardColumn = useF1Store((s) => s.cycleLeaderboardColumn);
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
   const frameData = useF1Store((s) => s.frameData);
+  const raceProjection = useF1Store((s) => s.raceProjection);
 
   /* ── Local state ──────────────────────────────────────────────────── */
   const [greenFlash, setGreenFlash] = useState(false);
@@ -336,6 +337,21 @@ export default function Leaderboard({ collapsed }) {
     }
     return map;
   }, [standings]);
+
+  /* ── Monte Carlo overtake probabilities (AWS F1 Insights style) ───── */
+  const overtakeProbMap = useMemo(() => {
+    const map = {}; // aheadAbbr → { prob, rival, aheadCompound, behindCompound }
+    if (!raceProjection?.battles?.length) return map;
+    for (const b of raceProjection.battles) {
+      // Only battles where the pair is currently adjacent on track
+      if (Math.abs(b.aheadCurrentPos - b.behindCurrentPos) !== 1) continue;
+      // Keep highest-probability battle per "ahead" driver
+      if (!map[b.ahead] || b.prob > map[b.ahead].prob) {
+        map[b.ahead] = { prob: b.prob, rival: b.behind, behindCompound: b.behindCompound };
+      }
+    }
+    return map;
+  }, [raceProjection]);
 
   /* ── Position change computation ──────────────────────────────────── */
   const [displayedChanges, setDisplayedChanges] = useState({});
@@ -711,6 +727,16 @@ export default function Leaderboard({ collapsed }) {
         <span className="tower-col-header__tyre-dot"></span>
       </div>
 
+      {/* Sector color legend hint */}
+      <div style={{
+        fontSize: 7, color: 'rgba(255,255,255,0.35)',
+        padding: '2px 8px', display: 'flex', gap: 6,
+      }}>
+        <span style={{ color: '#A855F7' }}>{'\u25A0'} SB</span>
+        <span style={{ color: '#22C55E' }}>{'\u25A0'} PB</span>
+        <span>= session/personal best sector</span>
+      </div>
+
       {/* Driver rows */}
       <div ref={towerWrapRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
       <div
@@ -746,6 +772,7 @@ export default function Leaderboard({ collapsed }) {
             isWinner && 'tower-row--winner',
             isOdd && 'tower-row--odd',
             d.isRetired && 'tower-row--retired',
+            d.isPitting && 'tower-row--pitting',
             inBattle && 'tower-row--battle',
           ]
             .filter(Boolean)
@@ -845,11 +872,29 @@ export default function Leaderboard({ collapsed }) {
                     color: '#A020F0', fontWeight: 800, letterSpacing: '0.04em',
                   }}>FL</span>
                 )}
-                {!raceFinished && battles[d.abbr] && (
-                  <span className="tower-row__battle-badge" title={`Battle with ${battles[d.abbr].rival} (${battles[d.abbr].gap.toFixed(3)}s)`}>
-                    {'\u2694'}
-                  </span>
-                )}
+                {!raceFinished && battles[d.abbr] && (() => {
+                  const mc = overtakeProbMap[d.abbr];
+                  const rival = battles[d.abbr].rival;
+                  const gap = battles[d.abbr].gap;
+                  if (mc && mc.rival === rival) {
+                    // Color by probability threshold
+                    const color = mc.prob >= 50 ? '#ef4444' : mc.prob >= 30 ? '#f5a623' : '#22c55e';
+                    return (
+                      <span
+                        className="tower-row__battle-badge tower-row__battle-badge--mc"
+                        style={{ color, borderColor: `${color}55`, background: `${color}18` }}
+                        title={`Monte Carlo: ${mc.prob}% chance ${rival} overtakes (current gap ${gap.toFixed(2)}s)`}
+                      >
+                        {'\u21C5'}{mc.prob}%
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="tower-row__battle-badge" title={`Battle with ${rival} (${gap.toFixed(3)}s)`}>
+                      {'\u2694'}
+                    </span>
+                  );
+                })()}
               </span>
 
               <span className="tower-row__value">

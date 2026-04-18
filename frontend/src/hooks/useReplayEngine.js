@@ -271,15 +271,22 @@ export function useReplayEngine() {
     if (isLiveMode) return; // In live mode, frames arrive via WebSocket
     if (!isPlaying || totalFrames <= 1) return;
 
-    const frames = useF1Store.getState().frameData?.frames;
-    if (!frames?.length) return;
+    const initialFrames = useF1Store.getState().frameData?.frames;
+    if (!initialFrames?.length) return;
 
     let wallStart = performance.now();
     let lastIdx = useF1Store.getState().currentFrameIndex;
-    let sessionStart = frames[lastIdx]?.t ?? 0;
+    let sessionStart = initialFrames[lastIdx]?.t ?? 0;
 
     const loop = (now) => {
       const state = useF1Store.getState();
+      // Re-read frames each tick so a session swap mid-playback doesn't
+      // leave us indexing into a stale array.
+      const frames = state.frameData?.frames;
+      if (!frames?.length) {
+        rafRef.current = requestAnimationFrame(loop);
+        return;
+      }
 
       // Detect external seek — rebase the wall-clock baseline.
       if (state.currentFrameIndex !== lastIdx) {

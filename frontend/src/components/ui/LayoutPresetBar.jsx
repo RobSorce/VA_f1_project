@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { WINDOW_PRESETS } from '../../utils/windowPresets';
 import { useF1Store } from '../../store/useF1Store';
+import LayoutBuilder from './LayoutBuilder';
 
 export default function LayoutPresetBar() {
   const applyWindowPreset = useF1Store((s) => s.applyWindowPreset);
@@ -15,6 +16,17 @@ export default function LayoutPresetBar() {
     return null;
   }, [dockedLayout]);
 
+  const customBtnRef = useRef(null);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [anchorRect, setAnchorRect] = useState(null);
+
+  const openBuilder = () => {
+    if (customBtnRef.current) {
+      setAnchorRect(customBtnRef.current.getBoundingClientRect());
+      setBuilderOpen(true);
+    }
+  };
+
   return (
     <div className="layout-preset-bar">
       <div className="layout-preset-bar__sep" />
@@ -28,6 +40,18 @@ export default function LayoutPresetBar() {
           {preset.label}
         </button>
       ))}
+      <button
+        ref={customBtnRef}
+        className={`layout-preset-bar__btn layout-preset-bar__btn--custom${builderOpen ? ' layout-preset-bar__btn--active' : ''}`}
+        onClick={openBuilder}
+        title="Build a custom layout and pick charts per slot"
+      >
+        Custom
+      </button>
+
+      {builderOpen && anchorRect && (
+        <LayoutBuilder anchorRect={anchorRect} onClose={() => setBuilderOpen(false)} />
+      )}
     </div>
   );
 }

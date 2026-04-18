@@ -362,6 +362,16 @@ export default function TimingTower() {
     const lapTimes = sessionData.lap_times;
     const replayActive = totalFrames > 0;
 
+    // Classified position fallback: DNS/DNF drivers often have no Position on
+    // their lap rows. Use race_results so they sort after classified finishers
+    // instead of landing on P99.
+    const classifiedPos = {};
+    for (const r of sessionData.race_results || []) {
+      if (r.Abbreviation && r.Position != null) {
+        classifiedPos[r.Abbreviation] = Math.round(r.Position);
+      }
+    }
+
     // Session time offset: frame.t is 0-based, lap_times SessionTime fields are absolute
     let offset = 0;
     for (const d of lapTimes) {
@@ -489,7 +499,7 @@ export default function TimingTower() {
       }
 
       return {
-        pos: lt.Position || 99,
+        pos: lt.Position || classifiedPos[drv] || 99,
         abbr: drv,
         driverNumber: info.driverNumber || '',
         teamColor,

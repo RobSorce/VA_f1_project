@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
+import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 
 const SESSION_TYPES = [
   { value: 'R', label: 'Race' },
@@ -26,10 +27,22 @@ const TECH_STACK = [
   'TensorFlow / LSTM', 'Google Gemini AI', 'PCA',
 ];
 
+function SectionHeader({ title, isOpen, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`settings-tab__section-header${isOpen ? ' settings-tab__section-header--open' : ''}`}
+      aria-expanded={isOpen}
+      onClick={onClick}
+    >
+      <h3 className="settings-tab__section-title">{title}</h3>
+      <span className="settings-tab__section-chevron" aria-hidden="true">▾</span>
+    </button>
+  );
+}
+
 export default function SettingsTabContent() {
   // Settings state
-  const theme = useF1Store((s) => s.theme);
-  const setTheme = useF1Store((s) => s.setTheme);
   const tempUnit = useF1Store((s) => s.tempUnit);
   const setTempUnit = useF1Store((s) => s.setTempUnit);
   const speedUnit = useF1Store((s) => s.speedUnit);
@@ -55,6 +68,30 @@ export default function SettingsTabContent() {
 
   const [loadingDataset, setLoadingDataset] = useState(false);
 
+  // Dock panel management — all state lives in the Zustand store now.
+  const dockItems = useF1Store((s) => s.dockItems);
+  const addDockItem = useF1Store((s) => s.addDockItem);
+  const removeDockItem = useF1Store((s) => s.removeDockItem);
+  const resetDockItems = useF1Store((s) => s.resetDockItems);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  // Accordion: only one section expanded at a time → no scrolling.
+  const [openSection, setOpenSection] = useState('units');
+  const toggleSection = useCallback(
+    (id) => setOpenSection((prev) => (prev === id ? null : id)),
+    []
+  );
+
+  const handleReset = useCallback(() => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      setTimeout(() => setConfirmReset(false), 3000);
+      return;
+    }
+    resetDockItems();
+    setConfirmReset(false);
+  }, [confirmReset, resetDockItems]);
+
   const handleYearChange = (newYear) => {
     setYear(newYear);
     setRound(null);
@@ -73,228 +110,290 @@ export default function SettingsTabContent() {
 
   return (
     <div className="settings-tab">
-      {/* ── Appearance ── */}
-      <section className="settings-tab__section">
-        <h3 className="settings-tab__section-title">Appearance</h3>
-        <div className="settings-tab__row">
-          <span className="settings-tab__label">Theme</span>
-          <div className="settings-tab__pills">
-            {['dark', 'light'].map((t) => (
-              <button
-                key={t}
-                className={`settings-tab__pill${theme === t ? ' settings-tab__pill--active' : ''}`}
-                onClick={() => setTheme(t)}
-              >
-                {t === 'dark' ? 'Dark' : 'Light'}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── Units ── */}
-      <section className="settings-tab__section">
-        <h3 className="settings-tab__section-title">Units</h3>
-        <div className="settings-tab__row">
-          <span className="settings-tab__label">Temperature</span>
-          <div className="settings-tab__pills">
-            {['C', 'F'].map((u) => (
-              <button
-                key={u}
-                className={`settings-tab__pill${tempUnit === u ? ' settings-tab__pill--active' : ''}`}
-                onClick={() => setTempUnit(u)}
-              >
-                {u === 'C' ? '°C' : '°F'}
-              </button>
-            ))}
+      <section className={`settings-tab__section${openSection === 'units' ? ' settings-tab__section--open' : ''}`}>
+        <SectionHeader title="Units" isOpen={openSection === 'units'} onClick={() => toggleSection('units')} />
+        {openSection === 'units' && (
+          <div className="settings-tab__section-body">
+            <div className="settings-tab__row">
+              <span className="settings-tab__label">Temperature</span>
+              <div className="settings-tab__pills">
+                {['C', 'F'].map((u) => (
+                  <button
+                    key={u}
+                    className={`settings-tab__pill${tempUnit === u ? ' settings-tab__pill--active' : ''}`}
+                    onClick={() => setTempUnit(u)}
+                  >
+                    {u === 'C' ? '°C' : '°F'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="settings-tab__row">
+              <span className="settings-tab__label">Speed</span>
+              <div className="settings-tab__pills">
+                {[['kmh', 'km/h'], ['mph', 'mph']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    className={`settings-tab__pill${speedUnit === val ? ' settings-tab__pill--active' : ''}`}
+                    onClick={() => setSpeedUnit(val)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="settings-tab__row">
-          <span className="settings-tab__label">Speed</span>
-          <div className="settings-tab__pills">
-            {[['kmh', 'km/h'], ['mph', 'mph']].map(([val, label]) => (
-              <button
-                key={val}
-                className={`settings-tab__pill${speedUnit === val ? ' settings-tab__pill--active' : ''}`}
-                onClick={() => setSpeedUnit(val)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
       </section>
 
       {/* ── Playback ── */}
-      <section className="settings-tab__section">
-        <h3 className="settings-tab__section-title">Playback</h3>
-        <div className="settings-tab__row">
-          <span className="settings-tab__label">Replay Speed</span>
-          <div className="settings-tab__pills">
-            {[0.5, 1, 2, 4].map((spd) => (
-              <button
-                key={spd}
-                className={`settings-tab__pill${playSpeed === spd ? ' settings-tab__pill--active' : ''}`}
-                onClick={() => setPlaySpeed(spd)}
-              >
-                {spd}x
-              </button>
-            ))}
+      <section className={`settings-tab__section${openSection === 'playback' ? ' settings-tab__section--open' : ''}`}>
+        <SectionHeader title="Playback" isOpen={openSection === 'playback'} onClick={() => toggleSection('playback')} />
+        {openSection === 'playback' && (
+          <div className="settings-tab__section-body">
+            <div className="settings-tab__row">
+              <span className="settings-tab__label">Replay Speed</span>
+              <div className="settings-tab__pills">
+                {[0.5, 1, 2, 4].map((spd) => (
+                  <button
+                    key={spd}
+                    className={`settings-tab__pill${playSpeed === spd ? ' settings-tab__pill--active' : ''}`}
+                    onClick={() => setPlaySpeed(spd)}
+                  >
+                    {spd}x
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       {/* ── Telemetry Channels ── */}
-      <section className="settings-tab__section">
-        <h3 className="settings-tab__section-title">Telemetry Channels</h3>
-        <div className="settings-tab__toggles">
-          {TELEM_CHANNELS.map(({ key, label }) => (
-            <label key={key} className="settings-tab__toggle">
-              <input
-                type="checkbox"
-                checked={telemetryChannels[key]}
-                onChange={(e) => setTelemetryChannel(key, e.target.checked)}
-              />
-              <span className="settings-tab__toggle-slider" />
-              <span className="settings-tab__toggle-label">{label}</span>
-            </label>
-          ))}
-        </div>
+      <section className={`settings-tab__section${openSection === 'telemetry' ? ' settings-tab__section--open' : ''}`}>
+        <SectionHeader title="Telemetry Channels" isOpen={openSection === 'telemetry'} onClick={() => toggleSection('telemetry')} />
+        {openSection === 'telemetry' && (
+          <div className="settings-tab__section-body">
+            <div className="settings-tab__toggles">
+              {TELEM_CHANNELS.map(({ key, label }) => (
+                <label key={key} className="settings-tab__toggle">
+                  <input
+                    type="checkbox"
+                    checked={telemetryChannels[key]}
+                    onChange={(e) => setTelemetryChannel(key, e.target.checked)}
+                  />
+                  <span className="settings-tab__toggle-slider" />
+                  <span className="settings-tab__toggle-label">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ── Windows ── */}
-      <section className="settings-tab__section">
-        <h3 className="settings-tab__section-title">Windows</h3>
-        <div className="settings-tab__row">
-          <span className="settings-tab__label">Tiling</span>
-          <span className="settings-tab__hint">
-            Ctrl+Left/Right: snap half &middot; Ctrl+Up: max &middot; Ctrl+Down: restore &middot; Ctrl+G: auto-arrange
-          </span>
-        </div>
-        <div className="settings-tab__row">
-          <span className="settings-tab__label">Dashboard</span>
-          <div className="settings-tab__pills">
-            {[['show', 'Always Show'], ['hide', 'Auto-hide']].map(([val, label]) => (
-              <button
-                key={val}
-                className={`settings-tab__pill${(val === 'show') === showDashboard ? ' settings-tab__pill--active' : ''}`}
-                onClick={() => setShowDashboard(val === 'show')}
-              >
-                {label}
-              </button>
-            ))}
+      <section className={`settings-tab__section${openSection === 'windows' ? ' settings-tab__section--open' : ''}`}>
+        <SectionHeader title="Windows" isOpen={openSection === 'windows'} onClick={() => toggleSection('windows')} />
+        {openSection === 'windows' && (
+          <div className="settings-tab__section-body">
+            <div className="settings-tab__row">
+              <span className="settings-tab__label">Tiling</span>
+              <span className="settings-tab__hint">
+                Ctrl+Left/Right: snap half &middot; Ctrl+Up: max &middot; Ctrl+Down: restore &middot; Ctrl+G: auto-arrange
+              </span>
+            </div>
+            <div className="settings-tab__row">
+              <span className="settings-tab__label">Dashboard</span>
+              <div className="settings-tab__pills">
+                {[['show', 'Always Show'], ['hide', 'Auto-hide']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    className={`settings-tab__pill${(val === 'show') === showDashboard ? ' settings-tab__pill--active' : ''}`}
+                    onClick={() => setShowDashboard(val === 'show')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+      </section>
+
+      {/* ── Dock ── */}
+      <section className={`settings-tab__section${openSection === 'dock' ? ' settings-tab__section--open' : ''}`}>
+        <SectionHeader title="Dock" isOpen={openSection === 'dock'} onClick={() => toggleSection('dock')} />
+        {openSection === 'dock' && (
+          <div className="settings-tab__section-body">
+            <p className="settings-tab__hint" style={{ marginBottom: 10 }}>
+              Toggle a panel to add or remove it from the bottom dock. Drag icons on the dock itself to reorder.
+            </p>
+
+            {CATEGORY_ORDER.map((cat) => {
+              const entries = SLOT_OPTIONS.filter(
+                (o) => !o.isMode && o.category === cat && o.id !== 'settings'
+              );
+              if (entries.length === 0) return null;
+              return (
+                <div key={cat} className="settings-dock__group">
+                  <div className="settings-dock__group-label">{CATEGORY_LABELS[cat]}</div>
+                  <div className="settings-tab__toggles">
+                    {entries.map((opt) => {
+                      const inDock = dockItems.includes(opt.id);
+                      const canRemove = dockItems.length > 1;
+                      return (
+                        <div key={opt.id} className="settings-dock__toggle-row">
+                          <label className="settings-tab__toggle">
+                            <input
+                              type="checkbox"
+                              checked={inDock}
+                              disabled={inDock && !canRemove}
+                              onChange={(e) => {
+                                if (e.target.checked) addDockItem(opt.id);
+                                else if (canRemove) removeDockItem(opt.id);
+                              }}
+                            />
+                            <span className="settings-tab__toggle-slider" />
+                            <span className="settings-tab__toggle-label">{opt.label}</span>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            <button
+              type="button"
+              className="settings-tab__load-btn"
+              onClick={handleReset}
+              style={{ marginTop: 12, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              {confirmReset ? 'Click again to confirm' : 'Reset dock to defaults'}
+            </button>
+          </div>
+        )}
       </section>
 
       {/* ── Dataset / Session ── */}
-      <section className="settings-tab__section">
-        <h3 className="settings-tab__section-title">Dataset</h3>
-        <div className="settings-tab__row">
-          <span className="settings-tab__label">Year</span>
-          <select
-            className="settings-tab__select"
-            value={year}
-            onChange={(e) => handleYearChange(Number(e.target.value))}
-          >
-            {YEARS.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
-        <div className="settings-tab__row">
-          <span className="settings-tab__label">Grand Prix</span>
-          <select
-            className="settings-tab__select"
-            value={round || ''}
-            onChange={(e) => setRound(Number(e.target.value))}
-          >
-            <option value="">Select GP</option>
-            {schedule.map((evt) => (
-              <option key={evt.RoundNumber} value={evt.RoundNumber}>
-                {evt.EventName}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="settings-tab__row">
-          <span className="settings-tab__label">Session</span>
-          <div className="settings-tab__pills settings-tab__pills--wrap">
-            {SESSION_TYPES.map(({ value, label }) => (
-              <button
-                key={value}
-                className={`settings-tab__pill${sessionType === value ? ' settings-tab__pill--active' : ''}`}
-                onClick={() => setSessionType(value)}
+      <section className={`settings-tab__section${openSection === 'dataset' ? ' settings-tab__section--open' : ''}`}>
+        <SectionHeader title="Dataset" isOpen={openSection === 'dataset'} onClick={() => toggleSection('dataset')} />
+        {openSection === 'dataset' && (
+          <div className="settings-tab__section-body">
+            <div className="settings-tab__row">
+              <span className="settings-tab__label">Year</span>
+              <select
+                className="settings-tab__select"
+                value={year}
+                onChange={(e) => handleYearChange(Number(e.target.value))}
               >
-                {label}
-              </button>
-            ))}
+                {YEARS.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <div className="settings-tab__row">
+              <span className="settings-tab__label">Grand Prix</span>
+              <select
+                className="settings-tab__select"
+                value={round || ''}
+                onChange={(e) => setRound(Number(e.target.value))}
+              >
+                <option value="">Select GP</option>
+                {schedule.map((evt) => (
+                  <option key={evt.RoundNumber} value={evt.RoundNumber}>
+                    {evt.EventName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="settings-tab__row">
+              <span className="settings-tab__label">Session</span>
+              <div className="settings-tab__pills settings-tab__pills--wrap">
+                {SESSION_TYPES.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    className={`settings-tab__pill${sessionType === value ? ' settings-tab__pill--active' : ''}`}
+                    onClick={() => setSessionType(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              className="settings-tab__load-btn"
+              disabled={!round || isLoading || loadingDataset}
+              onClick={handleLoadDataset}
+            >
+              {loadingDataset ? 'Loading...' : 'Load Session'}
+            </button>
           </div>
-        </div>
-        <button
-          className="settings-tab__load-btn"
-          disabled={!round || isLoading || loadingDataset}
-          onClick={handleLoadDataset}
-        >
-          {loadingDataset ? 'Loading...' : 'Load Session'}
-        </button>
+        )}
       </section>
 
       {/* ── About ── */}
-      <section className="settings-tab__section settings-tab__section--about">
-        <div className="settings-tab__about-header">
-          <img src="/f1-logo.png" alt="F1" className="settings-tab__about-logo" />
-          <div>
-            <h2 className="settings-tab__about-title">F1 Race Control</h2>
-            <p className="settings-tab__about-subtitle">F1 Grand-Prix Analysis</p>
-          </div>
-        </div>
+      <section className={`settings-tab__section${openSection === 'about' ? ' settings-tab__section--open' : ''}`}>
+        <SectionHeader title="About" isOpen={openSection === 'about'} onClick={() => toggleSection('about')} />
+        {openSection === 'about' && (
+          <div className="settings-tab__section-body">
+            <div className="settings-tab__about-header">
+              <img src="/f1-logo.png" alt="F1" className="settings-tab__about-logo" />
+              <div>
+                <h2 className="settings-tab__about-title">F1 Race Control</h2>
+                <p className="settings-tab__about-subtitle">F1 Grand-Prix Analysis</p>
+              </div>
+            </div>
 
-        <div className="settings-tab__about-grid">
-          <div className="settings-tab__about-item">
-            <span className="settings-tab__about-key">Developer</span>
-            <span className="settings-tab__about-val">Roberto Sorce</span>
-          </div>
-          <div className="settings-tab__about-item">
-            <span className="settings-tab__about-key">University</span>
-            <span className="settings-tab__about-val">Sapienza Universita di Roma</span>
-          </div>
-          <div className="settings-tab__about-item">
-            <span className="settings-tab__about-key">Course</span>
-            <span className="settings-tab__about-val">Visual Analytics</span>
-          </div>
-          <div className="settings-tab__about-item">
-            <span className="settings-tab__about-key">Academic Year</span>
-            <span className="settings-tab__about-val">2024 / 2025</span>
-          </div>
-          <div className="settings-tab__about-item">
-            <span className="settings-tab__about-key">Version</span>
-            <span className="settings-tab__about-val">1.0.0</span>
-          </div>
-        </div>
+            <div className="settings-tab__about-grid">
+              <div className="settings-tab__about-item">
+                <span className="settings-tab__about-key">Developer</span>
+                <span className="settings-tab__about-val">Roberto Sorce</span>
+              </div>
+              <div className="settings-tab__about-item">
+                <span className="settings-tab__about-key">University</span>
+                <span className="settings-tab__about-val">Sapienza Universita di Roma</span>
+              </div>
+              <div className="settings-tab__about-item">
+                <span className="settings-tab__about-key">Course</span>
+                <span className="settings-tab__about-val">Visual Analytics</span>
+              </div>
+              <div className="settings-tab__about-item">
+                <span className="settings-tab__about-key">Academic Year</span>
+                <span className="settings-tab__about-val">2024 / 2025</span>
+              </div>
+              <div className="settings-tab__about-item">
+                <span className="settings-tab__about-key">Version</span>
+                <span className="settings-tab__about-val">1.0.0</span>
+              </div>
+            </div>
 
-        <div className="settings-tab__about-section">
-          <span className="settings-tab__about-key">Tech Stack</span>
-          <div className="settings-tab__tech-tags">
-            {TECH_STACK.map((t) => (
-              <span key={t} className="settings-tab__tech-tag">{t}</span>
-            ))}
+            <div className="settings-tab__about-section">
+              <span className="settings-tab__about-key">Tech Stack</span>
+              <div className="settings-tab__tech-tags">
+                {TECH_STACK.map((t) => (
+                  <span key={t} className="settings-tab__tech-tag">{t}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="settings-tab__about-section">
+              <span className="settings-tab__about-key">Data Sources</span>
+              <p className="settings-tab__about-text">
+                Telemetry data provided by <strong>FastF1</strong> (open-source F1 data library).
+                AI-powered strategy analysis by <strong>Google Gemini</strong>.
+              </p>
+            </div>
+
+            <p className="settings-tab__disclaimer">
+              This project is for academic purposes only.
+              Not affiliated with Formula 1, FIA, or any F1 team.
+              All trademarks belong to their respective owners.
+            </p>
           </div>
-        </div>
-
-        <div className="settings-tab__about-section">
-          <span className="settings-tab__about-key">Data Sources</span>
-          <p className="settings-tab__about-text">
-            Telemetry data provided by <strong>FastF1</strong> (open-source F1 data library).
-            AI-powered strategy analysis by <strong>Google Gemini</strong>.
-          </p>
-        </div>
-
-        <p className="settings-tab__disclaimer">
-          This project is for academic purposes only.
-          Not affiliated with Formula 1, FIA, or any F1 team.
-          All trademarks belong to their respective owners.
-        </p>
+        )}
       </section>
     </div>
   );

@@ -159,6 +159,9 @@ export default function TrackMap({ compact = false }) {
   const drivers = useF1Store((s) => s.drivers);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
   const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
+  const telemetryCache = useF1Store((s) => s.telemetryCache);
+  const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+  const fetchDriverTelemetry = useF1Store((s) => s.fetchDriverTelemetry);
 
   // Track overlay toggles — synced with store for keyboard shortcuts
   const showTrackSectors = useF1Store((s) => s.showTrackSectors);
@@ -177,6 +180,7 @@ export default function TrackMap({ compact = false }) {
   const [showSector3, setShowSector3] = useState(true);
   const [showDRS, setShowDRS] = useState(true);
   const [showCorners, setShowCorners] = useState(true);
+  const [channelMode, setChannelMode] = useState(null); // null | 'speed' | 'throttle' | 'brake'
 
   // Sync store toggles → local state
   useEffect(() => {
@@ -311,6 +315,7 @@ export default function TrackMap({ compact = false }) {
     g.append('g').attr('class', 'sf-layer');
     g.append('g').attr('class', 'direction-layer');
     g.append('g').attr('class', 'corners-layer');
+    g.append('g').attr('class', 'channel-overlay-layer');
     g.append('g').attr('class', 'trails-layer');
     g.append('g').attr('class', 'cars-layer');
     g.append('g').attr('class', 'flag-label-layer');
@@ -704,6 +709,125 @@ export default function TrackMap({ compact = false }) {
     if (!gRef.current) return;
     gRef.current.select('.corners-layer').attr('opacity', showCorners ? 1 : 0);
   }, [showCorners]);
+
+  // Auto-fetch telemetry for focus driver when channel mode is activated
+  useEffect(() => {
+    if (!channelMode || !focusDriver || !fetchDriverTelemetry) return;
+    const sessionType = isQualifyingReplay ? 'Q' : 'R';
+    const prefix = `${focusDriver}-`;
+    const suffix = `-${sessionType}`;
+    const hasAny = Object.keys(telemetryCache || {}).some(
+      (k) => k.startsWith(prefix) && k.endsWith(suffix)
+    );
+    if (hasAny) return;
+    const targetLap = Math.max(1, (currentLap || 1) - 1);
+    fetchDriverTelemetry(focusDriver, targetLap);
+  }, [channelMode, focusDriver, telemetryCache, isQualifyingReplay, currentLap, fetchDriverTelemetry]);
+
+  // ── Channel-colored track overlay (speed / throttle / brake) ──
+  // Pick the most recent cached telemetry lap for the focus driver (≤ currentLap)
+  const channelTelemetry = useMemo(() => {
+    if (!channelMode || !focusDriver || !telemetryCache) return null;
+    const sessionType = isQualifyingReplay ? 'Q' : 'R';
+    const prefix = `${focusDriver}-`;
+    const suffix = `-${sessionType}`;
+    let best = null;
+    let bestLap = -1;
+    for (const key of Object.keys(telemetryCache)) {
+      if (!key.startsWith(prefix) || !key.endsWith(suffix)) continue;
+      const m = key.match(/^[A-Z0-9]{3}-(\d+)-/);
+      if (!m) continue;
+      const lap = parseInt(m[1], 10);
+      if (currentLap != null && lap > currentLap) continue;
+      if (lap > bestLap) {
+        bestLap = lap;
+        best = telemetryCache[key];
+      }
+    }
+    return best && best.length > 1 ? { samples: best, lap: bestLap } : null;
+  }, [channelMode, focusDriver, telemetryCache, isQualifyingReplay, currentLap]);
+
+  // Render channel overlay as thin colored segments; dim sectors to keep colors readable
+  const sectorDimmedRef = useRef(false);
+  useEffect(() => {
+    if (!gRef.current) return;
+    const layer = gRef.current.select('.channel-overlay-layer');
+    if (layer.empty()) return;
+    layer.selectAll('*').remove();
+    const sectorLayer = gRef.current.select('.sector-layer');
+
+    if (!channelMode || !channelTelemetry) {
+      if (sectorDimmedRef.current && !sectorLayer.empty()) {
+        sectorLayer.attr('opacity', null);
+        sectorDimmedRef.current = false;
+      }
+      return;
+    }
+    if (!sectorLayer.empty()) {
+      sectorLayer.attr('opacity', 0.2);
+      sectorDimmedRef.current = true;
+    }
+
+    if (!gRef.current.__scales || !gRef.current.__rotation) return;
+
+    const { xScale, yScale } = gRef.current.__scales;
+    const rot = gRef.current.__rotation;
+    const samples = channelTelemetry.samples;
+
+    const field = channelMode === 'speed' ? 'Speed'
+      : channelMode === 'throttle' ? 'Throttle'
+      : channelMode === 'brake' ? 'Brake'
+      : null;
+    if (!field) return;
+
+    const values = [];
+    for (const d of samples) {
+      const v = d[field];
+      if (v != null && isFinite(v)) values.push(v);
+    }
+    if (values.length === 0) return;
+
+    let colorScale;
+    if (channelMode === 'speed') {
+      const vMin = Math.min(...values);
+      const vMax = Math.max(...values);
+      colorScale = d3.scaleSequential(d3.interpolateTurbo).domain([vMin, vMax]);
+    } else if (channelMode === 'throttle') {
+      colorScale = d3.scaleSequential((t) => d3.interpolateRgb('#2a2a2a', '#22c55e')(t))
+        .domain([0, 100]);
+    } else {
+      // Brake — binary or 0..100
+      colorScale = d3.scaleSequential((t) => d3.interpolateRgb('#2a2a2a', '#ef4444')(t))
+        .domain([0, 100]);
+    }
+
+    const rotatePt = (x, y) => ({
+      x: rot.cx + (x - rot.cx) * rot.cosR - (y - rot.cy) * rot.sinR,
+      y: rot.cy + (x - rot.cx) * rot.sinR + (y - rot.cy) * rot.cosR,
+    });
+
+    // Build a single path per color-bucket would be faster, but a few hundred
+    // line segments perform fine and give smooth per-sample colors.
+    for (let i = 1; i < samples.length; i++) {
+      const p0 = samples[i - 1];
+      const p1 = samples[i];
+      if (p0.X == null || p0.Y == null || p1.X == null || p1.Y == null) continue;
+      const v = p1[field];
+      if (v == null || !isFinite(v)) continue;
+      const vNorm = channelMode === 'brake' ? (v > 1 ? v : v * 100) : v;
+      const r0 = rotatePt(p0.X, p0.Y);
+      const r1 = rotatePt(p1.X, p1.Y);
+      layer.append('line')
+        .attr('x1', xScale(r0.x))
+        .attr('y1', yScale(r0.y))
+        .attr('x2', xScale(r1.x))
+        .attr('y2', yScale(r1.y))
+        .attr('stroke', colorScale(vNorm))
+        .attr('stroke-width', 12)
+        .attr('stroke-linecap', 'round')
+        .attr('opacity', 0.95);
+    }
+  }, [channelMode, channelTelemetry, circuitInfo, trackRotationOffset, compact]);
 
   // Update track border color based on flag status
   useEffect(() => {
@@ -1272,6 +1396,22 @@ export default function TrackMap({ compact = false }) {
       <button style={toggleBtnStyle(showSector3, SECTOR_COLORS[3])} onClick={() => setShowSector3(!showSector3)}>S3</button>
       <button style={toggleBtnStyle(showDRS, '#00cc00')} onClick={() => setShowDRS(!showDRS)}>DRS</button>
       <button style={toggleBtnStyle(showCorners, '#aaa')} onClick={() => setShowCorners(!showCorners)}>Corners</button>
+      <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+      <button
+        style={toggleBtnStyle(channelMode === 'speed', '#fbbf24')}
+        onClick={() => setChannelMode(channelMode === 'speed' ? null : 'speed')}
+        title={focusDriver ? `Speed overlay (${focusDriver})` : 'Select a focus driver first'}
+      >SPD</button>
+      <button
+        style={toggleBtnStyle(channelMode === 'throttle', '#22c55e')}
+        onClick={() => setChannelMode(channelMode === 'throttle' ? null : 'throttle')}
+        title={focusDriver ? `Throttle overlay (${focusDriver})` : 'Select a focus driver first'}
+      >THR</button>
+      <button
+        style={toggleBtnStyle(channelMode === 'brake', '#ef4444')}
+        onClick={() => setChannelMode(channelMode === 'brake' ? null : 'brake')}
+        title={focusDriver ? `Brake overlay (${focusDriver})` : 'Select a focus driver first'}
+      >BRK</button>
       {driverLegendItems.length > 0 && (
         <div style={{ marginLeft: 8, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
           <Legend items={driverLegendItems} shape="circle" />

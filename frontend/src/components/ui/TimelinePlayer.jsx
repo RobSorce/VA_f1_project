@@ -175,21 +175,25 @@ export default function TimelinePlayer() {
       .attr('rx', 3)
       .attr('fill', '#e10600');
 
-    // Safety Car / VSC / Red Flag bands (rendered ON TOP of progress fill)
+    // Safety Car / VSC / Red Flag / Yellow Flag bands (rendered ON TOP of progress fill)
     const segmentEvents = raceEvents.filter(
-      (e) => e.type === 'SAFETY_CAR' || e.type === 'VSC' || e.type === 'RED_FLAG'
+      (e) => e.type === 'SAFETY_CAR' || e.type === 'VSC' || e.type === 'RED_FLAG' || e.type === 'YELLOW_FLAG'
     );
     for (const evt of segmentEvents) {
       const { x1, x2: x2Raw } = bandX(evt);
       const bandW = Math.max(x2Raw - x1, 6);
       // Full-height background band
+      const bgFill = evt.type === 'VSC' ? 'rgba(255, 140, 0, 0.12)'
+        : evt.type === 'RED_FLAG' ? 'rgba(255, 0, 0, 0.15)'
+        : evt.type === 'YELLOW_FLAG' ? 'rgba(255, 204, 0, 0.08)'
+        : 'rgba(255, 204, 0, 0.12)';
       g.append('rect')
         .attr('x', x1)
         .attr('y', 2)
         .attr('width', bandW)
         .attr('height', height - 4)
         .attr('rx', 2)
-        .attr('fill', evt.type === 'VSC' ? 'rgba(255, 140, 0, 0.12)' : evt.type === 'RED_FLAG' ? 'rgba(255, 0, 0, 0.15)' : 'rgba(255, 204, 0, 0.12)');
+        .attr('fill', bgFill);
       // Track-level band (on top of progress fill)
       g.append('rect')
         .attr('x', x1)
@@ -285,8 +289,8 @@ export default function TimelinePlayer() {
           })
           .on('click', () => { seekToLap(evt.lap); });
 
-      // ── Layer 1: SC / VSC / Red Flag markers ──
-      } else if (evt.type === 'SAFETY_CAR' || evt.type === 'VSC' || evt.type === 'RED_FLAG') {
+      // ── Layer 1: SC / VSC / Red Flag / Yellow Flag markers ──
+      } else if (evt.type === 'SAFETY_CAR' || evt.type === 'VSC' || evt.type === 'RED_FLAG' || evt.type === 'YELLOW_FLAG') {
         const scG = markersG.append('g')
           .attr('transform', `translate(${x}, ${markerY})`)
           .style('cursor', 'pointer');
@@ -301,7 +305,7 @@ export default function TimelinePlayer() {
           .attr('fill', '#000')
           .attr('font-size', '6px')
           .attr('font-weight', '900')
-          .text(evt.type === 'VSC' ? 'V' : evt.type === 'RED_FLAG' ? 'R' : 'SC');
+          .text(evt.type === 'VSC' ? 'V' : evt.type === 'RED_FLAG' ? 'R' : evt.type === 'YELLOW_FLAG' ? 'Y' : 'SC');
         scG
           .on('mouseenter', (event) => {
             scG.select('circle').attr('r', 7);

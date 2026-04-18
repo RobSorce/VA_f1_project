@@ -1,21 +1,138 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 
 
-export default function OverlayPanel({ title, tabId, children }) {
+// Default sizes for overlay panels (width, height)
+const PANEL_SIZES = {
+  settings: [820, 580],
+  ai: [880, 600],
+  championship: [880, 600],
+};
+const DEFAULT_SIZE = [700, 520];
+const MIN_W = 360;
+const MIN_H = 240;
+const EDGE_PAD = 8;
+
+export default function OverlayPanel({ title, tabId, children, autoFit = false }) {
   const closeOverlay = useF1Store((s) => s.closeOverlay);
   const focusOverlay = useF1Store((s) => s.focusOverlay);
   const isActive = useF1Store((s) => s.activeTab === tabId);
   const tileState = useF1Store((s) => s.overlayTiles[tabId] || null);
   const tileOverlay = useF1Store((s) => s.tileOverlay);
   const clearTile = useF1Store((s) => s.clearTile);
-  const [floating, setFloating] = useState(false);
+  const openOverlays = useF1Store((s) => s.openOverlays);
+  const [floating, setFloating] = useState(!tileState);
 
   const panelRef = useRef(null);
-  const stateRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
+  // Initialize with centered default based on panel type
+  const initRef = useRef(false);
+  const [w, h] = PANEL_SIZES[tabId] || DEFAULT_SIZE;
+  const cascadeIdx = openOverlays.indexOf(tabId);
+  const offset = Math.max(0, cascadeIdx) * 24;
+  // Provisional — will be re-centered against the real container after mount.
+  const stateRef = useRef({
+    x: Math.max(0, (window.innerWidth - w) / 2 + offset),
+    y: Math.max(0, (window.innerHeight - h) / 2 + offset),
+    w, h,
+  });
   const [, forceRender] = useState(0);
 
+  // Auto-fit: height follows content (expand/collapse). Disabled once the
+  // user manually resizes so we respect their chosen size.
+  const userResizedRef = useRef(false);
+  const [isInteracting, setIsInteracting] = useState(false);
+
   const getContainer = () => panelRef.current?.parentElement;
+
+  // After mount, measure the real container and center/clamp the panel so it's
+  // fully visible regardless of viewport size or reserved bottom space
+  // (timeline player + bottom tab bar).
+  useEffect(() => {
+    if (initRef.current) return;
+    const container = getContainer();
+    if (!container) return;
+    const cr = container.getBoundingClientRect();
+    if (cr.width <= 0 || cr.height <= 0) return;
+
+    const [pw, ph] = PANEL_SIZES[tabId] || DEFAULT_SIZE;
+    const safeW = Math.max(MIN_W, Math.min(pw, cr.width - EDGE_PAD * 2));
+    const safeH = Math.max(MIN_H, Math.min(ph, cr.height - EDGE_PAD * 2));
+    const x = Math.max(EDGE_PAD, Math.min(cr.width - safeW - EDGE_PAD, (cr.width - safeW) / 2 + offset));
+    const y = Math.max(EDGE_PAD, Math.min(cr.height - safeH - EDGE_PAD, (cr.height - safeH) / 2 + offset));
+
+    stateRef.current = { x, y, w: safeW, h: safeH };
+    initRef.current = true;
+    forceRender((n) => n + 1);
+  }, [tabId, offset]);
+
+  // ── Auto-fit height to content ────────────────────────────────
+  // Observes the inner content and shrinks/grows the panel to match.
+  // Stops once the user manually resizes (userResizedRef).
+  useEffect(() => {
+    if (!autoFit) return;
+    if (!floating) return;
+    const content = panelRef.current?.querySelector('.overlay-panel__content');
+    const inner = content?.firstElementChild;
+    if (!inner) return;
+
+    const measure = () => {
+      if (userResizedRef.current) return;
+      if (tileState) return; // skip when tiled/maximized/arranged
+      const container = getContainer();
+      if (!container) return;
+      const cr = container.getBoundingClientRect();
+      if (cr.height <= 0) return;
+      const header = panelRef.current?.querySelector('.overlay-panel__header');
+      const headerH = header?.offsetHeight || 36;
+      // inner uses max-height:100% so scrollHeight reflects the natural
+      // content height even when the viewport clamps it.
+      const natural = inner.scrollHeight;
+      const target = natural + headerH + 2; // +border
+      const maxH = Math.max(MIN_H, cr.height - EDGE_PAD * 2);
+      const clamped = Math.min(Math.max(MIN_H, target), maxH);
+      const st = stateRef.current;
+      if (Math.abs(st.h - clamped) > 1) {
+        const newY = Math.max(EDGE_PAD, Math.min(cr.height - clamped - EDGE_PAD, st.y));
+        stateRef.current = { ...st, h: clamped, y: newY };
+        forceRender((n) => n + 1);
+      }
+    };
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(inner);
+    // Catch layout changes triggered by conditional rendering (e.g. accordion
+    // section bodies appearing/disappearing). ResizeObserver alone may miss
+    // these when max-height caps the element box.
+    const mo = new MutationObserver(() => requestAnimationFrame(measure));
+    mo.observe(inner, { childList: true, subtree: true });
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, [autoFit, floating, tileState]);
+
+  // If the viewport shrinks or the reserved bottom grows (timeline expanded),
+  // keep the panel inside the container.
+  useEffect(() => {
+    const onResize = () => {
+      const container = getContainer();
+      if (!container) return;
+      const cr = container.getBoundingClientRect();
+      const st = stateRef.current;
+      const maxW = Math.max(MIN_W, cr.width - EDGE_PAD * 2);
+      const maxH = Math.max(MIN_H, cr.height - EDGE_PAD * 2);
+      const newW = Math.min(st.w, maxW);
+      const newH = Math.min(st.h, maxH);
+      const newX = Math.max(EDGE_PAD, Math.min(cr.width - newW - EDGE_PAD, st.x));
+      const newY = Math.max(EDGE_PAD, Math.min(cr.height - newH - EDGE_PAD, st.y));
+      if (newW !== st.w || newH !== st.h || newX !== st.x || newY !== st.y) {
+        stateRef.current = { x: newX, y: newY, w: newW, h: newH };
+        forceRender((n) => n + 1);
+      }
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const snapshotRect = () => {
     const panel = panelRef.current;
@@ -56,6 +173,7 @@ export default function OverlayPanel({ title, tabId, children }) {
     // Snapshot current visual position as starting point for floating
     stateRef.current = { x: snap.x, y: snap.y, w: snap.w, h: snap.h };
     if (!floating) setFloating(true);
+    setIsInteracting(true);
 
     const startMouseX = e.clientX;
     const startMouseY = e.clientY;
@@ -63,18 +181,21 @@ export default function OverlayPanel({ title, tabId, children }) {
     const startY = stateRef.current.y;
     const cw = snap.cw;
     const ch = snap.ch;
+    const pw = snap.w;
+    const ph = snap.h;
 
     const onMove = (ev) => {
       const dx = ev.clientX - startMouseX;
       const dy = ev.clientY - startMouseY;
-      stateRef.current.x = Math.max(0, Math.min(cw - 100, startX + dx));
-      stateRef.current.y = Math.max(0, Math.min(ch - 40, startY + dy));
+      stateRef.current.x = Math.max(EDGE_PAD, Math.min(cw - pw - EDGE_PAD, startX + dx));
+      stateRef.current.y = Math.max(EDGE_PAD, Math.min(ch - ph - EDGE_PAD, startY + dy));
       forceRender((n) => n + 1);
     };
 
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      setIsInteracting(false);
     };
 
     window.addEventListener('mousemove', onMove);
@@ -95,6 +216,9 @@ export default function OverlayPanel({ title, tabId, children }) {
       stateRef.current = { x: snap.x, y: snap.y, w: snap.w, h: snap.h };
       setFloating(true);
     }
+    // User took size into their own hands — stop auto-fitting.
+    userResizedRef.current = true;
+    setIsInteracting(true);
 
     const startMouseX = e.clientX;
     const startMouseY = e.clientY;
@@ -114,16 +238,16 @@ export default function OverlayPanel({ title, tabId, children }) {
 
       let newX = startX, newY = startY, newW = startW, newH = startH;
 
-      if (resizeE) newW = Math.max(240, Math.min(snap.cw - startX, startW + dx));
+      if (resizeE) newW = Math.max(MIN_W, Math.min(snap.cw - startX - EDGE_PAD, startW + dx));
       if (resizeW) {
-        const moved = Math.min(dx, startW - 240);            // don't shrink below min
-        newX = Math.max(0, startX + moved);
+        const moved = Math.min(dx, startW - MIN_W);            // don't shrink below min
+        newX = Math.max(EDGE_PAD, startX + moved);
         newW = startW - (newX - startX);
       }
-      if (resizeS) newH = Math.max(150, Math.min(snap.ch - startY, startH + dy));
+      if (resizeS) newH = Math.max(MIN_H, Math.min(snap.ch - startY - EDGE_PAD, startH + dy));
       if (resizeN) {
-        const moved = Math.min(dy, startH - 150);
-        newY = Math.max(0, startY + moved);
+        const moved = Math.min(dy, startH - MIN_H);
+        newY = Math.max(EDGE_PAD, startY + moved);
         newH = startH - (newY - startY);
       }
 
@@ -137,6 +261,7 @@ export default function OverlayPanel({ title, tabId, children }) {
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      setIsInteracting(false);
     };
 
     window.addEventListener('mousemove', onMove);
@@ -164,6 +289,7 @@ export default function OverlayPanel({ title, tabId, children }) {
   }, [isActive, focusOverlay, tabId]);
 
   // Build class and style
+  const smoothResize = autoFit && floating && !isPositioned && !isInteracting && !userResizedRef.current;
   const cls = [
     'overlay-panel',
     isActive && 'overlay-panel--active',
@@ -171,6 +297,8 @@ export default function OverlayPanel({ title, tabId, children }) {
     isTiled && `overlay-panel--tile-${tileState}`,
     isArranged && 'overlay-panel--arranged',
     floating && !isPositioned && 'overlay-panel--floating',
+    autoFit && 'overlay-panel--autofit',
+    smoothResize && 'overlay-panel--smooth',
   ].filter(Boolean).join(' ');
 
   let panelStyle;

@@ -1,196 +1,126 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import ReactDOM from 'react-dom';
+import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
 import { useF1Store } from '../../store/useF1Store';
+import { SLOT_OPTIONS, SLOT_IDS } from '../../utils/slotOptions';
+import { DOCK_STORAGE_KEY } from '../../store/useF1Store';
+import DockContextMenu from './DockContextMenu';
+import DockOverflowPopover from './DockOverflowPopover';
+import LayoutDockPopover from './LayoutDockPopover';
+
 const HOVER_ZONE_HEIGHT = 12;
+const DOCK_ITEM_WIDTH = 72;
+const FIXED_OVERHEAD = 160; // Pit Wall (implicit in items) + separators + ⋯ + command palette + settings
 
-// The 4 core VA pipeline tabs that stay visible in the dock
-const CORE_TABS = [
-  { id: 'laptimes',   label: 'Lap Times',   icon: 'M12 6v6l4 2M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0z',   hint: '2' },
-  { id: 'analytics',  label: 'Analytics',   icon: 'M21 21H3V3m4 14l4-6 4 4 6-8',                             hint: '0' },
-  { id: 'strategy',   label: 'Strategy',    icon: 'M3 3h18v6H3zM3 15h18v6H3zM8 9v6M16 9v6',                 hint: 'S' },
-  { id: 'prediction', label: 'Prediction',  icon: 'M22 12h-4l-3 9L9 3l-3 9H2',                               hint: '7' },
-];
+/* ── SLOT lookup (memoized once) ───────────────────────────────── */
+const SLOT_BY_ID = new Map(SLOT_OPTIONS.map((o) => [o.id, o]));
 
-// Views available inside the Layouts popover (everything NOT in CORE_TABS)
-const POPOVER_VIEW_CATEGORIES = [
+/* ─── DockButton ─────────────────────────────────────────────── */
+const DockButton = React.forwardRef(function DockButton(
   {
-    label: 'Track & Timing',
-    views: [
-      { id: 'trackmap', label: 'Track Map' },
-      { id: 'lapdelta', label: 'Lap Delta' },
-      { id: 'telemetry', label: 'Telemetry' },
-      { id: 'racepace', label: 'Race Pace Grid' },
-      { id: 'positionlaps', label: 'Position Tracker' },
-    ],
+    option, isOpen, onActivate, onContextMenu,
+    isDragging, isDropTarget,
+    onDragStart, onDragOver, onDragEnter, onDragLeave, onDrop, onDragEnd,
   },
-  {
-    label: 'Tyres & Pace',
-    views: [
-      { id: 'tyres', label: 'Tyres' },
-      { id: 'tiredeg', label: 'Tyre Degradation' },
-      { id: 'tyrehealth', label: 'Tyre Health' },
-      { id: 'tyremgmt', label: 'Pace Retention' },
-      { id: 'sectors', label: 'Sectors & Speeds' },
-      { id: 'speed', label: 'Speed Rankings' },
-      { id: 'consistency', label: 'Consistency' },
-    ],
-  },
-  {
-    label: 'Strategy & Analysis',
-    views: [
-      { id: 'analysis', label: 'Strategy Analysis' },
-      { id: 'racesituation', label: 'Race Situation' },
-      { id: 'simulator', label: 'Strategy Simulator' },
-      { id: 'compare', label: 'Driver Compare' },
-    ],
-  },
-  {
-    label: 'Simulation & AI',
-    views: [
-      { id: 'ai', label: 'AI Strategist' },
-      { id: 'championship', label: 'Championship' },
-    ],
-  },
-];
-
-/* ─── Layout Selector Popover ─── */
-function LayoutPopover({ anchorRef, onClose }) {
-  const popoverRef = useRef(null);
-  const setActiveTab = useF1Store((s) => s.setActiveTab);
-  const [pos, setPos] = useState(null);
-
-  useEffect(() => {
-    if (!anchorRef.current) return;
-    const rect = anchorRef.current.getBoundingClientRect();
-    setPos({
-      bottom: window.innerHeight - rect.top + 8,
-      left: rect.left + rect.width / 2,
-    });
-  }, [anchorRef]);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target) &&
-          anchorRef.current && !anchorRef.current.contains(e.target)) {
-        onClose();
-      }
-    };
-    const id = setTimeout(() => document.addEventListener('mousedown', handler), 50);
-    return () => { clearTimeout(id); document.removeEventListener('mousedown', handler); };
-  }, [onClose, anchorRef]);
-
-  if (!pos) return null;
-
-  return ReactDOM.createPortal(
-    <div
-      ref={popoverRef}
-      style={{
-        position: 'fixed',
-        bottom: pos.bottom,
-        left: pos.left,
-        transform: 'translateX(-50%)',
-        zIndex: 10001,
-        background: 'rgba(18, 18, 36, 0.96)',
-        backdropFilter: 'blur(40px) saturate(1.8)',
-        WebkitBackdropFilter: 'blur(40px) saturate(1.8)',
-        border: '1px solid rgba(255,255,255,0.12)',
-        borderRadius: 12,
-        padding: 8,
-        minWidth: 280,
-        maxWidth: 340,
-        boxShadow: '0 12px 48px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.3)',
-        animation: 'overlayScaleIn 150ms ease-out',
-      }}
+  ref
+) {
+  const cls = [
+    'bottom-tab-bar__tab',
+    isOpen && 'bottom-tab-bar__tab--active',
+    isDragging && 'bottom-tab-bar__tab--dragging',
+    isDropTarget && 'bottom-tab-bar__tab--drop-target',
+  ].filter(Boolean).join(' ');
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={cls}
+      draggable
+      onClick={onActivate}
+      onContextMenu={onContextMenu}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      title={`${option.label}${option.hint ? ` [${option.hint}]` : ''} — drag to reorder, right-click to configure`}
     >
-      {/* Views Section */}
-      <div style={{ padding: '6px 8px 4px' }}>
-        <span style={{
-          fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.35)',
-          textTransform: 'uppercase', letterSpacing: '0.08em',
-        }}>
-          Add view
-        </span>
-      </div>
-      {POPOVER_VIEW_CATEGORIES.map((cat) => (
-        <div key={cat.label} style={{ padding: '0 4px', marginBottom: 4 }}>
-          <span style={{
-            fontSize: 8, color: 'rgba(255,255,255,0.25)', fontWeight: 600,
-            padding: '0 6px', textTransform: 'uppercase', letterSpacing: '0.05em',
-          }}>
-            {cat.label}
-          </span>
-          {cat.views.map((v) => (
-            <div
-              key={v.id}
-              onClick={() => { setActiveTab(v.id); onClose(); }}
-              style={{
-                padding: '5px 8px', cursor: 'pointer', fontSize: 11,
-                color: 'rgba(255,255,255,0.7)', borderRadius: 6,
-                transition: 'background 0.12s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                e.currentTarget.style.color = '#fff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
-              }}
-            >
-              {v.label}
-            </div>
-          ))}
-        </div>
-      ))}
-
-      {/* Close all / Home shortcut */}
-      <div style={{
-        padding: '6px 8px', marginTop: 4,
-        borderTop: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>
-          Number keys for quick access
-        </span>
-        <button
-          onClick={() => {
-            useF1Store.getState().closeAllOverlays();
-            onClose();
-          }}
-          style={{
-            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 6, padding: '3px 10px', fontSize: 9, color: 'rgba(255,255,255,0.5)',
-            cursor: 'pointer',
-          }}
-        >
-          Close all views
-        </button>
-      </div>
-    </div>,
-    document.body
+      <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d={option.icon} />
+      </svg>
+      <span className="bottom-tab-bar__label">{option.label}</span>
+      {option.hint && <kbd className="tab-kbd">{option.hint}</kbd>}
+    </button>
   );
-}
+});
 
-/* ─── Main Hybrid BottomTabBar ─── */
+/* ─── BottomTabBar ───────────────────────────────────────────── */
 export default function BottomTabBar() {
   const activeTab = useF1Store((s) => s.activeTab);
   const openOverlays = useF1Store((s) => s.openOverlays);
   const dockedLayout = useF1Store((s) => s.dockedLayout);
   const setActiveTab = useF1Store((s) => s.setActiveTab);
+  const focusOverlay = useF1Store((s) => s.focusOverlay);
   const showDashboard = useF1Store((s) => s.showDashboard);
   const toggleCommandPalette = useF1Store((s) => s.toggleCommandPalette);
+  const dockItems = useF1Store((s) => s.dockItems);
+  const setDockItems = useF1Store((s) => s.setDockItems);
 
   const [hoverRevealed, setHoverRevealed] = useState(false);
-  const [layoutPopoverOpen, setLayoutPopoverOpen] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const [overflowAnchorRect, setOverflowAnchorRect] = useState(null);
+  const [layoutsOpen, setLayoutsOpen] = useState(false);
+  const [layoutsAnchorRect, setLayoutsAnchorRect] = useState(null);
+  const [ctxMenu, setCtxMenu] = useState(null);
+  const [capacity, setCapacity] = useState(dockItems.length);
+  const [dragId, setDragId] = useState(null);
+  const [dropTargetId, setDropTargetId] = useState(null);
+
   const navRef = useRef(null);
-  const layoutBtnRef = useRef(null);
+  const overflowBtnRef = useRef(null);
+  const layoutsBtnRef = useRef(null);
   const hideTimerRef = useRef(null);
 
-  const isHidden = !showDashboard;
-  const isPitWall = activeTab === 'pitwall';
+  /* ── Persist dock items ─────────────────────────────────────── */
+  useEffect(() => {
+    try { localStorage.setItem(DOCK_STORAGE_KEY, JSON.stringify(dockItems)); }
+    catch { /* ignore */ }
+  }, [dockItems]);
 
-  // Collect docked tabs for active state detection
-  const dockedTabs = React.useMemo(() => {
+  /* ── Map ids → SLOT entries, drop stale ids defensively ─────── */
+  // `settings` and `charts` have dedicated fixed buttons outside the dock,
+  // so filter them out even if an older localStorage entry still has them.
+  const EXCLUDED_FROM_DOCK = new Set(['settings', 'charts']);
+  const displayTabs = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const id of dockItems) {
+      if (seen.has(id) || !SLOT_IDS.has(id) || EXCLUDED_FROM_DOCK.has(id)) continue;
+      const opt = SLOT_BY_ID.get(id);
+      if (opt) { out.push(opt); seen.add(id); }
+    }
+    return out;
+  }, [dockItems]);
+
+  /* ── Capacity measurement (overflow handling) ───────────────── */
+  useLayoutEffect(() => {
+    const measure = () => {
+      const vw = window.innerWidth;
+      const usable = Math.min(vw - 40, 1800) - FIXED_OVERHEAD;
+      const cap = Math.max(1, Math.floor(usable / DOCK_ITEM_WIDTH));
+      setCapacity(cap);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  const overflowing = displayTabs.length > capacity;
+  const visibleTabs = overflowing ? displayTabs.slice(0, Math.max(1, capacity - 1)) : displayTabs;
+  const overflowTabs = overflowing ? displayTabs.slice(visibleTabs.length) : [];
+
+  /* ── Active / open state ────────────────────────────────────── */
+  const dockedTabs = useMemo(() => {
     if (!dockedLayout) return [];
     const collect = (node) => {
       if (!node) return [];
@@ -200,10 +130,15 @@ export default function BottomTabBar() {
     return collect(dockedLayout);
   }, [dockedLayout]);
 
-  const isTabOpen = (tabId) =>
-    dockedLayout ? dockedTabs.includes(tabId) : openOverlays.includes(tabId);
+  const isTabOpen = useCallback((tabId) => {
+    if (tabId === 'pitwall') return activeTab === 'pitwall';
+    if (tabId === 'settings') return activeTab === 'settings';
+    if (dockedLayout) return dockedTabs.includes(tabId);
+    return openOverlays.includes(tabId) || activeTab === tabId;
+  }, [activeTab, dockedLayout, dockedTabs, openOverlays]);
 
-  // Auto-hide reveal logic
+  /* ── Auto-hide reveal ───────────────────────────────────────── */
+  const isHidden = !showDashboard;
   useEffect(() => {
     if (!isHidden) { setHoverRevealed(false); return; }
     const onMouseMove = (e) => {
@@ -220,9 +155,81 @@ export default function BottomTabBar() {
     if (!isHidden) return;
     hideTimerRef.current = setTimeout(() => setHoverRevealed(false), 400);
   }, [isHidden]);
+  const handleMouseEnter = useCallback(() => { clearTimeout(hideTimerRef.current); }, []);
 
-  const handleMouseEnter = useCallback(() => {
-    clearTimeout(hideTimerRef.current);
+  /* ── Handlers ───────────────────────────────────────────────── */
+  const openContextMenuFor = useCallback((id, x, y) => {
+    setCtxMenu({ target: id, x, y });
+  }, []);
+
+  const handleItemContextMenu = useCallback((id, e) => {
+    e.preventDefault();
+    openContextMenuFor(id, e.clientX, e.clientY);
+  }, [openContextMenuFor]);
+
+  const handleCustomizeDock = useCallback(() => {
+    // Ensure the Settings overlay is open — never toggle it off here.
+    if (openOverlays.includes('settings')) {
+      focusOverlay('settings');
+    } else {
+      setActiveTab('settings');
+    }
+  }, [openOverlays, focusOverlay, setActiveTab]);
+
+  const toggleOverflow = useCallback(() => {
+    if (overflowOpen) { setOverflowOpen(false); return; }
+    if (overflowBtnRef.current) {
+      setOverflowAnchorRect(overflowBtnRef.current.getBoundingClientRect());
+      setOverflowOpen(true);
+    }
+  }, [overflowOpen]);
+
+  const toggleLayouts = useCallback(() => {
+    if (layoutsOpen) { setLayoutsOpen(false); return; }
+    if (layoutsBtnRef.current) {
+      setLayoutsAnchorRect(layoutsBtnRef.current.getBoundingClientRect());
+      setLayoutsOpen(true);
+    }
+  }, [layoutsOpen]);
+
+  /* ── Drag-and-drop reorder ──────────────────────────────────── */
+  const handleDragStart = useCallback((id, e) => {
+    setDragId(id);
+    try {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/dock-item', id);
+    } catch { /* some browsers throw in edge cases */ }
+  }, []);
+
+  const handleDragOver = useCallback((id, e) => {
+    if (dragId == null || id === dragId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dropTargetId !== id) setDropTargetId(id);
+  }, [dragId, dropTargetId]);
+
+  const handleDragLeave = useCallback((id) => {
+    if (dropTargetId === id) setDropTargetId(null);
+  }, [dropTargetId]);
+
+  const handleDrop = useCallback((id, e) => {
+    e.preventDefault();
+    if (dragId == null || dragId === id) { setDragId(null); setDropTargetId(null); return; }
+    const next = [...dockItems];
+    const from = next.indexOf(dragId);
+    const to = next.indexOf(id);
+    if (from < 0 || to < 0) return;
+    next.splice(from, 1);
+    const insertAt = to > from ? to : to;
+    next.splice(insertAt, 0, dragId);
+    setDockItems(next);
+    setDragId(null);
+    setDropTargetId(null);
+  }, [dragId, dockItems, setDockItems]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragId(null);
+    setDropTargetId(null);
   }, []);
 
   const hidden = isHidden && !hoverRevealed;
@@ -230,9 +237,8 @@ export default function BottomTabBar() {
   return (
     <>
       {isHidden && !hoverRevealed && (
-        <div
-          className="bottom-tab-bar__trigger"
-          onMouseEnter={() => { clearTimeout(hideTimerRef.current); setHoverRevealed(true); }}
+        <div className="bottom-tab-bar__trigger"
+             onMouseEnter={() => { clearTimeout(hideTimerRef.current); setHoverRevealed(true); }}
         />
       )}
       <nav
@@ -241,55 +247,56 @@ export default function BottomTabBar() {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* 1. Pit Wall */}
-        <button
-          className={`bottom-tab-bar__tab${isPitWall ? ' bottom-tab-bar__tab--active' : ''}`}
-          onClick={() => setActiveTab('pitwall')}
-          title="Pit Wall Mode [P]"
-        >
-          <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 3h18v18H3zM3 9h18M9 9v12M15 9v12" />
-          </svg>
-          <span className="bottom-tab-bar__label">Pit Wall</span>
-          <kbd className="tab-kbd">P</kbd>
-        </button>
+        {/* Dock items (data-driven) */}
+        {visibleTabs.map((opt) => (
+          <DockButton
+            key={opt.id}
+            option={opt}
+            isOpen={isTabOpen(opt.id)}
+            isDragging={dragId === opt.id}
+            isDropTarget={dropTargetId === opt.id}
+            onActivate={() => setActiveTab(opt.id)}
+            onContextMenu={(e) => handleItemContextMenu(opt.id, e)}
+            onDragStart={(e) => handleDragStart(opt.id, e)}
+            onDragOver={(e) => handleDragOver(opt.id, e)}
+            onDragEnter={(e) => handleDragOver(opt.id, e)}
+            onDragLeave={() => handleDragLeave(opt.id)}
+            onDrop={(e) => handleDrop(opt.id, e)}
+            onDragEnd={handleDragEnd}
+          />
+        ))}
+
+        {/* Overflow ⋯ */}
+        {overflowing && (
+          <button
+            ref={overflowBtnRef}
+            type="button"
+            className={`bottom-tab-bar__tab bottom-tab-bar__tab--overflow${overflowOpen ? ' bottom-tab-bar__tab--active' : ''}`}
+            onClick={toggleOverflow}
+            title={`${overflowTabs.length} more dock item${overflowTabs.length === 1 ? '' : 's'}`}
+          >
+            <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="5"  cy="12" r="1.3" />
+              <circle cx="12" cy="12" r="1.3" />
+              <circle cx="19" cy="12" r="1.3" />
+            </svg>
+          </button>
+        )}
 
         {/* Separator */}
-        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)', margin: '0 2px', flexShrink: 0 }} />
+        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)', margin: '0 4px', flexShrink: 0 }} />
 
-        {/* 2-5. Core VA Pipeline Tabs */}
-        {CORE_TABS.map((tab) => {
-          const isOpen = isTabOpen(tab.id);
-          return (
-            <button
-              key={tab.id}
-              className={`bottom-tab-bar__tab${isOpen ? ' bottom-tab-bar__tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-              title={`${tab.label} [${tab.hint}]`}
-            >
-              <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d={tab.icon} />
-              </svg>
-              <span className="bottom-tab-bar__label">{tab.label}</span>
-              <kbd className="tab-kbd">{tab.hint}</kbd>
-            </button>
-          );
-        })}
-
-        {/* Separator */}
-        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)', margin: '0 2px', flexShrink: 0 }} />
-
-        {/* 6. Layout Selector (popover for presets + secondary views) */}
+        {/* Layouts popover — classic layout + view picker */}
         <button
-          ref={layoutBtnRef}
-          className={`bottom-tab-bar__tab${layoutPopoverOpen ? ' bottom-tab-bar__tab--active' : ''}`}
-          onClick={() => setLayoutPopoverOpen((v) => !v)}
-          title="Layout presets & additional views"
+          ref={layoutsBtnRef}
+          type="button"
+          className={`bottom-tab-bar__tab${layoutsOpen ? ' bottom-tab-bar__tab--active' : ''}`}
+          onClick={toggleLayouts}
+          title="Layout presets & all views"
         >
           <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+               fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="7" height="9" rx="1" />
             <rect x="14" y="3" width="7" height="5" rx="1" />
             <rect x="14" y="12" width="7" height="9" rx="1" />
@@ -298,38 +305,58 @@ export default function BottomTabBar() {
           <span className="bottom-tab-bar__label">Layouts</span>
         </button>
 
-        {/* 7. Command Palette */}
+        {/* Command Palette */}
         <button
+          type="button"
           className="bottom-tab-bar__tab"
           onClick={() => toggleCommandPalette?.()}
           title="Command Palette [Ctrl+K]"
         >
           <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+               fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-4.35-4.35" />
           </svg>
-          <span className="bottom-tab-bar__label">&#8984;K</span>
+          <span className="bottom-tab-bar__label">{'\u2318'}K</span>
         </button>
 
-        {/* 8. Settings */}
+        {/* Settings — fixed, alongside the search icon */}
         <button
-          className="bottom-tab-bar__tab"
+          type="button"
+          className={`bottom-tab-bar__tab${activeTab === 'settings' ? ' bottom-tab-bar__tab--active' : ''}`}
           onClick={() => setActiveTab('settings')}
           title="Settings"
         >
           <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+               fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.36.15.67.4.89.72.22.33.34.72.34 1.12v.32c0 .4-.12.79-.34 1.12-.22.32-.53.57-.89.72z" />
           </svg>
           <span className="bottom-tab-bar__label">Settings</span>
         </button>
       </nav>
 
-      {/* Layout Popover */}
-      {layoutPopoverOpen && (
-        <LayoutPopover
-          anchorRef={layoutBtnRef}
-          onClose={() => setLayoutPopoverOpen(false)}
+      {ctxMenu && (
+        <DockContextMenu
+          target={ctxMenu.target}
+          position={{ x: ctxMenu.x, y: ctxMenu.y }}
+          onClose={() => setCtxMenu(null)}
+          onCustomize={handleCustomizeDock}
+        />
+      )}
+
+      {overflowOpen && overflowAnchorRect && (
+        <DockOverflowPopover
+          items={overflowTabs}
+          anchorRect={overflowAnchorRect}
+          onClose={() => setOverflowOpen(false)}
+          onItemContext={openContextMenuFor}
+        />
+      )}
+
+      {layoutsOpen && layoutsAnchorRect && (
+        <LayoutDockPopover
+          anchorRect={layoutsAnchorRect}
+          onClose={() => setLayoutsOpen(false)}
         />
       )}
     </>

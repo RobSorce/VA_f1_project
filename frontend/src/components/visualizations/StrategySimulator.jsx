@@ -151,7 +151,7 @@ export default function StrategySimulator() {
 
   return (
     <Panel title="Strategy Simulator">
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
 
           {/* ── Driver Selector ── */}
@@ -220,40 +220,41 @@ export default function StrategySimulator() {
 
             {/* Visual stint bar */}
             <div ref={barRef} style={{
+              position: 'relative',
               display: 'flex', height: 20, borderRadius: 4, overflow: 'hidden', gap: 1, marginBottom: 8,
             }}>
               {editStints.map((stint, i) => {
                 const pct = totalLaps > 0 ? (stint.length / totalLaps) * 100 : 100 / editStints.length;
                 return (
                   <div key={i} style={{
-                    width: `${pct}%`, minWidth: 20,
+                    width: `${pct}%`, minWidth: 0,
                     backgroundColor: TYRE_COLORS[stint.compound] || '#888',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '8px', fontWeight: 700,
                     color: stint.compound === 'HARD' ? '#333' : '#000',
-                    position: 'relative',
+                    overflow: 'hidden', whiteSpace: 'nowrap',
                   }}>
-                    {stint.length}L
+                    {pct >= 6 ? `${stint.length}L` : ''}
                   </div>
                 );
               })}
-            </div>
 
-            {/* Current lap marker on bar */}
-            {currentLap > 0 && currentLap <= totalLaps && (
-              <div style={{ position: 'relative', height: 0, marginTop: -28 }}>
+              {/* Current lap marker — absolute inside the bar */}
+              {currentLap > 0 && currentLap <= totalLaps && (
                 <div style={{
                   position: 'absolute',
                   left: `${(currentLap / totalLaps) * 100}%`,
-                  top: 0, width: 2, height: 20,
-                  backgroundColor: '#fff', opacity: 0.8,
+                  top: 0, bottom: 0, width: 2,
+                  backgroundColor: '#fff', opacity: 0.85,
                   transform: 'translateX(-1px)',
+                  pointerEvents: 'none',
+                  boxShadow: '0 0 4px rgba(255,255,255,0.6)',
                 }} />
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Per-stint rows */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: currentLap > 0 ? 8 : 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {editStints.map((stint, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px',
@@ -493,21 +494,26 @@ export default function StrategySimulator() {
 }
 
 function ResultCard({ label, pos, modePos, range, podium, points, color }) {
+  const safePos = typeof pos === 'number' ? pos : 0;
+  const safeMode = modePos ?? '—';
+  const r0 = range?.[0] ?? '—';
+  const r1 = range?.[1] ?? '—';
   return (
     <div style={{
-      flex: 1, background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)',
+      flex: 1, minWidth: 0,
+      background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)',
       padding: '6px 8px', borderTop: `2px solid ${color}`,
     }}>
       <div style={{ fontSize: '8px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>
         {label}
       </div>
       <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 900, color }}>
-        P{modePos}
+        P{safeMode}
       </div>
       <div style={{ fontSize: '8px', color: 'var(--color-text-muted)' }}>
-        avg P{pos.toFixed(1)} · range P{range[0]}–P{range[1]}
+        avg P{safePos.toFixed(1)} · range P{r0}–P{r1}
       </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: '8px' }}>
+      <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: '8px', flexWrap: 'wrap' }}>
         {podium > 0 && (
           <span style={{ color: '#ffd700', fontWeight: 700 }}>
             {podium}% podium

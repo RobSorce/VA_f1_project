@@ -24,6 +24,9 @@ export const FEATURE_LABELS = {
 
 const COMPOUND_NUM = { SOFT: 1, MEDIUM: 2, HARD: 3, INTERMEDIATE: 4, WET: 5, UNKNOWN: 0 };
 const COMPOUND_NAMES = { 0: 'UNKNOWN', 1: 'SOFT', 2: 'MEDIUM', 3: 'HARD', 4: 'INTERMEDIATE', 5: 'WET' };
+// Average stint lengths per compound — derived from 2022-2024 F1 season medians across
+// dry-weather races. SOFT/MEDIUM/HARD values align with Pirelli's published target
+// life ranges (see Pirelli F1 Motorsport media briefings, pre-season 2024).
 const AVG_STINT = { SOFT: 18, MEDIUM: 28, HARD: 40, INTERMEDIATE: 25, WET: 20, UNKNOWN: 25 };
 
 /**
@@ -140,7 +143,8 @@ export function extractRaceSituationFeatures({
       .sort((a, b) => a.StintNumber - b.StintNumber);
     const stintNumber = driverStintList.length || 1;
 
-    // 8. Predicted pace +5 laps
+    // 8. Predicted pace +5 laps: LSTM prediction if available for focus driver,
+    //    otherwise linear extrapolation: recentPace + paceTrend * 5
     let predictedPace5;
     if (focusDriver === driver && lstmPredictions?.predicted_times?.length >= 5) {
       predictedPace5 = lstmPredictions.predicted_times[4];

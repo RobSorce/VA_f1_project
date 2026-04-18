@@ -80,6 +80,7 @@ export default function ConsistencyPanel() {
       const fastest = Math.min(...validTimes);
       const slowest = Math.max(...validTimes);
       const range = slowest - fastest;
+      // Population stdDev (÷ n): we describe the full observed distribution, not inferring a population
       const variance = validTimes.reduce((a, t) => a + (t - avg) ** 2, 0) / validTimes.length;
       const stdDev = Math.sqrt(variance);
       const cvPercent = avg > 0 ? (stdDev / avg) * 100 : 0;

@@ -289,11 +289,32 @@ export default function PCABiplot() {
     return items;
   }, [pcaEmbeddings]);
 
+  const clearSelection = () => {
+    setSelectedPCAPoints([]);
+    setSelectedDrivers([]);
+  };
+
   return (
     <Panel title="PCA Biplot" controls={<Legend items={teamLegend} shape="circle" />}>
-      <div className="viz-container">
+      <div className="viz-container" style={{ position: 'relative' }}>
         {pcaEmbeddings?.points?.length ? (
-          <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+          <>
+            <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+            {selectedPCAPoints.length > 0 && (
+              <button
+                onClick={clearSelection}
+                style={{
+                  position: 'absolute', top: 6, left: 6,
+                  background: 'rgba(225, 6, 0, 0.15)', border: '1px solid rgba(225, 6, 0, 0.4)',
+                  borderRadius: 4, padding: '2px 8px', fontSize: '9px', fontWeight: 600,
+                  color: 'rgba(255,255,255,0.8)', cursor: 'pointer', zIndex: 2,
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                Clear {selectedPCAPoints.length} selected
+              </button>
+            )}
+          </>
         ) : pcaEmbeddings?.message ? (
           <div className="loading-placeholder">
             <span style={{ color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6 }}>

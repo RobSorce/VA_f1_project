@@ -4,11 +4,12 @@ import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS, countryFlag } from '../../utils/colors';
 import Panel from '../ui/Panel';
 
+
 /* ── Color codes for sector/lap timing (F1 TV convention) ───────── */
 const TIME_COLORS = {
   overall_best: '#A020F0', // Purple — overall best in the session
   personal_best: '#00FF00', // Green — personal best
-  normal: 'rgba(255,255,255,0.75)', // White/grey — normal
+  normal: 'rgba(255,255,255,0.88)', // White/grey — normal
   slow: '#FFD700', // Yellow — significantly slower
   pit: '#e040fb', // Magenta — pit lap
 };
@@ -72,13 +73,6 @@ function fmtGap(gap) {
 
 export default function LapTimeChart() {
   const timingContainerRef = useRef(null);
-  const speedSvgRef = useRef(null);
-  const speedDataRef = useRef(null);
-
-  const [chartMode, setChartMode] = useState('laptimes'); // 'laptimes' | 'speed'
-  const [speedData, setSpeedData] = useState(null);       // { driver, distance[], speed[] }[]
-  const [speedLoading, setSpeedLoading] = useState(false);
-  const [playheadX, setPlayheadX] = useState(null);       // pixel X position
 
   const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
@@ -93,14 +87,11 @@ export default function LapTimeChart() {
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const triggerPrediction = useF1Store((s) => s.triggerPrediction);
   const dnfMap = useF1Store((s) => s.dnfMap);
-  const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
   const totalFrames = useF1Store((s) => s.totalFrames);
   const currentTime = useF1Store((s) => s.currentTime);
   const drivers = useF1Store((s) => s.drivers);
   const maxLap = useF1Store((s) => s.maxLap);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
-  const fetchDriverTelemetry = useF1Store((s) => s.fetchDriverTelemetry);
-  const setTrackProgress = useF1Store((s) => s.setTrackProgress);
   const brushLapRange = useF1Store((s) => s.brushLapRange);
 
   const sessionType = useF1Store((s) => s.sessionType);
@@ -230,252 +221,6 @@ export default function LapTimeChart() {
     if (Math.abs(value - personalBest) < tolerance) return TIME_COLORS.personal_best;
     return TIME_COLORS.normal;
   }, []);
-
-  /* ── Speed Trace: fetch telemetry when mode is 'speed' ─────── */
-  useEffect(() => {
-    if (chartMode !== 'speed' || !focusDriver || !sessionData) return;
-
-    const driverLaps = lapTimes.filter(d =>
-      d.Driver === focusDriver && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300 && d.LapNumber <= currentLap
-    );
-    if (!driverLaps.length) return;
-    const latestLap = Math.max(...driverLaps.map(d => d.LapNumber));
-
-    const driversToFetch = [focusDriver, ...selectedDrivers.filter(d => d !== focusDriver).slice(0, 2)];
-
-    setSpeedLoading(true);
-    Promise.all(
-      driversToFetch.map(driver =>
-        fetchDriverTelemetry(driver, latestLap)
-          .then(telemetry => {
-            if (!telemetry?.length) return null;
-            return {
-              driver,
-              distance: telemetry.map(t => t.Distance),
-              speed: telemetry.map(t => t.Speed),
-            };
-          })
-          .catch(() => null)
-      )
-    ).then(results => {
-      const valid = results.filter(Boolean);
-      setSpeedData(valid);
-      speedDataRef.current = valid;
-      setSpeedLoading(false);
-    });
-  }, [chartMode, focusDriver, selectedDrivers, sessionData, lapTimes, currentLap, fetchDriverTelemetry]);
-
-  /* ── Speed Trace: D3 render ────────────────────────────────── */
-  useEffect(() => {
-    if (chartMode !== 'speed' || !speedData?.length || !speedSvgRef.current) return;
-
-    const container = speedSvgRef.current.parentElement;
-    const { width: W, height: H } = container.getBoundingClientRect();
-    if (W < 80 || H < 60) return;
-
-    const margin = { top: 20, right: 16, bottom: 30, left: 48 };
-    const innerW = W - margin.left - margin.right;
-    const innerH = H - margin.top - margin.bottom;
-
-    const svg = d3.select(speedSvgRef.current);
-    svg.selectAll('*').remove();
-    svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
-
-    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
-    const maxDistance = d3.max(speedData, d => d3.max(d.distance)) || 5000;
-    const maxSpeed = d3.max(speedData, d => d3.max(d.speed)) || 350;
-
-    const xScale = d3.scaleLinear().domain([0, maxDistance]).range([0, innerW]);
-    const yScale = d3.scaleLinear().domain([0, maxSpeed * 1.08]).range([innerH, 0]);
-
-    // Grid lines
-    g.append('g')
-      .call(d3.axisLeft(yScale).ticks(6).tickSize(-innerW).tickFormat(''))
-      .attr('color', 'rgba(255,255,255,0.04)')
-      .select('.domain').remove();
-
-    // X axis
-    g.append('g')
-      .attr('transform', `translate(0,${innerH})`)
-      .call(d3.axisBottom(xScale).ticks(8).tickFormat(d => `${Math.round(d)}m`))
-      .attr('color', 'rgba(255,255,255,0.4)')
-      .selectAll('text')
-      .style('font-size', '8px')
-      .attr('fill', 'rgba(255,255,255,0.4)');
-
-    // X axis label
-    g.append('text').attr('text-anchor', 'middle')
-      .attr('x', innerW / 2).attr('y', innerH + margin.bottom - 4)
-      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
-      .attr('font-weight', 600).text('Distance (m)');
-
-    // Y axis
-    g.append('g')
-      .call(d3.axisLeft(yScale).ticks(6).tickFormat(d => `${Math.round(d)}`))
-      .attr('color', 'rgba(255,255,255,0.4)')
-      .selectAll('text')
-      .style('font-size', '8px')
-      .attr('fill', 'rgba(255,255,255,0.4)');
-
-    // Y axis label
-    g.append('text').attr('text-anchor', 'middle')
-      .attr('transform', `rotate(-90)`)
-      .attr('x', -innerH / 2).attr('y', -margin.left + 12)
-      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
-      .attr('font-weight', 600).text('Speed (km/h)');
-
-    // Speed lines
-    const line = d3.line().defined(d => d[1] > 0).curve(d3.curveMonotoneX);
-
-    speedData.forEach((driverData) => {
-      const isFocus = driverData.driver === focusDriver;
-      const color = getDriverColor(driverData.driver);
-      const points = driverData.distance.map((dist, i) => [xScale(dist), yScale(driverData.speed[i])]);
-
-      g.append('path')
-        .datum(points)
-        .attr('d', line)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', isFocus ? 2.5 : 1.5)
-        .attr('opacity', isFocus ? 1 : 0.4);
-
-      // Driver label at end of line
-      if (points.length > 0) {
-        const lastPt = points[points.length - 1];
-        g.append('text')
-          .attr('x', lastPt[0] - 4)
-          .attr('y', lastPt[1] - 6)
-          .attr('fill', color)
-          .attr('font-size', '8px')
-          .attr('font-weight', 700)
-          .attr('text-anchor', 'end')
-          .attr('opacity', isFocus ? 1 : 0.5)
-          .text(driverData.driver);
-      }
-    });
-
-    // Peak speed line for focus driver
-    const focusData = speedData.find(d => d.driver === focusDriver);
-    if (focusData) {
-      const peakSpeed = d3.max(focusData.speed);
-      if (peakSpeed) {
-        const peakY = yScale(peakSpeed);
-        g.append('line')
-          .attr('x1', 0).attr('x2', innerW)
-          .attr('y1', peakY).attr('y2', peakY)
-          .attr('stroke', 'rgba(255,255,255,0.25)')
-          .attr('stroke-dasharray', '4 3')
-          .attr('stroke-width', 1);
-        g.append('text')
-          .attr('x', innerW - 2).attr('y', peakY - 4)
-          .attr('text-anchor', 'end')
-          .attr('fill', 'rgba(255,255,255,0.6)')
-          .attr('font-size', '9px')
-          .attr('font-weight', 700)
-          .attr('font-family', "var(--font-mono, monospace)")
-          .text(`\u25B2 ${Math.round(peakSpeed)} km/h`);
-      }
-    }
-
-    // Playhead group
-    const playheadG = g.append('g').attr('class', 'speed-playhead').style('display', 'none');
-    playheadG.append('line')
-      .attr('y1', 0).attr('y2', innerH)
-      .attr('stroke', '#fff').attr('stroke-width', 1)
-      .attr('stroke-dasharray', '3 2').attr('opacity', 0.8);
-    playheadG.append('rect')
-      .attr('y', -16).attr('rx', 3).attr('ry', 3)
-      .attr('height', 14).attr('fill', 'rgba(10,10,30,0.9)')
-      .attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 0.5);
-    playheadG.append('text')
-      .attr('y', -6).attr('fill', '#fff')
-      .attr('font-size', '9px').attr('font-weight', 700)
-      .attr('font-family', "var(--font-mono, monospace)")
-      .attr('text-anchor', 'middle');
-
-    // Store refs for mouse handler
-    svg._scales = { xScale, yScale, margin, innerW, innerH, maxDistance };
-    svg._playheadG = playheadG;
-
-    // Mouse interaction
-    const hitArea = g.append('rect')
-      .attr('width', innerW).attr('height', innerH)
-      .attr('fill', 'transparent').attr('cursor', 'crosshair');
-
-    hitArea
-      .on('mousemove', function (event) {
-        const [mx] = d3.pointer(event);
-        const dist = xScale.invert(mx);
-        const fraction = Math.max(0, Math.min(1, dist / maxDistance));
-        setTrackProgress(fraction);
-
-        // Find nearest speed for focus driver
-        const fd = speedDataRef.current?.find(d => d.driver === focusDriver);
-        if (!fd) return;
-        let nearIdx = 0;
-        let minDiff = Infinity;
-        for (let i = 0; i < fd.distance.length; i++) {
-          const diff = Math.abs(fd.distance[i] - dist);
-          if (diff < minDiff) { minDiff = diff; nearIdx = i; }
-        }
-        const spd = fd.speed[nearIdx];
-        const px = xScale(fd.distance[nearIdx]);
-
-        playheadG.style('display', null);
-        playheadG.attr('transform', `translate(${px},0)`);
-        playheadG.select('line').attr('y2', innerH);
-        const label = `${Math.round(spd)} km/h`;
-        const txt = playheadG.select('text').text(label);
-        const txtLen = txt.node().getComputedTextLength();
-        playheadG.select('rect')
-          .attr('x', -txtLen / 2 - 5)
-          .attr('width', txtLen + 10);
-        txt.attr('x', 0);
-      })
-      .on('mouseleave', function () {
-        playheadG.style('display', 'none');
-        setTrackProgress(null);
-      });
-
-  }, [chartMode, speedData, focusDriver, setTrackProgress]);
-
-  /* ── Speed Trace: replay sync ──────────────────────────────── */
-  useEffect(() => {
-    if (chartMode !== 'speed' || !replayActive) return;
-    if (!speedData?.length || !speedSvgRef.current) return;
-    const svg = d3.select(speedSvgRef.current);
-    const scales = svg._scales;
-    const playheadG = svg._playheadG;
-    if (!scales || !playheadG) return;
-
-    // Estimate fraction from currentFrameIndex / totalFrames
-    const fraction = totalFrames > 0 ? currentFrameIndex / totalFrames : 0;
-    setTrackProgress(fraction);
-
-    const dist = fraction * scales.maxDistance;
-    const px = scales.xScale(dist);
-
-    const fd = speedDataRef.current?.find(d => d.driver === focusDriver);
-    if (!fd) return;
-    let nearIdx = 0;
-    let minDiff = Infinity;
-    for (let i = 0; i < fd.distance.length; i++) {
-      const diff = Math.abs(fd.distance[i] - dist);
-      if (diff < minDiff) { minDiff = diff; nearIdx = i; }
-    }
-    const spd = fd.speed[nearIdx];
-
-    playheadG.style('display', null);
-    playheadG.attr('transform', `translate(${px},0)`);
-    const label = `${Math.round(spd)} km/h`;
-    const txt = playheadG.select('text').text(label);
-    const txtLen = txt.node().getComputedTextLength();
-    playheadG.select('rect')
-      .attr('x', -txtLen / 2 - 5)
-      .attr('width', txtLen + 10);
-  }, [chartMode, replayActive, currentFrameIndex, totalFrames, speedData, focusDriver, setTrackProgress]);
 
   /* ── Build timing rows for current lap ──────────────────────── */
   const timingRows = useMemo(() => {
@@ -651,11 +396,11 @@ export default function LapTimeChart() {
     gridTemplateColumns: gridColumns,
     gap: '2px',
     padding: '4px 6px',
-    background: 'rgba(26, 31, 51, 0.6)',
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
+    background: 'rgba(26, 31, 51, 0.75)',
+    borderBottom: '1px solid rgba(255,255,255,0.10)',
     fontSize: '9px',
     fontWeight: 700,
-    color: 'rgba(255,255,255,0.4)',
+    color: 'rgba(255,255,255,0.6)',
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
     userSelect: 'none',
@@ -674,13 +419,6 @@ export default function LapTimeChart() {
 
   const controls = (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '9px' }}>
-      <button
-        className={`lap-chart-mode-toggle${chartMode === 'speed' ? ' lap-chart-mode-toggle--active' : ''}`}
-        onClick={() => setChartMode(m => m === 'laptimes' ? 'speed' : 'laptimes')}
-        title={chartMode === 'laptimes' ? 'Switch to Speed Trace' : 'Switch to Lap Times'}
-      >
-        {chartMode === 'laptimes' ? '\u26A1 SPEED' : '\u23F1 TIMES'}
-      </button>
       {isQualifying && (
         <>
           {['ALL', 'Q1', 'Q2', 'Q3'].map((seg) => (
@@ -700,15 +438,15 @@ export default function LapTimeChart() {
       )}
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
         <span style={{ width: 8, height: 8, borderRadius: 2, background: TIME_COLORS.overall_best }} />
-        <span style={{ color: 'rgba(255,255,255,0.5)' }}>Best</span>
+        <span style={{ color: 'rgba(255,255,255,0.65)' }}>Best</span>
       </span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
         <span style={{ width: 8, height: 8, borderRadius: 2, background: TIME_COLORS.personal_best }} />
-        <span style={{ color: 'rgba(255,255,255,0.5)' }}>PB</span>
+        <span style={{ color: 'rgba(255,255,255,0.65)' }}>PB</span>
       </span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
         <span style={{ width: 8, height: 8, borderRadius: 2, background: TIME_COLORS.pit }} />
-        <span style={{ color: 'rgba(255,255,255,0.5)' }}>Pit</span>
+        <span style={{ color: 'rgba(255,255,255,0.65)' }}>Pit</span>
       </span>
     </div>
   );
@@ -719,21 +457,6 @@ export default function LapTimeChart() {
 
   return (
     <Panel title={brushTitle} controls={controls} focused={focusedView === 'laptimes'} shortcutKey="2" style={brushLapRange ? { borderColor: 'rgba(225,6,0,0.35)' } : undefined}>
-      {chartMode === 'speed' ? (
-        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-          {speedLoading && !speedData?.length && (
-            <div className="speed-trace-loading">Loading telemetry\u2026</div>
-          )}
-          {!focusDriver && !speedLoading && (
-            <div className="speed-trace-loading">Double-click a driver to see speed trace</div>
-          )}
-          <svg
-            ref={speedSvgRef}
-            style={{ width: '100%', height: '100%', display: 'block' }}
-          />
-        </div>
-      ) : (
-      <>
       {/* Column headers with drag-to-resize handles */}
       <div style={headerStyle}>
         {COLUMN_DEFS.map((col, i) => (
@@ -771,9 +494,10 @@ export default function LapTimeChart() {
       </div>
 
       {/* Timing rows */}
-      <div ref={timingContainerRef} style={{
+      <div ref={timingContainerRef} className="timing-sheet__body" style={{
         flex: 1,
-        overflow: 'hidden',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         minHeight: 0,
       }}>
         {displayRows.length === 0 && (
@@ -878,7 +602,7 @@ export default function LapTimeChart() {
                   </span>
                 )}
                 {row.firstName && (
-                  <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.55)', fontSize: '9px' }}>
+                  <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.65)', fontSize: '9px' }}>
                     {row.firstName}
                   </span>
                 )}
@@ -936,7 +660,7 @@ export default function LapTimeChart() {
               {/* Gap to fastest */}
               <span style={{
                 ...cellStyle,
-                color: row.isRetired ? '#e10600' : row.pos === 1 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.55)',
+                color: row.isRetired ? '#e10600' : row.pos === 1 ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.7)',
                 fontSize: '9px',
                 fontWeight: row.isRetired ? 800 : undefined,
               }}>
@@ -969,7 +693,7 @@ export default function LapTimeChart() {
               <span style={{
                 ...cellStyle,
                 justifyContent: 'center',
-                color: 'rgba(255,255,255,0.35)',
+                color: 'rgba(255,255,255,0.55)',
                 fontSize: '9px',
               }}>
                 {row.tyreLife}
@@ -1135,8 +859,6 @@ export default function LapTimeChart() {
           selectedRange={selectedLapRange}
           onRangeChange={setSelectedLapRange}
         />
-      )}
-      </>
       )}
     </Panel>
   );

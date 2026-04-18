@@ -513,7 +513,8 @@ def _mock_response(request: GeminiRequest) -> dict:
             },
         ]
 
-    return {'response': text, 'scenarios': scenarios}
+    result = {'response': text, 'scenarios': scenarios, 'is_mock': True}
+    return result
 
 
 @router.post("/strategy")
@@ -529,9 +530,18 @@ async def gemini_strategy(request: GeminiRequest):
                 model='gemini-2.0-flash',
                 contents=prompt,
             )
-            return _parse_gemini_response(response.text)
+            result = _parse_gemini_response(response.text)
+            result['is_mock'] = False
+            return result
         except Exception as e:
             logger.error(f"Gemini API error: {e}")
-            return _mock_response(request)
+            mock = _mock_response(request)
+            mock['response'] = f"[Gemini API unavailable — data-driven fallback]\n\n{mock['response']}"
+            return mock
     else:
-        return _mock_response(request)
+        mock = _mock_response(request)
+        if not api_key:
+            mock['response'] = f"[Gemini AI not configured — set GEMINI_API_KEY in backend/.env]\n\n{mock['response']}"
+        elif not GEMINI_AVAILABLE:
+            mock['response'] = f"[google-genai not installed — using data-driven fallback]\n\n{mock['response']}"
+        return mock

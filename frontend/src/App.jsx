@@ -45,6 +45,8 @@ import TelemetryStrip from './components/visualizations/TelemetryStrip';
 import StrategyAnalysis from './components/visualizations/StrategyAnalysis';
 import RacePaceGrid from './components/visualizations/RacePaceGrid';
 import PositionByLap from './components/visualizations/PositionByLap';
+import SectorDeltaWaterfall from './components/visualizations/SectorDeltaWaterfall';
+import UndercutCalculator from './components/visualizations/UndercutCalculator';
 
 // Command Palette & Keyboard
 import CommandPalette from './components/CommandPalette/CommandPalette';
@@ -76,6 +78,8 @@ const OVERLAY_TABS = {
   settings: { title: 'Settings', Component: SettingsTabContent },
   compare: { title: 'Driver Comparison', Component: DriverComparePanel },
   positionlaps: { title: 'Position Tracker', Component: PositionByLap },
+  sectordelta: { title: 'Sector Delta', Component: SectorDeltaWaterfall },
+  undercut: { title: 'Undercut Calculator', Component: UndercutCalculator },
 };
 
 export default function App() {
@@ -138,7 +142,7 @@ export default function App() {
             const config = OVERLAY_TABS[effectiveTabId];
             if (!config) return null;
             return (
-              <OverlayPanel key={tabId} title={config.title} tabId={tabId}>
+              <OverlayPanel key={tabId} title={config.title} tabId={tabId} autoFit={tabId === 'settings'}>
                 <config.Component />
               </OverlayPanel>
             );

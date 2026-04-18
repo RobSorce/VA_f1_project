@@ -16,6 +16,13 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Cmd/Ctrl+Shift+D — reset dock to defaults
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        state.resetDockItems();
+        return;
+      }
+
       // Ctrl+Arrow — tile/maximize/restore windows
       if (e.ctrlKey && !e.metaKey) {
         if (e.key === 'ArrowLeft') {
@@ -98,17 +105,17 @@ export function useKeyboardShortcuts() {
       // / — focus command bar (handled by CommandBar component)
       if (e.key === '/') return;
 
-      // Number keys — open overlay panels
+      // Number keys — open panels (X closes all, numbers only open)
       const tabMap = {
         '1': 'laptimes',
-        '2': 'sectors',
-        '3': 'tyres',
-        '4': 'speed',
-        '5': 'consistency',
-        '6': 'prediction',
+        '2': 'tyres',
+        '3': 'strategy',
+        '4': 'sectors',
+        '5': 'prediction',
+        '6': 'analytics',
         '7': 'ai',
         '8': 'compare',
-        '9': 'analytics',
+        '9': 'consistency',
         '0': 'championship',
       };
       if (tabMap[e.key]) {
@@ -251,14 +258,22 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // p/P — toggle Pit Wall <-> Analysis mode
-      if (e.key === 'p' || e.key === 'P') {
+      // Shift+P — trigger LSTM prediction + open prediction view
+      if (e.key === 'P' && e.shiftKey) {
+        e.preventDefault();
+        const driver = state.focusDriver || state.selectedDrivers[0];
+        if (driver && state.currentLap >= 2) {
+          state.triggerLSTMPredictions();
+        }
+        state.setActiveTab('prediction');
+        return;
+      }
+      // p — toggle Pit Wall <-> Analysis mode
+      if (e.key === 'p') {
         e.preventDefault();
         if (state.activeTab === 'pitwall') {
-          // Leave pit wall → go to charts (analysis mode)
           state.setActiveTab('charts');
         } else {
-          // Enter pit wall mode
           state.setActiveTab('pitwall');
         }
         return;

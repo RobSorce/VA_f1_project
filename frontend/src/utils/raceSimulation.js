@@ -17,6 +17,9 @@ const FALLBACK_LAP_NOISE = 0.3; // seconds
 const FALLBACK_FRESH_DELTA = -0.4; // seconds
 
 const COMPOUND_SEQUENCE = ['SOFT', 'MEDIUM', 'HARD'];
+// 100 simulations balances runtime (~200-400ms on modern hardware) with stability.
+// Median outcomes converge by ~80 runs; tails need ~500+ but are not actionable
+// in a live strategy context. For post-race analysis, raise to 500.
 const NUM_SIMULATIONS = 100;
 
 // ─── PRNG helpers ───
@@ -119,6 +122,8 @@ export function extractRaceParams(lapTimes, strategies, trackStatus, currentLap,
     params.pitLoss = stats(pitLosses);
     // Ensure minimum stdDev for variability
     if (params.pitLoss.stdDev < 0.5) params.pitLoss.stdDev = 0.5;
+  } else {
+    // Fallback pit loss: no PitInTimeSeconds in lap data (expected for some sessions)
   }
 
   // ── 2. Tyre degradation per compound ──

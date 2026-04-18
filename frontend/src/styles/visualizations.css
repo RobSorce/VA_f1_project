@@ -493,6 +493,7 @@
 .pca-point.selected {
   stroke: #fff;
   stroke-width: 2;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.7)) drop-shadow(0 0 8px rgba(100, 196, 255, 0.5));
 }
 
 .pca-point.dimmed {
@@ -1010,6 +1011,11 @@
   50% { opacity: 0.5; }
 }
 
+.tower-row--pitting {
+  background: rgba(224, 64, 251, 0.08) !important;
+  border-left: 2px solid #e040fb;
+}
+
 .tower-col-value--tyre {
   display: inline-flex;
   align-items: center;
@@ -1125,6 +1131,21 @@
   margin-left: 3px;
   color: #ff8c00;
   animation: battle-pulse 1.5s ease-in-out infinite;
+}
+
+.tower-row__battle-badge--mc {
+  font-size: 8px;
+  font-weight: 800;
+  margin-left: 4px;
+  padding: 1px 4px;
+  border: 1px solid;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  animation: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  line-height: 1;
 }
 
 @keyframes battle-pulse {
@@ -1804,242 +1825,169 @@
 
 /* ── Track Map ─────────────────────────────────────────────────────── */
 [data-theme="light"] .track-outline {
-  stroke: rgba(0, 0, 0, 0.12);
+  stroke: #D1D5DB;
 }
 
 [data-theme="light"] .track-surface {
-  stroke: rgba(242, 242, 247, 0.9);
+  stroke: #EFEEE9;
 }
 
 [data-theme="light"] .track-edge {
-  stroke: rgba(0, 0, 0, 0.3);
+  stroke: #9CA3AF;
 }
 
 [data-theme="light"] .corner-marker {
-  fill: rgba(255, 255, 255, 0.8);
-  stroke: rgba(0, 0, 0, 0.2);
+  fill: #FFFFFF;
+  stroke: #D1D5DB;
 }
 
 [data-theme="light"] .car-dot {
-  stroke: rgba(255, 255, 255, 0.8);
+  stroke: #FFFFFF;
+  stroke-width: 2;
 }
 
 [data-theme="light"] .car-label {
-  fill: var(--color-text-primary);
-  filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.8));
+  fill: #111827;
+  filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9));
 }
 
 [data-theme="light"] .car-label--focused {
-  filter: drop-shadow(0 1px 3px rgba(255, 255, 255, 0.9));
+  filter: drop-shadow(0 1px 3px rgba(255, 255, 255, 1));
 }
 
 /* ── Telemetry HUD Overlay ─────────────────────────────────────────── */
 [data-theme="light"] .track-telemetry-hud {
-  background: var(--glass-bg-heavy);
-  backdrop-filter: blur(var(--glass-blur-heavy));
-  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
-  border: var(--glass-border);
-  box-shadow: var(--shadow-glass);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .track-telemetry-hud__header {
-  border-bottom-color: rgba(0, 0, 0, 0.08);
+  border-bottom-color: #E5E7EB;
 }
 
 [data-theme="light"] .track-telemetry-hud__driver {
-  color: var(--color-text-primary);
+  color: #111827;
 }
 
 [data-theme="light"] .track-telemetry-hud__lap {
-  color: rgba(0, 0, 0, 0.4);
+  color: #6B7280;
 }
 
 [data-theme="light"] .track-telemetry-hud__label {
-  color: rgba(0, 0, 0, 0.35);
+  color: #9CA3AF;
 }
 
 [data-theme="light"] .track-telemetry-hud__value {
-  color: rgba(0, 0, 0, 0.8);
+  color: #111827;
 }
 
 [data-theme="light"] .track-telemetry-hud__unit {
-  color: rgba(0, 0, 0, 0.35);
+  color: #9CA3AF;
 }
 
 [data-theme="light"] .track-telemetry-hud__gear {
-  color: var(--color-text-primary);
+  color: #111827;
 }
 
 [data-theme="light"] .track-telemetry-hud__bar-track {
-  background: rgba(0, 0, 0, 0.06);
+  background: #F3F4F6;
 }
 
 [data-theme="light"] .track-telemetry-hud__tyre-life {
-  color: rgba(0, 0, 0, 0.35);
+  color: #9CA3AF;
 }
 
 [data-theme="light"] .hud-drs--off {
-  color: rgba(0, 0, 0, 0.3);
+  color: #D1D5DB;
 }
 
 /* ── Lap Time Chart ────────────────────────────────────────────────── */
 [data-theme="light"] .lap-times-chart .axis path,
 [data-theme="light"] .lap-times-chart .axis line {
-  stroke: rgba(0, 0, 0, 0.25);
+  stroke: #D1D5DB;
 }
 
 [data-theme="light"] .lap-times-chart .axis text {
-  fill: rgba(0, 0, 0, 0.45);
+  fill: #6B7280;
 }
 
 [data-theme="light"] .lap-times-chart .grid line {
-  stroke: rgba(0, 0, 0, 0.06);
+  stroke: #F3F4F6;
 }
 
 /* ── PCA Scatterplot ─────────────────────────────────────────────── */
 [data-theme="light"] .pca-point--current {
-  stroke: #000;
+  stroke: #111827;
 }
 
 [data-theme="light"] .pca-point.selected {
-  stroke: #000;
+  stroke: #111827;
 }
 
 /* ── Tyre Degradation Chart ────────────────────────────────────────── */
 [data-theme="light"] .deg-pit-window {
-  border-top-color: rgba(0, 0, 0, 0.06);
+  border-top-color: #E5E7EB;
 }
 
 /* ── Leaderboard Row Colors (light) ────────────────────────────────── */
 [data-theme="light"] .tower-col-value--retired {
-  color: rgba(0, 0, 0, 0.35);
+  color: #9CA3AF;
 }
 
 /* ── Telemetry Strip Chart Labels ──────────────────────────────────── */
 [data-theme="light"] .telem-chart-label {
-  fill: rgba(0, 0, 0, 0.35);
+  fill: #6B7280;
 }
 
 [data-theme="light"] .telem-sector-line {
-  stroke: rgba(0, 0, 0, 0.12);
+  stroke: #D1D5DB;
 }
 
 [data-theme="light"] .telem-sector-label {
-  fill: rgba(0, 0, 0, 0.35);
+  fill: #6B7280;
 }
 
 [data-theme="light"] .telem-grid-line {
-  stroke: rgba(0, 0, 0, 0.04);
+  stroke: #F3F4F6;
 }
 
 [data-theme="light"] .telem-axis text {
-  fill: rgba(0, 0, 0, 0.35);
+  fill: #6B7280;
 }
 
 [data-theme="light"] .telem-axis path,
 [data-theme="light"] .telem-axis line {
-  stroke: rgba(0, 0, 0, 0.1);
+  stroke: #D1D5DB;
 }
 
 [data-theme="light"] .telem-delta-zero {
-  stroke: rgba(0, 0, 0, 0.18);
+  stroke: #9CA3AF;
 }
 
 [data-theme="light"] .telem-annot-bg {
-  fill: rgba(255, 255, 255, 0.75);
-  stroke: rgba(0, 0, 0, 0.08);
+  fill: rgba(255, 255, 255, 0.90);
+  stroke: #E5E7EB;
 }
 
 [data-theme="light"] .telem-chart-label--right {
-  fill: rgba(0, 0, 0, 0.18);
+  fill: #D1D5DB;
 }
 
 /* ── Global D3 Axes (light) ────────────────────────────────────────── */
 [data-theme="light"] .axis path,
 [data-theme="light"] .axis line {
-  stroke: rgba(0, 0, 0, 0.25);
+  stroke: #D1D5DB;
 }
 
 [data-theme="light"] .axis text {
-  fill: rgba(0, 0, 0, 0.45);
+  fill: #6B7280;
 }
 
 [data-theme="light"] .grid line {
-  stroke: rgba(0, 0, 0, 0.06);
-}
-
-/* ==========================================================================
-   Speed Trace chart — toggle and playhead
-   ========================================================================== */
-
-.lap-chart-mode-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 3px 8px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-  font-family: var(--font-display, inherit);
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-
-.lap-chart-mode-toggle:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.lap-chart-mode-toggle--active {
-  background: rgba(225, 6, 0, 0.15);
-  border-color: rgba(225, 6, 0, 0.4);
-  color: #ff6b6b;
-}
-
-.lap-chart-mode-toggle--active:hover {
-  background: rgba(225, 6, 0, 0.22);
-}
-
-.speed-playhead-badge {
-  pointer-events: none;
-}
-
-.speed-trace-loading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
-  font-family: var(--font-mono, monospace);
-  letter-spacing: 0.04em;
-}
-
-/* Light theme */
-[data-theme="light"] .lap-chart-mode-toggle {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.12);
-  color: rgba(0, 0, 0, 0.5);
-}
-
-[data-theme="light"] .lap-chart-mode-toggle:hover {
-  background: rgba(0, 0, 0, 0.09);
-  color: rgba(0, 0, 0, 0.75);
-}
-
-[data-theme="light"] .lap-chart-mode-toggle--active {
-  background: rgba(225, 6, 0, 0.08);
-  border-color: rgba(225, 6, 0, 0.3);
-  color: #c00;
+  stroke: #F3F4F6;
 }
 
 /* ==========================================================================
@@ -2216,9 +2164,14 @@
 
 /* Light theme */
 [data-theme="light"] .pos-chart-toggle {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.1);
-  color: rgba(0, 0, 0, 0.5);
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+  color: #6B7280;
+}
+
+[data-theme="light"] .pos-chart-toggle:hover {
+  background: #E5E7EB;
+  color: #4B5563;
 }
 
 [data-theme="light"] .pos-chart-toggle--active {
@@ -2227,9 +2180,28 @@
   color: #16a34a;
 }
 
+[data-theme="light"] .pos-chart-clear-brush {
+  background: rgba(225, 6, 0, 0.06);
+  border-color: rgba(225, 6, 0, 0.20);
+  color: #DC2626;
+}
+
 [data-theme="light"] .pos-chart-tooltip {
-  background: rgba(250, 250, 255, 0.96);
-  border-color: rgba(0, 0, 0, 0.1);
-  color: rgba(0, 0, 0, 0.85);
+  background: rgba(255, 255, 255, 0.96);
+  border-color: #D1D5DB;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .pos-chart-tooltip__row {
+  color: #6B7280;
+}
+
+[data-theme="light"] .pos-chart-tooltip__row span:last-child {
+  color: #111827;
+}
+
+[data-theme="light"] .pos-chart-legend__item {
+  color: #6B7280;
 }
 

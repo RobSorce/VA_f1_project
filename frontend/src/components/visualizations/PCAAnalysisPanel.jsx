@@ -4,6 +4,15 @@ import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
 import Panel from '../ui/Panel';
 
+/* ── Shared tab pill style helper ── */
+const tabPillStyle = (active) => ({
+  padding: '3px 8px', fontSize: '9px', fontWeight: 600,
+  borderRadius: 4, border: 'none', cursor: 'pointer',
+  background: active ? 'rgba(100,196,255,0.15)' : 'transparent',
+  color: active ? '#fff' : 'rgba(255,255,255,0.45)',
+  transition: 'background 0.12s, color 0.12s',
+});
+
 const FEATURE_DISPLAY = {
   avg_lap_time: 'Avg Lap Time',
   std_lap_time: 'Consistency',
@@ -90,6 +99,18 @@ export default function PCAAnalysisPanel() {
       races: rounds.size,
     };
   }, [selectedPCAPoints]);
+
+  // Tab definitions — must be before any early returns (Rules of Hooks)
+  const pcaTabs = useMemo(() => {
+    const tabs = [{ id: 'summary', label: 'Summary' }];
+    if (strategies.length > 0 || commonPatterns.length > 0)
+      tabs.push({ id: 'patterns', label: `Patterns (${strategies.length})` });
+    if (topFeatures.length >= 3 || featureImportance.length > 0)
+      tabs.push({ id: 'features', label: 'Features' });
+    if (pitWindows.length > 0 || (selectionInfo && selectionInfo.drivers.length > 0))
+      tabs.push({ id: 'details', label: 'Details' });
+    return tabs;
+  }, [strategies, commonPatterns, topFeatures, featureImportance, pitWindows, selectionInfo]);
 
   // Radar chart
   useEffect(() => {
@@ -254,25 +275,6 @@ export default function PCAAnalysisPanel() {
       </Panel>
     );
   }
-
-  const pcaTabs = useMemo(() => {
-    const tabs = [{ id: 'summary', label: 'Summary' }];
-    if (strategies.length > 0 || commonPatterns.length > 0)
-      tabs.push({ id: 'patterns', label: `Patterns (${strategies.length})` });
-    if (topFeatures.length >= 3 || featureImportance.length > 0)
-      tabs.push({ id: 'features', label: 'Features' });
-    if (pitWindows.length > 0 || (selectionInfo && selectionInfo.drivers.length > 0))
-      tabs.push({ id: 'details', label: 'Details' });
-    return tabs;
-  }, [strategies, commonPatterns, topFeatures, featureImportance, pitWindows, selectionInfo]);
-
-  const tabPillStyle = (active) => ({
-    padding: '3px 8px', fontSize: '9px', fontWeight: 600,
-    borderRadius: 4, border: 'none', cursor: 'pointer',
-    background: active ? 'rgba(100,196,255,0.15)' : 'transparent',
-    color: active ? '#fff' : 'rgba(255,255,255,0.45)',
-    transition: 'background 0.12s, color 0.12s',
-  });
 
   return (
     <Panel title="Cross-Race Analysis">
