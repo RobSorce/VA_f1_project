@@ -152,10 +152,28 @@ export default function SessionMenu({ isOpen, onClose }) {
   };
 
   const handleLoad = () => {
-    if (round) {
-      loadSession();
-      onClose();
+    if (!round) return;
+    // Warn the user before discarding unsaved analytical state (H5/V5.2).
+    const s = useF1Store.getState();
+    const openOverlays = s.openOverlays?.length || 0;
+    const hasBrush = s.selectedLapRange && (s.selectedLapRange[0] || s.selectedLapRange[1]);
+    const hasLasso = (s.selectedTSNEPoints?.length || 0) > 0;
+    const hasFocus = !!s.focusDriver;
+    const pieces = [];
+    if (openOverlays > 0) pieces.push(`${openOverlays} open ${openOverlays === 1 ? 'panel' : 'panels'}`);
+    if (hasBrush) pieces.push('lap-range brush');
+    if (hasLasso) pieces.push(`${s.selectedTSNEPoints.length} lasso-selected points`);
+    if (hasFocus) pieces.push(`focus on ${s.focusDriver}`);
+
+    if (pieces.length > 0) {
+      // Use native confirm to keep the gate impossible to miss. The store
+      // toast is non-blocking; session switching is a destructive action.
+      const msg = `Switch session?\n\nThis will close: ${pieces.join(', ')}.\n\nContinue?`;
+      // eslint-disable-next-line no-alert
+      if (!window.confirm(msg)) return;
     }
+    loadSession();
+    onClose();
   };
 
   const handleOverlayClick = (e) => {

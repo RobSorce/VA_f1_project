@@ -11,7 +11,13 @@
 }
 
 html {
-  font-size: 16px;
+  /* Fluid root — smoothly scales the whole rem-based design from
+     16 px @ 1920 viewport down to 13 px @ 1280, then clamps. The app
+     keeps 100% its designed proportions on big screens and renders at
+     ~81% on HiDPI-scaled 15" laptops (1261 CSS px viewport), fixing
+     the "need to press Ctrl+− to see everything" issue without using
+     the non-standard CSS `zoom` property. See docs/SCROLL_HEURISTIC_EVALUATION.md. */
+  font-size: clamp(13px, calc(6.4px + 0.5vw), 16px);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -24,6 +30,16 @@ body {
   color: var(--color-text-primary);
   background-color: var(--color-bg-primary);
   overflow: hidden;
+  min-height: 100vh;
+}
+
+/* Safety net: when the viewport is smaller than the design canvas,
+   hand control back to the browser's native scroll instead of
+   silently clipping content. See docs/SCROLL_HEURISTIC_EVALUATION.md. */
+@media (max-width: 1440px), (max-height: 900px) {
+  html, body {
+    overflow: auto;
+  }
 }
 
 a {

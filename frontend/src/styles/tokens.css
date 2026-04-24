@@ -154,14 +154,14 @@
   --z-modal: 400;
   --z-tooltip: 500;
 
-  /* Layout */
-  --header-height: 52px;
-  --weather-bar-height: 44px;
-  --tab-bar-height: 40px;
-  --footer-height: 48px;
-  --bottom-tab-height: 48px;
-  --sidebar-width: 300px;
-  --panel-gap: 12px;
+  /* Layout — rem so the fluid root font-size scales chrome with text. */
+  --header-height: 3.25rem;        /* 52px @ root 16 */
+  --weather-bar-height: 2.75rem;   /* 44px @ root 16 */
+  --tab-bar-height: 2.5rem;        /* 40px @ root 16 */
+  --footer-height: 3rem;           /* 48px @ root 16 */
+  --bottom-tab-height: 3rem;       /* 48px @ root 16 */
+  --sidebar-width: 18.75rem;       /* 300px @ root 16 */
+  --panel-gap: 0.75rem;            /* 12px @ root 16 */
 
   /* ── Robinhood Legend — Command UI Tokens ────────────────────── */
   --rh-accent:           #D5FD51;

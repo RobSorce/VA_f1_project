@@ -73,7 +73,7 @@ const SHORTCUT_SECTIONS = [
     title: 'Layout Controls',
     shortcuts: [
       { keys: ['\u21E7', 'H'], desc: 'Toggle bottom bar auto-hide' },
-      { keys: [`${modKey}+\u21E7+D`], desc: 'Reset dock to defaults' },
+      { keys: [`${modKey}+Alt+D`], desc: 'Reset dock to defaults' },
     ],
   },
 ];

@@ -162,7 +162,10 @@ def predict_laps(last_10_laps: list, tsne_context: list = None,
         model_used = "fallback_mean"
 
     if predicted_times is None:
-        return _heuristic_prediction(last_10_laps, tsne_context, current_lap, driver, max_lap)
+        out = _heuristic_prediction(last_10_laps, tsne_context, current_lap, driver, max_lap)
+        out['is_heuristic'] = True
+        out['model_used'] = 'heuristic'
+        return out
 
     # Clamp predicted times to reasonable range
     predicted_times = [round(max(60.0, min(200.0, t)), 3) for t in predicted_times]
@@ -189,6 +192,8 @@ def predict_laps(last_10_laps: list, tsne_context: list = None,
         'predicted_stints': predicted_stints,
         'driver_predictions': {},
         'summary': summary,
+        'model_used': model_used,
+        'is_heuristic': model_used not in ('lstm',),
     }
 
     if driver:
@@ -308,6 +313,8 @@ def _heuristic_prediction(last_10_laps, tsne_context=None,
         'predicted_stints': predicted_stints,
         'driver_predictions': {},
         'summary': summary,
+        'model_used': 'heuristic',
+        'is_heuristic': True,
     }
 
     if driver:

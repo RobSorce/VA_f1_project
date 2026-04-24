@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
+import { CHART_HELP } from '../../utils/chartHelp';
 
 /**
  * DockedLayout — JetBrains-style split pane layout with draggable splitters
@@ -173,6 +174,8 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
   const Component = config?.Component;
   const [showTabPicker, setShowTabPicker] = useState(false);
   const addBtnRef = useRef(null);
+  const openHelp = useF1Store((s) => s.openHelp);
+  const activeHelp = CHART_HELP[activeTab];
 
   // Filter out tabs already docked anywhere (not just this pane)
   const availableTabs = VIZ_TABS.filter((t) => !allDockedTabs.includes(t.id));
@@ -230,6 +233,34 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
+
+        {/* Help button — opens the per-chart help overlay for the
+            currently-active tab (H10/V10.1). Hidden if the active tab
+            has no registry entry. */}
+        {activeHelp && (
+          <button
+            type="button"
+            onClick={() => openHelp(activeTab, activeHelp.title)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '0 6px', height: 28,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+              color: 'rgba(255,255,255,0.35)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = '#8ab4f8'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; }}
+            title={activeHelp.summary || `About ${activeHelp.title || activeTab}`}
+            aria-label={`About ${activeHelp.title || activeTab}`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <circle cx="12" cy="16" r="0.6" fill="currentColor" />
+            </svg>
+          </button>
+        )}
 
         {/* Add tab to this pane */}
         <button

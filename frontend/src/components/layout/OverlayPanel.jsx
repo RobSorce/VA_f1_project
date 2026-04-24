@@ -2,18 +2,44 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 
 
-// Default sizes for overlay panels (width, height)
+// Default sizes for overlay panels (width, height).
+// These are "desktop-ideal" values — they are clamped against the real
+// container on mount, and additionally reduced by `pickDefaultSize()` on
+// sub-1440 viewports so the panel never opens flush against every edge.
 const PANEL_SIZES = {
   settings: [820, 580],
   ai: [880, 600],
   championship: [880, 600],
 };
 const DEFAULT_SIZE = [700, 520];
-const MIN_W = 360;
-const MIN_H = 240;
+const MIN_W = 420;
+const MIN_H = 320;
 const EDGE_PAD = 8;
 
-export default function OverlayPanel({ title, tabId, children, autoFit = false }) {
+/**
+ * Derive the effective default size for a tabId given the live container.
+ * On small viewports we return a percentage of the container so panels open
+ * at ~82 % × 82 %, leaving room for the user to see what's behind them.
+ * Desktop (>=1440×900) keeps the designer-chosen hard-coded sizes.
+ */
+function pickDefaultSize(tabId, containerW, containerH) {
+  const designed = PANEL_SIZES[tabId] || DEFAULT_SIZE;
+  const isSmall = window.innerWidth < 1440 || window.innerHeight < 900;
+  if (!isSmall) return designed;
+  const w = Math.max(MIN_W, Math.min(designed[0], Math.floor(containerW * 0.82)));
+  const h = Math.max(MIN_H, Math.min(designed[1], Math.floor(containerH * 0.82)));
+  return [w, h];
+}
+
+export default function OverlayPanel({ title, tabId, children, autoFit = false, helpText, helpHref, hasHelp = false }) {
+  // On sub-1440 viewports autoFit fights a too-small container and can
+  // end up suppressing the content's own overflow scroll. Disable it so
+  // the panel opens at its (capped) max height and the inner component's
+  // native overflow:auto engages. See SCROLL_HEURISTIC_EVALUATION.md S4.
+  if (autoFit && (window.innerWidth < 1440 || window.innerHeight < 900)) {
+    autoFit = false;
+  }
+  const openHelp = useF1Store((s) => s.openHelp);
   const closeOverlay = useF1Store((s) => s.closeOverlay);
   const focusOverlay = useF1Store((s) => s.focusOverlay);
   const isActive = useF1Store((s) => s.activeTab === tabId);
@@ -54,7 +80,7 @@ export default function OverlayPanel({ title, tabId, children, autoFit = false }
     const cr = container.getBoundingClientRect();
     if (cr.width <= 0 || cr.height <= 0) return;
 
-    const [pw, ph] = PANEL_SIZES[tabId] || DEFAULT_SIZE;
+    const [pw, ph] = pickDefaultSize(tabId, cr.width, cr.height);
     const safeW = Math.max(MIN_W, Math.min(pw, cr.width - EDGE_PAD * 2));
     const safeH = Math.max(MIN_H, Math.min(ph, cr.height - EDGE_PAD * 2));
     const x = Math.max(EDGE_PAD, Math.min(cr.width - safeW - EDGE_PAD, (cr.width - safeW) / 2 + offset));
@@ -326,6 +352,30 @@ export default function OverlayPanel({ title, tabId, children, autoFit = false }
       >
         <span className="overlay-panel__title">{title}</span>
         <div className="overlay-panel__controls">
+          {(hasHelp || helpText) && (
+            <button
+              className="overlay-panel__btn overlay-panel__btn--help"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                // New behaviour: open the in-app help overlay with the full
+                // structured entry (summary + how-to-read + limitations +
+                // see-also + docs link). Falls back to opening helpHref in a
+                // new tab if a panel was wired the old way and no registry
+                // entry exists.
+                if (hasHelp) openHelp(tabId, title);
+                else if (helpHref) window.open(helpHref, '_blank', 'noopener');
+              }}
+              aria-label={`About ${title}`}
+              title={helpText || `About ${title}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <circle cx="12" cy="16" r="0.6" fill="currentColor" />
+              </svg>
+            </button>
+          )}
           <button
             className="overlay-panel__btn"
             onClick={handleToggleMaximize}

@@ -85,7 +85,18 @@ async def get_consistency(year: int, round_num: int):
             driver_number[abbr] = d.get("DriverNumber", "")
 
     if not lap_times:
-        return {"drivers": [], "session_avg": None}
+        return {"drivers": [], "session_avg": None, "race_length": 0}
+
+    # Race length = highest lap number recorded for any driver.
+    race_length = 0
+    for lt in lap_times:
+        ln = lt.get("LapNumber")
+        if isinstance(ln, (int, float)) and not math.isnan(ln):
+            race_length = max(race_length, int(ln))
+
+    # Drivers with fewer than 75% of race laps are flagged so the UI can
+    # down-weight them (DNFs produce artificially low σ from tiny samples).
+    min_laps_threshold = max(3, int(race_length * 0.75)) if race_length else 3
 
     # Group laps by driver
     driver_laps = {}
@@ -181,6 +192,8 @@ async def get_consistency(year: int, round_num: int):
             "std_dev": round(std_dev, 3),
             "cv_percent": round(cv_percent, 2),
             "sample_size": len(valid_times),
+            "lap_count": len(valid_times),
+            "insufficient_data": len(valid_times) < min_laps_threshold,
             "outliers": outliers,
             "compounds": compounds,
         })
@@ -195,7 +208,12 @@ async def get_consistency(year: int, round_num: int):
 
     session_avg = round(sum(all_valid_times) / len(all_valid_times), 3) if all_valid_times else None
 
-    return {"drivers": results, "session_avg": session_avg}
+    return {
+        "drivers": results,
+        "session_avg": session_avg,
+        "race_length": race_length,
+        "min_laps_threshold": min_laps_threshold,
+    }
 
 
 @router.get("/speed-rankings/{year}/{round_num}")

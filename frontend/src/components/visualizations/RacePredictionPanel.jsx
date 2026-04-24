@@ -372,9 +372,65 @@ export default function RacePredictionPanel() {
                   borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm) var(--spacing-md)',
                   borderLeft: '3px solid #a855f7',
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
                       LSTM Predictions
+                      {(() => {
+                        // Detect whether any driver's prediction came from the
+                        // heuristic fallback (H9/V9.1). If so, show an amber
+                        // chip — a strategist must know the model is off.
+                        const preds = Object.values(lstmPredictions || {});
+                        const anyHeuristic = preds.some((p) => p?.is_heuristic || p?.model_used === 'heuristic' || p?.model_used === 'fallback_mean');
+                        const anyLstm = preds.some((p) => p?.model_used === 'lstm');
+                        if (anyHeuristic && !anyLstm) {
+                          return (
+                            <span
+                              title="No trained LSTM loaded — predictions use a heuristic (MAE ~2× higher). See docs/INSIGHTS_BRAZIL_2024.md."
+                              style={{
+                                fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+                                padding: '1px 6px', borderRadius: 4, color: '#f5a623',
+                                background: 'rgba(245, 166, 35, 0.14)', border: '1px solid rgba(245, 166, 35, 0.45)',
+                                cursor: 'help',
+                              }}>HEURISTIC</span>
+                          );
+                        }
+                        if (anyLstm) {
+                          return (
+                            <span
+                              title="PyTorch LSTM — 64→32→Dense. Typical MAE: 0.4–0.8s dry, up to 2.5s wet."
+                              style={{
+                                fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+                                padding: '1px 6px', borderRadius: 4, color: '#d5fd51',
+                                background: 'rgba(213, 253, 81, 0.14)', border: '1px solid rgba(213, 253, 81, 0.45)',
+                                cursor: 'help',
+                              }}>LSTM</span>
+                          );
+                        }
+                        return null;
+                      })()}
+                      {(() => {
+                        // Confidence proxy: spread of the 5-lap predicted window
+                        // (H1/V1.2). Narrower spread = more stable prediction.
+                        const preds = Object.values(lstmPredictions || {}).filter((p) => Array.isArray(p?.predicted_times));
+                        if (!preds.length) return null;
+                        const spreads = preds.map((p) => {
+                          const t = p.predicted_times;
+                          return Math.max(...t) - Math.min(...t);
+                        });
+                        const avgSpread = spreads.reduce((a, b) => a + b, 0) / spreads.length;
+                        const tier = avgSpread < 0.6 ? 'tight' : avgSpread < 1.5 ? 'moderate' : 'wide';
+                        const color = tier === 'tight' ? '#4ade80' : tier === 'moderate' ? '#fbbf24' : '#ef4444';
+                        return (
+                          <span
+                            title={`5-lap forecast spread ${avgSpread.toFixed(2)}s — ${tier} (narrower = model expects stable pace).`}
+                            style={{
+                              fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+                              padding: '1px 6px', borderRadius: 4, color,
+                              background: `${color}22`, border: `1px solid ${color}66`,
+                              cursor: 'help',
+                            }}>±{avgSpread.toFixed(2)}s</span>
+                        );
+                      })()}
                     </span>
                     {predictionLoading && (
                       <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>Loading...</span>

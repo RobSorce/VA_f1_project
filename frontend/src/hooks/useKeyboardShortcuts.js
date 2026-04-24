@@ -4,22 +4,23 @@ import { useF1Store } from '../store/useF1Store';
 export function useKeyboardShortcuts() {
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Skip if modifier keys are held (except for Cmd/Ctrl+K)
-      if (e.altKey) return;
-
       const state = useF1Store.getState();
+
+      // Cmd/Ctrl+Alt+D — reset dock to defaults. Moved off Cmd+Shift+D to
+      // avoid Chrome's "Bookmark all tabs" chord (H5/V5.3).
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        state.resetDockItems();
+        return;
+      }
+
+      // Any other Alt-held key: ignore (avoids browser menu collisions).
+      if (e.altKey) return;
 
       // Cmd/Ctrl+K — always toggle command palette
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         state.toggleCommandPalette();
-        return;
-      }
-
-      // Cmd/Ctrl+Shift+D — reset dock to defaults
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
-        e.preventDefault();
-        state.resetDockItems();
         return;
       }
 

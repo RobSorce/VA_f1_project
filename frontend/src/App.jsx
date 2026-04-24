@@ -10,7 +10,10 @@ import DriverMFDCard from './components/ui/DriverMFDCard';
 import FocusDriverWidget from './components/ui/FocusDriverWidget';
 import PitWallSectorPanel from './components/ui/PitWallSectorPanel';
 import WelcomeToast from './components/ui/WelcomeToast';
+import ToastStack from './components/ui/ToastStack';
+import HelpOverlay from './components/ui/HelpOverlay';
 import GeminiFloatingButton from './components/ui/GeminiFloatingButton';
+import { CHART_HELP } from './utils/chartHelp';
 
 // Layout
 import OverlayPanel from './components/layout/OverlayPanel';
@@ -54,32 +57,34 @@ import ShortcutHints from './components/ShortcutHints/ShortcutHints';
 import ShortcutCheatsheet from './components/ShortcutCheatsheet/ShortcutCheatsheet';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
+// Per-panel `helpText` drives the (?) info button in each overlay header
+// (H10/V10.1). Kept short — long-form explanations live in docs/.
 const OVERLAY_TABS = {
-  trackmap: { title: 'Track Map', Component: TrackMap },
-  laptimes: { title: 'Lap Times', Component: LapTimesTabContent },
-  lapdelta: { title: 'Lap Delta', Component: LapDeltaChart },
-  sectors: { title: 'Sectors & Speeds', Component: SectorsPanel },
-  tyres: { title: 'Tyres', Component: TyresTabContent },
-  tiredeg: { title: 'Tyre Degradation', Component: TireDegradation },
-  tyrehealth: { title: 'Tyre Health', Component: TyreHealth },
-  tyremgmt: { title: 'Pace Retention', Component: TyreManagement },
-  speed: { title: 'Speed Rankings', Component: SpeedPanel },
-  consistency: { title: 'Consistency', Component: ConsistencyPanel },
-  ai: { title: 'AI Assistant', Component: AITabContent },
-  analytics: { title: 'Analytics', Component: AnalyticsTabContent },
-  prediction: { title: 'Race Prediction', Component: RacePredictionPanel },
-  simulator: { title: 'Strategy Simulator', Component: StrategySimulator },
-  strategy: { title: 'Strategy Timeline', Component: StrategyTimeline },
-  analysis: { title: 'Strategy Analysis', Component: StrategyAnalysis },
-  racesituation: { title: 'Race Situation', Component: RaceSituationMap },
-  racepace: { title: 'Race Pace Grid', Component: RacePaceGrid },
-  telemetry: { title: 'Telemetry', Component: TelemetryStrip },
-  championship: { title: 'Championship', Component: ChampionshipTabContent },
-  settings: { title: 'Settings', Component: SettingsTabContent },
-  compare: { title: 'Driver Comparison', Component: DriverComparePanel },
-  positionlaps: { title: 'Position Tracker', Component: PositionByLap },
-  sectordelta: { title: 'Sector Delta', Component: SectorDeltaWaterfall },
-  undercut: { title: 'Undercut Calculator', Component: UndercutCalculator },
+  trackmap:     { title: 'Track Map',            Component: TrackMap,              helpText: 'Animated circuit SVG. Dots are live driver positions, sector lines colour by fastest. Channel overlay (Speed/Throttle/Brake) recolours the track by the focus driver\'s telemetry on the most recent cached lap.' },
+  laptimes:     { title: 'Lap Times',            Component: LapTimesTabContent,    helpText: 'Per-driver lap-time lines. Brush a range to auto-fit a degradation regression on those laps. Points coloured by overall session best (purple) / personal best (green).' },
+  lapdelta:     { title: 'Lap Delta',            Component: LapDeltaChart,         helpText: 'Cumulative lap-time delta vs a baseline driver. Positive = losing time, negative = gaining. Use to read undercut/overcut dynamics.' },
+  sectors:      { title: 'Sectors & Speeds',     Component: SectorsPanel,          helpText: 'Per-sector best times, ranked. SB = session best (purple), PB = personal best (green).' },
+  tyres:        { title: 'Tyres',                Component: TyresTabContent,       helpText: 'Tyre compounds (S/M/H/Inter/Wet), stint lengths and fresh-tyre flag. See Tyre Degradation for per-stint regression.' },
+  tiredeg:      { title: 'Tyre Degradation',     Component: TireDegradation,       helpText: 'Per-stint linear regression: lap_time = slope × TyreLife + intercept. Raw slope vs fuel-corrected (+30 ms/lap) shown. See docs/INSIGHTS_MONZA_2024.md.', helpHref: 'https://github.com/RobSorce/VA_f1_project_v2/blob/main/docs/INSIGHTS_MONZA_2024.md' },
+  tyrehealth:   { title: 'Tyre Health',          Component: TyreHealth,            helpText: 'Per-driver tyre health bars using 1.6 decay exponent and 80 pace-penalty coefficient (Pirelli / 24-session calibration).' },
+  tyremgmt:     { title: 'Pace Retention',       Component: TyreManagement,        helpText: 'Per-stint pace retention score — how well each driver holds their initial pace as tyres age.' },
+  speed:        { title: 'Speed Rankings',       Component: SpeedPanel,            helpText: 'Speed-trap, finish-line, and sector speeds. Rankings of peak speed per driver.' },
+  consistency:  { title: 'Consistency',          Component: ConsistencyPanel,      helpText: 'Population σ of lap times (clean laps only, pit laps filtered). Drivers with fewer than 75% of current-lap count are flagged "LOW DATA" — σ from small samples is not comparable.' },
+  ai:           { title: 'AI Assistant',         Component: AITabContent,          helpText: 'Gemini-backed strategy engineer. If API key is missing, responses show a MOCK badge and come from hand-written examples.' },
+  analytics:    { title: 'Analytics',            Component: AnalyticsTabContent,   helpText: 'PCA biplot of per-(driver, race) feature vectors. Points are races; loading vectors indicate feature contributions. Lasso-select triggers Cohen\'s d analysis.', helpHref: 'https://github.com/RobSorce/VA_f1_project_v2/blob/main/docs/PCA_METHODOLOGY.md' },
+  prediction:   { title: 'Race Prediction',      Component: RacePredictionPanel,   helpText: 'LSTM (64→32→Dense) predicts next 5 lap times + pit probability. "HEURISTIC" chip = no trained model loaded. Typical MAE 0.4–0.8s dry; up to 2.5s wet.', helpHref: 'https://github.com/RobSorce/VA_f1_project_v2/blob/main/docs/INSIGHTS_BRAZIL_2024.md' },
+  simulator:    { title: 'Strategy Simulator',   Component: StrategySimulator,     helpText: 'Monte Carlo (100 iterations) race projection given a hypothetical strategy. Shows position distribution and podium/points probabilities.' },
+  strategy:     { title: 'Strategy Timeline',    Component: StrategyTimeline,      helpText: 'Gantt of each driver\'s stints, pit stops, and compound transitions. Overlay buttons inject predicted / ghost / Gemini scenarios.' },
+  analysis:     { title: 'Strategy Analysis',    Component: StrategyAnalysis,      helpText: 'Pattern analysis triggered by PCA/t-SNE lasso selection — Cohen\'s d feature ranking shows which metrics separate the selected cluster.' },
+  racesituation:{ title: 'Race Situation',       Component: RaceSituationMap,      helpText: 'Live race state with exponential-smoothed features. Lasso-select a subset to filter other panels.' },
+  racepace:     { title: 'Race Pace Grid',       Component: RacePaceGrid,          helpText: 'Median-normalised pace grid. Cells coloured by Δ to median lap of the race so fast/slow stints are visible at a glance.' },
+  telemetry:    { title: 'Telemetry',            Component: TelemetryStrip,        helpText: 'Throttle/Brake/Gear strip chart for the focus driver on the current lap.' },
+  championship: { title: 'Championship',         Component: ChampionshipTabContent,helpText: 'Season standings + weighted-moving-average projection. "Standings" and "Prediction & AI" subtabs.' },
+  settings:     { title: 'Settings',             Component: SettingsTabContent,    helpText: 'App-level preferences. The Dock accordion lets you toggle any panel in or out of the bottom bar.' },
+  compare:      { title: 'Driver Comparison',    Component: DriverComparePanel,    helpText: 'Head-to-head on two drivers: lap-time delta, sectors, consistency. Select two drivers first.' },
+  positionlaps: { title: 'Position Tracker',     Component: PositionByLap,         helpText: 'Position-per-lap lines for all drivers. Hover a driver to dim the rest; click to set focus.' },
+  sectordelta:  { title: 'Sector Delta',         Component: SectorDeltaWaterfall,  helpText: 'Waterfall of sector deltas — where each driver gains/loses vs the session-best. Useful for setup and circuit-map comparisons.' },
+  undercut:     { title: 'Undercut Calculator',  Component: UndercutCalculator,    helpText: 'Projects undercut/overcut viability given current pace, tyre age, pit-loss (~22s), and gap to rivals.' },
 };
 
 export default function App() {
@@ -93,9 +98,17 @@ export default function App() {
   // Activate global keyboard shortcuts
   useKeyboardShortcuts();
 
-  // Show startup screen if no session loaded
+  // Show startup screen if no session loaded — still render ToastStack so
+  // a backend-down error surfaces even on the entry screen, and mount
+  // HelpOverlay so any future pre-session help trigger actually opens.
   if (!sessionData) {
-    return <SessionSelectorScreen />;
+    return (
+      <>
+        <SessionSelectorScreen />
+        <ToastStack />
+        <HelpOverlay />
+      </>
+    );
   }
 
   const isPitWall = activeTab === 'pitwall';
@@ -142,7 +155,14 @@ export default function App() {
             const config = OVERLAY_TABS[effectiveTabId];
             if (!config) return null;
             return (
-              <OverlayPanel key={tabId} title={config.title} tabId={tabId} autoFit={tabId === 'settings'}>
+              <OverlayPanel
+                key={tabId}
+                title={config.title}
+                tabId={tabId}
+                autoFit={tabId === 'settings'}
+                helpText={CHART_HELP[effectiveTabId]?.summary}
+                hasHelp={!!CHART_HELP[effectiveTabId]}
+              >
                 <config.Component />
               </OverlayPanel>
             );
@@ -159,6 +179,8 @@ export default function App() {
       <ShortcutCheatsheet />
       <ShortcutHints />
       <WelcomeToast />
+      <ToastStack />
+      <HelpOverlay />
     </div>
   );
 }

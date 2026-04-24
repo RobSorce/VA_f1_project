@@ -1276,6 +1276,24 @@
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   margin-bottom: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* "MOCK" chip on Gemini replies when the API key is missing (H9/V9.3). */
+.message-mock-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #f5a623;
+  background: rgba(245, 166, 35, 0.14);
+  border: 1px solid rgba(245, 166, 35, 0.45);
+  cursor: help;
 }
 
 .chat-input-area {

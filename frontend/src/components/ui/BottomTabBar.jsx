@@ -284,14 +284,15 @@ export default function BottomTabBar() {
           </button>
         )}
 
-        {/* Separator */}
-        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)', margin: '0 4px', flexShrink: 0 }} />
+        {/* Separator — marks transition from reorderable dock items to
+            fixed system buttons (H4/V4.1). */}
+        <div className="bottom-tab-bar__divider" aria-hidden="true" />
 
         {/* Layouts popover — classic layout + view picker */}
         <button
           ref={layoutsBtnRef}
           type="button"
-          className={`bottom-tab-bar__tab${layoutsOpen ? ' bottom-tab-bar__tab--active' : ''}`}
+          className={`bottom-tab-bar__tab bottom-tab-bar__tab--fixed${layoutsOpen ? ' bottom-tab-bar__tab--active' : ''}`}
           onClick={toggleLayouts}
           title="Layout presets & all views"
         >
@@ -308,7 +309,7 @@ export default function BottomTabBar() {
         {/* Command Palette */}
         <button
           type="button"
-          className="bottom-tab-bar__tab"
+          className="bottom-tab-bar__tab bottom-tab-bar__tab--fixed"
           onClick={() => toggleCommandPalette?.()}
           title="Command Palette [Ctrl+K]"
         >
@@ -322,7 +323,7 @@ export default function BottomTabBar() {
         {/* Settings — fixed, alongside the search icon */}
         <button
           type="button"
-          className={`bottom-tab-bar__tab${activeTab === 'settings' ? ' bottom-tab-bar__tab--active' : ''}`}
+          className={`bottom-tab-bar__tab bottom-tab-bar__tab--fixed${activeTab === 'settings' ? ' bottom-tab-bar__tab--active' : ''}`}
           onClick={() => setActiveTab('settings')}
           title="Settings"
         >

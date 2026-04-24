@@ -409,7 +409,19 @@ export default function GeminiAssistant() {
               )}
               {geminiMessages.map((msg, i) => (
                 <div key={i} className={`chat-message chat-message--${msg.role}`}>
-                  {msg.role === 'ai' && <div className="message-label">Engineer</div>}
+                  {msg.role === 'ai' && (
+                    <div className="message-label">
+                      Engineer
+                      {msg.is_mock && (
+                        <span
+                          className="message-mock-chip"
+                          title="Mock fallback — no Gemini API key configured. Responses are hand-written examples, not live model output."
+                        >
+                          MOCK
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</div>
                   {msg.scenarios?.length > 0 && (
                     <div style={{ marginTop: 'var(--spacing-xs)', display: 'flex', flexWrap: 'wrap', gap: 'var(--spacing-xs)' }}>

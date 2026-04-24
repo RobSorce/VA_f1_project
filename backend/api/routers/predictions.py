@@ -82,6 +82,8 @@ def _builtin_heuristic(last_10_laps: list, tsne_context: list = None,
         "predicted_stints": predicted_stints,
         "driver_predictions": {},
         "summary": summary,
+        "model_used": "heuristic",
+        "is_heuristic": True,
     }
 
     if driver:
@@ -204,9 +206,17 @@ async def predict_degradation(request: DegradationRequest):
             else:
                 optimal_pit_lap = request.lap_end
 
+            # Fuel correction: F1 cars burn ~2 kg/lap → ~0.030 s/lap pace gain
+            # from weight loss alone. Adding this back isolates tyre-only deg.
+            # See docs/DEGRADATION_METHODOLOGY.md for the derivation.
+            FUEL_CORRECTION_PER_LAP = 0.030
+            fuel_corrected_slope = float(slope) + FUEL_CORRECTION_PER_LAP
+
             results.append({
                 "driver": driver,
                 "slope": round(float(slope), 4),
+                "slope_fuel_corrected": round(fuel_corrected_slope, 4),
+                "fuel_correction_per_lap": FUEL_CORRECTION_PER_LAP,
                 "intercept": round(float(intercept), 2),
                 "lap_start": request.lap_start,
                 "lap_end": request.lap_end,

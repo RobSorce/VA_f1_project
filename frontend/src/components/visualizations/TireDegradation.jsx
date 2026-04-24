@@ -341,9 +341,15 @@ export default function TireDegradation() {
           .attr('opacity', 0.9)
           .attr('stroke-dasharray', '6,3');
 
-        // Slope annotation near end of fit line
+        // Slope annotation near end of fit line. Show both the raw slope and
+        // the fuel-corrected slope (raw + 30 ms/lap): at Monza every Hard stint
+        // returns a negative raw slope because fuel burn dominates (H2/V2.2).
+        const FUEL_CORRECTION = 0.030;
+        const slopeCorr = slope + FUEL_CORRECTION;
         const slopeSign = slope >= 0 ? '+' : '';
-        const slopeLabel = `${slopeSign}${slope.toFixed(3)} s/lap`;
+        const corrSign = slopeCorr >= 0 ? '+' : '';
+        const slopeLabel = `${slopeSign}${slope.toFixed(3)} s/lap (raw)`;
+        const corrLabel = `${corrSign}${slopeCorr.toFixed(3)} s/lap (tyre only)`;
         const annotX = tyreMax;
         const annotY = intercept + slope * tyreMax;
 
@@ -356,6 +362,16 @@ export default function TireDegradation() {
           .attr('font-family', 'var(--font-mono)')
           .attr('opacity', 0.9)
           .text(slopeLabel);
+
+        g.append('text')
+          .attr('x', x(annotX) + 4)
+          .attr('y', y(annotY) + 6)
+          .attr('fill', compoundColor)
+          .attr('font-size', '8px')
+          .attr('font-weight', 600)
+          .attr('font-family', 'var(--font-mono)')
+          .attr('opacity', 0.62)
+          .text(corrLabel);
       }
 
       // Stint label at first point

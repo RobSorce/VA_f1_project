@@ -8,6 +8,23 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Health reporter — injected by the store after both modules are loaded
+// so we don't create a circular import. See useF1Store.js.
+let _healthReporter = { ok: () => {}, fail: () => {} };
+export const setHealthReporter = (ok, fail) => { _healthReporter = { ok, fail }; };
+
+// Network errors + 5xx = backend unreachable. 4xx = user/bad-request; those
+// don't trip the global banner.
+client.interceptors.response.use(
+  (response) => { _healthReporter.ok(); return response; },
+  (error) => {
+    const isNetwork = !error.response;
+    const is5xx = error.response && error.response.status >= 500;
+    if (isNetwork || is5xx) _healthReporter.fail(error.message || 'network error');
+    return Promise.reject(error);
+  },
+);
+
 // ── Session & Schedule ──────────────────────────────────────────────
 export const getSeasons = () => client.get('/seasons').then((r) => r.data);
 export const getSchedule = (year) => client.get(`/schedule/${year}`).then((r) => r.data);

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as api from '../utils/apiClient';
+import { setHealthReporter } from '../utils/apiClient';
 import { computePCA, procrustesAlign2D } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
 import { simulateRaceFinish } from '../utils/raceSimulation';
@@ -357,6 +358,60 @@ export const useF1Store = create(persist((set, get) => ({
   previewDrivers: [],          // drivers fetched before full session load
   previewDriversLoading: false,
   preSelectedDrivers: [],      // drivers toggled on selector screen
+
+  // ── Help overlay (per-chart docs) ─────────────────────────────
+  helpTabId: null,
+  helpTitle: null,
+  openHelp: (tabId, title = null) => set({ helpTabId: tabId || null, helpTitle: title || null }),
+  closeHelp: () => set({ helpTabId: null, helpTitle: null }),
+
+  // ── Toast / notification stack ────────────────────────────────
+  // { id, kind: 'info'|'warn'|'error'|'undo', message, action?, actionLabel?, timeout? }
+  toasts: [],
+  pushToast: (toast) => {
+    const id = toast.id || `t_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const entry = { id, kind: 'info', timeout: 5000, ...toast };
+    set((s) => ({ toasts: [...s.toasts.filter((t) => t.id !== id), entry] }));
+    if (entry.timeout > 0) {
+      setTimeout(() => {
+        const cur = get().toasts;
+        if (cur.some((t) => t.id === id)) {
+          set({ toasts: cur.filter((t) => t.id !== id) });
+        }
+      }, entry.timeout);
+    }
+    return id;
+  },
+  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  clearToasts: () => set({ toasts: [] }),
+
+  // ── Backend reachability (for the global status banner) ───────
+  backendHealthy: true,
+  lastBackendError: null,
+  reportBackendError: (message) => {
+    set({ backendHealthy: false, lastBackendError: message });
+    get().pushToast({
+      id: 'backend-down',
+      kind: 'error',
+      message: `Backend unreachable (${message || 'network error'}). Panels may show stale data.`,
+      actionLabel: 'Retry',
+      timeout: 0,
+      action: () => {
+        // Cheap health probe — any successful fetch flips backendHealthy back
+        // via the axios response interceptor.
+        const y = get().year;
+        if (y) api.getSchedule(y).catch(() => {});
+      },
+    });
+  },
+  reportBackendOk: () => {
+    const s = get();
+    if (!s.backendHealthy) {
+      set({ backendHealthy: true, lastBackendError: null });
+      s.dismissToast('backend-down');
+      s.pushToast({ kind: 'info', message: 'Backend reconnected', timeout: 3000 });
+    }
+  },
 
   setYear: (year) => set({ year }),
   setRound: (round) => set({ round }),
@@ -922,11 +977,23 @@ export const useF1Store = create(persist((set, get) => ({
     return { dockItems: next };
   }),
 
-  removeDockItem: (id) => set((s) => {
-    if (s.dockItems.length <= 1) return s; // never allow empty dock
-    if (!s.dockItems.includes(id)) return s;
-    return { dockItems: s.dockItems.filter((t) => t !== id) };
-  }),
+  removeDockItem: (id) => {
+    const s = get();
+    if (s.dockItems.length <= 1) return; // never allow empty dock
+    const idx = s.dockItems.indexOf(id);
+    if (idx < 0) return;
+    const prev = [...s.dockItems];
+    const label = (SLOT_IDS.has(id) && id) || 'item';
+    set({ dockItems: prev.filter((t) => t !== id) });
+    // Offer undo — restores the item at its original index.
+    s.pushToast({
+      kind: 'undo',
+      message: `Removed "${label}" from dock`,
+      actionLabel: 'Undo',
+      timeout: 6000,
+      action: () => set({ dockItems: prev }),
+    });
+  },
 
   moveDockItem: (id, direction) => set((s) => {
     const idx = s.dockItems.indexOf(id);
@@ -938,7 +1005,17 @@ export const useF1Store = create(persist((set, get) => ({
     return { dockItems: next };
   }),
 
-  resetDockItems: () => set({ dockItems: [...DOCK_DEFAULTS] }),
+  resetDockItems: () => {
+    const prev = [...get().dockItems];
+    set({ dockItems: [...DOCK_DEFAULTS] });
+    get().pushToast({
+      kind: 'undo',
+      message: 'Dock reset to defaults',
+      actionLabel: 'Undo',
+      timeout: 6000,
+      action: () => set({ dockItems: prev }),
+    });
+  },
 
   setActiveTab: (tab) => {
     const UTILITY_TABS = new Set(['settings']);
@@ -979,6 +1056,13 @@ export const useF1Store = create(persist((set, get) => ({
     }
 
     // ── Analysis tabs → docked layout ──
+    // Tabbed-MDI behaviour: a new chart from the dock or from any
+    // chart picker always opens as a *tab* in the existing pane.
+    // Splits stay available via the layout toolbar (the arrange-buttons
+    // cycle) and the per-pane `+` dropdown — but never happen silently
+    // as a side effect of opening a chart. This matches the VS Code /
+    // JetBrains mental model users already have and removes the
+    // inconsistency between dock-click and `+`-click paths.
     set((s) => {
       if (s.dockedLayout) {
         const allTabs = _collectDockedTabs(s.dockedLayout);
@@ -988,11 +1072,9 @@ export const useF1Store = create(persist((set, get) => ({
           if (!newLayout) return { dockedLayout: null, activeTab: s.activeTab === 'pitwall' ? 'pitwall' : 'charts', _arrangeIdx: 0 };
           return { dockedLayout: newLayout };
         }
-        // Tab not in layout — add it
-        const paneCount = _countPanes(s.dockedLayout);
-        if (paneCount < MAX_PANES) {
-          return { dockedLayout: _appendPane(s.dockedLayout, tab), activeTab: 'charts' };
-        }
+        // Tab not in layout — add to the first leaf as a new tab.
+        // If the user wants it in a different pane of a split layout,
+        // they can drag it there or use the target pane's `+` menu.
         return { dockedLayout: _addTabToFirstLeaf(s.dockedLayout, tab), activeTab: 'charts' };
       }
 
@@ -2126,7 +2208,7 @@ export const useF1Store = create(persist((set, get) => ({
       set((s) => ({
         geminiMessages: [
           ...s.geminiMessages,
-          { role: 'ai', content: resp.response, scenarios: resp.scenarios },
+          { role: 'ai', content: resp.response, scenarios: resp.scenarios, is_mock: !!resp.is_mock },
         ],
         geminiOverlays: resp.scenarios || [],
       }));
@@ -2283,3 +2365,9 @@ export const useF1Store = create(persist((set, get) => ({
     if (state) state.theme = 'dark';
   },
 }));
+
+// Wire the api client's health interceptor now that the store exists.
+setHealthReporter(
+  () => useF1Store.getState().reportBackendOk(),
+  (msg) => useF1Store.getState().reportBackendError(msg),
+);

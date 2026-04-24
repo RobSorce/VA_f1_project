@@ -12,6 +12,17 @@
   background: linear-gradient(180deg, #0f0f1e 0%, #15152a 100%);
 }
 
+/* Below the design canvas, let the app-container grow with content
+   and the body scroll — prevents silent clipping of the dock and
+   panels on HiDPI-scaled 15-inch laptops. */
+@media (max-width: 1440px), (max-height: 900px) {
+  .app-container {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+}
+
 /* --------------------------------------------------------------------------
    Header
    -------------------------------------------------------------------------- */
@@ -96,9 +107,9 @@
 }
 
 .app-sidebar {
-  width: 300px;
+  width: var(--sidebar-width);
   min-width: 40px;
-  max-width: 300px;
+  max-width: var(--sidebar-width);
   display: flex;
   flex-direction: column;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
@@ -1327,11 +1338,14 @@
 .session-screen {
   position: fixed;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: linear-gradient(180deg, #0a0a14 0%, #0f0f1e 50%, #15152a 100%);
   z-index: 1000;
+  /* Native scroll on the fixed layer — content flows, never clipped. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Important: no more flex-centering on the outer element. The inner
+     __content node handles "center if it fits, flow if it doesn't" via
+     min-height + margin auto, which is the only reliable pattern. */
 }
 
 .session-screen__glow {
@@ -1347,11 +1361,29 @@
 
 .session-screen__content {
   position: relative;
+  /* Fills at least the viewport; if content is taller, the extra just
+     flows below and the parent's overflow-y:auto shows a scrollbar. */
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32px;
+  justify-content: center;
+  gap: 28px;
+  padding: 24px 16px;
   z-index: 1;
+  box-sizing: border-box;
+}
+
+/* Short viewports (15-inch laptops + HiDPI scaling) — tighter spacing
+   so the whole screen often fits without any scroll at all. */
+@media (max-height: 1000px) {
+  .session-screen__content {
+    justify-content: flex-start; /* anchor top so nothing clips */
+    gap: 16px;
+    padding: 12px 12px 16px;
+  }
+  .session-screen__logo { gap: 4px; }
+  .session-screen__getting-started { margin-top: 10px; padding: 12px 14px 10px; }
 }
 
 .session-screen__logo {
@@ -1395,6 +1427,31 @@
   gap: 20px;
 }
 
+/* Narrow viewports — cards + gaps sum to > 1200 px at design sizes, so
+   stack them and tighten padding. Mirrors the "responsive breakpoint"
+   side of the fluid-scale work. */
+@media (max-width: 1400px) {
+  .session-screen__card {
+    width: 100%;
+    max-width: 440px;
+    padding: 18px 22px;
+    gap: 14px;
+  }
+  .session-screen__body {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+    max-width: 960px;
+  }
+  .session-screen__drivers {
+    width: 100%;
+    max-width: 440px;
+    max-height: 360px;
+    padding: 14px 18px;
+  }
+}
+
 .glass-card {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur-heavy));
@@ -1407,7 +1464,7 @@
 .session-screen__field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .session-screen__label {
@@ -1417,6 +1474,16 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+/* Micro-hint below each form label — Phase 1 of the main-menu hints. */
+.session-screen__field-hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.40);
+  line-height: 1.3;
+  margin-bottom: 2px;
+  font-weight: 400;
+}
+[data-theme="light"] .session-screen__field-hint { color: rgba(0,0,0,0.45); }
 
 .session-screen__select {
   padding: 10px 14px;
@@ -1755,16 +1822,23 @@
   max-width: calc(100vw - 40px);
   overflow-x: auto;
   scrollbar-width: none;    /* Firefox */
-  /* iOS 26 Glassmorphism capsule */
-  background: rgba(28, 28, 40, 0.22);
-  backdrop-filter: blur(48px) saturate(1.9);
-  -webkit-backdrop-filter: blur(48px) saturate(1.9);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* Apple Liquid Glass — neutral white refraction, bright top meniscus */
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.20);
   border-radius: 26px;
   box-shadow:
-    0 12px 48px rgba(0, 0, 0, 0.40),
-    0 4px 12px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    /* Ambient drop */
+    0 16px 40px rgba(0, 0, 0, 0.35),
+    0 2px 8px rgba(0, 0, 0, 0.22),
+    /* Bright top highlight (glass edge catching light) */
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    /* Side hairline highlights */
+    inset 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.06),
+    /* Meniscus shadow at the bottom */
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
   flex-shrink: 0;
   z-index: var(--z-sticky);
   transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -1774,8 +1848,9 @@
 .bottom-tab-bar::-webkit-scrollbar { display: none; }
 
 .bottom-tab-bar--hidden {
-  transform: translateY(calc(100% + 16px));
-  opacity: 0;
+  /* Keep a 3px peek visible so users discover the reveal zone (H1/V1.3). */
+  transform: translateY(calc(100% - 3px));
+  opacity: 0.5;
   pointer-events: none;
 }
 
@@ -1805,13 +1880,17 @@
 }
 
 .bottom-tab-bar__tab:hover {
-  color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.12);
 }
 
 .bottom-tab-bar__tab--active {
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.15);
 }
 
 .bottom-tab-bar__tab--active::after {
@@ -1852,12 +1931,14 @@
   border-radius: var(--rh-radius-xs, 5px);
   padding: 0 4px;
   line-height: 1.4;
-  opacity: 0;
+  /* Always faintly visible so users learn the shortcut without having to
+     hover or press `?` (H6/V6.1). Boosts on hover / active. */
+  opacity: 0.35;
   transition: opacity 0.2s ease;
 }
 
 .bottom-tab-bar__tab:hover .tab-kbd {
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 .bottom-tab-bar__tab--active .tab-kbd {
@@ -1920,6 +2001,43 @@
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+/* Fixed system buttons (Layouts / ⌘K / Settings) — visually distinct
+   from the reorderable dock items so users don't expect to drag them. */
+.bottom-tab-bar__tab--fixed {
+  opacity: 0.80;
+}
+.bottom-tab-bar__tab--fixed:hover,
+.bottom-tab-bar__tab--fixed.bottom-tab-bar__tab--active {
+  opacity: 1;
+}
+
+/* Divider between reorderable items and fixed system buttons */
+.bottom-tab-bar__divider {
+  width: 1px;
+  height: 24px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255, 255, 255, 0.18) 30%,
+    rgba(255, 255, 255, 0.18) 70%,
+    transparent
+  );
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+/* Narrow viewports — hide fixed-button labels to save space (H8/V8.2).
+   Raised to 1440 px so 15-inch HiDPI-scaled laptops (effective CSS
+   viewport 1261 × 933) get the compact mode that reveals Settings.
+   See SCROLL_HEURISTIC_EVALUATION.md S2. */
+@media (max-width: 1440px) {
+  .bottom-tab-bar__tab--fixed .bottom-tab-bar__label { display: none; }
+  .bottom-tab-bar__tab--fixed { padding: 6px 10px; }
+  /* Tighter reorderable tab padding so Settings stays in view without
+     horizontal scroll on the hidden scrollbar. */
+  .bottom-tab-bar__tab { padding: 6px 10px; }
+}
+
 /* Drag-and-drop states */
 .bottom-tab-bar__tab--dragging {
   opacity: 0.35;
@@ -1934,13 +2052,18 @@
    Dock context menu (right-click)
    ========================================================================== */
 .dock-ctx-menu {
-  background: rgba(22, 22, 34, 0.94);
-  backdrop-filter: blur(36px) saturate(1.8);
-  -webkit-backdrop-filter: blur(36px) saturate(1.8);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 10px;
+  /* Apple Liquid Glass */
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.20);
+  border-radius: 12px;
   padding: 6px;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
   overflow-y: auto;
   animation: overlayScaleIn 120ms ease-out;
 }
@@ -1984,14 +2107,19 @@
    Dock add popover (⊕)
    ========================================================================== */
 .dock-add-popover {
-  background: rgba(18, 18, 34, 0.96);
-  backdrop-filter: blur(40px) saturate(1.8);
-  -webkit-backdrop-filter: blur(40px) saturate(1.8);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  /* Apple Liquid Glass */
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.20);
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 56px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.3);
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.50),
+    0 4px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
   overflow: hidden;
   animation: overlayScaleIn 140ms ease-out;
 }
@@ -2080,14 +2208,19 @@
    Dock overflow popover (⋯)
    ========================================================================== */
 .dock-overflow-popover {
-  background: rgba(18, 18, 34, 0.96);
-  backdrop-filter: blur(36px) saturate(1.8);
-  -webkit-backdrop-filter: blur(36px) saturate(1.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  /* Apple Liquid Glass */
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.20);
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 56px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.3);
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.50),
+    0 4px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
   overflow: hidden;
   animation: overlayScaleIn 120ms ease-out;
 }
@@ -2458,6 +2591,361 @@
   background: rgba(239, 68, 68, 0.25);
   color: #ef4444;
 }
+
+/* Help/info button (H10/V10.1) — opens docs on click, shows summary on hover. */
+.overlay-panel__btn--help:hover {
+  background: rgba(66, 133, 244, 0.20);
+  color: #8ab4f8;
+}
+
+/* ==========================================================================
+   Settings → Help & Reference list (H10/V10.1) — catalogue of every chart.
+   ========================================================================== */
+.settings-help__search {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  color: #fff;
+  font-family: var(--font-primary);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 150ms ease, background 150ms ease;
+  margin-bottom: 10px;
+}
+.settings-help__search:focus {
+  border-color: rgba(100, 196, 255, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-help__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-help__empty {
+  padding: 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+}
+.settings-help__row {
+  text-align: left;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 7px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.settings-help__row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.settings-help__row-title {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+.settings-help__row-summary {
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.65);
+}
+[data-theme="light"] .settings-help__search { background: rgba(0,0,0,0.04); color: #111; border-color: rgba(0,0,0,0.10); }
+[data-theme="light"] .settings-help__row {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.08);
+  color: #111;
+}
+[data-theme="light"] .settings-help__row:hover { background: rgba(0,0,0,0.06); }
+[data-theme="light"] .settings-help__row-title { color: #111; }
+[data-theme="light"] .settings-help__row-summary { color: rgba(0,0,0,0.60); }
+
+/* ==========================================================================
+   Help Overlay (H10/V10.1) — per-chart docs surface.
+   Opened from the (i) button in OverlayPanel headers and from
+   Settings → Help & Reference. Glass-recipe consistent with the dock.
+   ========================================================================== */
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: helpFadeIn 160ms ease-out;
+}
+@keyframes helpFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.help-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 18, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.help-overlay__panel {
+  position: relative;
+  width: min(640px, 92vw);
+  max-height: min(720px, 86vh);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.20);
+  border-radius: 16px;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    0 4px 16px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  animation: helpPanelIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes helpPanelIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)     scale(1);   }
+}
+
+.help-overlay__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.help-overlay__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.help-overlay__eyebrow {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.help-overlay__chart-name {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.help-overlay__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms ease, color 150ms ease;
+}
+.help-overlay__close:hover {
+  background: rgba(239, 68, 68, 0.22);
+  color: #ef4444;
+}
+
+.help-overlay__body {
+  padding: 14px 18px 18px;
+  overflow-y: auto;
+  font-family: var(--font-primary);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.5;
+}
+
+.help-overlay__summary {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: rgba(66, 133, 244, 0.10);
+  border: 1px solid rgba(66, 133, 244, 0.24);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.94);
+  line-height: 1.45;
+}
+
+.help-overlay__section { margin-top: 14px; }
+.help-overlay__section:first-of-type { margin-top: 0; }
+
+.help-overlay__section-title {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.52);
+  margin: 0 0 6px;
+}
+
+.help-overlay__section-title--warn {
+  color: #f5a623;
+}
+
+.help-overlay__list {
+  margin: 0;
+  padding-left: 18px;
+  list-style-type: disc;
+}
+.help-overlay__list li {
+  margin-bottom: 4px;
+}
+.help-overlay__list code {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 11.5px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0 5px;
+  border-radius: 3px;
+  color: #d5fd51;
+}
+.help-overlay__list strong { color: #fff; font-weight: 700; }
+
+/* See-also — each row has [Open chart] + [Show help for it] buttons */
+.help-overlay__see-also {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.help-overlay__see-also-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.help-overlay__see-also-open {
+  padding: 4px 10px;
+  background: rgba(213, 253, 81, 0.14);
+  border: 1px solid rgba(213, 253, 81, 0.40);
+  color: #d5fd51;
+  border-radius: 5px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 150ms ease;
+  flex-shrink: 0;
+}
+.help-overlay__see-also-open:hover { background: rgba(213, 253, 81, 0.24); }
+
+.help-overlay__see-also-help {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.80);
+  font-family: var(--font-primary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.15);
+  transition: color 150ms ease, text-decoration-color 150ms ease;
+}
+.help-overlay__see-also-help:hover {
+  color: #fff;
+  text-decoration-color: rgba(255, 255, 255, 0.6);
+}
+
+.help-overlay__docs-link {
+  display: inline-block;
+  color: #8ab4f8;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 6px 10px;
+  background: rgba(66, 133, 244, 0.10);
+  border: 1px solid rgba(66, 133, 244, 0.28);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background 150ms ease;
+}
+.help-overlay__docs-link:hover { background: rgba(66, 133, 244, 0.20); }
+
+[data-theme="light"] .help-overlay__panel {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: #111;
+}
+[data-theme="light"] .help-overlay__chart-name { color: #111; }
+[data-theme="light"] .help-overlay__body { color: rgba(0, 0, 0, 0.85); }
+[data-theme="light"] .help-overlay__summary {
+  background: rgba(66, 133, 244, 0.08);
+  border-color: rgba(66, 133, 244, 0.24);
+  color: #111;
+}
+[data-theme="light"] .help-overlay__section-title { color: rgba(0, 0, 0, 0.55); }
+
+/* ==========================================================================
+   Retry panel (H9/V9.2) — inline fetch-failure state with Retry action.
+   ========================================================================== */
+.retry-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.24);
+  color: rgba(255, 255, 255, 0.86);
+  font-family: var(--font-primary);
+  font-size: 12px;
+}
+.retry-panel__icon { color: #ef4444; flex-shrink: 0; }
+.retry-panel__text { flex: 1; min-width: 0; }
+.retry-panel__title {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
+}
+.retry-panel__message {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.58);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.retry-panel__btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.44);
+  color: #ef4444;
+  font-family: var(--rh-font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.retry-panel__btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.28);
+  border-color: rgba(239, 68, 68, 0.7);
+}
+.retry-panel__btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .overlay-panel__content {
   flex: 1;
@@ -3168,8 +3656,12 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 6px;
-  overflow: hidden;
+  /* Was: overflow: hidden — clipped the bottom cards when user pressed
+     "Expand all". Now scrolls inside the panel so every card is reachable. */
+  overflow-y: auto;
+  overflow-x: hidden;
   align-content: start;
+  padding-right: 2px; /* breathing room for the scrollbar */
 }
 
 .consistency-card {
@@ -3177,12 +3669,18 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* Chevron is absolutely positioned; reserve space so long badge text
+     can't collide with it or push it outside the card. */
+  position: relative;
 }
 
 .consistency-card__header {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  padding-right: 26px; /* reserve room for the absolute chevron */
+  min-height: 24px;
 }
 
 .consistency-card__team-bar {
@@ -3214,6 +3712,122 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-left: auto;
+}
+
+/* LOW DATA chip (H1/V1.4) — flags drivers whose σ is from too few laps
+   (usually DNFs). Sits inline before the Consistent/Inconsistent badge. */
+.consistency-card__low-data-chip {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #f5a623;
+  background: rgba(245, 166, 35, 0.14);
+  border: 1px solid rgba(245, 166, 35, 0.45);
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: help;
+}
+.consistency-card--low-data { filter: saturate(0.6); }
+
+/* Collapsed state — single-row card, uniform height so the grid looks
+   clean regardless of which driver has the longest team name. */
+.consistency-card--collapsed {
+  padding: 8px 10px;
+  gap: 0;
+  min-height: 40px;
+  justify-content: center;
+}
+
+/* Collapsed-state hero metric (σ) — visible without expanding so users
+   can scan consistency order at a glance. Hidden when expanded to avoid
+   duplication (the body already shows Std Dev). */
+.consistency-card__collapsed-sigma {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* When σ claimed the auto-margin, the badge no longer floats right. */
+.consistency-card--collapsed .consistency-card__badge {
+  margin-left: 0;
+}
+
+/* Chevron toggle — absolutely positioned top-right so long "Inconsistent"
+   badges can't push it outside the card boundary. */
+.consistency-card__chevron {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 5px;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  z-index: 2;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), background 150ms ease, color 150ms ease;
+}
+.consistency-card__chevron:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+}
+.consistency-card__chevron--open {
+  transform: rotate(-180deg);
+}
+
+/* Smaller & tighter Consistent/Inconsistent badge so the collapsed
+   header stays on one line when cells get narrow. */
+.consistency-card__badge {
+  font-size: 8.5px;
+  padding: 1.5px 6px;
+  letter-spacing: 0.03em;
+}
+
+/* Bulk expand/collapse buttons in the panel header */
+.consistency-panel__bulk-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 5px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.consistency-panel__bulk-btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+[data-theme="light"] .consistency-card__chevron {
+  border-color: rgba(0, 0, 0, 0.10);
+  background: rgba(0, 0, 0, 0.03);
+  color: rgba(0, 0, 0, 0.55);
+}
+[data-theme="light"] .consistency-card__chevron:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #111;
+}
+[data-theme="light"] .consistency-panel__bulk-btn {
+  border-color: rgba(0, 0, 0, 0.10);
+  background: rgba(0, 0, 0, 0.03);
+  color: rgba(0, 0, 0, 0.55);
+}
+[data-theme="light"] .consistency-panel__bulk-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #111;
 }
 
 .consistency-card__badge--consistent {
@@ -3608,6 +4222,114 @@
 }
 
 /* ==========================================================================
+   Session Screen — Always-visible Getting Started card + shortcut hints
+   ========================================================================== */
+.session-screen__getting-started {
+  width: 100%;
+  max-width: 720px;
+  margin: 18px auto 0;
+  padding: 16px 18px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.session-screen__getting-started-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-screen__getting-started-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.session-screen__getting-started-steps strong { color: #fff; font-weight: 700; }
+.session-screen__getting-started-steps em      { color: rgba(255,255,255,0.55); font-style: italic; }
+
+/* Numbered step chip — small, circular, keeps the list scannable. */
+.session-screen__step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(213, 253, 81, 0.14);
+  border: 1px solid rgba(213, 253, 81, 0.40);
+  color: #d5fd51;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Secondary row — shortcut previews that will matter after session load. */
+.session-screen__shortcut-hints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.48);
+  font-family: var(--font-primary);
+}
+.session-screen__shortcut-hints > span:first-child {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+  margin-right: 6px;
+}
+.session-screen__shortcut-hints kbd {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #d5fd51;
+  line-height: 1.5;
+}
+.session-screen__hint-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: rgba(138, 180, 248, 0.10);
+  border: 1px solid rgba(138, 180, 248, 0.28);
+  color: #8ab4f8;
+}
+
+[data-theme="light"] .session-screen__getting-started {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .session-screen__getting-started-steps li { color: rgba(0,0,0,0.78); }
+[data-theme="light"] .session-screen__getting-started-steps strong { color: #111; }
+[data-theme="light"] .session-screen__shortcut-hints { color: rgba(0,0,0,0.55); border-top-color: rgba(0,0,0,0.06); }
+[data-theme="light"] .session-screen__shortcut-hints > span:first-child { color: rgba(0,0,0,0.45); }
+[data-theme="light"] .session-screen__shortcut-hints kbd {
+  background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.10); color: #2563eb;
+}
+
+/* ==========================================================================
    Telemetry — Toolbar (zoom controls)
    ========================================================================== */
 .telem-toolbar {
@@ -3708,7 +4430,10 @@
   background: var(--color-bg-panel);
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  overflow: hidden;
+  /* NOT overflow: hidden — would clip the expanded accordion body and
+     defeat the parent .settings-tab scroll on sub-1440 viewports
+     (S4 in SCROLL_HEURISTIC_EVALUATION.md). Clipping at the header
+     corner is handled by the header's own border-radius. */
 }
 
 .settings-tab__section--open {
@@ -3723,6 +4448,7 @@
   padding: 10px 14px;
   background: transparent;
   border: none;
+  border-radius: 12px 12px 0 0;
   cursor: pointer;
   color: inherit;
   text-align: left;
@@ -4665,6 +5391,111 @@
 .welcome-toast__close:hover {
   color: var(--rh-text-secondary, #B0B0B0);
 }
+
+/* ==========================================================================
+   Toast Stack — global notifications (backend down, undo actions, etc.)
+   Uses the same iOS liquid-glass recipe as the dock.
+   ========================================================================== */
+.toast-stack {
+  position: fixed;
+  top: 64px;
+  right: 20px;
+  z-index: 9500;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none; /* individual toasts re-enable */
+  max-width: 420px;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.20);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.40),
+    0 2px 8px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  color: #fff;
+  font-family: var(--font-primary);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  animation: toast-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Kind-specific accents — keep the glass body, just recolor the left edge */
+.toast--error { box-shadow:
+    0 12px 40px rgba(225, 6, 0, 0.30),
+    0 2px 8px rgba(0, 0, 0, 0.22),
+    inset 3px 0 0 rgba(225, 6, 0, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+.toast--warn  { box-shadow:
+    0 12px 40px rgba(245, 166, 35, 0.22),
+    0 2px 8px rgba(0, 0, 0, 0.22),
+    inset 3px 0 0 rgba(245, 166, 35, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+.toast--undo  { box-shadow:
+    0 12px 40px rgba(213, 253, 81, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.22),
+    inset 3px 0 0 rgba(213, 253, 81, 0.85),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+
+.toast__message { flex: 1; line-height: 1.35; }
+
+.toast__action {
+  background: rgba(213, 253, 81, 0.14);
+  border: 1px solid rgba(213, 253, 81, 0.35);
+  color: #d5fd51;
+  border-radius: 6px;
+  font-family: var(--rh-font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.toast__action:hover {
+  background: rgba(213, 253, 81, 0.22);
+  border-color: rgba(213, 253, 81, 0.55);
+}
+
+.toast__close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  padding: 2px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  transition: color 150ms ease, background 150ms ease;
+}
+.toast__close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .toast {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #111;
+}
+[data-theme="light"] .toast__close { color: rgba(0, 0, 0, 0.45); }
+[data-theme="light"] .toast__close:hover { color: #111; background: rgba(0, 0, 0, 0.06); }
 
 /* ── Focus Driver Widget ───────────────────────────────────────────── */
 [data-theme="light"] .focus-widget {

@@ -246,9 +246,40 @@ export default function SessionSelectorScreen() {
 
           {/* Replay Selector card */}
           <div className="session-screen__card glass-card">
+            {/* Header — mirrors the Live Session card's header so the two
+                modes are visually sibling (H4 Consistency). */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 16, height: 16, borderRadius: 4,
+                  color: '#8ab4f8',
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  {/* Rewind / skip-back glyph — visual counterpart to the live pulse */}
+                  <polygon points="19 20 9 12 19 4 19 20" />
+                  <line x1="5" y1="19" x2="5" y2="5" />
+                </svg>
+              </span>
+              <span style={{
+                fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+                fontSize: 13, fontWeight: 700, letterSpacing: '0.08em',
+                textTransform: 'uppercase', color: '#e0e0e0',
+              }}>
+                Session Playback
+              </span>
+            </div>
+            <p style={{ fontSize: 11, color: '#7a7f9a', lineHeight: 1.5, margin: '0 0 6px' }}>
+              Load any past race, qualifying, or practice for full analysis — lap times, strategy, telemetry, predictions.
+            </p>
+
             {/* Year */}
             <div className="session-screen__field">
               <label className="session-screen__label">Season</label>
+              <span className="session-screen__field-hint">Year of the F1 Championship</span>
               <select
                 className="session-screen__select"
                 value={year}
@@ -263,6 +294,7 @@ export default function SessionSelectorScreen() {
             {/* Grand Prix */}
             <div className="session-screen__field">
               <label className="session-screen__label">Grand Prix</label>
+              <span className="session-screen__field-hint">Pick from the calendar — cached races load instantly</span>
               <select
                 className="session-screen__select"
                 value={round || ''}
@@ -280,6 +312,7 @@ export default function SessionSelectorScreen() {
             {/* Session Type */}
             <div className="session-screen__field">
               <label className="session-screen__label">Session</label>
+              <span className="session-screen__field-hint">Race, Qualifying, Sprint, or free practice (FP1-3)</span>
               <div className="session-screen__pills">
                 {SESSION_TYPES.map((st) => (
                   <button
@@ -296,6 +329,7 @@ export default function SessionSelectorScreen() {
             {/* Focus Driver */}
             <div className="session-screen__field">
               <label className="session-screen__label">Focus Driver (optional)</label>
+              <span className="session-screen__field-hint">Auto-highlights this driver across every panel once loaded</span>
               <select
                 className="session-screen__select"
                 value={focusPick}
@@ -384,6 +418,38 @@ export default function SessionSelectorScreen() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* ── Getting started — always visible 3-step card ─────── */}
+        <div className="session-screen__getting-started">
+          <ol className="session-screen__getting-started-steps">
+            <li>
+              <span className="session-screen__step-num">1</span>
+              <span>Pick a <strong>Season</strong> and <strong>Grand Prix</strong> from the selector above.</span>
+            </li>
+            <li>
+              <span className="session-screen__step-num">2</span>
+              <span><em>Optional</em> — pick a <strong>Focus Driver</strong> to auto-highlight across every panel.</span>
+            </li>
+            <li>
+              <span className="session-screen__step-num">3</span>
+              <span>Hit <strong>ENTER SESSION</strong>.</span>
+            </li>
+          </ol>
+          <div className="session-screen__shortcut-hints">
+            <span>Inside the dashboard</span>
+            <kbd>?</kbd><span>shortcuts</span>
+            <kbd>Ctrl+K</kbd><span>command palette</span>
+            <span className="session-screen__hint-icon" aria-hidden="true">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="2.4" strokeLinecap="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <circle cx="12" cy="16" r="0.6" fill="currentColor" />
+              </svg>
+            </span>
+            <span>on any chart for help</span>
+          </div>
         </div>
       </div>
     </div>

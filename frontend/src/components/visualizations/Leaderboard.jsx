@@ -883,14 +883,14 @@ export default function Leaderboard({ collapsed }) {
                       <span
                         className="tower-row__battle-badge tower-row__battle-badge--mc"
                         style={{ color, borderColor: `${color}55`, background: `${color}18` }}
-                        title={`Monte Carlo: ${mc.prob}% chance ${rival} overtakes (current gap ${gap.toFixed(2)}s)`}
+                        title={`Overtake probability: ${mc.prob}% — chance ${rival} passes ${d.abbr} before the flag.\nCurrent gap: ${gap.toFixed(2)}s.\nBasis: Monte Carlo race simulation (100 iterations) using pace delta, tyre degradation, and pit-loss.\nColour: green <30% · amber 30-50% · red ≥50%.`}
                       >
                         {'\u21C5'}{mc.prob}%
                       </span>
                     );
                   }
                   return (
-                    <span className="tower-row__battle-badge" title={`Battle with ${rival} (${gap.toFixed(3)}s)`}>
+                    <span className="tower-row__battle-badge" title={`Battle with ${rival} — current gap ${gap.toFixed(3)}s (no Monte Carlo projection yet; needs at least 5 laps).`}>
                       {'\u2694'}
                     </span>
                   );

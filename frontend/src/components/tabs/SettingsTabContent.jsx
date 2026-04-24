@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
+import { CHART_HELP_LIST } from '../../utils/chartHelp';
 
 const SESSION_TYPES = [
   { value: 'R', label: 'Race' },
@@ -334,6 +335,13 @@ export default function SettingsTabContent() {
         )}
       </section>
 
+      {/* ── Help & Reference (H10/V10.1) — searchable catalogue of every
+          chart's help entry. Same content as the in-chart (i) button. ── */}
+      <section className={`settings-tab__section${openSection === 'help' ? ' settings-tab__section--open' : ''}`}>
+        <SectionHeader title="Help & Reference" isOpen={openSection === 'help'} onClick={() => toggleSection('help')} />
+        {openSection === 'help' && <HelpReferenceBody />}
+      </section>
+
       {/* ── About ── */}
       <section className={`settings-tab__section${openSection === 'about' ? ' settings-tab__section--open' : ''}`}>
         <SectionHeader title="About" isOpen={openSection === 'about'} onClick={() => toggleSection('about')} />
@@ -395,6 +403,64 @@ export default function SettingsTabContent() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────
+ * Help & Reference body — renders every CHART_HELP entry as a row.
+ * Clicking a row opens the HelpOverlay for that chart.
+ * ──────────────────────────────────────────────────────────────────── */
+function HelpReferenceBody() {
+  const openHelp = useF1Store((s) => s.openHelp);
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return CHART_HELP_LIST;
+    const q = query.toLowerCase();
+    return CHART_HELP_LIST.filter((e) =>
+      (e.title || '').toLowerCase().includes(q) ||
+      (e.summary || '').toLowerCase().includes(q) ||
+      e.tabId.toLowerCase().includes(q)
+    );
+  }, [query]);
+
+  return (
+    <div className="settings-tab__section-body">
+      <p className="settings-tab__hint" style={{ marginBottom: 8 }}>
+        Browse help for any chart. Opens the same help panel as the
+        <span style={{ display: 'inline-block', margin: '0 4px', verticalAlign: 'middle' }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <circle cx="12" cy="16" r="0.6" fill="currentColor" />
+          </svg>
+        </span>
+        button in each chart's header.
+      </p>
+      <input
+        type="text"
+        className="settings-help__search"
+        placeholder="Search charts…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <div className="settings-help__list">
+        {filtered.length === 0 && (
+          <div className="settings-help__empty">No matches for "{query}"</div>
+        )}
+        {filtered.map((entry) => (
+          <button
+            key={entry.tabId}
+            type="button"
+            className="settings-help__row"
+            onClick={() => openHelp(entry.tabId, entry.title)}
+          >
+            <span className="settings-help__row-title">{entry.title || entry.tabId}</span>
+            <span className="settings-help__row-summary">{entry.summary}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
