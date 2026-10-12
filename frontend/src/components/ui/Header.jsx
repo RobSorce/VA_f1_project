@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
 import SessionSelector from './SessionSelector';
 import SessionMenu from './SessionMenu';
 import PanelToggleBar from '../layout/PanelToggleBar';
@@ -8,7 +8,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const isLoading = useF1Store((s) => s.isLoading);
   const sessionData = useF1Store((s) => s.sessionData);
-  const sessionType = useF1Store((s) => s.sessionType);
+  const sessionType = useF1Store(loadedSessionTypeOf); // the loaded session, not the pill
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
   const qualiSegment = useF1Store((s) => s.qualiSegment);
   const qualiSegments = useF1Store((s) => s.qualiSegments);

@@ -2,6 +2,10 @@ import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
 import { simulateRaceFinish } from '../../utils/raceSimulation';
+import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
+import {
+  causalKey, completedStints, pitLossDisplay, viewSessionType, isRaceSession,
+} from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
 
 export default function RacePredictionPanel() {
@@ -16,6 +20,21 @@ export default function RacePredictionPanel() {
   const sessionData = useF1Store((s) => s.sessionData);
   const trackStatus = useF1Store((s) => s.trackStatus);
   const setRaceProjection = useF1Store((s) => s.setRaceProjection);
+  const sessionTimeOffset = useF1Store((s) => s.sessionTimeOffset);
+  // The Monte Carlo race projection exists for race sessions ('R', 'S') only
+  const sessionType = useF1Store(viewSessionType);
+  const isRace = isRaceSession(sessionType);
+  const sessionNow = useSessionNow();
+  // Live mode: stints still being run are not completed stint lengths
+  const running = useStintsRunning();
+  const lapTimesAll = sessionData?.lap_times;
+  // Changes when a lap, a pit event or a track-status event completes, and
+  // on any seek (backward included): the projection is recomputed at that
+  // clock, so it never keeps values from a later one
+  const causal = useMemo(
+    () => causalKey(lapTimesAll, sessionNow, trackStatus),
+    [lapTimesAll, sessionNow, trackStatus],
+  );
 
   const [activeTab, setActiveTab] = useState('projections');
   const tabContentRef = useRef(null);
@@ -23,17 +42,30 @@ export default function RacePredictionPanel() {
   const effectiveMaxLap = totalRaceLaps || maxLap;
 
   // ── Monte Carlo race projection (all drivers, real data) ──
+  // Causal: only what is known at sessionNow (completed laps and stints,
+  // session seconds). Keyed on the causal key, not on every replay frame:
+  // the 100 simulations re-run when something new is known or the clock
+  // jumps, never with values from a later clock after a backward seek.
   const raceProjection = useMemo(() => {
-    if (!raceSituationData?.driverFeatures) return null;
+    if (!isRace || !raceSituationData?.driverFeatures) return null;
+    const lapTimes = sessionData?.lap_times;
     return simulateRaceFinish({
       driverFeatures: raceSituationData.driverFeatures,
       currentLap,
       maxLap: effectiveMaxLap,
-      lapTimes: sessionData?.lap_times,
-      strategies: sessionData?.tyre_strategy,
+      lapTimes,
+      strategies: completedStints(lapTimes, sessionNow, { running }),
       trackStatus,
+      sessionNow,
+      sessionTimeOffset,
+      sessionType,
+      running,
     });
-  }, [raceSituationData, currentLap, effectiveMaxLap, sessionData, trackStatus]);
+  }, [raceSituationData, currentLap, effectiveMaxLap, sessionData, trackStatus, sessionTimeOffset,
+    causal, isRace, sessionType, running]);
+
+  // Pit loss shown in the header: the estimator's median, labelled when it is the fallback
+  const pitLossInfo = pitLossDisplay(raceProjection?.raceParams?.pitLoss);
 
   // Sync to store so Gemini can access it
   useEffect(() => {
@@ -113,7 +145,17 @@ export default function RacePredictionPanel() {
               </div>
               {raceProjection.raceParams && (
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '8px', color: 'var(--color-text-muted)' }}>
-                  <span>Pit loss: {raceProjection.raceParams.pitLoss.mean.toFixed(1)}s {'\u00B1'}{raceProjection.raceParams.pitLoss.stdDev.toFixed(1)}</span>
+                  <span title={pitLossInfo.isFallback
+                    ? 'No valid green-flag stop yet: fallback value (an assumption, not data)'
+                    : `Median of ${pitLossInfo.n} green-flag stops in this race (in-lap + out-lap - 2 x the driver's green-flag median lap)`}
+                  >
+                    Pit loss: {pitLossInfo.value.toFixed(1)}s
+                    {pitLossInfo.isFallback
+                      ? ' fallback'
+                      : pitLossInfo.p10 != null && pitLossInfo.p90 != null
+                        ? ` (P10\u2013P90 ${pitLossInfo.p10.toFixed(1)}\u2013${pitLossInfo.p90.toFixed(1)}s, n=${pitLossInfo.n})`
+                        : ` (n=${pitLossInfo.n})`}
+                  </span>
                   <span>Lap noise: {'\u00B1'}{raceProjection.raceParams.lapNoise.toFixed(2)}s</span>
                   <span>SC rate: {(raceProjection.raceParams.scRate * 100).toFixed(1)}%/lap</span>
                   <span>100 sims</span>
@@ -481,7 +523,7 @@ export default function RacePredictionPanel() {
         )}
 
         {/* ── Early-race state: collecting data ── */}
-        {!raceProjection && raceSituationData && currentLap >= 3 && (
+        {isRace && !raceProjection && raceSituationData && currentLap >= 3 && (
           <div style={{
             background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)',
             padding: 'var(--spacing-md)', textAlign: 'center',
@@ -494,8 +536,17 @@ export default function RacePredictionPanel() {
           </div>
         )}
 
+        {/* ── Not a race session: no race projection ── */}
+        {!isRace && (
+          <div className="loading-placeholder" style={{ padding: '20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
+              Race prediction applies to race sessions only (race or sprint).
+            </div>
+          </div>
+        )}
+
         {/* ── Empty state: no replay running ── */}
-        {!raceProjection && !raceSituationData && (
+        {isRace && !raceProjection && !raceSituationData && (
           <div className="loading-placeholder" style={{ padding: '20px', textAlign: 'center' }}>
             <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
               <strong style={{ color: '#00e676', display: 'block', marginBottom: 8, fontSize: 'var(--font-size-md)' }}>

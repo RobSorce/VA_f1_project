@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import { useSessionNow } from '../../hooks/useSessionNow';
 import Panel from '../ui/Panel';
+import { focusDriverStatus } from '../ui/FocusDriverWidget';
 
 const COMPOUND_ORDER = ['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'];
 
@@ -124,12 +126,25 @@ export default function GeminiAssistant() {
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const frameData = useF1Store((s) => s.frameData);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+  const sessionData = useF1Store((s) => s.sessionData);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
+  const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+  const sessionNow = useSessionNow();
 
   const activeDriver = focusDriver || selectedDrivers[0] || null;
   const driverColor = activeDriver ? getDriverColor(activeDriver) : '#888';
 
-  // Get current tyre info from frame data
-  const tyreInfo = useMemo(() => {
+  // Current tyre: race replay / lap mode = the set in force from the lap data
+  // at sessionNow (FocusDriverWidget focusDriverStatus, R3: the new set from
+  // the pit exit; the frames switch at the out-lap start, in the pit lane);
+  // live and qualifying replay = frame data
+  const lapStatus = useMemo(
+    () => (isQualifyingReplay || isLiveMode || !activeDriver
+      ? null
+      : focusDriverStatus(sessionData?.lap_times, activeDriver, sessionNow)),
+    [sessionData, activeDriver, sessionNow, isQualifyingReplay, isLiveMode],
+  );
+  const frameTyreInfo = useMemo(() => {
     if (!activeDriver || !frameData?.frames?.length) return null;
     const idx = Math.min(currentFrameIndex, frameData.frames.length - 1);
     const d = frameData.frames[idx]?.drivers?.[activeDriver];
@@ -137,6 +152,9 @@ export default function GeminiAssistant() {
     const NAMES = { 0: 'UNKNOWN', 1: 'SOFT', 2: 'MEDIUM', 3: 'HARD', 4: 'INTERMEDIATE', 5: 'WET' };
     return { compound: NAMES[d.tyre] || 'UNKNOWN', age: d.tyre_life != null ? Math.round(d.tyre_life) : null };
   }, [activeDriver, frameData, currentFrameIndex]);
+  const tyreInfo = lapStatus?.compound
+    ? { compound: lapStatus.compound, age: lapStatus.tyreLife }
+    : frameTyreInfo;
 
   // Get driver features from race situation PCA
   const driverFeats = useMemo(() => {

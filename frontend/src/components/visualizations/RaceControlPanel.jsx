@@ -1,6 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, formatReplayClock } from '../../store/useF1Store';
+import { useSessionNow } from '../../hooks/useSessionNow';
 import { getDriverColor } from '../../utils/colors';
+import { lapWindows, leaderLapAt, raceClockLimit } from '../../utils/raceTime';
+import { causalKey } from '../../utils/strategyViews';
+import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
 
 /* -- Race control category styling --------------------------------------- */
 // Maps the F1 SignalR `Category` string + flag/colour to a user-readable
@@ -68,6 +72,16 @@ function formatTime(ts) {
   return '--:--:--';
 }
 
+/**
+ * Sort key in ms: numbers under 1e12 are seconds (live epoch seconds, or
+ * session seconds in a replay, where every item is on that clock), larger
+ * ones ms; ISO strings are parsed.
+ */
+function toMs(ts) {
+  if (typeof ts === 'number') return ts < 1e12 ? ts * 1000 : ts;
+  return Date.parse(ts) || 0;
+}
+
 /* -- Driver chip --------------------------------------------------------- */
 function DriverChip({ abbr, color }) {
   if (!abbr) return null;
@@ -108,6 +122,18 @@ export default function RaceControlPanel() {
   const toggleAutoplay      = useF1Store((s) => s.toggleRadioAutoplay);
   const selectedDrivers     = useF1Store((s) => s.selectedDrivers || []);
   const focusDriver         = useF1Store((s) => s.focusDriver);
+  const lapTimes            = useF1Store((s) => s.sessionData?.lap_times);
+  const sessionTimeOffset   = useF1Store((s) => s.sessionTimeOffset);
+  // Replay: the list shows only what has happened at the replay's now
+  // (session seconds); live: Infinity, everything received so far
+  const sessionNow = useSessionNow();
+  // Changes only when a lap, a pit event or a status change is reached, not
+  // on every replay tick
+  const nowKey = useMemo(
+    () => (isLiveMode ? 'live' : causalKey(lapTimes, sessionNow, trackStatus)),
+    [isLiveMode, lapTimes, sessionNow, trackStatus],
+  );
+  const windows = useMemo(() => lapWindows(lapTimes), [lapTimes]);
 
   const [filter, setFilter] = useState('All');
   const [showRetirements, setShowRetirements] = useState(true);
@@ -153,10 +179,20 @@ export default function RaceControlPanel() {
     }
 
     // Track-status transitions — keep only changes (state -> state) so we
-    // don't duplicate every "Track clear" tick.
+    // don't duplicate every "Track clear" tick. Replay: only changes that
+    // have happened at the replay's now (start_time <= sessionNow), timed on
+    // the replay clock (start_time - sessionTimeOffset, the elapsed-time
+    // capsule's clock) and placed on the leader's lap at that time
+    // (utils/raceTime.js leaderLapAt, the rule of the timeline and backend).
+    // Live: wall-clock times, the lap the store stamped on arrival.
     let prev = null;
+    // With the race over (Infinity) the list stops at the leader's chequered
+    // flag (raceClockLimit), the reading of the flag pill.
+    const limit = raceClockLimit(lapTimes, sessionNow);
     const sortedTS = [...trackStatus].sort((a, b) => (a.start_time || 0) - (b.start_time || 0));
     for (const t of sortedTS) {
+      const start = Number(t.start_time);
+      if (!isLiveMode && (!Number.isFinite(start) || start > limit)) continue;
       const code = String(t.status ?? '1');
       if (code === prev) continue;
       prev = code;
@@ -166,19 +202,20 @@ export default function RaceControlPanel() {
         category: code === '1' ? 'Flag' : (code === '4' || code === '6' || code === '7') ? 'SafetyCar' : 'Flag',
         flag: code === '5' ? 'RED' : code === '1' ? 'GREEN' : 'YELLOW',
         message: t.message || meta.label,
-        lap: null,
-        timestamp: t.start_time || Date.now(),
+        lap: isLiveMode
+          ? (t.start_lap ?? null)
+          : (windows.length ? leaderLapAt(windows, start) : null),
+        timestamp: isLiveMode ? (t.start_time || Date.now()) : start,
+        replayClock: isLiveMode ? null : start - sessionTimeOffset,
       });
     }
 
-    items.sort((a, b) => {
-      const ta = typeof a.timestamp === 'number' ? a.timestamp : Date.parse(a.timestamp) || 0;
-      const tb = typeof b.timestamp === 'number' ? b.timestamp : Date.parse(b.timestamp) || 0;
-      return tb - ta;
-    });
+    items.sort((a, b) => toMs(b.timestamp) - toMs(a.timestamp));
 
     return items;
-  }, [raceControlMessages, trackStatus]);
+    // nowKey stands for sessionNow: the list changes only when it changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raceControlMessages, trackStatus, isLiveMode, sessionTimeOffset, windows, lapTimes, nowKey]);
 
   /* -- Counts per category for the filter chips -------------------------- */
   const counts = useMemo(() => {
@@ -193,18 +230,33 @@ export default function RaceControlPanel() {
   }, [filter, timeline]);
 
   /* -- Retirements (driver_status from live feed OR race_results) -------- */
+  // Replay: a retirement is listed only once it has happened at the replay's
+  // now (utils/driverState.js driverStateAt `retired`: the driver's final lap
+  // row has ended, or for a retirement in the pits the car entered the pit
+  // lane); a driver with no lap at all (did not start) is known from the start.
+  // The results' DNFs and the classified drivers who stopped before the flag
+  // (nonFinisherMap). Live: the feed reports retirements as they happen.
   const retirements = useMemo(() => {
     const out = [];
-    for (const [abbr, info] of Object.entries(dnfMap)) {
+    const nonFinishers = isLiveMode ? dnfMap : nonFinisherMap(lapTimes, dnfMap);
+    for (const [abbr, info] of Object.entries(nonFinishers)) {
+      // Replay: the lap of the retirement from the rows (info.lastLap is
+      // race_results Laps, a final result known only once the final row ended)
+      const st = !isLiveMode && lapTimes?.some((r) => r?.Driver === abbr)
+        ? driverStateAt(lapTimes, abbr, sessionNow, { dnf: info })
+        : null;
+      if (st && !st.retired) continue;
       out.push({
         abbr,
         status: info?.status || 'Out',
-        lap: info?.lastLap ?? '?',
+        lap: st?.retiredLap ?? info?.lastLap ?? '?',
         color: getDriverColor(abbr),
       });
     }
     return out.sort((a, b) => (Number(a.lap) || 0) - (Number(b.lap) || 0));
-  }, [dnfMap]);
+    // nowKey stands for sessionNow (a retirement is reached at a lap end or a pit entry)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dnfMap, isLiveMode, lapTimes, nowKey]);
 
   /* -- Categories present (sorted by count, but keep "All" first) -------- */
   const categories = useMemo(() => {
@@ -400,7 +452,7 @@ export default function RaceControlPanel() {
                       color: '#777', fontSize: 10,
                       fontFamily: "'JetBrains Mono', monospace",
                       fontVariantNumeric: 'tabular-nums',
-                    }}>{formatTime(item.timestamp)}</span>
+                    }}>{item.replayClock != null ? formatReplayClock(item.replayClock) : formatTime(item.timestamp)}</span>
                     <span style={{ color: '#888', fontSize: 10, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 700 }}>
                       {item.lap != null ? `L${item.lap}` : '—'}
                     </span>

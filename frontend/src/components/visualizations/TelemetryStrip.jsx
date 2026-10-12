@@ -1,7 +1,12 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, weatherAtSessionTime } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import { useSessionNow } from '../../hooks/useSessionNow';
+import { stintsByDriver } from '../../utils/stints';
+import { causalKey } from '../../utils/strategyViews';
+import { isLapCompleted, lapStartTime } from '../../utils/raceTime';
+import { driverStateAt } from '../../utils/driverState';
 
 const LAP_COLORS = ['#a855f7', '#22c55e', '#ff8000', '#e10600'];
 
@@ -16,6 +21,207 @@ function formatLapTime(seconds) {
 function xTickFormat(mode) {
   if (mode === 'time') return (d) => `${d.toFixed(0)}s`;
   return (d) => `${(d / 1000).toFixed(1)}k`;
+}
+
+/* ── Causal lap choice and cards (pure, tested in __tests__/views.timing*.test.js) ── */
+
+/**
+ * The lap a driver's telemetry trace shows at sessionNow (session seconds),
+ * decision R6: with replay frames the lap in progress (drawn only up to now,
+ * see truncateToNow), otherwise the driver's last completed lap.
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
+ * @param {string} driver
+ * @param {number} sessionNow - session seconds, Infinity = whole session
+ * @param {Object} [opts] - { replayActive }
+ * @returns {{lap: number|null, inProgress: boolean, lapsCompleted: number}}
+ */
+export function telemetryReferenceLap(lapTimes, driver, sessionNow, { replayActive = false } = {}) {
+  const st = driverStateAt(lapTimes, driver, sessionNow, { dnf: false });
+  if (replayActive && st.inProgress) {
+    return { lap: st.inProgress.LapNumber, inProgress: true, lapsCompleted: st.lapsCompleted };
+  }
+  return { lap: st.lastCompleted ? st.lastCompleted.LapNumber : null, inProgress: false, lapsCompleted: st.lapsCompleted };
+}
+
+/**
+ * Driver + lap pairs whose telemetry is fetched and drawn at sessionNow.
+ * 'drivers' mode: each driver's reference lap (telemetryReferenceLap).
+ * 'laps' mode: the focus driver's reference lap, then up to 3 comparison laps
+ * that the driver has COMPLETED at now: a brushed or typed lap still to come
+ * is neither fetched nor drawn until it is over.
+ *
+ * @returns {Array<{driver: string, lap: number, inProgress: boolean}>}
+ */
+export function telemetryTargets(lapTimes, sessionNow, {
+  mode = 'drivers', focusDriver = null, selectedDrivers = [], compareLaps = [], replayActive = false,
+} = {}) {
+  if (!Array.isArray(lapTimes) || lapTimes.length === 0) return [];
+  if (mode === 'drivers') {
+    const drvs = selectedDrivers.length > 0 ? selectedDrivers.slice(0, 4) : (focusDriver ? [focusDriver] : []);
+    return drvs
+      .map((d) => ({ driver: d, ...telemetryReferenceLap(lapTimes, d, sessionNow, { replayActive }) }))
+      .filter((t) => t.lap != null)
+      .map(({ driver, lap, inProgress }) => ({ driver, lap, inProgress }));
+  }
+  const driver = focusDriver || selectedDrivers[0];
+  if (!driver) return [];
+  const ref = telemetryReferenceLap(lapTimes, driver, sessionNow, { replayActive });
+  if (ref.lap == null) return [];
+  // Comparison laps: only those the driver has completed at sessionNow
+  const done = (compareLaps || []).filter((l) => l !== ref.lap && l >= 1 && l <= ref.lapsCompleted);
+  return [
+    { driver, lap: ref.lap, inProgress: ref.inProgress },
+    ...done.slice(0, 3).map((l) => ({ driver, lap: l, inProgress: false })),
+  ];
+}
+
+/**
+ * Telemetry samples recorded by sessionNow (sample SessionTime, session
+ * seconds): a lap still in progress is drawn only up to now.
+ *
+ * @param {Array<Object>} samples
+ * @param {number} cutNow - session seconds (Infinity keeps everything)
+ * @returns {Array<Object>}
+ */
+export function truncateToNow(samples, cutNow) {
+  if (!Array.isArray(samples) || cutNow === Infinity || cutNow == null) return samples;
+  return samples.filter((d) => d.SessionTime == null || d.SessionTime <= cutNow);
+}
+
+/**
+ * x of the last sample recorded by cutNow (session seconds), in axis units:
+ * Distance (m), or the lap Time (s) in time mode. -Infinity when no sample is
+ * recorded yet. A running lap's samples beyond it are in the future: they
+ * may be drawn under the reveal clip but never set an axis (inDomain).
+ *
+ * @param {Array<Object>} samples - one lap's telemetry (Distance, Time, SessionTime)
+ * @param {number} cutNow - session seconds
+ * @param {'distance'|'time'} [xAxisMode='distance']
+ * @returns {number}
+ */
+export function recordedExtent(samples, cutNow, xAxisMode = 'distance') {
+  const recorded = truncateToNow(samples || [], cutNow);
+  const last = recorded[recorded.length - 1];
+  if (!last) return -Infinity;
+  return xAxisMode === 'time' ? (last.Time ?? last.Distance) : last.Distance;
+}
+
+/**
+ * How far a running lap's trace is revealed at `now` (session seconds), from
+ * the lap's OWN samples: the point between the last sample recorded by now
+ * (SessionTime <= now) and the next one, interpolated in time. Never from the
+ * car's position on the track map: just after the timing line that position
+ * is still nearest to the END of the track outline, which would reveal the
+ * whole lap ahead of time.
+ *
+ * @param {Array<Object>} data - one lap's trace samples (SessionTime; Distance =
+ *   the axis x: metres, or the lap Time in time mode with _origDistance = metres)
+ * @param {number} now - session seconds (Infinity = the whole lap)
+ * @returns {{x: number, distance: number, complete: boolean}|null}
+ *   x in axis units, distance in metres; -Infinity before the first sample;
+ *   complete when every sample is recorded (nothing to hide). null when the
+ *   samples carry no SessionTime.
+ */
+export function revealPoint(data, now) {
+  if (!Array.isArray(data) || data.length === 0 || data[0]?.SessionTime == null) return null;
+  const meters = (d) => d._origDistance ?? d.Distance;
+  const last = data[data.length - 1];
+  if (now == null || Number.isNaN(now) || now === Infinity
+      || (last.SessionTime != null && last.SessionTime <= now)) {
+    return { x: last.Distance, distance: meters(last), complete: true };
+  }
+  // Last sample recorded by now (SessionTime ascending)
+  let lo = 0;
+  let hi = data.length - 1;
+  let idx = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const at = data[mid].SessionTime;
+    if (at != null && at <= now) { idx = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  if (idx < 0) return { x: -Infinity, distance: -Infinity, complete: false };
+  const a = data[idx];
+  const b = data[idx + 1];
+  const span = b.SessionTime - a.SessionTime;
+  const f = span > 0 ? Math.max(0, Math.min(1, (now - a.SessionTime) / span)) : 0;
+  return {
+    x: a.Distance + (b.Distance - a.Distance) * f,
+    distance: meters(a) + (meters(b) - meters(a)) * f,
+    complete: false,
+  };
+}
+
+/**
+ * True when a sample may set a y-axis domain: no limit on the trace, or
+ * recorded by now (x <= trace.domainLimit, see recordedExtent).
+ *
+ * @param {{domainLimit?: number|null}} trace
+ * @param {{Distance: number}} d - a sample (Distance holds the x value in both axis modes)
+ * @returns {boolean}
+ */
+export function inDomain(trace, d) {
+  return trace.domainLimit == null || (d.Distance != null && d.Distance <= trace.domainLimit);
+}
+
+/**
+ * Comparison cards for the drawn laps at sessionNow, causal (decision R6):
+ * a lap in progress shows only its sectors already run, no lap time, and the
+ * tyre set in force (the old set until the pit exit); a completed lap shows
+ * its own values. Best sectors come from the driver's completed laps;
+ * weather is the reading in force at the lap's start (session time).
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
+ * @param {Array<Object>} weather - sessionData.weather_data
+ * @param {Array<{driver: string, lap: number}>} targets - telemetryTargets output
+ * @param {number} sessionNow - session seconds
+ * @returns {Array<Object>} one card per target
+ */
+export function telemetryCards(lapTimes, weather, targets, sessionNow) {
+  const rows = Array.isArray(lapTimes) ? lapTimes : [];
+  return (targets || []).map(({ driver, lap }) => {
+    const lapData = rows.find((lt) => lt.Driver === driver && lt.LapNumber === lap) || null;
+    const completed = lapData ? isLapCompleted(lapData, sessionNow) : false;
+    const st = completed ? null : driverStateAt(rows, driver, sessionNow, { dnf: false });
+    const live = st && st.inProgress === lapData ? st : null;
+    // Best sector times over the driver's completed laps (for color-coding)
+    let bestS1 = Infinity, bestS2 = Infinity, bestS3 = Infinity;
+    for (const lt of rows) {
+      if (lt.Driver !== driver || !isLapCompleted(lt, sessionNow)) continue;
+      if (lt.Sector1TimeSeconds > 0 && lt.Sector1TimeSeconds < bestS1) bestS1 = lt.Sector1TimeSeconds;
+      if (lt.Sector2TimeSeconds > 0 && lt.Sector2TimeSeconds < bestS2) bestS2 = lt.Sector2TimeSeconds;
+      if (lt.Sector3TimeSeconds > 0 && lt.Sector3TimeSeconds < bestS3) bestS3 = lt.Sector3TimeSeconds;
+    }
+    // Weather in force at the start of this lap
+    const start = lapData ? lapStartTime(lapData) : null;
+    const w = start != null ? weatherAtSessionTime(weather, start) : null;
+    // A lap not over yet: the set in force at now, never the row's own fields
+    const tyreLife = completed ? lapData?.TyreLife : st?.tyreLife;
+    return {
+      driver, lap,
+      compound: (completed ? lapData?.Compound : st?.compound) || 'UNKNOWN',
+      tyreLife: tyreLife != null ? Math.round(tyreLife) : null,
+      airTemp: w?.AirTemp ?? null,
+      trackTemp: w?.TrackTemp ?? null,
+      lapTime: completed ? lapData.LapTimeSeconds : null,
+      s1: completed ? lapData.Sector1TimeSeconds : (live?.visibleSectors.s1 ?? null),
+      s2: completed ? lapData.Sector2TimeSeconds : (live?.visibleSectors.s2 ?? null),
+      s3: completed ? lapData.Sector3TimeSeconds : (live?.visibleSectors.s3 ?? null),
+      bestS1: bestS1 < Infinity ? bestS1 : null,
+      bestS2: bestS2 < Infinity ? bestS2 : null,
+      bestS3: bestS3 < Infinity ? bestS3 : null,
+    };
+  });
+}
+
+/**
+ * Width of the reveal clip on screen for a reveal x in axis units: null = no
+ * clip (draw everything), -Infinity = nothing recorded yet (the axis start).
+ */
+function revealClipX(xScale, x) {
+  if (x == null) return null;
+  if (x === -Infinity) return xScale.range()[0];
+  return xScale(x);
 }
 
 export default function TelemetryStrip({ embedded = false }) {
@@ -33,6 +239,8 @@ export default function TelemetryStrip({ embedded = false }) {
   const brushRef = useRef(null);
   const clipRectsRef = useRef([]);       // clipPath rects for progressive reveal
   const currentDistRef = useRef(null);   // current driver distance (no re-render)
+  const revealXRef = useRef(null);       // reveal clip x in axis units (null = no clip)
+  const revealTraceRef = useRef(null);   // the running lap revealed by the clip
   const playheadRef = useRef(null);      // live playhead DOM handles on speed chart
 
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -41,7 +249,6 @@ export default function TelemetryStrip({ embedded = false }) {
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const selectedLapRange = useF1Store((s) => s.selectedLapRange);
-  const currentLap = useF1Store((s) => s.currentLap);
   const sessionData = useF1Store((s) => s.sessionData);
   const circuitInfo = useF1Store((s) => s.circuitInfo);
   const telemetryCache = useF1Store((s) => s.telemetryCache);
@@ -56,6 +263,7 @@ export default function TelemetryStrip({ embedded = false }) {
   const drivers = useF1Store((s) => s.drivers);
   const toggleDriver = useF1Store((s) => s.toggleDriver);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+  const totalFrames = useF1Store((s) => s.totalFrames);
   const frameData = useF1Store((s) => s.frameData);
   const isPlaying = useF1Store((s) => s.isPlaying);
   const telemetryChannels = useF1Store((s) => s.telemetryChannels);
@@ -128,15 +336,24 @@ export default function TelemetryStrip({ embedded = false }) {
     return [];
   }, [drivers, sessionData]);
 
-  // Racing laps for the focused driver (for presets)
+  // Causal "now" in session seconds (utils/raceTime.js). Lap choices below
+  // change only when a lap completes or a pit event happens (stintKey), not
+  // on every replay tick.
+  const sessionNow = useSessionNow();
+  const replayActive = totalFrames > 0;
+  const stintLapTimes = sessionData?.lap_times;
+  const stintKey = useMemo(() => causalKey(stintLapTimes, sessionNow), [stintLapTimes, sessionNow]);
+  const presetDriver = focusDriver || selectedDrivers[0] || null;
+
+  // Racing laps the focused driver has completed at sessionNow (for presets)
   const driverRacingLaps = useMemo(() => {
-    if (!sessionData?.lap_times) return [];
-    const driver = focusDriver || selectedDrivers[0];
-    if (!driver) return [];
-    return sessionData.lap_times
-      .filter((lt) => lt.Driver === driver && lt.LapTimeSeconds > 0 && lt.LapNumber <= currentLap && lt.LapTimeSeconds < 300)
+    if (!stintLapTimes || !presetDriver) return [];
+    return stintLapTimes
+      .filter((lt) => lt.Driver === presetDriver && lt.LapTimeSeconds > 0 && lt.LapTimeSeconds < 300
+        && isLapCompleted(lt, sessionNow))
       .sort((a, b) => a.LapNumber - b.LapNumber);
-  }, [sessionData, focusDriver, selectedDrivers, currentLap]);
+    // sessionNow enters through stintKey, which changes whenever the result does
+  }, [stintLapTimes, stintKey, presetDriver]);
 
   // Best lap for focused driver
   const bestLapNumber = useMemo(() => {
@@ -148,36 +365,45 @@ export default function TelemetryStrip({ embedded = false }) {
     return best.LapNumber;
   }, [driverRacingLaps]);
 
-  // First stint laps (before first pit stop)
+  // First stint laps (before first pit stop): stints from the FastF1 Stint
+  // column of the laps completed at sessionNow (utils/stints.js), so the
+  // preset only appears once the first stint is over in the replay
   const firstStintLastLap = useMemo(() => {
-    if (!sessionData?.tyre_strategy) return null;
-    const driver = focusDriver || selectedDrivers[0];
-    if (!driver) return null;
-    const stints = sessionData.tyre_strategy
-      .filter((s) => s.Driver === driver)
-      .sort((a, b) => (a.StintNumber || a.StartLap) - (b.StintNumber || b.StartLap));
+    if (!stintLapTimes || !presetDriver) return null;
+    const stints = stintsByDriver(stintLapTimes, { sessionNow })[presetDriver] || [];
     if (stints.length < 2) return null;
-    // End of first stint = start of second stint - 1
-    return (stints[1].StartLap || stints[1].LapNumber || 2) - 1;
-  }, [sessionData, focusDriver, selectedDrivers]);
+    return stints[0].EndLap;
+  }, [stintLapTimes, stintKey, presetDriver]);
 
-  // Determine which driver+lap combos to fetch
-  const fetchTargets = useMemo(() => {
-    if (!sessionData || currentLap < 1) return [];
-    if (telemetryCompareMode === 'drivers') {
-      const drvs = selectedDrivers.length > 0
-        ? selectedDrivers.slice(0, 4)
-        : (focusDriver ? [focusDriver] : []);
-      return drvs.map((d) => ({ driver: d, lap: currentLap }));
-    } else {
-      const driver = focusDriver || selectedDrivers[0];
-      if (!driver) return [];
-      // Always include current lap as reference, plus selected comparison laps
-      const compareLaps = telemetryCompareLaps.filter((l) => l !== currentLap);
-      const laps = [currentLap, ...compareLaps].slice(0, 4);
-      return laps.map((l) => ({ driver, lap: l }));
-    }
-  }, [selectedDrivers, focusDriver, currentLap, sessionData, telemetryCompareMode, telemetryCompareLaps]);
+  // The focus driver's reference lap (laps mode): the lap in progress with
+  // replay frames, else the last completed lap (telemetryReferenceLap)
+  const focusRef = useMemo(
+    () => (presetDriver && stintLapTimes
+      ? telemetryReferenceLap(stintLapTimes, presetDriver, sessionNow, { replayActive })
+      : { lap: null, inProgress: false, lapsCompleted: 0 }),
+    [stintLapTimes, presetDriver, sessionNow, replayActive],
+  );
+  const focusRefLap = focusRef.lap;
+  // Comparison presets: completed laps other than the reference lap
+  const priorLaps = useMemo(
+    () => driverRacingLaps.filter((l) => l.LapNumber !== focusRefLap),
+    [driverRacingLaps, focusRefLap],
+  );
+
+  // Which driver+lap combos to fetch and draw (telemetryTargets above). The
+  // list keeps its identity while its content is unchanged, so the debounced
+  // fetch below is not restarted on every replay tick.
+  const targetList = useMemo(
+    () => telemetryTargets(stintLapTimes, sessionNow, {
+      mode: telemetryCompareMode, focusDriver, selectedDrivers,
+      compareLaps: telemetryCompareLaps, replayActive,
+    }),
+    [stintLapTimes, sessionNow, telemetryCompareMode, focusDriver, selectedDrivers,
+      telemetryCompareLaps, replayActive],
+  );
+  const targetSignature = targetList.map((t) => `${t.driver}-${t.lap}-${t.inProgress ? 1 : 0}`).join(',');
+  // targetList enters through targetSignature, which changes whenever its content does
+  const fetchTargets = useMemo(() => targetList, [targetSignature]);
 
   // Cache key suffix matches store's fetchDriverTelemetry key format
   const cacheKeySuffix = isQualifyingReplay ? '-Q' : '-R';
@@ -197,7 +423,9 @@ export default function TelemetryStrip({ embedded = false }) {
     return () => clearTimeout(fetchTimerRef.current);
   }, [fetchTargets, telemetryCache, fetchDriverTelemetry, cacheKeySuffix]);
 
-  // Bridge selectedLapRange → telemetryCompareLaps (auto-populate in laps mode)
+  // Bridge selectedLapRange → telemetryCompareLaps (auto-populate in laps mode).
+  // The picks keep the user's range; telemetryTargets fetches and draws only
+  // those the driver has completed at sessionNow.
   useEffect(() => {
     if (!selectedLapRange || telemetryCompareMode !== 'laps') return;
     const [start, end] = selectedLapRange;
@@ -216,14 +444,49 @@ export default function TelemetryStrip({ embedded = false }) {
     }
   }, [selectedLapRange, telemetryCompareMode]);
 
+  // A lap still in progress is drawn only up to sessionNow (truncateToNow).
+  // The focus trace is revealed smoothly by the clip of the RAF loop below
+  // when it can run (frames, track coordinates, past frame 0), up to its own
+  // samples recorded by now (revealPoint); every other trace of a running lap
+  // is cut at its samples' SessionTime, on a half-second grid so the charts
+  // are not redrawn on every replay tick.
+  const clipActive = replayActive && currentFrameIndex > 0
+    && (circuitInfo?.track_coordinates?.length || 0) > 0;
+  const cutNow = Number.isFinite(sessionNow) ? Math.floor(sessionNow * 2) / 2 : Infinity;
+  const cutSignature = fetchTargets
+    .filter((t, i) => t.inProgress
+      && !(clipActive && (telemetryCompareMode === 'drivers' ? t.driver === presetDriver : i === 0)))
+    .map((t) => `${t.driver}-${t.lap}`)
+    .join(',');
+  const cutKey = cutSignature ? `${cutSignature}@${cutNow}` : '';
+  // A running lap (clip-revealed or cut) also bounds the axes at the samples
+  // recorded by now (domainLimit below), on the same half-second grid
+  const domainKey = fetchTargets.some((t) => t.inProgress) ? `${cutNow}` : '';
+
   // Build resolved trace data
   const traces = useMemo(() => {
     const totalLaps = fetchTargets.length;
+    const cutSet = new Set(cutSignature ? cutSignature.split(',') : []);
     const resolved = fetchTargets
-      .map(({ driver, lap }, i) => {
+      .map(({ driver, lap, inProgress }, i) => {
         const key = `${driver}-${lap}${cacheKeySuffix}`;
-        const rawData = telemetryCache[key];
-        if (!rawData || rawData.length === 0) return null;
+        const cached = telemetryCache[key];
+        if (!cached || cached.length === 0) return null;
+        const rawData = cutSet.has(`${driver}-${lap}`) ? truncateToNow(cached, cutNow) : cached;
+        if (rawData.length === 0) return null;
+        // Full-lap extent, so the x-axis does not grow while a running lap is cut
+        const fullLast = cached[cached.length - 1];
+        let fullLength = xAxisMode === 'time' ? (fullLast.Time ?? fullLast.Distance) : fullLast.Distance;
+        // A running lap's samples after now never set an axis (R6): the y
+        // domains use only its samples recorded by now (domainLimit, in x
+        // units; the clip-revealed focus trace holds the whole lap), and in
+        // time mode its x extent is the time run so far (its lap time is not
+        // known yet). The full distance of a lap is the track's, known.
+        let domainLimit = null;
+        if (inProgress && cutNow !== Infinity) {
+          domainLimit = recordedExtent(cached, cutNow, xAxisMode);
+          if (xAxisMode === 'time') fullLength = Math.max(0, domainLimit);
+        }
         // When xAxisMode is 'time', remap Distance ← Time so all render code (which keys
         // off d.Distance) transparently plots against lap-time seconds.
         const data = xAxisMode === 'time'
@@ -245,13 +508,19 @@ export default function TelemetryStrip({ embedded = false }) {
           ? (i === 0 ? 1 : Math.max(0.35, 1 - i * 0.25))
           : 1;
         const lapDashed = telemetryCompareMode === 'laps' && i > 0;
-        return { driver, lap, data, color, isFocus, isDimmed, isReference, lapOpacity, lapDashed, key };
+        // The running lap that is not cut here is revealed by the clip
+        const clipReveal = !!inProgress && !cutSet.has(`${driver}-${lap}`);
+        return {
+          driver, lap, data, fullLength, domainLimit, color, isFocus, isDimmed, isReference, lapOpacity,
+          lapDashed, key, clipReveal,
+        };
       })
       .filter(Boolean);
     const mainTraces = resolved;
     if (!showGhosts || !focusDriver) return mainTraces;
 
-    // Inject dim ghost traces: other cached laps of focus driver not already displayed
+    // Inject dim ghost traces: other cached laps of focus driver not already
+    // displayed, among the laps that driver has completed at sessionNow
     const activeKeys = new Set(mainTraces.map((t) => t.key));
     const prefix = `${focusDriver}-`;
     const ghosts = [];
@@ -264,6 +533,7 @@ export default function TelemetryStrip({ embedded = false }) {
       const lapMatch = key.slice(prefix.length).split('-')[0];
       const lapNum = Number(lapMatch);
       if (!Number.isFinite(lapNum)) continue;
+      if (lapNum > focusRef.lapsCompleted) continue;
       const ghostData = xAxisMode === 'time'
         ? data.map((d) => ({ ...d, Distance: d.Time != null ? d.Time : d.Distance, _origDistance: d.Distance }))
         : data;
@@ -284,7 +554,9 @@ export default function TelemetryStrip({ embedded = false }) {
     }
     // Ghosts first, so they render underneath the main traces
     return [...ghosts, ...mainTraces];
-  }, [fetchTargets, telemetryCache, focusDriver, telemetryCompareMode, highlightedDriver, xAxisMode, showGhosts, cacheKeySuffix]);
+    // cutNow enters through cutKey / domainKey, which change only while a lap is running
+  }, [fetchTargets, telemetryCache, focusDriver, telemetryCompareMode, highlightedDriver, xAxisMode,
+    showGhosts, cacheKeySuffix, cutKey, domainKey, focusRef.lapsCompleted]);
 
   // Position the speed-chart playhead at the focus driver's current distance
   // and stamp its bubble with the instant speed. Reads refs directly so it
@@ -366,9 +638,19 @@ export default function TelemetryStrip({ embedded = false }) {
       const idx = state.currentFrameIndex;
       const focus = state.focusDriver || state.selectedDrivers?.[0];
       const coords = state.circuitInfo?.track_coordinates;
+      // The running lap's own samples recorded by the replay's now (causal)
+      const revealData = revealTraceRef.current?.data;
+      const reveal = frames?.length && idx > 0 && revealData?.length
+        ? revealPoint(revealData, state.getSessionNow())
+        : null;
 
-      if (!frames?.length || idx <= 0 || !focus || !coords?.length) {
+      if (reveal) {
+        currentDistRef.current = reveal.complete ? null : reveal.distance;
+        revealXRef.current = reveal.complete ? null : reveal.x;
+      } else if (!revealTraceRef.current || !frames?.length || idx <= 0 || !focus || !coords?.length) {
+        // No running lap to reveal (or no clock to reveal it by): no clip
         currentDistRef.current = null;
+        revealXRef.current = null;
       } else {
         const f0 = frames[Math.min(idx, frames.length - 1)];
         const f1 = frames[Math.min(idx + 1, frames.length - 1)];
@@ -390,22 +672,22 @@ export default function TelemetryStrip({ embedded = false }) {
           }
           currentDistRef.current = nearestDistance(coords, x, y);
         }
+        // Samples without SessionTime: the car's track position. In time mode,
+        // xScale's domain is seconds — convert real distance to the
+        // corresponding time via the focus trace before scaling.
+        const dist = currentDistRef.current;
+        let domainX = dist;
+        const data = playheadRef.current?.focusTrace?.data;
+        if (data?.length && data[0]?._origDistance != null && dist != null) {
+          const bi = d3.bisector((d) => d._origDistance).left(data, dist);
+          domainX = data[Math.min(bi, data.length - 1)]?.Distance;
+        }
+        revealXRef.current = domainX != null && domainX > 0 ? domainX : null;
       }
 
       const xScale = xScaleRef.current;
-      const dist = currentDistRef.current;
       if (xScale && clipRectsRef.current.length > 0) {
-        // In time mode, xScale's domain is seconds — convert real distance
-        // to the corresponding time via the focus trace before scaling.
-        let domainX = dist;
-        const ph = playheadRef.current;
-        const data = ph?.focusTrace?.data;
-        if (data?.length && data[0]?._origDistance != null && dist != null) {
-          const idx = d3.bisector((d) => d._origDistance).left(data, dist);
-          const sample = data[Math.min(idx, data.length - 1)];
-          domainX = sample?.Distance;
-        }
-        const clipX = (domainX != null && domainX > 0) ? xScale(domainX) : null;
+        const clipX = revealClipX(xScale, revealXRef.current);
         clipRectsRef.current.forEach((rect) => {
           if (rect) rect.attr('width', clipX != null ? Math.max(0, clipX) : 9999);
         });
@@ -452,12 +734,14 @@ export default function TelemetryStrip({ embedded = false }) {
 
   // Track length — mode-aware: meters in distance mode, seconds in time mode.
   // The circuit fallback is meters only, so skip it in time mode to avoid
-  // crushing the domain (e.g. 5700m) against a ~85s trace.
+  // crushing the domain (e.g. 5700m) against a ~85s trace. A running lap that
+  // is drawn only up to now counts with its full-lap extent (fullLength).
   const trackLength = useMemo(() => {
     let max = 0;
     for (const t of traces) {
       const last = t.data[t.data.length - 1];
-      if (last?.Distance > max) max = last.Distance;
+      const extent = t.fullLength ?? last?.Distance;
+      if (extent > max) max = extent;
     }
     if (xAxisMode === 'distance' && circuitInfo?.track_coordinates?.length) {
       const last = circuitInfo.track_coordinates[circuitInfo.track_coordinates.length - 1];
@@ -472,45 +756,18 @@ export default function TelemetryStrip({ embedded = false }) {
     setZoomDomain(null);
   }, [trackLength, xAxisMode]);
 
-  // Driver info for comparison cards (enriched with tyre + weather)
+  // Driver info for comparison cards (enriched with tyre + weather), causal
+  // at sessionNow (telemetryCards above)
   const driverCards = useMemo(() => {
     if (!sessionData?.lap_times) return [];
-    const weather = sessionData.weather_data;
-    return fetchTargets.map(({ driver, lap }, i) => {
-      const lapData = sessionData.lap_times.find(
-        (lt) => lt.Driver === driver && lt.LapNumber === lap
-      );
-      const color = telemetryCompareMode === 'drivers'
-        ? getDriverColor(driver)
-        : (LAP_COLORS[i] || '#888');
-      const compound = lapData?.Compound || 'UNKNOWN';
-      const tyreLife = lapData?.TyreLife != null ? Math.round(lapData.TyreLife) : null;
-      // Find best sector times across all laps for this driver (for color-coding)
-      let bestS1 = Infinity, bestS2 = Infinity, bestS3 = Infinity;
-      for (const lt of sessionData.lap_times) {
-        if (lt.Driver !== driver) continue;
-        if (lt.Sector1TimeSeconds > 0 && lt.Sector1TimeSeconds < bestS1) bestS1 = lt.Sector1TimeSeconds;
-        if (lt.Sector2TimeSeconds > 0 && lt.Sector2TimeSeconds < bestS2) bestS2 = lt.Sector2TimeSeconds;
-        if (lt.Sector3TimeSeconds > 0 && lt.Sector3TimeSeconds < bestS3) bestS3 = lt.Sector3TimeSeconds;
-      }
-      // Weather for this lap (closest entry)
-      let airTemp = null, trackTemp = null;
-      if (weather?.length) {
-        airTemp = weather[0].AirTemp;
-        trackTemp = weather[0].TrackTemp;
-      }
-      return {
-        driver, lap, color, compound, tyreLife, airTemp, trackTemp,
-        lapTime: lapData?.LapTimeSeconds,
-        s1: lapData?.Sector1TimeSeconds,
-        s2: lapData?.Sector2TimeSeconds,
-        s3: lapData?.Sector3TimeSeconds,
-        bestS1: bestS1 < Infinity ? bestS1 : null,
-        bestS2: bestS2 < Infinity ? bestS2 : null,
-        bestS3: bestS3 < Infinity ? bestS3 : null,
-      };
-    });
-  }, [fetchTargets, sessionData, telemetryCompareMode]);
+    return telemetryCards(sessionData.lap_times, sessionData.weather_data, fetchTargets, sessionNow)
+      .map((card, i) => ({
+        ...card,
+        color: telemetryCompareMode === 'drivers'
+          ? getDriverColor(card.driver)
+          : (LAP_COLORS[i] || '#888'),
+      }));
+  }, [fetchTargets, sessionData, telemetryCompareMode, sessionNow]);
 
   // Effective domain for xScale
   const effectiveDomain = useMemo(() => {
@@ -533,20 +790,14 @@ export default function TelemetryStrip({ embedded = false }) {
       return;
     }
 
-    // Progressive-clip threshold. In time mode, convert real distance →
-    // time via the first trace, so the comparison matches `distance` units.
-    let clipDist = currentDistRef.current;
-    if (xAxisMode === 'time' && clipDist != null && traces[0]?.data?.length) {
-      const refData = traces[0].data;
-      const idx = d3.bisector((d) => d._origDistance ?? d.Distance).left(refData, clipDist);
-      const sample = refData[Math.min(idx, refData.length - 1)];
-      clipDist = sample?.Distance;
-    }
+    // Progressive-clip threshold, in axis units (revealXRef: the running lap's
+    // samples recorded by now): nothing beyond it is reported
+    const clipDist = revealXRef.current;
 
     // Find values at this distance for each trace (exclude ghost overlays)
     const values = traces.filter((t) => !t.isGhost).map((t) => {
       // If beyond the progressive clip point, show no value
-      if (clipDist != null && clipDist > 0 && distance > clipDist) {
+      if (clipDist != null && distance > clipDist) {
         return {
           driver: t.driver, lap: t.lap, color: t.color,
           speed: null, throttle: null, brake: null, gear: null, rpm: null,
@@ -628,6 +879,8 @@ export default function TelemetryStrip({ embedded = false }) {
         if (ref.current) d3.select(ref.current).selectAll('*').remove();
       });
       clipRectsRef.current = [];
+      revealTraceRef.current = null;
+      revealXRef.current = null;
       return;
     }
 
@@ -651,10 +904,18 @@ export default function TelemetryStrip({ embedded = false }) {
     renderGearChart(gearRef.current, sorted, xScale, margin, sectorBoundaries, xAxisMode);
     renderRPMChart(rpmRef.current, sorted, xScale, margin, sectorBoundaries, xAxisMode);
 
-    // Add clipPaths for progressive reveal (only clips trace <path> elements)
+    // Add clipPaths for progressive reveal (only clips trace <path> elements),
+    // at once at the running lap's samples recorded by now (the RAF loop then
+    // follows the clock)
     const svgRefs = [speedRef, deltaRef, throttleRef, gearRef, rpmRef];
-    const clipDist = currentDistRef.current;
-    const clipX = (clipDist != null && clipDist > 0) ? xScale(clipDist) : null;
+    revealTraceRef.current = traces.find((t) => t.clipReveal && !t.isGhost) || null;
+    const st = useF1Store.getState();
+    const reveal = revealTraceRef.current && st.totalFrames > 0 && st.currentFrameIndex > 0
+      ? revealPoint(revealTraceRef.current.data, st.getSessionNow())
+      : null;
+    if (reveal) revealXRef.current = reveal.complete ? null : reveal.x;
+    else if (!revealTraceRef.current) revealXRef.current = null;
+    const clipX = revealClipX(xScale, revealXRef.current);
 
     clipRectsRef.current = svgRefs.map((ref, i) => {
       if (!ref.current) return null;
@@ -718,22 +979,22 @@ export default function TelemetryStrip({ embedded = false }) {
 
   // Toggle a lap in/out of comparison
   const handleToggleLap = useCallback((lap) => {
-    if (lap === currentLap) return; // current lap is always the reference
+    if (lap === focusRefLap) return; // the reference lap is always shown
     if (telemetryCompareLaps.includes(lap)) {
       setTelemetryCompareLaps(telemetryCompareLaps.filter((l) => l !== lap));
     } else {
       setTelemetryCompareLaps([...telemetryCompareLaps, lap].slice(0, 3)); // max 3 comparison laps + current
     }
-  }, [currentLap, telemetryCompareLaps, setTelemetryCompareLaps]);
+  }, [focusRefLap, telemetryCompareLaps, setTelemetryCompareLaps]);
 
   // Handle adding laps via number input
   const addLapFromInput = useCallback(() => {
     const lap = parseInt(lapInput, 10);
-    if (lap > 0 && lap <= maxLap && lap !== currentLap && !telemetryCompareLaps.includes(lap)) {
+    if (lap > 0 && lap <= maxLap && lap !== focusRefLap && !telemetryCompareLaps.includes(lap)) {
       setTelemetryCompareLaps([...telemetryCompareLaps, lap].slice(0, 3));
     }
     setLapInput('');
-  }, [lapInput, maxLap, currentLap, telemetryCompareLaps, setTelemetryCompareLaps]);
+  }, [lapInput, maxLap, focusRefLap, telemetryCompareLaps, setTelemetryCompareLaps]);
 
   const handleAddLap = useCallback((e) => {
     if (e.key === 'Enter') addLapFromInput();
@@ -915,10 +1176,10 @@ export default function TelemetryStrip({ embedded = false }) {
               <button
                 className={`telem-preset-btn${telemetryCompareLaps.length === 0 ? '' : ''}`}
                 onClick={() => {
-                  const laps = driverRacingLaps.slice(-4, -1).map((l) => l.LapNumber);
+                  const laps = priorLaps.slice(-3).map((l) => l.LapNumber);
                   setTelemetryCompareLaps(laps);
                 }}
-                disabled={driverRacingLaps.length < 2}
+                disabled={priorLaps.length < 1}
                 title="Compare current lap vs the last 3 laps"
               >
                 Last 3
@@ -926,16 +1187,16 @@ export default function TelemetryStrip({ embedded = false }) {
               <button
                 className="telem-preset-btn"
                 onClick={() => {
-                  const laps = driverRacingLaps.slice(-6, -1);
+                  const laps = priorLaps.slice(-5);
                   const pick = laps.length <= 3 ? laps : [laps[0], laps[Math.floor(laps.length / 2)], laps[laps.length - 1]];
                   setTelemetryCompareLaps(pick.map((l) => l.LapNumber));
                 }}
-                disabled={driverRacingLaps.length < 3}
+                disabled={priorLaps.length < 2}
                 title="Compare current lap vs 3 evenly-spaced from the last 5"
               >
                 Last 5
               </button>
-              {bestLapNumber && bestLapNumber !== currentLap && (
+              {bestLapNumber && bestLapNumber !== focusRefLap && (
                 <button
                   className="telem-preset-btn telem-preset-btn--best"
                   onClick={() => setTelemetryCompareLaps([bestLapNumber])}
@@ -944,7 +1205,7 @@ export default function TelemetryStrip({ embedded = false }) {
                   vs Best
                 </button>
               )}
-              {firstStintLastLap && firstStintLastLap !== currentLap && (
+              {firstStintLastLap && firstStintLastLap !== focusRefLap && (
                 <button
                   className="telem-preset-btn"
                   onClick={() => setTelemetryCompareLaps([firstStintLastLap])}
@@ -1371,6 +1632,7 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
   let yMin = Infinity, yMax = -Infinity;
   for (const t of traces) {
     for (const d of t.data) {
+      if (!inDomain(t, d)) continue;
       if (d.Speed != null) {
         if (d.Speed < yMin) yMin = d.Speed;
         if (d.Speed > yMax) yMax = d.Speed;
@@ -1480,7 +1742,9 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
   // Kept outside clippable groups so it's always visible, and drawn last so
   // it renders above the trace lines.
   if (playheadRef) {
-    const focusTrace = traces.find((t) => t.isFocus) || traces[0] || null;
+    // The running lap revealed by the clip first: the playhead reads its speed
+    const focusTrace = traces.find((t) => t.clipReveal && !t.isGhost)
+      || traces.find((t) => t.isFocus) || traces[0] || null;
     const phGroup = g.append('g')
       .attr('class', 'telem-playhead')
       .style('display', 'none')
@@ -1541,7 +1805,9 @@ function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxis
   for (let i = 1; i < traces.length; i++) {
     const delta = computeDelta(refTrace.data, traces[i].data);
     if (delta.length > 0) {
-      deltaTraces.push({ data: delta, color: traces[i].color, driver: traces[i].driver });
+      // the gap is known up to where both laps are recorded by now
+      const domainLimit = Math.min(refTrace.domainLimit ?? Infinity, traces[i].domainLimit ?? Infinity);
+      deltaTraces.push({ data: delta, color: traces[i].color, driver: traces[i].driver, domainLimit });
     }
   }
 
@@ -1555,6 +1821,7 @@ function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxis
   let yMin = 0, yMax = 0;
   for (const dt of deltaTraces) {
     for (const d of dt.data) {
+      if (d.distance > dt.domainLimit) continue; // not recorded yet at now
       if (d.delta < yMin) yMin = d.delta;
       if (d.delta > yMax) yMax = d.delta;
     }
@@ -1793,6 +2060,7 @@ function renderRPMChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisMo
   let yMin = Infinity, yMax = -Infinity;
   for (const t of traces) {
     for (const d of t.data) {
+      if (!inDomain(t, d)) continue;
       if (d.RPM != null && d.RPM > 0) {
         if (d.RPM < yMin) yMin = d.RPM;
         if (d.RPM > yMax) yMax = d.RPM;

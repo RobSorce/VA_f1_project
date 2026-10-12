@@ -1,6 +1,27 @@
 import { useEffect } from 'react';
 import { useF1Store } from '../store/useF1Store';
 
+/**
+ * One lap step of the arrow keys on the store state. In lap mode (no frames)
+ * the step after the last lap is the race-over state (store showRaceOver:
+ * the clock after the chequered flag), and the step back from it is the last
+ * lap (the leader starting it).
+ *
+ * @param {Object} state - useF1Store.getState()
+ * @param {number} delta - +1 (ArrowRight) or -1 (ArrowLeft)
+ */
+export function stepLap(state, delta) {
+  if (delta < 0) {
+    if (state.lapModeRaceOver) state.setCurrentLap(state.currentLap);
+    else if (state.currentLap > 1) state.setCurrentLap(state.currentLap - 1);
+    return;
+  }
+  if (state.currentLap < state.maxLap) state.setCurrentLap(state.currentLap + 1);
+  else if (!state.totalFrames && !state.isLiveMode && !state.lapModeRaceOver && state.maxLap > 1) {
+    state.showRaceOver();
+  }
+}
+
 export function useKeyboardShortcuts() {
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -149,12 +170,12 @@ export function useKeyboardShortcuts() {
       // Arrow left/right — navigate laps
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        if (state.currentLap > 1) state.setCurrentLap(state.currentLap - 1);
+        stepLap(state, -1);
         return;
       }
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        if (state.currentLap < state.maxLap) state.setCurrentLap(state.currentLap + 1);
+        stepLap(state, 1);
         return;
       }
 

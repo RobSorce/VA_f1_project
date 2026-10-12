@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, weatherAtSessionTime } from '../../store/useF1Store';
+import { useSessionNow } from '../../hooks/useSessionNow';
 
 function ThermometerIcon() {
   return (
@@ -51,25 +52,18 @@ const titleStyle = {
 
 export default function WeatherMini() {
   const sessionData = useF1Store((s) => s.sessionData);
-  const currentTime = useF1Store((s) => s.currentTime);
-  const isLiveMode = useF1Store((s) => s.isLiveMode);
   const weatherData = sessionData?.weather_data;
+  // Session seconds; Infinity in live mode, so the most recent entry is shown.
+  // In a qualifying replay it is the active segment's clock (the store's
+  // sessionTimeOffset is that segment's origin), so each segment shows its
+  // own weather.
+  const sessionNow = useSessionNow();
 
-  const latest = useMemo(() => {
-    if (!weatherData?.length) return null;
-    // In live mode, always show the most recent weather entry
-    if (isLiveMode) return weatherData[weatherData.length - 1];
-    if (!currentTime || currentTime <= 0) return weatherData[0];
-    let best = weatherData[0];
-    for (const w of weatherData) {
-      if (w.Time != null && w.Time <= currentTime) {
-        best = w;
-      } else if (w.Time != null && w.Time > currentTime) {
-        break;
-      }
-    }
-    return best;
-  }, [weatherData, currentTime, isLiveMode]);
+  // Weather row in force at sessionNow (Time is session seconds)
+  const latest = useMemo(
+    () => weatherAtSessionTime(weatherData, sessionNow),
+    [weatherData, sessionNow],
+  );
 
   if (!latest) {
     return (
@@ -106,7 +100,8 @@ export default function WeatherMini() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#bbc' }}>
           <WindIcon />
           <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
-            {latest.WindSpeed != null ? `${Number(latest.WindSpeed).toFixed(1)} km/h` : '\u2014'}
+            {/* FastF1 WindSpeed is in m/s (WeatherBar shows the same unit) */}
+            {latest.WindSpeed != null ? `${Number(latest.WindSpeed).toFixed(1)} m/s` : '\u2014'}
           </span>
         </div>
         <div style={{ gridColumn: 'span 2', marginTop: 2 }}>

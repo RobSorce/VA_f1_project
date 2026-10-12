@@ -2,6 +2,10 @@ import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import { useSessionNow } from '../../hooks/useSessionNow';
+import { completedLaps, isLapCompleted } from '../../utils/raceTime';
+import { pitStops } from '../../utils/stints';
+import { causalKey } from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
 
 const MARGIN = { top: 28, right: 90, bottom: 32, left: 36 };
@@ -62,6 +66,38 @@ function computeUndercutWindow(focus, driverLapMap, lap, maxLap) {
   };
 }
 
+/**
+ * Pit-stop markers for the position chart at sessionNow (session seconds):
+ * one per tyre change visible at that time (utils/stints.js pitStops, R2:
+ * from the pit exit; drive-throughs and SC pit-lane passes are not stops),
+ * placed on the in-lap at the position the driver had at its end.
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
+ * @param {number} sessionNow - session seconds, Infinity = whole race
+ * @returns {Array<{driver: string, lap: number, position: number, fromCompound: string,
+ *   toCompound: string, tyreAge: number|null}>}
+ */
+export function positionPitMarkers(lapTimes, sessionNow) {
+  const rows = Array.isArray(lapTimes) ? lapTimes : [];
+  const inLaps = new Map();
+  for (const lt of rows) inLaps.set(`${lt.Driver}_${lt.LapNumber}`, lt);
+  const out = [];
+  for (const stop of pitStops(rows, { sessionNow })) {
+    const inRow = inLaps.get(`${stop.Driver}_${stop.inLap}`);
+    // The in-lap is over at the pit exit; its end position places the marker
+    if (!inRow?.Position || !isLapCompleted(inRow, sessionNow)) continue;
+    out.push({
+      driver: stop.Driver,
+      lap: stop.inLap,
+      position: inRow.Position,
+      fromCompound: stop.fromCompound,
+      toCompound: stop.toCompound,
+      tyreAge: inRow.TyreLife ?? null,
+    });
+  }
+  return out;
+}
+
 export default function PositionByLap() {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
@@ -78,9 +114,12 @@ export default function PositionByLap() {
   const currentLap      = useF1Store(s => s.currentLap);
   const maxLap          = useF1Store(s => s.maxLap);
   const lstmPredictions = useF1Store(s => s.lstmPredictions);
-  const replayActive    = useF1Store(s => s.replayActive);
+  const replayActive    = useF1Store(s => s.totalFrames > 0);
   const brushLapRange   = useF1Store(s => s.brushLapRange);
   const setBrushLapRange = useF1Store(s => s.setBrushLapRange);
+  // Causal "now" in session seconds (utils/raceTime.js): positions, stints and
+  // pit markers are drawn only for laps completed at that time
+  const sessionNow      = useSessionNow();
 
   /* ── Resize observer ─────────────────────────────────────────── */
   useEffect(() => {
@@ -95,10 +134,18 @@ export default function PositionByLap() {
   }, []);
 
   /* ── Data preparation ────────────────────────────────────────── */
+  // Rows completed at sessionNow: the count changes once per finished lap, so
+  // the chart is redrawn per completed lap, not on every replay tick
+  const completedCount = useMemo(() => {
+    let n = 0;
+    for (const row of lapTimes) if (isLapCompleted(row, sessionNow)) n++;
+    return n;
+  }, [lapTimes, sessionNow]);
+
   const { driverLapMap, allDrivers, compoundsUsed } = useMemo(() => {
     const map = {};
     const compounds = new Set();
-    lapTimes.forEach(row => {
+    completedLaps(lapTimes, sessionNow).forEach(row => {
       if (!row.Driver || !row.Position) return;
       if (!map[row.Driver]) map[row.Driver] = [];
       map[row.Driver].push(row);
@@ -106,7 +153,17 @@ export default function PositionByLap() {
     });
     Object.values(map).forEach(arr => arr.sort((a, b) => a.LapNumber - b.LapNumber));
     return { driverLapMap: map, allDrivers: Object.keys(map), compoundsUsed: [...compounds] };
-  }, [lapTimes]);
+    // sessionNow enters through completedCount, which changes whenever the result does
+  }, [lapTimes, completedCount]);
+
+  // Pit stops (tyre changes) visible at sessionNow: rebuilt when a lap
+  // completes or a pit event happens (causalKey), not on every replay tick
+  const pitKey = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
+  const pitMarkers = useMemo(
+    () => positionPitMarkers(lapTimes, sessionNow),
+    // sessionNow enters through pitKey, which changes whenever the result does
+    [lapTimes, pitKey],
+  );
 
   const numDrivers = allDrivers.length || 20;
   const effectiveMaxLap = Math.max(maxLap || 1, d3.max(lapTimes, d => d.LapNumber) || 70);
@@ -234,62 +291,53 @@ export default function PositionByLap() {
       });
 
     /* ── Layer 3: Pit stop markers ─────────────────────────────── */
-    allDrivers.forEach(driver => {
-      const laps = driverLapMap[driver];
-      if (!laps) return;
+    // One per tyre change visible at sessionNow (positionPitMarkers above)
+    pitMarkers.forEach(({ driver, lap, position, fromCompound, toCompound, tyreAge }) => {
       const color = getDriverColor(driver);
       const isDimmed = focusDriver && driver !== focusDriver && !selectedDrivers.includes(driver);
+      const cx = xScale(lap);
+      const cy = yScale(position);
 
-      laps.forEach((lap, i) => {
-        // Detect pit: PitInTime exists or compound changes next lap
-        const isPit = lap.PitInTime || (i < laps.length - 1 && laps[i + 1].Compound && laps[i + 1].Compound !== lap.Compound);
-        if (!isPit) return;
+      const g = pitG.append('g').attr('opacity', isDimmed ? 0.12 : 0.9);
 
-        const cx = xScale(lap.LapNumber);
-        const cy = yScale(lap.Position);
-        const nextLap = laps[i + 1];
+      // Vertical tick
+      g.append('line')
+        .attr('x1', cx).attr('x2', cx)
+        .attr('y1', cy - yScale(0.7) + yScale(1))
+        .attr('y2', cy + yScale(0.7) - yScale(1))
+        .attr('stroke', color).attr('stroke-width', 2);
 
-        const g = pitG.append('g').attr('opacity', isDimmed ? 0.12 : 0.9);
+      // Circle
+      g.append('circle')
+        .attr('cx', cx).attr('cy', cy).attr('r', 4)
+        .attr('fill', color).attr('stroke', 'rgba(0,0,0,0.5)').attr('stroke-width', 1);
 
-        // Vertical tick
-        g.append('line')
-          .attr('x1', cx).attr('x2', cx)
-          .attr('y1', cy - yScale(0.7) + yScale(1))
-          .attr('y2', cy + yScale(0.7) - yScale(1))
-          .attr('stroke', color).attr('stroke-width', 2);
-
-        // Circle
-        g.append('circle')
-          .attr('cx', cx).attr('cy', cy).attr('r', 4)
-          .attr('fill', color).attr('stroke', 'rgba(0,0,0,0.5)').attr('stroke-width', 1);
-
-        // Pit tooltip on hover
-        g.style('cursor', 'default')
-          .on('mouseenter', (event) => {
-            const tip = tooltipRef.current;
-            if (!tip) return;
-            const fromCompound = lap.Compound || '?';
-            const toCompound = nextLap?.Compound || '?';
-            const tyreAge = lap.TyreLife || '?';
-            tip.style.display = 'block';
-            tip.innerHTML = `
-              <div class="pos-chart-tooltip__driver" style="color:${color}">${driver} — LAP ${lap.LapNumber}</div>
-              <div class="pos-chart-tooltip__row"><span>Strategy</span><span>${fromCompound} → ${toCompound}</span></div>
-              <div class="pos-chart-tooltip__row"><span>Tyre age</span><span>${tyreAge} laps</span></div>
-            `;
-            tip.style.left = `${event.clientX + 12}px`;
-            tip.style.top = `${event.clientY - 10}px`;
-          })
-          .on('mouseleave', () => {
-            const tip = tooltipRef.current;
-            if (tip) tip.style.display = 'none';
-          });
-      });
+      // Pit tooltip on hover
+      g.style('cursor', 'default')
+        .on('mouseenter', (event) => {
+          const tip = tooltipRef.current;
+          if (!tip) return;
+          tip.style.display = 'block';
+          tip.innerHTML = `
+            <div class="pos-chart-tooltip__driver" style="color:${color}">${driver} — LAP ${lap}</div>
+            <div class="pos-chart-tooltip__row"><span>Strategy</span><span>${fromCompound || '?'} → ${toCompound || '?'}</span></div>
+            <div class="pos-chart-tooltip__row"><span>Tyre age</span><span>${tyreAge ?? '?'} laps</span></div>
+          `;
+          tip.style.left = `${event.clientX + 12}px`;
+          tip.style.top = `${event.clientY - 10}px`;
+        })
+        .on('mouseleave', () => {
+          const tip = tooltipRef.current;
+          if (tip) tip.style.display = 'none';
+        });
     });
 
     /* ── Layer 4: Undercut band ────────────────────────────────── */
     if (showUndercut && focusDriver) {
-      const uc = computeUndercutWindow(focusDriver, driverLapMap, currentLap, effectiveMaxLap);
+      // Positions and tyre ages at the focus driver's last completed lap
+      const focusDone = driverLapMap[focusDriver];
+      const ucLap = focusDone?.length ? focusDone[focusDone.length - 1].LapNumber : currentLap;
+      const uc = computeUndercutWindow(focusDriver, driverLapMap, ucLap, effectiveMaxLap);
       if (uc) {
         const x0 = xScale(uc.lapStart);
         const x1 = xScale(uc.lapEnd);
@@ -316,14 +364,16 @@ export default function PositionByLap() {
     if (showProjection && focusDriver && currentLap > 5) {
       const focusLaps = driverLapMap[focusDriver];
       if (focusLaps?.length) {
-        const focusCurrent = focusLaps.find(l => l.LapNumber === currentLap)
-          || focusLaps[focusLaps.length - 1];
+        // Anchor: the focus driver's last completed lap (focusLaps holds
+        // completed laps only)
+        const focusCurrent = focusLaps[focusLaps.length - 1];
+        const anchorLap = focusCurrent.LapNumber;
         const focusCurrentPos = focusCurrent.Position;
         const color = getDriverColor(focusDriver);
 
-        // Compute trend from last 5 laps
+        // Compute trend from the last 5 completed laps
         const last5 = focusLaps
-          .filter(l => l.LapNumber >= currentLap - 5 && l.LapNumber <= currentLap)
+          .filter(l => l.LapNumber >= anchorLap - 5)
           .slice(-5);
 
         let positionTrend = 0;
@@ -332,12 +382,12 @@ export default function PositionByLap() {
         }
 
         const projectionLaps = 5;
-        const projectedPoints = [{ LapNumber: currentLap, Position: focusCurrentPos }];
+        const projectedPoints = [{ LapNumber: anchorLap, Position: focusCurrentPos }];
         let lastProj = focusCurrentPos;
         for (let i = 1; i <= projectionLaps; i++) {
-          if (currentLap + i > effectiveMaxLap) break;
+          if (anchorLap + i > effectiveMaxLap) break;
           lastProj = Math.max(1, Math.min(numDrivers, focusCurrentPos + positionTrend * i));
-          projectedPoints.push({ LapNumber: currentLap + i, Position: lastProj });
+          projectedPoints.push({ LapNumber: anchorLap + i, Position: lastProj });
         }
 
         if (projectedPoints.length >= 2) {
@@ -462,7 +512,7 @@ export default function PositionByLap() {
 
   }, [lapTimes, dims, focusDriver, selectedDrivers, currentLap, maxLap, effectiveMaxLap,
       numDrivers, showProjection, showUndercut, replayActive, lstmPredictions, driverLapMap,
-      allDrivers, brushLapRange, setBrushLapRange, setFocusDriver]);
+      allDrivers, brushLapRange, setBrushLapRange, setFocusDriver, pitMarkers]);
 
   /* ── Legend items ─────────────────────────────────────────────── */
   const legendItems = useMemo(() => {

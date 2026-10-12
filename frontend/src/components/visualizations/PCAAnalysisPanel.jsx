@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
+import { patternStopCount } from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
 
 /* ── Shared tab pill style helper ── */
@@ -368,7 +369,8 @@ export default function PCAAnalysisPanel() {
                         <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: isApplied ? '#22c55e' : i === 0 ? '#64C4FF' : 'var(--color-text-primary)' }}>
                           {s.count}× ({(s.frequency * 100).toFixed(0)}%)
                         </span>
-                        <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>{s.stints.length}-stop strategy</span>
+                        {/* N stints = N - 1 stops (same rule as insightsGenerator / tsne_compute.py) */}
+                        <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>{patternStopCount(s.stints)}-stop strategy</span>
                         {canApply && (
                           <span style={{
                             marginLeft: 'auto', fontSize: '8px', fontWeight: 600,

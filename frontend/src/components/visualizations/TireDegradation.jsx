@@ -2,6 +2,12 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import { useSessionNow } from '../../hooks/useSessionNow';
+import { stintsByDriver } from '../../utils/stints';
+import {
+  causalKey, driverCompletedLaps, groupLapsByStint, fittedLapRange,
+} from '../../utils/strategyViews';
+import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
@@ -63,14 +69,26 @@ export default function TireDegradation() {
   }, [activeRange, focusDriver, selectedDrivers, year, round, fetchDegradationRegression]);
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
+  // Causal "now" (session seconds); the key changes only when a lap or a pit
+  // event completes, so chartData is not rebuilt on every replay frame
+  const sessionNow = useSessionNow();
+  const causal = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
 
   // Pick driver: focusDriver → first selectedDriver → null
   const driver = focusDriver || selectedDrivers[0] || null;
   const driverColor = driver ? getDriverColor(driver) : '#888';
 
-  // Check if the focused driver has retired
-  const driverDnf = driver ? dnfMap[driver] : null;
-  const isDriverRetired = driverDnf && driverDnf.lastLap <= currentLap;
+  // Has the focused driver retired by sessionNow? Only once the final lap row
+  // has ended (or, for a retirement in the pits, the car entered the pits):
+  // utils/driverState.js, never from the leader's lap number. Results DNFs
+  // and classified drivers who stopped before the flag (nonFinisherMap).
+  const driverDnf = driver ? (nonFinisherMap(lapTimes, dnfMap)[driver] || null) : null;
+  const isDriverRetired = useMemo(
+    () => (driver && driverDnf
+      ? driverStateAt(lapTimes, driver, sessionNow, { dnf: driverDnf }).retired
+      : false),
+    [lapTimes, driver, driverDnf, causal],
+  );
 
   // Build stint data with linear regression per stint. The brush filters
   // by lap-number range so the scatter visibly redraws on the brushed
@@ -84,15 +102,12 @@ export default function TireDegradation() {
 
     const [brushLo, brushHi] = activeRange || [null, null];
 
-    const buildLaps = (applyBrush) => lapTimes
-      .filter((d) => (
-        d.Driver === driver
-        && d.LapNumber <= currentLap
-        && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300
-        && (!applyBrush || brushLo == null || d.LapNumber >= brushLo)
-        && (!applyBrush || brushHi == null || d.LapNumber <= brushHi)
-      ))
-      .sort((a, b) => a.LapNumber - b.LapNumber);
+    // Only laps completed at sessionNow: the lap in progress has no time yet
+    const doneLaps = driverCompletedLaps(lapTimes, driver, sessionNow);
+    const buildLaps = (applyBrush) => doneLaps.filter((d) => (
+      (!applyBrush || brushLo == null || d.LapNumber >= brushLo)
+      && (!applyBrush || brushHi == null || d.LapNumber <= brushHi)
+    ));
 
     let driverLaps = buildLaps(true);
     // If the brush filter zeroes everything out, drop it for rendering.
@@ -103,33 +118,25 @@ export default function TireDegradation() {
 
     if (driverLaps.length === 0) return { stints: [], yExtent: [80, 100] };
 
-    // Group into stints by compound change or tyre life reset at pit stop
-    const stints = [];
-    let current = { compound: driverLaps[0].Compound || 'UNKNOWN', laps: [] };
-
-    driverLaps.forEach((lap) => {
-      const compound = lap.Compound || 'UNKNOWN';
-      const isPitOut = !!lap.PitOutTime;
-      const compoundChanged = compound !== current.compound;
-      const tyreLifeReset = lap.TyreLife != null && lap.TyreLife <= 1 && current.laps.length > 2;
-      if ((compoundChanged || (tyreLifeReset && isPitOut)) && current.laps.length > 0) {
-        stints.push(current);
-        current = { compound, laps: [] };
-      }
-      current.laps.push({
+    // Group into stints from the FastF1 Stint column (utils/stints.js), so two
+    // back-to-back stints on the same compound stay separate
+    const driverStints = stintsByDriver(lapTimes, { sessionNow })[driver] || [];
+    const stints = groupLapsByStint(driverLaps, driverStints).map(({ stint, laps }) => ({
+      compound: stint.Compound,
+      stintNumber: stint.StintNumber,
+      laps: laps.map((lap, i) => ({
         lapNumber: lap.LapNumber,
         lapTime: lap.LapTimeSeconds,
-        tyreLife: lap.TyreLife || current.laps.length + 1,
-        compound,
+        tyreLife: lap.TyreLife || i + 1,
+        compound: stint.Compound,
         isPitIn: lap.PitInTime != null,
         isPitOut: lap.PitOutTime != null,
-      });
-    });
-    if (current.laps.length > 0) stints.push(current);
+      })),
+    }));
 
     // Filter outliers and compute linear regression per stint
     const allCleanTimes = [];
-    stints.forEach((stint, idx) => {
+    stints.forEach((stint) => {
       const times = stint.laps.map((l) => l.lapTime);
       const median = d3.median(times);
       const threshold = median * 1.3;
@@ -147,7 +154,7 @@ export default function TireDegradation() {
       const regressionPoints = stint.cleanLaps.map((l) => ({ x: l.tyreLife, y: l.lapTime }));
       stint.regression = linearRegression(regressionPoints);
 
-      stint.stintIndex = idx;
+      stint.stintIndex = stint.stintNumber - 1;
       stint.startLap = stint.laps[0]?.lapNumber;
       stint.endLap = stint.laps[stint.laps.length - 1]?.lapNumber;
     });
@@ -158,7 +165,7 @@ export default function TireDegradation() {
       : [80, 100];
 
     return { stints, yExtent };
-  }, [driver, lapTimes, maxLap, currentLap, activeRange]);
+  }, [driver, lapTimes, maxLap, causal, activeRange]);
 
   // Pit window info
   const pitWindow = useMemo(() => {
@@ -520,12 +527,32 @@ export default function TireDegradation() {
     const slopeMs = hasFit ? Math.round(reg.slope * 1000) : null;
     const slopeFc = hasFit && reg.slope_fuel_corrected != null
       ? Math.round(reg.slope_fuel_corrected * 1000) : null;
+    // The store clamps the fit to the laps completed so far: lap_end_used is
+    // the last lap actually fitted (< hi while the replay is inside the brush)
+    const fit = hasFit ? fittedLapRange(reg) : null;
     return (
       <div className="deg-brush-banner">
         <span className="deg-brush-banner__label">BRUSHED LAPS</span>
         <span className="deg-brush-banner__range">L{lo} – L{hi}</span>
         {hasFit ? (
           <>
+            {fit && (
+              <>
+                <span className="deg-brush-banner__sep">·</span>
+                <span
+                  className="deg-brush-banner__fit"
+                  title={fit.partial
+                    ? 'Fitted on the laps of the brushed range completed so far; the fit extends as the replay advances'
+                    : 'Fitted on the whole brushed range'}
+                >
+                  <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>fitted</span>
+                  <strong>L{fit.start} – L{fit.end}</strong>
+                  {fit.partial && (
+                    <span style={{ color: 'rgba(255,255,255,0.5)', marginLeft: 4 }}>(so far)</span>
+                  )}
+                </span>
+              </>
+            )}
             <span className="deg-brush-banner__sep">·</span>
             <span className="deg-brush-banner__slope">
               <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>raw</span>

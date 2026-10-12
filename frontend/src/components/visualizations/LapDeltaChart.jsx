@@ -2,7 +2,42 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
+import { useSessionNow } from '../../hooks/useSessionNow';
+import { completedLaps } from '../../utils/raceTime';
+import { causalKey } from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
+
+/**
+ * Cumulative race time per driver over the laps COMPLETED at sessionNow
+ * (session seconds, utils/raceTime.js): a lap time is known at the lap's
+ * end, so the chart never draws a lap still running (decision R6). Laps
+ * without a usable time (0 < LapTimeSeconds < 300) are skipped.
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
+ * @param {number} [sessionNow=Infinity] - session seconds
+ * @returns {Object<string, Array<{lap: number, cumTime: number, lapTime: number}>>} by lap
+ */
+export function cumulativeLapTimes(lapTimes, sessionNow = Infinity) {
+  const map = {};
+  for (const d of completedLaps(lapTimes || [], sessionNow)) {
+    if (!map[d.Driver]) map[d.Driver] = {};
+    if (d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300) {
+      map[d.Driver][d.LapNumber] = d.LapTimeSeconds;
+    }
+  }
+  const cumMap = {};
+  for (const [driver, laps] of Object.entries(map)) {
+    const sortedLaps = Object.keys(laps).map(Number).sort((a, b) => a - b);
+    const cumArr = [];
+    let sum = 0;
+    for (const lap of sortedLaps) {
+      sum += laps[lap];
+      cumArr.push({ lap, cumTime: sum, lapTime: laps[lap] });
+    }
+    cumMap[driver] = cumArr;
+  }
+  return cumMap;
+}
 
 export default function LapDeltaChart() {
   const svgRef = useRef(null);
@@ -11,37 +46,22 @@ export default function LapDeltaChart() {
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
-  const currentLap = useF1Store((s) => s.currentLap);
   const focusDriver = useF1Store((s) => s.focusDriver);
   const drivers = useF1Store((s) => s.drivers);
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
+  // Causal "now" (session seconds) and a key that changes only when a lap or
+  // a pit event completes, so the chart is not rebuilt on every replay frame
+  const sessionNow = useSessionNow();
+  const causal = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
 
-  // Build per-driver cumulative time arrays
-  const driverCumTimes = useMemo(() => {
-    if (!lapTimes.length) return {};
-    const map = {};
-    lapTimes.forEach((d) => {
-      if (!map[d.Driver]) map[d.Driver] = {};
-      if (d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300) {
-        map[d.Driver][d.LapNumber] = d.LapTimeSeconds;
-      }
-    });
-
-    // Build cumulative sums
-    const cumMap = {};
-    for (const [driver, laps] of Object.entries(map)) {
-      const sortedLaps = Object.keys(laps).map(Number).sort((a, b) => a - b);
-      const cumArr = [];
-      let sum = 0;
-      for (const lap of sortedLaps) {
-        sum += laps[lap];
-        cumArr.push({ lap, cumTime: sum, lapTime: laps[lap] });
-      }
-      cumMap[driver] = cumArr;
-    }
-    return cumMap;
-  }, [lapTimes]);
+  // Per-driver cumulative times over the laps completed at sessionNow
+  // (never `LapNumber <= currentLap`: the leader's lap is ahead of the others)
+  const driverCumTimes = useMemo(
+    () => cumulativeLapTimes(lapTimes, sessionNow),
+    // sessionNow enters through the causal key, which changes whenever the result does
+    [lapTimes, causal],
+  );
 
   // Drivers to compare
   const displayDrivers = useMemo(() => {
@@ -82,7 +102,8 @@ export default function LapDeltaChart() {
     // Compute deltas for each display driver
     const deltaData = [];
     let minDelta = 0, maxDelta = 0;
-    const maxVisibleLap = Math.min(currentLap, baseCum[baseCum.length - 1].lap);
+    // every lap in driverCumTimes is completed at sessionNow
+    const maxVisibleLap = baseCum[baseCum.length - 1].lap;
 
     displayDrivers.forEach((driver) => {
       const cum = driverCumTimes[driver];
@@ -318,7 +339,7 @@ export default function LapDeltaChart() {
       });
 
     return () => { d3.selectAll('.delta-tooltip').remove(); };
-  }, [baseDriver, displayDrivers, driverCumTimes, currentLap]);
+  }, [baseDriver, displayDrivers, driverCumTimes]);
 
   // Lightweight highlight effect — updates opacity/stroke without full redraw
   useEffect(() => {

@@ -11,7 +11,17 @@
  *   limitations  — 1–4 bullets on failure modes the user must know.
  *   seeAlso      — related {tabId, label} pairs (opens target chart on click).
  *   docsHref     — optional external doc link.
+ *
+ * No pit-loss value is hard-coded here: pit loss is measured per race
+ * (utils/pitLoss.js); the only number quoted is FALLBACK_PIT_LOSS, the
+ * labelled fallback used before the first valid green-flag stop.
  */
+import { FALLBACK_PIT_LOSS } from './pitLoss';
+
+const PIT_LOSS_METHOD = 'Pit loss is measured from this race\'s green-flag stops: '
+  + 'in-lap + out-lap minus twice the driver\'s green-flag median lap; the median over stops is used.';
+const PIT_LOSS_FALLBACK = `Before the first valid green-flag stop a ${FALLBACK_PIT_LOSS.median} s fallback `
+  + '(an assumption, not data) is used, shown as "fallback".';
 
 export const CHART_HELP = {
   trackmap: {
@@ -59,7 +69,7 @@ export const CHART_HELP = {
     howToRead: [
       'Y-axis = cumulative seconds gained (up) or lost (down) vs the baseline driver.',
       'Positive slope = catching up; negative = falling back.',
-      'Pit windows appear as discrete jumps — ~22 s at most tracks.',
+      'Pit stops appear as discrete jumps the size of the race\'s pit loss (see the per-stop labels in Strategy Timeline).',
       'Click a line to swap baseline drivers.',
     ],
     limitations: [
@@ -266,12 +276,16 @@ export const CHART_HELP = {
     title: 'Strategy Timeline',
     summary: 'Strategy timeline (Gantt) — stints, pit stops, predicted / ghost / Gemini overlays.',
     howToRead: [
-      'One row per driver; horizontal bars are stints coloured by compound.',
-      'Pit stops appear as notches; predicted-remaining stints are shown with a lighter fill.',
+      'One row per driver; horizontal bars are stints coloured by compound, one bar per tyre set (FastF1 Stint column; a pit-lane pass without a tyre change, such as a drive-through or the field led through the pits under SC, keeps the set), so two stints on the same compound stay separate.',
+      'During replay only what has happened is drawn: a bar covers the laps completed so far, and a new bar appears at the pit exit, when the new set goes on, then grows as its laps complete. STOPS counts tyre changes so far: always the number of bars minus one.',
+      'Diamonds mark pit stops (tyre changes), from the pit exit; a dashed outline diamond marks a car in the pit lane right now. The label is that stop\'s pit loss: a plain number when measured (in-lap + out-lap minus twice the driver\'s green-flag median lap), "≈" and the race median when the stop cannot be measured ("est", an estimate), "*" on the fallback ("fallback", before any measured green-flag stop), no number while the stop is being measured. The line under the chart repeats this legend; hover a diamond for details.',
+      'Qualifying and practice: the bars are the runs\' tyre sets and stops carry no pit-loss label (pit loss is a race quantity).',
+      'Predicted-remaining stints are shown with a lighter fill.',
       'Overlay buttons (from Gemini answers or the Simulator) inject a scenario for comparison.',
     ],
     limitations: [
       'Predicted stints past current lap assume optimal tyre life; actual driver choice may deviate.',
+      'Stops under SC / VSC are not measured (every car is slow, so in-lap + out-lap minus the green median is not a pit loss): they show the green-flag race median, marked "≈" ("est").',
     ],
     seeAlso: [
       { tabId: 'simulator', label: 'Strategy Simulator' },
@@ -434,13 +448,16 @@ export const CHART_HELP = {
     title: 'Undercut Calculator',
     summary: 'Undercut / overcut viability calculator — projects gain or loss from pitting now vs staying out.',
     howToRead: [
-      'Three numeric inputs: current pace delta, tyre-age delta, pit-loss (default 22 s).',
-      'Output: Δ track position in N laps after the stop.',
-      'Green = undercut works; red = overcut is safer.',
+      'Inputs from the race so far: gap to the rival, tyre age and degradation of both cars, fresh-tyre delta and pit loss (PIT LOSS cell).',
+      PIT_LOSS_METHOD,
+      PIT_LOSS_FALLBACK,
+      'Pit-lap sweep: each row is a candidate pit lap for the focus driver, the bar is the projected gap at the flag.',
+      'Green = focus driver finishes ahead (undercut works); red = finishes behind.',
     ],
     limitations: [
-      'Ignores traffic between the two cars — dirty-air cost can swing the result by 1-2 s.',
-      'Pit-loss default varies: Monaco 18 s, Singapore 28 s; edit the input per track.',
+      'Ignores traffic and dirty air between the two cars.',
+      'The pit loss is a green-flag value; the time lost to the field by a stop under SC / VSC differs and is not modelled.',
+      'Race and sprint sessions only: there is no race pit loss in qualifying or practice.',
     ],
     seeAlso: [
       { tabId: 'strategy', label: 'Strategy Timeline' },

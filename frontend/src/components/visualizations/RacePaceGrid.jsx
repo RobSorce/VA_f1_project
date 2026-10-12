@@ -2,6 +2,11 @@ import React, { useMemo, useCallback, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import { useSessionNow } from '../../hooks/useSessionNow';
+import { isLapCompleted, lapStartTime } from '../../utils/raceTime';
+import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
+import { pitStops } from '../../utils/stints';
+import { causalKey, pitCountsByDriver } from '../../utils/strategyViews';
 
 /* -- Format helpers -------------------------------------------------------- */
 function formatLapTime(seconds) {
@@ -102,6 +107,132 @@ function buildTooltip(driver, lap, lapEntry) {
   return parts.join('');
 }
 
+/* -- Causal grid data (pure, tested in __tests__/views.timing*.test.js) ---- */
+/**
+ * Everything the pace grid shows at sessionNow (session seconds), causal
+ * (decision R6, utils/driverState.js):
+ *  - lapLookup: lap rows completed at now ("driver_lap" -> row); bests and
+ *    medians come from these only;
+ *  - state: per driver the lap in progress (chrono / IN PIT cell, never its
+ *    time), laps completed, pit lane, and the retirement once it happened;
+ *  - pitCounts: tyre changes visible at now (utils/stints.js pitStops, R2).
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
+ * @param {number} sessionNow - session seconds, Infinity = whole race
+ * @param {Object} [opts] - { dnfMap }
+ */
+export function paceGridData(lapTimes, sessionNow, { dnfMap = {} } = {}) {
+  const now = sessionNow == null || Number.isNaN(sessionNow) ? Infinity : sessionNow;
+  const rows = Array.isArray(lapTimes) ? lapTimes : [];
+  const lookup = {};
+  const driverMins = {};
+  const driverCleanLaps = {};   // driver -> [clean lap times]
+  const byDriver = new Map();
+  let globalMin = Infinity;
+
+  for (const lt of rows) {
+    if (!lt.Driver || !lt.LapNumber) continue;
+    if (!byDriver.has(lt.Driver)) byDriver.set(lt.Driver, []);
+    byDriver.get(lt.Driver).push(lt);
+    if (!isLapCompleted(lt, now)) continue;
+    lookup[`${lt.Driver}_${lt.LapNumber}`] = lt;
+
+    const time = lt.LapTimeSeconds;
+    if (time && time > 0 && !lt.PitInTime && !lt.PitOutTime) {
+      if (time < globalMin) globalMin = time;
+      if (!driverMins[lt.Driver] || time < driverMins[lt.Driver])
+        driverMins[lt.Driver] = time;
+
+      // Collect clean laps: exclude lap 1, pit in/out, times >= 300s or <= 0
+      if (lt.LapNumber > 1 && time < 300) {
+        if (!driverCleanLaps[lt.Driver]) driverCleanLaps[lt.Driver] = [];
+        driverCleanLaps[lt.Driver].push(time);
+      }
+    }
+  }
+
+  // Compute median per driver from clean laps
+  const medians = {};
+  for (const [driver, times] of Object.entries(driverCleanLaps)) {
+    if (times.length === 0) continue;
+    const sorted = times.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    medians[driver] = sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
+      : sorted[mid];
+  }
+
+  // Results DNFs plus classified drivers who stopped before the flag
+  const nonFinishers = nonFinisherMap(rows, dnfMap);
+  const state = {};
+  for (const [drv, driverRows] of byDriver) {
+    const st = driverStateAt(driverRows, drv, now, { dnf: !!nonFinishers[drv] });
+    state[drv] = {
+      running: st.inProgress,
+      lapsCompleted: st.lapsCompleted,
+      inPitLane: st.inPitLane,
+      // dnfMap status only once the retirement has happened; the RET cell is
+      // on the lap of the retirement, from the rows (driverStateAt
+      // retiredLap), never race_results Laps (a final result)
+      dnf: st.retired
+        ? { status: nonFinishers[drv]?.status || 'RET', lastLap: (st.retiredLap ?? st.lapsCompleted + 1) - 1 }
+        : null,
+    };
+  }
+
+  return {
+    lapLookup: lookup,
+    state,
+    pitCounts: pitCountsByDriver(pitStops(rows, { sessionNow: now })),
+    sessionBest: globalMin < Infinity ? globalMin : null,
+    driverBests: driverMins,
+    driverMedians: medians,
+  };
+}
+
+/**
+ * One pace-grid cell at sessionNow: { label, style, tooltip }. A completed lap
+ * shows its time; the lap in progress a chrono (replay frames) or IN PIT while
+ * the car is in the pit lane, never its time; laps not run yet are blank; RET
+ * after the last lap once the retirement has happened.
+ *
+ * @param {Object} data - paceGridData output at the same sessionNow
+ * @param {string} abbr
+ * @param {number} lap
+ * @param {Object} opts - { currentLap, replayActive, sessionNow }
+ */
+export function paceCell(data, abbr, lap, { currentLap, replayActive, sessionNow }) {
+  const st = data.state[abbr] || { running: null, lapsCompleted: 0, inPitLane: false, dnf: null };
+  const lapEntry = data.lapLookup[`${abbr}_${lap}`] || null;
+  // (a retired driver has no lap running: his last lap is the RET cell)
+  const runEntry = !lapEntry && !st.dnf && st.running && st.running.LapNumber === lap ? st.running : null;
+  if (runEntry) {
+    if (st.inPitLane) {
+      // Pit lane: the lap time is not known yet
+      return { label: 'IN PIT', style: 'pit-in', tooltip: `${abbr} - Lap ${lap}: in progress` };
+    }
+    const runStart = lapStartTime(runEntry);
+    if (replayActive && runStart != null && runStart <= sessionNow) {
+      // Live chrono: the driver's lap is still running in replay time
+      return {
+        label: formatLapTime(Math.max(0, sessionNow - runStart)),
+        style: 'live-chrono',
+        tooltip: `${abbr} - Lap ${lap}: in progress`,
+      };
+    }
+    return { label: '', style: 'future', tooltip: `${abbr} - Lap ${lap}: in progress` };
+  }
+  if (!lapEntry && !st.dnf && lap > st.lapsCompleted) {
+    // Not run yet by this driver
+    return { label: '', style: 'future', tooltip: `${abbr} - Lap ${lap}: not run yet` };
+  }
+  const classified = classifyCell(
+    lapEntry, lap, currentLap, data.sessionBest, data.driverBests[abbr] || null,
+    st.dnf, data.driverMedians[abbr] || null,
+  );
+  return { label: classified.label, style: classified.style, tooltip: buildTooltip(abbr, lap, lapEntry) };
+}
+
 /* -- Styles ---------------------------------------------------------------- */
 const CELL_W = 70;
 const LAP_COL_W = 42;
@@ -169,8 +300,10 @@ function RacePaceGrid() {
   const sessionData = useF1Store((s) => s.sessionData);
   const drivers = useF1Store((s) => s.sessionData?.drivers || s.drivers || []);
   const currentLap = useF1Store((s) => s.currentLap);
-  const currentTime = useF1Store((s) => s.currentTime);
   const totalFrames = useF1Store((s) => s.totalFrames);
+  // Causal "now" in session seconds (utils/raceTime.js): a cell shows a lap
+  // time once that lap is completed, a pit once its entry has happened
+  const sessionNow = useSessionNow();
   const maxLap = useF1Store((s) => s.maxLap);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -204,7 +337,9 @@ function RacePaceGrid() {
   const currentLapRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
-  // -- Sort drivers by final position --
+  // -- Column order: grid slot while the race runs (the final classification
+  // is not known yet), final position once it is over (sessionNow Infinity) --
+  const raceOver = sessionNow === Infinity;
   const sortedDrivers = useMemo(() => {
     const driverSet = new Map();
     for (const lt of lapTimes) {
@@ -219,8 +354,10 @@ function RacePaceGrid() {
     for (const r of raceResults) {
       const abbr = r.Abbreviation || r.abbr;
       if (abbr && driverSet.has(abbr)) {
-        const pos = parseInt(r.ClassifiedPosition || r.Position, 10);
-        if (!isNaN(pos)) driverSet.get(abbr).position = pos;
+        const pos = raceOver
+          ? parseInt(r.ClassifiedPosition || r.Position, 10)
+          : parseInt(r.GridPosition, 10);
+        if (!isNaN(pos) && pos > 0) driverSet.get(abbr).position = pos;
       }
     }
     if (!raceResults.length) {
@@ -236,71 +373,18 @@ function RacePaceGrid() {
       }
     }
     return Array.from(driverSet.values()).sort((a, b) => a.position - b.position);
-  }, [lapTimes, raceResults, drivers]);
+  }, [lapTimes, raceResults, drivers, raceOver]);
 
-  // -- Pit stop count per driver (up to currentLap) --
-  const pitCountByDriver = useMemo(() => {
-    const counts = {};
-    for (const lt of lapTimes) {
-      if (!lt.Driver || lt.LapNumber > currentLap) continue;
-      if (lt.PitInTime > 0) {
-        counts[lt.Driver] = (counts[lt.Driver] || 0) + 1;
-      }
-    }
-    return counts;
-  }, [lapTimes, currentLap]);
-
-  // -- Pre-compute lap lookup, session best, personal bests, and driver medians --
-  const { lapLookup, sessionBest, driverBests, driverMedians } = useMemo(() => {
-    const lookup = {};
-    const driverMins = {};
-    const driverCleanLaps = {};   // driver -> [clean lap times]
-    let globalMin = Infinity;
-
-    for (const lt of lapTimes) {
-      if (!lt.Driver || !lt.LapNumber) continue;
-      if (lt.LapNumber > currentLap) continue;
-      const key = `${lt.Driver}_${lt.LapNumber}`;
-      lookup[key] = lt;
-
-      const time = lt.LapTimeSeconds;
-      if (time && time > 0 && !lt.PitInTime && !lt.PitOutTime) {
-        if (time < globalMin) globalMin = time;
-        if (!driverMins[lt.Driver] || time < driverMins[lt.Driver])
-          driverMins[lt.Driver] = time;
-
-        // Collect clean laps: exclude lap 1, pit in/out, times >= 300s or <= 0
-        if (lt.LapNumber > 1 && time < 300) {
-          if (!driverCleanLaps[lt.Driver]) driverCleanLaps[lt.Driver] = [];
-          driverCleanLaps[lt.Driver].push(time);
-        }
-      }
-    }
-
-    for (const lt of lapTimes) {
-      if (!lt.Driver || !lt.LapNumber) continue;
-      const key = `${lt.Driver}_${lt.LapNumber}`;
-      if (!lookup[key]) lookup[key] = lt;
-    }
-
-    // Compute median per driver from clean laps
-    const medians = {};
-    for (const [driver, times] of Object.entries(driverCleanLaps)) {
-      if (times.length === 0) continue;
-      const sorted = times.slice().sort((a, b) => a - b);
-      const mid = Math.floor(sorted.length / 2);
-      medians[driver] = sorted.length % 2 === 0
-        ? (sorted[mid - 1] + sorted[mid]) / 2
-        : sorted[mid];
-    }
-
-    return {
-      lapLookup: lookup,
-      sessionBest: globalMin < Infinity ? globalMin : null,
-      driverBests: driverMins,
-      driverMedians: medians,
-    };
-  }, [lapTimes, currentLap]);
+  // -- Completed laps, laps in progress, retirements and pit stops at sessionNow
+  // (paceGridData above). Rebuilt when a lap completes or a pit event happens
+  // (causalKey), not on every replay tick; the chrono reads sessionNow directly.
+  const gridKey = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
+  const gridData = useMemo(
+    () => paceGridData(lapTimes, sessionNow, { dnfMap }),
+    // sessionNow enters through gridKey, which changes whenever the result does
+    [lapTimes, gridKey, dnfMap],
+  );
+  const pitCountByDriver = gridData.pitCounts;
 
   // -- Get driver team color --
   const driverTeamColors = useMemo(() => {
@@ -334,17 +418,8 @@ function RacePaceGrid() {
     }
   }, [currentLap]);
 
-  // -- Session time offset: frame.t is 0-based, lap_times SessionTime fields are absolute --
-  const { timeOffset, replayActive } = useMemo(() => {
-    let off = 0;
-    for (const d of lapTimes) {
-      if (d.LapStartTime > 0 && (d.Time > 0 || d.LapTimeSeconds > 0) && d.LapNumber >= 1) {
-        off = d.LapStartTime;
-        break;
-      }
-    }
-    return { timeOffset: off, replayActive: totalFrames > 0 };
-  }, [lapTimes, totalFrames]);
+  // Replay frames loaded: running laps show a live chronometer
+  const replayActive = totalFrames > 0;
 
   // -- Render --
   if (!lapTimes.length || !sortedDrivers.length) {
@@ -470,36 +545,9 @@ function RacePaceGrid() {
                 {sortedDrivers.map((d) => {
                   const abbr = d.abbr;
                   const lapKey = `${abbr}_${lap}`;
-                  const lapEntry = lapLookup[lapKey] || null;
-                  const dnfInfo = dnfMap?.[abbr] || null;
-                  const driverBest = driverBests[abbr] || null;
-                  const driverMedian = driverMedians[abbr] || null;
-
-                  let label, styleKey;
-                  const hasOffset = timeOffset > 0;
-                  // Live chrono: driver's lap is still running in replay time
-                  const lapStartFT = lapEntry && hasOffset && lapEntry.LapStartTime > 0
-                    ? lapEntry.LapStartTime - timeOffset : null;
-                  const lapEndFT = lapEntry && hasOffset && lapEntry.Time > 0
-                    ? lapEntry.Time - timeOffset : null;
-                  const inProgress = replayActive && hasOffset
-                    && lapStartFT != null && lapEndFT != null
-                    && currentTime >= lapStartFT && currentTime < lapEndFT
-                    && !(lapEntry.PitInTime) && !(dnfInfo && lap > dnfInfo.lastLap);
-
-                  if (inProgress) {
-                    const elapsed = Math.max(0, currentTime - lapStartFT);
-                    label = formatLapTime(elapsed);
-                    styleKey = 'live-chrono';
-                  } else {
-                    const classified = classifyCell(
-                      lapEntry, lap, currentLap, sessionBest, driverBest, dnfInfo, driverMedian
-                    );
-                    label = classified.label;
-                    styleKey = classified.style;
-                  }
-
-                  const tooltip = buildTooltip(abbr, lap, lapEntry);
+                  const { label, style: styleKey, tooltip } = paceCell(
+                    gridData, abbr, lap, { currentLap, replayActive, sessionNow },
+                  );
                   const isHighlighted = highlightedDriver === abbr;
                   const dimmed = hasSelection && !selectedDrivers.includes(abbr);
 

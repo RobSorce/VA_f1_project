@@ -2,19 +2,43 @@ import React, { useMemo, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import { useSessionNow } from '../../hooks/useSessionNow';
+import { completedLaps, isLapCompleted } from '../../utils/raceTime';
+import { driverStateAt, qualifyingOrder } from '../../utils/driverState';
 
 const PAGES = ['TYRE', 'PACE', 'POS', 'FEATURES'];
+
+/**
+ * The tyre set in force for one driver at sessionNow (session seconds), from
+ * the lap data (decision R3/R6, utils/driverState.js): the old set until the
+ * pit exit, then the new one with its out-lap tyre age. null before the
+ * driver's first lap.
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
+ * @param {string} driver
+ * @param {number} sessionNow - session seconds, Infinity = whole race
+ * @returns {{compound: string, tyreLife: number|null}|null}
+ */
+export function mfdTyreInfo(lapTimes, driver, sessionNow) {
+  if (!driver || !Array.isArray(lapTimes)) return null;
+  const st = driverStateAt(lapTimes, driver, sessionNow, { dnf: false });
+  if (!st.stint) return null;
+  return {
+    compound: st.compound || 'UNKNOWN',
+    tyreLife: st.tyreLife != null ? Math.round(st.tyreLife) : null,
+  };
+}
 
 export default function DriverMFDCard() {
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
   const highlightedDriverPosition = useF1Store((s) => s.highlightedDriverPosition);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const sessionData = useF1Store((s) => s.sessionData);
-  const currentLap = useF1Store((s) => s.currentLap);
   const drivers = useF1Store((s) => s.drivers);
   const pcaEmbeddings = useF1Store((s) => s.pcaEmbeddings);
   const frameData = useF1Store((s) => s.frameData);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
 
   const [page, setPage] = useState(0);
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
@@ -26,21 +50,38 @@ export default function DriverMFDCard() {
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
 
-  // Driver lap data — for qualifying, show all laps (not filtered by currentLap)
+  // Causal "now" in session seconds (utils/raceTime.js). Race history uses the
+  // laps completed at that time; the count changes once per finished lap, so
+  // the memos below are not rebuilt on every replay tick.
+  const sessionNow = useSessionNow();
+  const completedCount = useMemo(() => {
+    let n = 0;
+    for (const d of lapTimes) if (isLapCompleted(d, sessionNow)) n++;
+    return n;
+  }, [lapTimes, sessionNow]);
+  const doneLaps = useMemo(
+    () => completedLaps(lapTimes, sessionNow),
+    // sessionNow enters through completedCount, which changes whenever the result does
+    [lapTimes, completedCount],
+  );
+
+  // Driver lap data: laps completed at sessionNow (qualifying replay too: its
+  // clock is the active segment's session time, never a lap still to come)
   const driverLaps = useMemo(() => {
     if (!highlightedDriver) return [];
-    if (isQualifyingReplay) {
-      return lapTimes
-        .filter((d) => d.Driver === highlightedDriver && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
-        .sort((a, b) => a.LapNumber - b.LapNumber);
-    }
-    return lapTimes
-      .filter((d) => d.Driver === highlightedDriver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
+    return doneLaps
+      .filter((d) => d.Driver === highlightedDriver && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
       .sort((a, b) => a.LapNumber - b.LapNumber);
-  }, [highlightedDriver, lapTimes, currentLap, isQualifyingReplay]);
+  }, [highlightedDriver, doneLaps]);
 
-  // Current tyre info from frame data
-  const tyreInfo = useMemo(() => {
+  // Current tyre: race replay / lap mode = the set in force from the lap data
+  // (new set from the pit exit; the frames switch at the out-lap start, in the
+  // pit lane); live and qualifying replay = frame data
+  const lapTyreInfo = useMemo(
+    () => (isLiveMode || isQualifyingReplay ? null : mfdTyreInfo(lapTimes, highlightedDriver, sessionNow)),
+    [lapTimes, highlightedDriver, sessionNow, isLiveMode, isQualifyingReplay],
+  );
+  const frameTyreInfo = useMemo(() => {
     if (!highlightedDriver || !frameData?.frames?.length) return null;
     const idx = Math.min(currentFrameIndex, frameData.frames.length - 1);
     const frame = frameData.frames[idx];
@@ -52,6 +93,7 @@ export default function DriverMFDCard() {
       tyreLife: d.tyre_life != null ? Math.round(d.tyre_life) : null,
     };
   }, [highlightedDriver, frameData, currentFrameIndex]);
+  const tyreInfo = lapTyreInfo || frameTyreInfo;
 
   // Pace stats
   const paceStats = useMemo(() => {
@@ -68,8 +110,7 @@ export default function DriverMFDCard() {
   const sectorBests = useMemo(() => {
     const session = { s1: Infinity, s2: Infinity, s3: Infinity };
     const personal = { s1: Infinity, s2: Infinity, s3: Infinity };
-    lapTimes.forEach((d) => {
-      if (d.LapNumber > currentLap) return;
+    doneLaps.forEach((d) => {
       for (const [key, prop] of [['s1', 'Sector1TimeSeconds'], ['s2', 'Sector2TimeSeconds'], ['s3', 'Sector3TimeSeconds']]) {
         const v = d[prop];
         if (v > 0 && v < 120) {
@@ -79,7 +120,7 @@ export default function DriverMFDCard() {
       }
     });
     return { session, personal };
-  }, [lapTimes, currentLap, highlightedDriver]);
+  }, [doneLaps, highlightedDriver]);
 
   // Current lap sector times for the highlighted driver
   const currentSectors = useMemo(() => {
@@ -92,22 +133,21 @@ export default function DriverMFDCard() {
     return { s1, s2, s3, lapNum: lastLap.LapNumber };
   }, [highlightedDriver, driverLaps]);
 
-  // Position history for sparkline — qualifying shows all positions, race filters by currentLap
+  // Position history for sparkline — qualifying: the rank by best lap
+  // completed so far (never the final result), race: the completed laps
   const posHistory = useMemo(() => {
     if (!highlightedDriver) return [];
     if (isQualifyingReplay) {
-      // For qualifying, show the final qualifying position as a single point
-      const result = (sessionData?.race_results || []).find(
-        (r) => (r.Abbreviation || r.Driver) === highlightedDriver
-      );
-      return result?.Position ? [{ lap: 1, pos: result.Position }] : [];
+      const me = qualifyingOrder(doneLaps, Infinity).find((r) => r.driver === highlightedDriver);
+      return me?.position ? [{ lap: 1, pos: me.position }] : [];
     }
-    const posData = lapTimes
-      .filter((d) => d.Driver === highlightedDriver && d.LapNumber <= currentLap && d.Position)
+    // Position at the end of each completed lap
+    const posData = doneLaps
+      .filter((d) => d.Driver === highlightedDriver && d.Position)
       .sort((a, b) => a.LapNumber - b.LapNumber)
       .map((d) => ({ lap: d.LapNumber, pos: d.Position }));
     return posData;
-  }, [highlightedDriver, lapTimes, currentLap, isQualifyingReplay, sessionData]);
+  }, [highlightedDriver, doneLaps, isQualifyingReplay]);
 
   const color = highlightedDriver ? getDriverColor(highlightedDriver) : '#888';
 

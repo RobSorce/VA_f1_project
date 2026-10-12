@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, weatherAtSessionTime } from '../../store/useF1Store';
+import { useSessionNow } from '../../hooks/useSessionNow';
 import SessionMenu from './SessionMenu';
 import CommandBar from '../CommandPalette/CommandBar';
 import LayoutPresetBar from './LayoutPresetBar';
@@ -93,22 +94,19 @@ export default function WeatherBar() {
   const liveSessionInfo = useF1Store((s) => s.liveSessionInfo);
 
   const weather = sessionData?.weather_data;
+  const sessionNow = useSessionNow();
 
-  // Find the weather entry closest to currentTime (evolves with replay)
-  const latest = useMemo(() => {
-    if (!weather?.length) return null;
-    if (!currentTime || currentTime <= 0) return weather[0];
-    // Weather entries have a Time field in seconds — find last entry <= currentTime
-    let best = weather[0];
-    for (const w of weather) {
-      if (w.Time != null && w.Time <= currentTime) {
-        best = w;
-      } else if (w.Time != null && w.Time > currentTime) {
-        break;
-      }
-    }
-    return best;
-  }, [weather, currentTime]);
+  // Weather row in force at the replay's now (evolves with replay). Weather
+  // Time is session seconds, so it is compared with sessionNow
+  // (= replay time + sessionTimeOffset), not with the 0-based replay time.
+  // The store resets the replay clock on every session load / reset / quali
+  // segment change, and in a qualifying replay sessionTimeOffset is the
+  // active segment's origin, so the row is never another session's or
+  // segment's.
+  const latest = useMemo(
+    () => weatherAtSessionTime(weather, sessionNow),
+    [weather, sessionNow],
+  );
   const eventName = sessionData?.circuit_info?.event_name
     || liveSessionInfo?.event_name
     || '';

@@ -2,6 +2,9 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS, TYRE_LABELS } from '../../utils/colors';
+import { useSessionNow } from '../../hooks/useSessionNow';
+import { stintsByDriver } from '../../utils/stints';
+import { causalKey, driverCompletedLaps, groupLapsByStint } from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
 
 const COMPOUND_MAX_LIFE = {
@@ -18,40 +21,33 @@ export default function TyreHealth() {
   const maxLap = useF1Store((s) => s.maxLap);
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
+  // Causal "now" (session seconds); the key changes only when a lap or a pit
+  // event completes, so chartData is not rebuilt on every replay frame
+  const sessionNow = useSessionNow();
+  const causal = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
   const driver = focusDriver || selectedDrivers[0] || null;
   const driverColor = driver ? getDriverColor(driver) : '#888';
 
   const chartData = useMemo(() => {
     if (!driver || lapTimes.length === 0) return { stints: [], maxLapNum: 1 };
 
-    const driverLaps = lapTimes
-      .filter((d) => d.Driver === driver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
-      .sort((a, b) => a.LapNumber - b.LapNumber);
+    // Only laps completed at sessionNow: the lap in progress has no time yet
+    const driverLaps = driverCompletedLaps(lapTimes, driver, sessionNow);
 
     if (driverLaps.length === 0) return { stints: [], maxLapNum: maxLap || 1 };
 
-    // Group into stints — detect by compound change, TyreLife reset, or pit flags
-    const stints = [];
-    let current = { compound: driverLaps[0].Compound || 'UNKNOWN', laps: [] };
-
-    driverLaps.forEach((lap, idx) => {
-      const compound = lap.Compound || 'UNKNOWN';
-      const isPitOut = !!lap.PitOutTime;
-      const tyreLifeReset = lap.TyreLife != null && lap.TyreLife <= 1 && current.laps.length > 0;
-      const compoundChanged = compound !== current.compound;
-
-      if ((compoundChanged || tyreLifeReset || isPitOut) && current.laps.length > 0) {
-        stints.push(current);
-        current = { compound, laps: [] };
-      }
-      current.laps.push({
+    // Group into stints from the FastF1 Stint column (utils/stints.js): one
+    // stint per tyre set, a drive-through does not split it
+    const driverStints = stintsByDriver(lapTimes, { sessionNow })[driver] || [];
+    const stints = groupLapsByStint(driverLaps, driverStints).map(({ stint, laps }) => ({
+      compound: stint.Compound,
+      laps: laps.map((lap, i) => ({
         lapNumber: lap.LapNumber,
         lapTime: lap.LapTimeSeconds,
-        tyreLife: lap.TyreLife || current.laps.length + 1,
-        compound,
-      });
-    });
-    if (current.laps.length > 0) stints.push(current);
+        tyreLife: lap.TyreLife || i + 1,
+        compound: stint.Compound,
+      })),
+    }));
 
     // Compute tyre health per stint
     stints.forEach((stint) => {
@@ -114,8 +110,13 @@ export default function TyreHealth() {
     });
 
     const maxLapNum = maxLap || 1;
-    return { stints, maxLapNum };
-  }, [driver, lapTimes, maxLap, currentLap]);
+    // Pit stops (tyre changes) visible at sessionNow: the first lap of every
+    // later stint. A stint exists from its pit exit (utils/stints.js), so the
+    // PIT line appears at the pit exit, with the Strategy Timeline, before
+    // the new set has a completed lap
+    const pitLaps = driverStints.slice(1).map((s) => s.StartLap);
+    return { stints, maxLapNum, pitLaps };
+  }, [driver, lapTimes, maxLap, causal]);
 
   const driverBadge = driver ? (
     <div style={{
@@ -216,9 +217,7 @@ export default function TyreHealth() {
       .attr('font-weight', 700).text('Tyre Life (%)');
 
     // Pit stop markers (vertical dashed lines between stints)
-    chartData.stints.forEach((stint, i) => {
-      if (i === 0) return;
-      const pitLap = stint.startLap;
+    (chartData.pitLaps || []).forEach((pitLap) => {
       g.append('line')
         .attr('x1', x(pitLap)).attr('x2', x(pitLap))
         .attr('y1', 0).attr('y2', innerH)

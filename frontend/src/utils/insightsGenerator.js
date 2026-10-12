@@ -100,11 +100,13 @@ export function generateInsights({
     const top = pcaStrategyAnalysis.strategies[0];
     if (top && top.frequency >= 0.4) {
       const stintDesc = top.stints.map(s => s.compound[0]).join('-');
+      // N stints = N - 1 stops (same rule as the backend summary in tsne_compute.py)
+      const stops = Math.max(0, top.stints.length - 1);
       insights.push({
         id: `pca-${stintDesc}`,
         category: 'pattern',
         severity: 'info',
-        text: `Selected PCA cluster (${pcaStrategyAnalysis.selection_count || 'N'} races) shows ${Math.round(top.frequency * 100)}% dominance of ${top.stints.length}-stop ${stintDesc} strategy.`,
+        text: `Selected PCA cluster (${pcaStrategyAnalysis.selection_count || 'N'} races) shows ${Math.round(top.frequency * 100)}% dominance of ${stops}-stop ${stintDesc} strategy.`,
         actions: [{ label: 'Apply to Simulator', pattern: top }],
         confidence: 0.9,
       });

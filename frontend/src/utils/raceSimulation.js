@@ -5,16 +5,31 @@
  * derived from REAL session data: actual pit stop durations, actual
  * tyre degradation slopes, actual stint lengths, actual safety car
  * events — no hardcoded constants.
+ *
+ * Causal: parameters only use laps completed at `sessionNow` (session seconds,
+ * utils/raceTime.js). Stints come from the FastF1 Stint column of lap_times
+ * (utils/stints.js) and the pit loss from utils/pitLoss.js.
  */
+import { completedLaps, resolveSessionNow } from './raceTime';
+import { deriveStints } from './stints';
+import { estimatePitLoss } from './pitLoss';
 
 // ─── Fallback defaults (only used when session has zero observed data) ───
-const FALLBACK_PIT_LOSS = { mean: 22, stdDev: 2 };
+// The pit-loss fallback lives in utils/pitLoss.js (FALLBACK_PIT_LOSS, source 'fallback').
 const FALLBACK_SC_RATE = 0.02; // ~1 SC per 50 laps, typical F1 average
 const FALLBACK_SC_DURATION = 4; // laps
 const FALLBACK_DEG = { mean: 0.04, stdDev: 0.02 };
 const FALLBACK_STINT = { mean: 25, stdDev: 5 };
 const FALLBACK_LAP_NOISE = 0.3; // seconds
 const FALLBACK_FRESH_DELTA = -0.4; // seconds
+
+// Pit-loss sampling guards (seconds). Not data: the sampler draws around
+// pitLoss.median with pitLoss.stdDev, floored at PIT_LOSS_SAMPLING_MIN_SD so a
+// race with one sample (stdDev 0) still varies between runs, and every draw is
+// kept above PIT_LOSS_NUMERIC_FLOOR only to stop a far-tail normal draw from
+// going negative. Neither value shifts the estimate itself.
+const PIT_LOSS_SAMPLING_MIN_SD = 0.5;
+const PIT_LOSS_NUMERIC_FLOOR = 5;
 
 const COMPOUND_SEQUENCE = ['SOFT', 'MEDIUM', 'HARD'];
 // 100 simulations balances runtime (~200-400ms on modern hardware) with stability.
@@ -61,18 +76,48 @@ function stats(arr) {
 // ══════════════════════════════════════════════════════════════
 
 /**
- * Compute race parameters from real data observed up to currentLap.
+ * The session-time "now" for the simulation: opts.sessionNow when it is a
+ * number, otherwise the lap-indexed clock of currentLap (raceTime.js
+ * resolveSessionNow: the race leader's start of currentLap, the last lap
+ * included; pass sessionNow: Infinity for the race over). Older callers passed the unused frameData ({ frames, ... }) as
+ * the 5th argument: such objects carry no clock and are ignored.
+ */
+function simulationNow(lapTimes, currentLap, opts) {
+  const o = opts && typeof opts === 'object' && !('frames' in opts) ? opts : {};
+  if (typeof o.sessionNow === 'number' && !Number.isNaN(o.sessionNow)) return o.sessionNow;
+  return resolveSessionNow({ currentLap, lapTimes, sessionTimeOffset: o.sessionTimeOffset });
+}
+
+/**
+ * Compute race parameters from real data observed up to sessionNow.
  *
- * @param {Array} lapTimes - sessionData.lap_times
- * @param {Array} strategies - sessionData.tyre_strategy
+ * @param {Array} lapTimes - sessionData.lap_times (full race; filtered causally here)
+ * @param {Array} strategies - unused: stints are derived from lapTimes (utils/stints.js),
+ *   kept so existing call sites keep working
  * @param {Array} trackStatus - [{status, start_time, end_time, message}]
  * @param {number} currentLap
- * @param {Object|null} frameData - for mapping SC times to laps
- * @returns {Object} raceParams
+ * @param {Object} [opts]
+ * @param {number} [opts.sessionNow] - session seconds (raceTime.resolveSessionNow);
+ *   when omitted, derived in lap mode from currentLap
+ * @param {number} [opts.sessionTimeOffset] - session seconds of replay time 0
+ * @param {string} [opts.sessionType] - 'R', 'S', 'Q', 'FP2', ...; omitted = race. Outside
+ *   'R' / 'S' the pit loss is { source: 'not-applicable' } with no numbers (pitLoss.js)
+ * @param {boolean|function(string): boolean} [opts.running] - deriveStints option: in live
+ *   mode the stints still being run are not completed stint lengths (stints.js stintsRunning)
+ * @returns {Object} raceParams; pitLoss is the utils/pitLoss.js estimatePitLoss object
+ *   ({ median, mean, stdDev, p10, p90, n, source, samples }, seconds; median = point estimate)
  */
-export function extractRaceParams(lapTimes, strategies, trackStatus, currentLap, frameData) {
+export function extractRaceParams(lapTimes, strategies, trackStatus, currentLap, opts = {}) {
+  const sessionNow = simulationNow(lapTimes, currentLap, opts);
+  const sessionType = opts && typeof opts === 'object' && !('frames' in opts) ? opts.sessionType : undefined;
   const params = {
-    pitLoss: { ...FALLBACK_PIT_LOSS },
+    // ── 1. Pit stop time loss ──
+    // FastF1 splits one stop over two rows (PitInTime on the in-lap n,
+    // PitOutTime on the out-lap n + 1), so the loss is in-lap + out-lap - 2 x
+    // the driver's green median, over green stops completed at sessionNow.
+    // source 'fallback' (n = 0) when no stop qualifies yet; 'not-applicable'
+    // outside race sessions.
+    pitLoss: estimatePitLoss(lapTimes, { sessionNow, sessionType }),
     tyreDeg: {},       // { SOFT: {mean, stdDev}, MEDIUM: ... }
     stintLength: {},   // { SOFT: {mean, stdDev}, ... }
     freshDelta: FALLBACK_FRESH_DELTA,
@@ -83,8 +128,8 @@ export function extractRaceParams(lapTimes, strategies, trackStatus, currentLap,
 
   if (!lapTimes?.length) return params;
 
-  // Only consider laps up to currentLap
-  const laps = lapTimes.filter((lt) => lt.LapNumber <= currentLap);
+  // Only laps completed at sessionNow (the unfinished current lap is unknown)
+  const laps = completedLaps(lapTimes, sessionNow);
 
   // ── Identify clean laps (no pit activity, reasonable time) ──
   const cleanLaps = laps.filter(
@@ -92,39 +137,7 @@ export function extractRaceParams(lapTimes, strategies, trackStatus, currentLap,
             !lt.PitInTimeSeconds && !lt.PitOutTimeSeconds
   );
 
-  // ── 1. Pit stop time loss ──
-  // Detect pit laps: laps with PitInTimeSeconds set
-  // Pit loss = pitLapTime - median(cleanLapTimes for that driver)
-  const pitLosses = [];
-  const driverCleanMedians = {};
-
-  // Pre-compute median clean lap time per driver
-  const driverCleanLaps = {};
-  for (const lt of cleanLaps) {
-    if (!driverCleanLaps[lt.Driver]) driverCleanLaps[lt.Driver] = [];
-    driverCleanLaps[lt.Driver].push(lt.LapTimeSeconds);
-  }
-  for (const [drv, times] of Object.entries(driverCleanLaps)) {
-    times.sort((a, b) => a - b);
-    driverCleanMedians[drv] = times[Math.floor(times.length / 2)] || 90;
-  }
-
-  for (const lt of laps) {
-    if (lt.PitInTimeSeconds && lt.LapTimeSeconds > 0 && lt.LapTimeSeconds < 300) {
-      const median = driverCleanMedians[lt.Driver] || 90;
-      const loss = lt.LapTimeSeconds - median;
-      if (loss > 5 && loss < 60) { // reasonable pit loss range
-        pitLosses.push(loss);
-      }
-    }
-  }
-  if (pitLosses.length >= 1) {
-    params.pitLoss = stats(pitLosses);
-    // Ensure minimum stdDev for variability
-    if (params.pitLoss.stdDev < 0.5) params.pitLoss.stdDev = 0.5;
-  } else {
-    // Fallback pit loss: no PitInTimeSeconds in lap data (expected for some sessions)
-  }
+  // ── 1. Pit stop time loss: computed above (params.pitLoss) ──
 
   // ── 2. Tyre degradation per compound ──
   // Group clean laps by driver+stint, compute slope of lapTime vs tyreLife
@@ -161,10 +174,14 @@ export function extractRaceParams(lapTimes, strategies, trackStatus, currentLap,
   }
 
   // ── 3. Average stint lengths per compound ──
-  if (strategies?.length) {
+  // Stints from the FastF1 Stint column of the laps completed at sessionNow
+  // (tyre_strategy merges back-to-back stints on the same compound).
+  const running = opts && typeof opts === 'object' ? opts.running || false : false;
+  const stints = deriveStints(lapTimes, { sessionNow, running });
+  if (stints.length) {
     const compoundStints = {};
-    for (const s of strategies) {
-      if (s.EndLap > currentLap) continue; // only completed stints
+    for (const s of stints) {
+      if (s.ongoing) continue; // only completed stints
       const total = s.TotalLaps || (s.EndLap - s.StartLap + 1);
       if (total > 0 && total < 80) {
         if (!compoundStints[s.Compound]) compoundStints[s.Compound] = [];
@@ -323,8 +340,9 @@ function runOneSim(drivers, driverFeatures, raceParams, currentLap, maxLap) {
 
       // ── Pit stop check ──
       if (s.tyreLife >= s.stintLimit && lap < lapsRemaining - 2) {
-        // Sample pit loss from real distribution
-        const pitLoss = Math.max(15, randomNormal(raceParams.pitLoss.mean, raceParams.pitLoss.stdDev));
+        // Sample pit loss around the race median (utils/pitLoss.js), see PIT_LOSS_* guards
+        const pitSd = Math.max(PIT_LOSS_SAMPLING_MIN_SD, raceParams.pitLoss.stdDev || 0);
+        const pitLoss = Math.max(PIT_LOSS_NUMERIC_FLOOR, randomNormal(raceParams.pitLoss.median, pitSd));
         s.cumTime += pitLoss;
         s.pitStops++;
         s.compound = nextCompound(s.compound, s.stintNumber + s.pitStops);
@@ -545,12 +563,13 @@ function identifyRisks(projections, driverFeatures, raceParams, currentLap, maxL
 
     // Extra pit stop risk (most sims show 2+ stops)
     if (proj.pitStopsRemaining.mean >= 1.8) {
-      const pitLoss = raceParams.pitLoss.mean;
+      const pitLoss = raceParams.pitLoss.median;
+      const pitLossNote = raceParams.pitLoss.source === 'fallback' ? ' (fallback pit loss, no measured stop yet)' : '';
       risks.push({
         driver: drv,
         type: 'EXTRA STOP',
         severity: 'high',
-        description: `${drv} likely needs ${Math.round(proj.pitStopsRemaining.mean)} more stops — ~${Math.round(proj.pitStopsRemaining.mean * pitLoss)}s time loss`,
+        description: `${drv} likely needs ${Math.round(proj.pitStopsRemaining.mean)} more stops — ~${Math.round(proj.pitStopsRemaining.mean * pitLoss)}s time loss${pitLossNote}`,
       });
     }
 
@@ -598,18 +617,30 @@ function identifyRisks(projections, driverFeatures, raceParams, currentLap, maxL
  * @param {number} params.currentLap
  * @param {number} params.maxLap
  * @param {Array}  params.lapTimes - sessionData.lap_times (real data)
- * @param {Array}  params.strategies - sessionData.tyre_strategy (real data)
+ * @param {Array}  params.strategies - sessionData.tyre_strategy (unused, see extractRaceParams)
  * @param {Array}  params.trackStatus - real safety car/VSC events
+ * @param {number} [params.sessionNow] - session seconds; lap mode from currentLap when omitted
+ * @param {number} [params.sessionTimeOffset] - session seconds of replay time 0
+ * @param {string} [params.sessionType] - 'R', 'S', 'Q', ...; omitted = race. A race
+ *   projection needs a race pit loss: null outside 'R' / 'S'
+ * @param {boolean|function(string): boolean} [params.running] - live mode: drivers still on
+ *   their current set (stints.js stintsRunning), see extractRaceParams
  * @returns {{ projections, battles, risks, raceParams }}
  */
-export function simulateRaceFinish({ driverFeatures, currentLap, maxLap, lapTimes, strategies, trackStatus }) {
+export function simulateRaceFinish({
+  driverFeatures, currentLap, maxLap, lapTimes, strategies, trackStatus,
+  sessionNow, sessionTimeOffset, sessionType, running,
+}) {
   if (!driverFeatures || currentLap < 5 || maxLap <= currentLap) return null;
 
   const drivers = Object.keys(driverFeatures);
   if (drivers.length < 2) return null;
 
   // ── Step 1: Extract real parameters ──
-  const raceParams = extractRaceParams(lapTimes, strategies, trackStatus, currentLap);
+  const raceParams = extractRaceParams(lapTimes, strategies, trackStatus, currentLap,
+    { sessionNow, sessionTimeOffset, sessionType, running });
+  // No race pit loss outside race sessions ('not-applicable'): no projection
+  if (raceParams.pitLoss?.source === 'not-applicable') return null;
 
   // ── Step 2: Run Monte Carlo simulations ──
   const allSims = [];

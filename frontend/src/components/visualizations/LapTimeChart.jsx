@@ -1,7 +1,12 @@
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS, countryFlag } from '../../utils/colors';
+import { useSessionNow } from '../../hooks/useSessionNow';
+import {
+  completedLaps, hasPitOut, isLapCompleted, isPitVisible, lapStartTime, leaderLapEndTime, pitOutSeconds,
+} from '../../utils/raceTime';
+import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
 import Panel from '../ui/Panel';
 
 
@@ -71,6 +76,193 @@ function fmtGap(gap) {
   return gap > 0 ? `+${gap.toFixed(3)}` : gap.toFixed(3);
 }
 
+/* ── Causal timing sheet (pure, tested in __tests__/views.timing*.test.js) ── */
+function positiveTime(v, max) {
+  return typeof v === 'number' && v > 0 && v < max ? v : null;
+}
+
+/** The out-lap's pit exit has happened at now (session seconds). */
+function pitExitPassed(lt, now) {
+  if (!hasPitOut(lt)) return false;
+  const exit = pitOutSeconds(lt);
+  return exit != null ? exit <= now : isLapCompleted(lt, now);
+}
+
+/** Purple / green / white; bests come from completed laps, so a value at or below one is that best. */
+function timeColor(value, sessionBest, personalBest, isPit) {
+  if (!value || value <= 0 || value > 300) return TIME_COLORS.normal;
+  if (isPit) return TIME_COLORS.pit;
+  const tolerance = 0.001;
+  if (value <= sessionBest + tolerance) return TIME_COLORS.overall_best;
+  if (value <= personalBest + tolerance) return TIME_COLORS.personal_best;
+  return TIME_COLORS.normal;
+}
+
+/**
+ * Qualifying segment badge of each driver at sessionNow: the furthest
+ * segment (Q1, Q2, Q3) the driver has reached so far. A segment counts once
+ * its replay origin (store qualiSegmentOffsets, session seconds) is reached;
+ * its drivers are those of its replay frames (driver_colors), the cars still
+ * in the session then: at Q1 everybody is 'Q1', nobody is told who reaches
+ * Q3. With the whole session known (Infinity) the final classification gives
+ * the badges (P16-20: Q1, P11-15: Q2, P1-10: Q3). {} when neither is known
+ * (lap mode before the end).
+ *
+ * @param {Object} p
+ * @param {Array<Object>} [p.raceResults] - sessionData.race_results
+ * @param {Object} [p.segments] - store qualiSegments ({Q1, Q2, Q3} frames)
+ * @param {Object} [p.offsets] - store qualiSegmentOffsets ({Q1, Q2, Q3} session seconds)
+ * @param {number} p.sessionNow - session seconds
+ * @returns {Object<string, string>} { driver: 'Q1'|'Q2'|'Q3' }
+ */
+export function qualiSegmentBadges({ raceResults, segments, offsets, sessionNow }) {
+  const map = {};
+  if (sessionNow === Infinity) {
+    (raceResults || []).forEach((r) => {
+      const abbr = r.Abbreviation || r.Driver;
+      const pos = r.Position || r.ClassifiedPosition || 99;
+      if (!abbr) return;
+      if (pos > 15) map[abbr] = 'Q1';
+      else if (pos > 10) map[abbr] = 'Q2';
+      else map[abbr] = 'Q3';
+    });
+    return map;
+  }
+  if (!segments || !offsets || !Number.isFinite(sessionNow)) return map;
+  for (const seg of ['Q1', 'Q2', 'Q3']) {
+    const origin = offsets[seg];
+    if (origin == null || !(origin <= sessionNow)) continue;
+    for (const drv of Object.keys(segments[seg]?.driver_colors || {})) map[drv] = seg;
+  }
+  return map;
+}
+
+/**
+ * Timing-sheet rows at sessionNow (session seconds), causal (decision R6,
+ * utils/driverState.js). Each driver's row is the lap in progress with replay
+ * frames (sectors as they are run, a chrono, no lap time or gap of its own),
+ * otherwise the last completed lap in full; with a brushed lap range, the
+ * driver's latest known lap inside it. Tyre = the set in force (new set from
+ * the pit exit); retired only once it happened; bests and the fastest-lap
+ * driver from completed laps only; order as the timing tower (laps completed,
+ * then line crossing; qualifying: best completed lap).
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
+ * @param {number} sessionNow - session seconds, Infinity = whole session
+ * @param {Object} [opts] - { dnfMap, replayActive, brushLapRange: [min, max], qualifying }
+ * @returns {{ bests: Object, rows: Array<Object> }}
+ */
+export function lapTimingSheet(lapTimes, sessionNow, {
+  dnfMap = {}, replayActive = false, brushLapRange = null, qualifying = false,
+} = {}) {
+  const now = sessionNow == null || Number.isNaN(sessionNow) ? Infinity : sessionNow;
+  const rows = Array.isArray(lapTimes) ? lapTimes : [];
+
+  // Session and personal bests over the laps completed at now
+  let bestS1 = Infinity, bestS2 = Infinity, bestS3 = Infinity, bestLap = Infinity;
+  let fastestLapDriver = null;
+  const personalBests = {}; // { driver: { s1, s2, s3, lap } }
+  const byDriver = new Map();
+  for (const d of rows) {
+    if (!d?.Driver) continue;
+    if (!byDriver.has(d.Driver)) byDriver.set(d.Driver, []);
+    byDriver.get(d.Driver).push(d);
+    if (!isLapCompleted(d, now)) continue;
+    const pb = personalBests[d.Driver] || (personalBests[d.Driver] = { s1: Infinity, s2: Infinity, s3: Infinity, lap: Infinity });
+    const s1 = positiveTime(d.Sector1TimeSeconds, 120);
+    const s2 = positiveTime(d.Sector2TimeSeconds, 120);
+    const s3 = positiveTime(d.Sector3TimeSeconds, 120);
+    const lap = positiveTime(d.LapTimeSeconds, 300);
+    if (s1 != null) { bestS1 = Math.min(bestS1, s1); pb.s1 = Math.min(pb.s1, s1); }
+    if (s2 != null) { bestS2 = Math.min(bestS2, s2); pb.s2 = Math.min(pb.s2, s2); }
+    if (s3 != null) { bestS3 = Math.min(bestS3, s3); pb.s3 = Math.min(pb.s3, s3); }
+    if (lap != null) {
+      if (lap < bestLap) { bestLap = lap; fastestLapDriver = d.Driver; }
+      if (lap < pb.lap) pb.lap = lap;
+    }
+  }
+  const bests = { bestS1, bestS2, bestS3, bestLap, fastestLapDriver, personalBests };
+  // Results DNFs plus classified drivers who stopped before the flag
+  const nonFinishers = nonFinisherMap(rows, dnfMap);
+
+  const brushMin = brushLapRange ? brushLapRange[0] : -Infinity;
+  const brushMax = brushLapRange ? brushLapRange[1] : Infinity;
+  const inBrush = (lt) => lt.LapNumber >= brushMin && lt.LapNumber <= brushMax;
+
+  const out = [];
+  for (const [drv, driverRows] of byDriver) {
+    const st = driverStateAt(driverRows, drv, now, { dnf: !!nonFinishers[drv] });
+    const inProgress = st.retired ? null : st.inProgress;
+    let d = replayActive ? (inProgress || st.lastCompleted) : (st.lastCompleted || inProgress);
+    if (d && !inBrush(d)) {
+      // Brushed window: the driver's latest lap inside it that is completed at now
+      d = null;
+      for (const lt of driverRows) {
+        if (inBrush(lt) && isLapCompleted(lt, now) && (!d || lt.LapNumber > d.LapNumber)) d = lt;
+      }
+    }
+    if (!d) continue;
+    const live = d === inProgress;
+    const isCurrent = live || d === st.lastCompleted;
+    const pb = personalBests[drv] || { s1: Infinity, s2: Infinity, s3: Infinity, lap: Infinity };
+    // Pit status: the pit entry / exit of this lap has happened at now
+    const isPit = isPitVisible(d, now) || pitExitPassed(d, now);
+    const isRetired = st.retired;
+
+    const s1 = live ? st.visibleSectors.s1 : d.Sector1TimeSeconds;
+    const s2 = live ? st.visibleSectors.s2 : d.Sector2TimeSeconds;
+    const s3 = live ? st.visibleSectors.s3 : d.Sector3TimeSeconds;
+    const lapTime = live ? null : d.LapTimeSeconds;
+
+    // Live chronometer: running time in the sector being run (replay only)
+    let chrono = null; // { sector: 1|2|3, elapsed: seconds }
+    const start = live ? lapStartTime(d) : null;
+    if (replayActive && live && start != null) {
+      if (s1 == null) chrono = { sector: 1, elapsed: Math.max(0, now - start) };
+      else if (s2 == null && d.Sector1SessionTime > 0) chrono = { sector: 2, elapsed: Math.max(0, now - d.Sector1SessionTime) };
+      else if (s3 == null && d.Sector2SessionTime > 0) chrono = { sector: 3, elapsed: Math.max(0, now - d.Sector2SessionTime) };
+    }
+
+    // Gap / interval: known at a lap's end, so the last completed lap's
+    const gapRow = live ? st.lastCompleted : d;
+    const done = st.lastCompleted;
+    out.push({
+      driver: drv,
+      lap: d.LapNumber,
+      s1, s2, s3, lapTime,
+      lastLapTime: done ? positiveTime(done.LapTimeSeconds, 300) : null,
+      chrono,
+      gap: gapRow?.GapToLeader || null,
+      interval: gapRow?.IntervalToAhead || null,
+      // The set in force for the current lap; a brushed past lap keeps its own
+      compound: (isCurrent ? st.compound : d.Compound) || '',
+      tyreLife: (isCurrent ? st.tyreLife : d.TyreLife) || 0,
+      isPit,
+      isRetired,
+      isCurrentLap: live,
+      retiredStatus: isRetired ? (nonFinishers[drv]?.status || 'DNF') : '',
+      s1Color: isRetired ? TIME_COLORS.normal : timeColor(s1, bestS1, pb.s1, isPit),
+      s2Color: isRetired ? TIME_COLORS.normal : timeColor(s2, bestS2, pb.s2, isPit),
+      s3Color: isRetired ? TIME_COLORS.normal : timeColor(s3, bestS3, pb.s3, isPit),
+      lapColor: isRetired ? TIME_COLORS.normal : timeColor(lapTime, bestLap, pb.lap, isPit),
+      _laps: st.lapsCompleted,
+      _crossed: done && Number.isFinite(done.Time) ? done.Time : Infinity,
+      _position: done && Number.isFinite(done.Position) ? done.Position : Infinity,
+      _best: pb.lap,
+    });
+  }
+
+  // Active drivers in running order (position = rank), retired drivers at the bottom
+  const order = qualifying
+    ? (a, b) => (a._best - b._best) || a.driver.localeCompare(b.driver)
+    : (a, b) => (b._laps - a._laps) || (a._crossed - b._crossed)
+      || (a._position - b._position) || a.driver.localeCompare(b.driver);
+  const active = out.filter((r) => !r.isRetired).sort(order);
+  const retired = out.filter((r) => r.isRetired).sort(order);
+  const sorted = [...active, ...retired].map(({ _laps, _crossed, _position, _best, ...r }, i) => ({ ...r, pos: i + 1 }));
+  return { bests, rows: sorted };
+}
+
 export default function LapTimeChart() {
   const timingContainerRef = useRef(null);
 
@@ -88,39 +280,20 @@ export default function LapTimeChart() {
   const triggerPrediction = useF1Store((s) => s.triggerPrediction);
   const dnfMap = useF1Store((s) => s.dnfMap);
   const totalFrames = useF1Store((s) => s.totalFrames);
-  const currentTime = useF1Store((s) => s.currentTime);
   const drivers = useF1Store((s) => s.drivers);
   const maxLap = useF1Store((s) => s.maxLap);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const brushLapRange = useF1Store((s) => s.brushLapRange);
 
-  const sessionType = useF1Store((s) => s.sessionType);
+  const sessionType = useF1Store(loadedSessionTypeOf); // the loaded session, not the pill
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
   const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
   const raceTarget = totalRaceLaps || maxLap;
-  const raceFinished = isLiveMode
-    ? (currentLap >= raceTarget && raceTarget > 1 && currentLap > 2)
-    : (currentLap >= maxLap && maxLap > 1);
   const isQualifying = sessionType === 'Q';
 
   // Qualifying segment filter
   const [qualiFilter, setQualiFilter] = useState('ALL');
-
-  // Compute qualifying segments from race_results positions
-  const qualiSegmentMap = useMemo(() => {
-    if (!isQualifying) return {};
-    const map = {};
-    (sessionData?.race_results || []).forEach((r) => {
-      const abbr = r.Abbreviation || r.Driver;
-      const pos = r.Position || r.ClassifiedPosition || 99;
-      if (!abbr) return;
-      if (pos > 15) map[abbr] = 'Q1';
-      else if (pos > 10) map[abbr] = 'Q2';
-      else map[abbr] = 'Q3';
-    });
-    return map;
-  }, [isQualifying, sessionData]);
 
   /* ── Country code map from race_results ──────────────────────── */
   const countryCodeMap = useMemo(() => {
@@ -151,181 +324,53 @@ export default function LapTimeChart() {
     return map;
   }, [drivers]);
 
-  // Replay mode: data shown incrementally while frames are loaded.
-  // Only fall back to "review mode" (show everything) when no frames exist at all.
+  // Replay frames loaded: the lap in progress is shown as it is run (sectors,
+  // chrono); without frames (lap mode, live) each driver's last completed lap.
   const replayActive = totalFrames > 0;
 
-  // Compute time offset: session times (e.g. Sector1SessionTime ~3500s) vs frame times (0-based)
-  const sessionTimeOffset = useMemo(() => {
-    if (lapTimes.length === 0) return 0;
-    for (const d of lapTimes) {
-      if (d.LapStartTime > 0 && (d.Time > 0 || d.LapTimeSeconds > 0) && d.LapNumber >= 1) {
-        return d.LapStartTime;
-      }
-    }
-    return 0;
-  }, [lapTimes]);
-  const hasTimeOffset = sessionTimeOffset > 0;
+  // Causal "now" in session seconds (utils/raceTime.js): rows, tyres, pit
+  // flags and retirements as they were at that time (utils/driverState.js)
+  const sessionNow = useSessionNow();
+  // Replay: finished once the leader has taken the chequered flag (end of the
+  // last lap), not when he starts it
+  const chequered = useMemo(() => leaderLapEndTime(lapTimes, maxLap), [lapTimes, maxLap]);
+  const replayFinished = sessionNow === Infinity || (chequered != null && sessionNow >= chequered);
+  const raceFinished = isLiveMode
+    ? (currentLap >= raceTarget && raceTarget > 1 && currentLap > 2)
+    : (replayFinished && maxLap > 1);
 
-  /* ── Compute session-wide bests for color coding (incremental) ── */
-  const sessionBests = useMemo(() => {
-    let bestS1 = Infinity, bestS2 = Infinity, bestS3 = Infinity, bestLap = Infinity;
-    let fastestLapDriver = null;
-    const personalBests = {}; // { driver: { s1, s2, s3, lap } }
+  // Qualifying segment badges at sessionNow (qualiSegmentBadges above): the
+  // furthest segment each driver has reached so far, never the final result
+  const qualiSegments = useF1Store((s) => s.qualiSegments);
+  const qualiOffsets = useF1Store((s) => s.qualiSegmentOffsets);
+  const qualiSegmentMap = useMemo(
+    () => (isQualifying ? qualiSegmentBadges({
+      raceResults: sessionData?.race_results, segments: qualiSegments, offsets: qualiOffsets, sessionNow,
+    }) : {}),
+    [isQualifying, sessionData, qualiSegments, qualiOffsets, sessionNow],
+  );
 
-    // When replay is active, filter progressively; otherwise show all data (review mode)
-    const effectiveLap = replayActive ? currentLap : Infinity;
-    lapTimes.filter((d) => d.LapNumber <= effectiveLap).forEach((d) => {
-      // During replay: skip laps the driver hasn't started yet
-      if (replayActive && hasTimeOffset && d.LapStartTime > 0 && currentTime < d.LapStartTime - sessionTimeOffset) return;
-      const drv = d.Driver;
-      if (!personalBests[drv]) personalBests[drv] = { s1: Infinity, s2: Infinity, s3: Infinity, lap: Infinity };
+  /* ── Bests (completed laps) and one row per driver at sessionNow ── */
+  const sheet = useMemo(
+    () => lapTimingSheet(lapTimes, sessionNow, {
+      dnfMap, replayActive, brushLapRange, qualifying: isQualifying,
+    }),
+    [lapTimes, sessionNow, dnfMap, replayActive, brushLapRange, isQualifying],
+  );
+  const sessionBests = sheet.bests;
 
-      // Only include sector times that have actually been completed (during replay)
-      const s1ok = !replayActive || !d.Sector1SessionTime || currentTime >= d.Sector1SessionTime - sessionTimeOffset;
-      const s2ok = !replayActive || !d.Sector2SessionTime || currentTime >= d.Sector2SessionTime - sessionTimeOffset;
-      const s3ok = !replayActive || !d.Sector3SessionTime || currentTime >= d.Sector3SessionTime - sessionTimeOffset;
-
-      const s1 = s1ok ? d.Sector1TimeSeconds : 0;
-      const s2 = s2ok ? d.Sector2TimeSeconds : 0;
-      const s3 = s3ok ? d.Sector3TimeSeconds : 0;
-      const lap = s3ok ? d.LapTimeSeconds : 0;
-
-      if (s1 > 0 && s1 < 120) {
-        if (s1 < bestS1) bestS1 = s1;
-        if (s1 < personalBests[drv].s1) personalBests[drv].s1 = s1;
-      }
-      if (s2 > 0 && s2 < 120) {
-        if (s2 < bestS2) bestS2 = s2;
-        if (s2 < personalBests[drv].s2) personalBests[drv].s2 = s2;
-      }
-      if (s3 > 0 && s3 < 120) {
-        if (s3 < bestS3) bestS3 = s3;
-        if (s3 < personalBests[drv].s3) personalBests[drv].s3 = s3;
-      }
-      if (lap > 0 && lap < 300) {
-        if (lap < bestLap) { bestLap = lap; fastestLapDriver = drv; }
-        if (lap < personalBests[drv].lap) personalBests[drv].lap = lap;
-      }
-    });
-
-    return { bestS1, bestS2, bestS3, bestLap, fastestLapDriver, personalBests };
-  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, replayActive, hasTimeOffset]);
-
-  /* ── Get time color (purple / green / yellow / white) ───────── */
-  const getTimeColor = useCallback((value, sessionBest, personalBest, isPit) => {
-    if (isPit) return TIME_COLORS.pit;
-    if (!value || value <= 0 || value > 300) return TIME_COLORS.normal;
-    const tolerance = 0.001;
-    if (Math.abs(value - sessionBest) < tolerance) return TIME_COLORS.overall_best;
-    if (Math.abs(value - personalBest) < tolerance) return TIME_COLORS.personal_best;
-    return TIME_COLORS.normal;
-  }, []);
-
-  /* ── Build timing rows for current lap ──────────────────────── */
-  const timingRows = useMemo(() => {
-    if (lapTimes.length === 0) return [];
-
-    const effectiveLap = replayActive ? currentLap : Infinity;
-    // When brushLapRange is set from PositionByLap, restrict to that window
-    const brushMin = brushLapRange ? brushLapRange[0] : 0;
-    const brushMax = brushLapRange ? brushLapRange[1] : Infinity;
-    const drivers = new Map();
-    lapTimes
-      .filter((d) => d.LapNumber <= effectiveLap && d.LapNumber >= brushMin && d.LapNumber <= brushMax)
-      .forEach((d) => {
-        // During replay: skip laps the driver hasn't started yet
-        if (replayActive && hasTimeOffset && d.LapStartTime > 0 && currentTime < d.LapStartTime - sessionTimeOffset) return;
-        const existing = drivers.get(d.Driver);
-        if (!existing || d.LapNumber > existing.LapNumber) {
-          drivers.set(d.Driver, d);
-        }
-      });
-
-    return Array.from(drivers.values())
-      .map((d) => {
-        const pb = sessionBests.personalBests[d.Driver] || {};
-        // Pit status: verify pit entry/exit have actually happened in the timeline
-        const pitInAdj = d.PitInTime > 0 ? d.PitInTime - sessionTimeOffset : null;
-        const pitOutAdj = d.PitOutTime > 0 ? d.PitOutTime - sessionTimeOffset : null;
-        const isPit = (pitInAdj != null && currentTime >= pitInAdj) ||
-                      (pitOutAdj != null && currentTime >= pitOutAdj);
-        const dnf = dnfMap[d.Driver];
-        const isRetired = !!(dnf && dnf.lastLap <= currentLap);
-        const info = driverInfoMap[d.Driver] || {};
-
-        // Sector-by-sector progressive reveal for the current lap (only during replay)
-        // In review mode (replay not active), show everything
-        const isCurrentLap = replayActive && d.LapNumber === currentLap;
-        // Convert session times to frame-relative times by subtracting offset
-        const s1Time = d.Sector1SessionTime > 0 ? d.Sector1SessionTime - sessionTimeOffset : null;
-        const s2Time = d.Sector2SessionTime > 0 ? d.Sector2SessionTime - sessionTimeOffset : null;
-        const s3Time = d.Sector3SessionTime > 0 ? d.Sector3SessionTime - sessionTimeOffset : null;
-
-        // For current lap: use session time comparison if available, otherwise
-        // fall back to showing sector if its data exists (> 0) — prevents blank sectors
-        // when Sector*SessionTime is null in the data
-        const showS1 = !isCurrentLap || (s1Time != null ? currentTime >= s1Time : d.Sector1TimeSeconds > 0);
-        const showS2 = !isCurrentLap || (s2Time != null ? currentTime >= s2Time : d.Sector2TimeSeconds > 0);
-        const showS3 = !isCurrentLap || (s3Time != null ? currentTime >= s3Time : d.Sector3TimeSeconds > 0);
-        const showLapTime = !isCurrentLap || showS3; // lap time available when S3 completes
-
-        const s1 = showS1 ? d.Sector1TimeSeconds : null;
-        const s2 = showS2 ? d.Sector2TimeSeconds : null;
-        const s3 = showS3 ? d.Sector3TimeSeconds : null;
-        const lapTime = showLapTime ? d.LapTimeSeconds : null;
-
-        // Live chronometer: compute running sector time for the current lap
-        let chrono = null; // { sector: 1|2|3, elapsed: seconds }
-        if (isCurrentLap && hasTimeOffset) {
-          const lapStart = d.LapStartTime > 0 ? d.LapStartTime - sessionTimeOffset : null;
-          if (!showS1 && lapStart != null) {
-            // In S1 — counting from lap start
-            chrono = { sector: 1, elapsed: Math.max(0, currentTime - lapStart) };
-          } else if (showS1 && !showS2 && s1Time != null) {
-            // S1 done, in S2 — counting from S1 completion
-            chrono = { sector: 2, elapsed: Math.max(0, currentTime - s1Time) };
-          } else if (showS2 && !showS3 && s2Time != null) {
-            // S2 done, in S3 — counting from S2 completion
-            chrono = { sector: 3, elapsed: Math.max(0, currentTime - s2Time) };
-          }
-        }
-
-        return {
-          pos: d.Position || 99,
-          driver: d.Driver,
-          firstName: info.firstName || '',
-          surname: info.surname || d.Driver,
-          teamLogo: info.teamLogo || null,
-          color: getDriverColor(d.Driver),
-          lap: d.LapNumber,
-          s1,
-          s2,
-          s3,
-          lapTime,
-          chrono,
-          gap: showLapTime ? (d.GapToLeader || null) : null,
-          interval: showLapTime ? (d.IntervalToAhead || null) : null,
-          compound: d.Compound || '',
-          tyreLife: d.TyreLife || 0,
-          isPit,
-          isRetired,
-          isCurrentLap,
-          retiredStatus: dnf?.status || '',
-          s1Color: isRetired ? TIME_COLORS.normal : (showS1 ? getTimeColor(d.Sector1TimeSeconds, sessionBests.bestS1, pb.s1, isPit) : TIME_COLORS.normal),
-          s2Color: isRetired ? TIME_COLORS.normal : (showS2 ? getTimeColor(d.Sector2TimeSeconds, sessionBests.bestS2, pb.s2, isPit) : TIME_COLORS.normal),
-          s3Color: isRetired ? TIME_COLORS.normal : (showS3 ? getTimeColor(d.Sector3TimeSeconds, sessionBests.bestS3, pb.s3, isPit) : TIME_COLORS.normal),
-          lapColor: isRetired ? TIME_COLORS.normal : (showLapTime ? getTimeColor(d.LapTimeSeconds, sessionBests.bestLap, pb.lap, isPit) : TIME_COLORS.normal),
-          qualiSegment: qualiSegmentMap[d.Driver] || null,
-        };
-      })
-      .sort((a, b) => {
-        // Active drivers first (by position), retired drivers at bottom
-        if (a.isRetired && !b.isRetired) return 1;
-        if (!a.isRetired && b.isRetired) return -1;
-        return (a.pos || 99) - (b.pos || 99);
-      });
-  }, [lapTimes, currentLap, currentTime, sessionTimeOffset, sessionBests, getTimeColor, dnfMap, replayActive, hasTimeOffset, driverInfoMap, qualiSegmentMap, brushLapRange]);
+  /* ── Timing rows with driver identity ───────────────────────── */
+  const timingRows = useMemo(() => sheet.rows.map((row) => {
+    const info = driverInfoMap[row.driver] || {};
+    return {
+      ...row,
+      firstName: info.firstName || '',
+      surname: info.surname || row.driver,
+      teamLogo: info.teamLogo || null,
+      color: getDriverColor(row.driver),
+      qualiSegment: qualiSegmentMap[row.driver] || null,
+    };
+  }), [sheet, driverInfoMap, qualiSegmentMap]);
 
   /* ── All drivers shown; qualifying filter applied if active ── */
   const displayRows = useMemo(() => {
@@ -751,8 +796,8 @@ export default function LapTimeChart() {
               {/* Predicted lap rows */}
               {predTimes.map((time, i) => {
                 const predLap = currentLap + i + 1;
-                // Compute delta vs last actual lap
-                const lastActualTime = focusRow.lapTime;
+                // Compute delta vs the last completed lap
+                const lastActualTime = focusRow.lastLapTime;
                 const delta = lastActualTime && lastActualTime > 0 ? time - lastActualTime : null;
 
                 return (
@@ -852,6 +897,7 @@ export default function LapTimeChart() {
             lstmPredictions={lstmPredictions}
             lapTimes={lapTimes}
             currentLap={currentLap}
+            sessionNow={sessionNow}
           />
         )}
       </div>
@@ -988,7 +1034,7 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
 }
 
 /* ── LSTM Forecast Mini-Chart: D3 pace trend + prediction overlay ── */
-function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap }) {
+function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, sessionNow }) {
   const svgRef = useRef(null);
   const tooltipRef = useRef(null);
 
@@ -998,13 +1044,23 @@ function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap 
     return pred.predicted_times.slice(0, 5).filter((t) => t > 0 && t < 300);
   }, [pred]);
 
-  // Recent racing laps for the focused driver (last 15 laps, no pit laps)
+  // Laps of the focused driver completed at sessionNow: the count changes
+  // once per lap, so the chart is not redrawn on every replay tick
+  const doneCount = useMemo(() => {
+    let n = 0;
+    for (const d of lapTimes) if (d.Driver === focusDriver && isLapCompleted(d, sessionNow)) n++;
+    return n;
+  }, [lapTimes, focusDriver, sessionNow]);
+
+  // Recent racing laps for the focused driver (last 15 laps, no pit laps),
+  // only laps completed at sessionNow (the unfinished lap is not known yet)
   const recentLaps = useMemo(() => {
-    return lapTimes
-      .filter((d) => d.Driver === focusDriver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300 && !d.PitInTime && !d.PitOutTime)
+    return completedLaps(lapTimes, sessionNow)
+      .filter((d) => d.Driver === focusDriver && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300 && !d.PitInTime && !d.PitOutTime)
       .sort((a, b) => a.LapNumber - b.LapNumber)
       .slice(-15);
-  }, [lapTimes, focusDriver, currentLap]);
+    // sessionNow enters through doneCount, which changes whenever the result does
+  }, [lapTimes, focusDriver, doneCount]);
 
   useEffect(() => {
     if (!svgRef.current || recentLaps.length < 2) return;

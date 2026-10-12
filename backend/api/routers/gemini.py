@@ -5,6 +5,7 @@ Compiles race state into Gemini prompts and parses strategy responses.
 import os
 import json
 import logging
+import math
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -32,6 +33,71 @@ class GeminiRequest(BaseModel):
     race_context: Optional[Dict[str, Any]] = None
 
 
+# Pit loss used by the mock when the client sends none: the same assumption as
+# FALLBACK_PIT_LOSS.median in frontend/src/utils/pitLoss.js. Not data; every
+# text that uses it labels it as a fallback.
+FALLBACK_PIT_LOSS_S = 22.0
+
+
+def _finite(value):
+    """float(value) for a finite int/float, else None (None, NaN, bool, strings)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    f = float(value)
+    return f if math.isfinite(f) else None
+
+
+def _pit_loss_info(race_params) -> dict:
+    """Pit-loss point estimate and provenance from the frontend raceParams.
+
+    raceParams.pitLoss is the estimatePitLoss object of
+    frontend/src/utils/pitLoss.js: {median, mean, stdDev, p10, p90, n,
+    source: 'race' | 'fallback'}. median is the point estimate; mean is read
+    only when median is missing (older clients). Any field may be absent/None.
+
+    Returns {value, stat, source, n, p10, p90, std}: value None when no usable
+    number was sent; stat 'median' or 'mean' (which field gave value); source
+    'race' (measured from this race's green-flag stops), 'fallback' (the
+    client's assumption, no qualifying stop yet) or None (not stated).
+    """
+    pl = race_params.get('pitLoss') if isinstance(race_params, dict) else None
+    if not isinstance(pl, dict):
+        pl = {}
+    value, stat = _finite(pl.get('median')), 'median'
+    if value is None:
+        value, stat = _finite(pl.get('mean')), 'mean'
+    n = _finite(pl.get('n'))
+    return {
+        'value': value,
+        'stat': stat if value is not None else None,
+        'source': pl.get('source') if pl.get('source') in ('race', 'fallback') else None,
+        'n': int(n) if n is not None else None,
+        'p10': _finite(pl.get('p10')),
+        'p90': _finite(pl.get('p90')),
+        'std': _finite(pl.get('stdDev')),
+    }
+
+
+def _pit_loss_line(info: dict) -> str:
+    """Prompt line for the pit loss, with where the number comes from."""
+    if info['value'] is None:
+        return "Pit loss: no data"
+    line = f"Pit loss: {info['value']:.1f}s"
+    if info['source'] == 'race':
+        stops = f"{info['n']} " if info['n'] is not None else ""
+        details = [f"{info['stat']} of {stops}green-flag pit stops measured in this race"]
+        if info['p10'] is not None and info['p90'] is not None:
+            details.append(f"p10-p90 {info['p10']:.1f}-{info['p90']:.1f}s")
+        if info['std'] is not None:
+            details.append(f"sd {info['std']:.1f}s")
+        line += f" ({', '.join(details)})"
+    elif info['source'] == 'fallback':
+        line += " (FALLBACK assumption, not race data: no green-flag pit stop measured in this race yet)"
+    else:
+        line += f" ({info['stat']}, source not stated)"
+    return line
+
+
 def _build_prompt(request: GeminiRequest) -> str:
     """Build a structured prompt for Gemini with full race intelligence."""
     parts = [
@@ -41,7 +107,8 @@ def _build_prompt(request: GeminiRequest) -> str:
         "",
         "CRITICAL RULES:",
         "1. ONLY use the data provided below. NEVER invent lap times, positions, or probabilities.",
-        "2. Always reference specific numbers to justify recommendations (e.g. 'pace trend +0.08s/lap', 'pit loss 22s').",
+        "2. Always reference specific numbers to justify recommendations (e.g. 'pace trend +0.08s/lap', "
+        "the pit loss given under Race Parameters, saying whether it is measured or a fallback).",
         "3. If the data for a topic is missing, say 'I don't have data for this' — do NOT guess.",
         "4. Structure your response around actionable decisions: when to pit, which compound, how to handle battles.",
         "5. Be concise and decisive. No filler or hedging.",
@@ -151,11 +218,11 @@ def _build_prompt(request: GeminiRequest) -> str:
     # Race parameters
     if ctx.get('raceParams'):
         rp = ctx['raceParams']
-        pl = rp.get('pitLoss', {})
         parts.append(f"\n## Race Parameters")
-        parts.append(f"  Pit loss: {pl.get('mean', '?')}s ±{pl.get('stdDev', '?')}s")
-        sc = rp.get('scRate', 0)
-        parts.append(f"  Safety car prob: {sc*100:.1f}%/lap")
+        parts.append(f"  {_pit_loss_line(_pit_loss_info(rp))}")
+        sc = _finite(rp.get('scRate')) if isinstance(rp, dict) else None
+        if sc is not None:
+            parts.append(f"  Safety car prob: {sc*100:.1f}%/lap")
 
     # Degradation regression
     if ctx.get('degradationRegression'):
@@ -229,11 +296,19 @@ def _mock_response(request: GeminiRequest) -> dict:
     battles = ctx.get('battles', [])
     risks = ctx.get('risks', [])
     features = ctx.get('driverFeatures', {})
-    race_params = ctx.get('raceParams', {})
+    race_params = ctx.get('raceParams') or {}
 
     drv_feats = features.get(driver, {})
     drv_proj = next((p for p in projections if p['driver'] == driver), None) if projections else None
-    pit_loss = race_params.get('pitLoss', {}).get('mean', 22)
+    # Pit loss: the race median when the client measured one, else a labelled fallback
+    pit_info = _pit_loss_info(race_params)
+    pit_loss = pit_info['value'] if pit_info['value'] is not None else FALLBACK_PIT_LOSS_S
+    if pit_info['value'] is not None and pit_info['source'] == 'race':
+        pit_loss_str = f"~{pit_loss:.0f}s (race {pit_info['stat']})"
+    elif pit_info['value'] is not None and pit_info['source'] is None:
+        pit_loss_str = f"~{pit_loss:.0f}s"
+    else:
+        pit_loss_str = f"~{pit_loss:.0f}s (fallback assumption)"
     max_lap = ctx.get('maxLap') or 57
 
     # Current driver state
@@ -293,7 +368,7 @@ def _mock_response(request: GeminiRequest) -> dict:
             f"STRATEGY ANALYSIS — {driver} at Lap {current_lap}\n\n"
             f"Current: P{position}, {compound} tyres ({tyre_age} laps), "
             f"pace {recent_pace:.1f}s, trend {pace_trend:+.2f}s/lap.\n"
-            f"Pit loss: ~{pit_loss:.0f}s. Estimated tyre life remaining: ~{est_pit} laps.\n\n"
+            f"Pit loss: {pit_loss_str}. Estimated tyre life remaining: ~{est_pit} laps.\n\n"
         )
 
         if pace_trend > 0.08:
@@ -365,7 +440,7 @@ def _mock_response(request: GeminiRequest) -> dict:
             text = (
                 f"UNDERCUT RECOMMENDED — {driver}, Lap {current_lap}\n\n"
                 f"Degradation: {pace_trend:+.2f}s/lap on {compound} (age {tyre_age}).\n"
-                f"Pit lap {pit_now} for {next_compound}. Pit loss ~{pit_loss:.0f}s.\n"
+                f"Pit lap {pit_now} for {next_compound}. Pit loss {pit_loss_str}.\n"
                 f"Expected to gain track position during rivals' stops."
             )
         else:
@@ -374,7 +449,7 @@ def _mock_response(request: GeminiRequest) -> dict:
                 f"OVERCUT VIABLE — {driver}, Lap {current_lap}\n\n"
                 f"Tyres performing well ({pace_trend:+.2f}s/lap). Stay out.\n"
                 f"Extend to lap {pit_late}, gain time while others pit.\n"
-                f"Pit loss ~{pit_loss:.0f}s."
+                f"Pit loss {pit_loss_str}."
             )
 
         scenarios = [
@@ -409,7 +484,7 @@ def _mock_response(request: GeminiRequest) -> dict:
         text = (
             f"PIT DECISION — {driver}, Lap {current_lap}\n\n"
             f"Current: {compound} (age {tyre_age}), pace trend {pace_trend:+.2f}s/lap.\n"
-            f"Est. remaining tyre life: {est_pit} laps. Pit loss: ~{pit_loss:.0f}s.\n\n"
+            f"Est. remaining tyre life: {est_pit} laps. Pit loss: {pit_loss_str}.\n\n"
         )
         if est_pit <= 3 or pace_trend > 0.1:
             text += "BOX BOX BOX. Tyres are done. Pit this lap or next."
@@ -488,7 +563,7 @@ def _mock_response(request: GeminiRequest) -> dict:
             exp = drv_proj.get('expectedPos', '?')
             exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
             text += f"MC projection: P{exp_str}, podium {drv_proj.get('podiumProb', 0)}%.\n"
-        text += f"Est. laps to pit: {est_pit}. Pit loss: ~{pit_loss:.0f}s.\n\n"
+        text += f"Est. laps to pit: {est_pit}. Pit loss: {pit_loss_str}.\n\n"
 
         if battles:
             b = battles[0]

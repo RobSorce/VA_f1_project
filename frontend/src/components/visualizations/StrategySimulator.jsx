@@ -2,6 +2,9 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
+import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
+import { stintsByDriver } from '../../utils/stints';
+import { causalKey, simulatorStints } from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
 
 const COMPOUNDS = ['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'];
@@ -54,19 +57,24 @@ export default function StrategySimulator() {
     return raceSituationData.driverAbbrs;
   }, [raceSituationData]);
 
-  // Current actual strategy for the driver
-  const actualStrategy = useMemo(() => {
-    const strats = sessionData?.tyre_strategy || sessionData?.strategies || [];
+  // Current actual strategy for the driver: stints from the FastF1 Stint
+  // column of the laps completed at sessionNow (utils/stints.js), so the
+  // replay never shows a stint before it happens.
+  // Live mode: the current stint stays ongoing until the flag, so the plan
+  // reaches the race distance (simulatorStints)
+  const sessionNow = useSessionNow();
+  const running = useStintsRunning();
+  const lapTimes = sessionData?.lap_times;
+  const causal = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
+  const actualStints = useMemo(() => {
     if (!editDriver) return [];
-    return strats
-      .filter((s) => (s.Driver || s.driver) === editDriver)
-      .map((s) => ({
-        compound: s.Compound || 'UNKNOWN',
-        lapStart: s.LapStart || s.StartLap || 1,
-        length: s.StintLength || s.TotalLaps || ((s.EndLap || 10) - (s.StartLap || 1) + 1),
-      }))
-      .sort((a, b) => a.lapStart - b.lapStart);
-  }, [sessionData, editDriver]);
+    return stintsByDriver(lapTimes || [], { sessionNow, running })[editDriver] || [];
+  }, [lapTimes, causal, editDriver, running]);
+  const actualStrategy = useMemo(() => actualStints.map((s) => ({
+    compound: s.Compound,
+    lapStart: s.StartLap,
+    length: s.TotalLaps,
+  })), [actualStints]);
 
   // Recalculate lapStart values when stints change
   const normalizeStints = useCallback((stints) => {
@@ -118,8 +126,11 @@ export default function StrategySimulator() {
   };
 
   const handleCopyActual = () => {
-    if (actualStrategy.length > 0) {
-      setEditStints(actualStrategy.map((s) => ({ ...s })));
+    // The plan must reach the flag: the ongoing stint is extended to the
+    // race length as the editable "no further stop" baseline
+    const plan = simulatorStints(actualStints, effectiveMaxLap);
+    if (plan.length > 0) {
+      setEditStints(plan);
     }
   };
 
@@ -342,7 +353,7 @@ export default function StrategySimulator() {
           {actualStrategy.length > 0 && (
             <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm)' }}>
               <h6 style={{ color: 'var(--color-text-muted)', fontSize: '9px', textTransform: 'uppercase', fontWeight: 700, margin: '0 0 4px' }}>
-                Actual Strategy
+                Actual Strategy{actualStints.some((s) => s.ongoing) ? ' (so far)' : ''}
               </h6>
               <div style={{ display: 'flex', height: 14, borderRadius: 3, overflow: 'hidden', gap: 1 }}>
                 {actualStrategy.map((stint, i) => {

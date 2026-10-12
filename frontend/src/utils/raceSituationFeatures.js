@@ -1,7 +1,20 @@
 /**
  * Extract per-driver feature vectors for the Race Situation Map.
  * 10 features per driver at the current replay lap.
+ *
+ * Causal: every feature comes from the laps each driver has completed at
+ * `sessionNow` (session seconds, utils/raceTime.js), and stints from the FastF1
+ * Stint column (utils/stints.js), never from the unfinished current lap or
+ * from the compound-merged tyre_strategy. Stints follow the shared visibility
+ * rule (decision R3): from the pit exit the new set is the current one (its
+ * compound and TyreLife), and the stop counts, while the out-lap is still
+ * running; `pitStops` = stints - 1 = stints.pitStops count at the same clock
+ * (decision R2). A retired driver drops out only once the retirement has
+ * happened (utils/driverState.js, decision R6).
  */
+import { completedLaps, resolveSessionNow } from './raceTime';
+import { stintsByDriver } from './stints';
+import { driverStateAt, nonFinisherMap } from './driverState';
 
 export const FEATURE_NAMES = [
   'position', 'gap_to_leader', 'recent_pace', 'pace_trend',
@@ -29,6 +42,11 @@ const COMPOUND_NAMES = { 0: 'UNKNOWN', 1: 'SOFT', 2: 'MEDIUM', 3: 'HARD', 4: 'IN
 // life ranges (see Pirelli F1 Motorsport media briefings, pre-season 2024).
 const AVG_STINT = { SOFT: 18, MEDIUM: 28, HARD: 40, INTERMEDIATE: 25, WET: 20, UNKNOWN: 25 };
 
+/** Compound name from COMPOUND_NUM other than UNKNOWN, else null ('nan', null, ...). */
+function knownCompound(c) {
+  return c && c !== 'UNKNOWN' && COMPOUND_NUM[c] != null ? c : null;
+}
+
 /**
  * Compute linear slope of an array of values (y vs index).
  * Positive slope = values increasing.
@@ -52,54 +70,62 @@ function linearSlope(values) {
  * Extract race situation features for all active drivers at currentLap.
  *
  * @param {Object} params
- * @param {Array} params.lapTimes - sessionData.lap_times
- * @param {Array} params.strategies - tyre_strategy array
- * @param {Object} params.dnfMap - { abbr: { lastLap } }
+ * @param {Array} params.lapTimes - sessionData.lap_times (full race; filtered causally here)
+ * @param {Array} [params.strategies] - unused: stints are derived from lapTimes
+ *   (utils/stints.js); kept so existing call sites keep working
+ * @param {Object} params.dnfMap - { abbr: {...} } drivers who did not finish; a driver in it
+ *   is left out from the moment the retirement happened (driverStateAt.retired)
  * @param {number} params.currentLap
- * @param {Object|null} params.frameDrivers - current frame's .drivers object
+ * @param {Object|null} params.frameDrivers - current frame's .drivers object; only fills
+ *   tyre age / compound when the latest completed lap row lacks them
  * @param {Object|null} params.lstmPredictions - store.lstmPredictions
  * @param {string|null} params.focusDriver
+ * @param {number} [params.sessionNow] - session seconds (raceTime.resolveSessionNow);
+ *   when omitted, derived in lap mode from currentLap
+ * @param {number} [params.sessionTimeOffset] - session seconds of replay time 0
  * @returns {{ driverAbbrs: string[], matrix: number[][], driverFeatures: Object, featureNames: string[] } | null}
  */
 export function extractRaceSituationFeatures({
-  lapTimes, strategies, dnfMap, currentLap,
+  lapTimes, dnfMap, currentLap,
   frameDrivers, lstmPredictions, focusDriver,
+  sessionNow, sessionTimeOffset,
 }) {
   if (!lapTimes?.length || currentLap < 3) return null;
 
-  // Group laps by driver, only up to currentLap
+  const now = typeof sessionNow === 'number' && !Number.isNaN(sessionNow)
+    ? sessionNow
+    : resolveSessionNow({ currentLap, lapTimes, sessionTimeOffset });
+
+  // Group the laps completed at `now` by driver
   const driverLaps = {};
-  for (const lt of lapTimes) {
+  for (const lt of completedLaps(lapTimes, now)) {
     const drv = lt.Driver;
-    if (!drv || lt.LapNumber > currentLap) continue;
+    if (!drv) continue;
     if (!driverLaps[drv]) driverLaps[drv] = [];
     driverLaps[drv].push(lt);
   }
 
-  // Group strategies by driver
-  const driverStrats = {};
-  if (strategies) {
-    for (const s of strategies) {
-      const drv = s.Driver;
-      if (drv) {
-        if (!driverStrats[drv]) driverStrats[drv] = [];
-        driverStrats[drv].push(s);
-      }
-    }
-  }
+  // Stints visible at `now`, per driver (FastF1 Stint column, utils/stints.js)
+  const driverStints = stintsByDriver(lapTimes, { sessionNow: now });
 
   const driverAbbrs = [];
   const matrix = [];
   const driverFeatures = {};
 
+  // Results DNFs plus classified drivers who stopped before the flag
+  const nonFinishers = nonFinisherMap(lapTimes, dnfMap);
   for (const [driver, laps] of Object.entries(driverLaps)) {
-    // Skip DNF drivers (retired before current lap)
-    if (dnfMap?.[driver] && dnfMap[driver].lastLap < currentLap) continue;
+    // Skip DNF drivers once they have retired at `now` (their final lap row has
+    // ended, or they entered the pits for good), not from the leader's lap number
+    const state = driverStateAt(lapTimes, driver, now, {
+      stints: driverStints, dnf: !!nonFinishers[driver],
+    });
+    if (state.retired) continue;
 
     // Sort by lap number
     laps.sort((a, b) => a.LapNumber - b.LapNumber);
 
-    // Latest lap data
+    // Latest completed lap
     const latest = laps[laps.length - 1];
     if (!latest) continue;
 
@@ -125,22 +151,33 @@ export function extractRaceSituationFeatures({
     const last5 = validLaps.slice(-5);
     const paceTrend = linearSlope(last5.map((lt) => lt.LapTimeSeconds));
 
-    // 5. Tyre life
-    let tyreLife = latest.TyreLife || 0;
-    const frameDrv = frameDrivers?.[driver];
-    if (frameDrv?.tyre_life != null) tyreLife = Math.round(frameDrv.tyre_life);
+    // Stints so far; the last one is the set in force. Between the pit exit
+    // and the end of the out-lap it starts after the latest completed lap:
+    // the new set is already the current one (R3)
+    const driverStintList = driverStints[driver] || [];
+    const currentStint = driverStintList[driverStintList.length - 1];
+    const onNewSet = !!currentStint && currentStint.StartLap > latest.LapNumber;
 
-    // 6. Compound
-    let compoundName = latest.Compound || 'UNKNOWN';
-    if (frameDrv?.tyre != null) {
-      compoundName = COMPOUND_NAMES[frameDrv.tyre] || compoundName;
-    }
+    // 5. Tyre life at the end of the latest completed lap; on a set fitted at
+    //    a pit exit whose out-lap is still running, the out-lap's TyreLife
+    //    (driverStateAt). The current frame (same instant as `now`) fills it
+    //    only when the lap row has none.
+    const frameDrv = frameDrivers?.[driver];
+    const rowLife = onNewSet ? state.tyreLife : latest.TyreLife;
+    let tyreLife = Number.isFinite(rowLife) ? rowLife : null;
+    if (tyreLife == null && frameDrv?.tyre_life != null) tyreLife = Math.round(frameDrv.tyre_life);
+    if (tyreLife == null) tyreLife = 0;
+
+    // 6. Compound of the latest completed lap (of the new set after a pit
+    //    exit), else of its stint, else the frame's
+    let compoundName = onNewSet
+      ? knownCompound(currentStint.Compound)
+      : knownCompound(latest.Compound) || knownCompound(currentStint?.Compound);
+    if (!compoundName && frameDrv?.tyre != null) compoundName = knownCompound(COMPOUND_NAMES[frameDrv.tyre]);
+    if (!compoundName) compoundName = 'UNKNOWN';
     const compoundNum = COMPOUND_NUM[compoundName] || 0;
 
-    // 7. Stint number
-    const driverStintList = (driverStrats[driver] || [])
-      .filter((s) => s.StartLap <= currentLap)
-      .sort((a, b) => a.StintNumber - b.StintNumber);
+    // 7. Stint number (FastF1 Stint column, so a same-compound stop counts)
     const stintNumber = driverStintList.length || 1;
 
     // 8. Predicted pace +5 laps: LSTM prediction if available for focus driver,
@@ -158,9 +195,10 @@ export function extractRaceSituationFeatures({
     const avgStint = AVG_STINT[compoundName] || 25;
     const estLapsToPit = Math.max(0, avgStint - tyreLife);
 
-    // 10. Position trend (positions gained in last 5 laps, positive = gaining)
+    // 10. Position trend (positions gained over the driver's last 5 completed
+    //     laps, positive = gaining)
     let positionTrend = 0;
-    const fiveLapsAgo = laps.find((lt) => lt.LapNumber === Math.max(1, currentLap - 5));
+    const fiveLapsAgo = laps.find((lt) => lt.LapNumber === Math.max(1, latest.LapNumber - 5));
     if (fiveLapsAgo?.Position && latest.Position) {
       positionTrend = fiveLapsAgo.Position - latest.Position; // positive = gained positions
     }
@@ -181,7 +219,7 @@ export function extractRaceSituationFeatures({
     driverFeatures[driver] = {
       position, gapToLeader, recentPace, paceTrend,
       tyreLife, compoundName, compoundNum, stintNumber,
-      pitStops: Math.max(0, stintNumber - 1),
+      pitStops: Math.max(0, stintNumber - 1), // tyre changes so far = stints.pitStops count
       predictedPace5, estLapsToPit, positionTrend,
     };
   }

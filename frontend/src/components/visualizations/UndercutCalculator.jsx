@@ -2,6 +2,12 @@ import React, { useMemo, useEffect } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { extractRaceParams } from '../../utils/raceSimulation';
+import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
+import { completedLaps } from '../../utils/raceTime';
+import { FALLBACK_PIT_LOSS } from '../../utils/pitLoss';
+import {
+  causalKey, completedStints, pitLossDisplay, viewSessionType, isRaceSession,
+} from '../../utils/strategyViews';
 
 const FALLBACK_DEG = { mean: 0.04, stdDev: 0.02 };
 
@@ -16,19 +22,33 @@ export default function UndercutCalculator() {
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
   const raceSituationData = useF1Store((s) => s.raceSituationData);
-  const raceProjection = useF1Store((s) => s.raceProjection);
   const focusDriver = useF1Store((s) => s.focusDriver);
   const comparisonDriver = useF1Store((s) => s.comparisonDriver);
   const setComparisonDriver = useF1Store((s) => s.setComparisonDriver);
 
-  const lapTimes = sessionData?.lap_times || [];
-  const driverFeatures = raceSituationData?.driverFeatures || {};
+  const sessionTimeOffset = useF1Store((s) => s.sessionTimeOffset);
+  // Undercut maths uses the race pit loss: race sessions ('R', 'S') only
+  const sessionType = useF1Store(viewSessionType);
+  const isRace = isRaceSession(sessionType);
+  const sessionNow = useSessionNow();
+  // Live mode: stints still being run are not completed stint lengths
+  const running = useStintsRunning();
 
-  // Latest standings (ordered by position)
+  const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
+  const trackStatus = useMemo(() => sessionData?.track_status || [], [sessionData]);
+  const driverFeatures = raceSituationData?.driverFeatures || {};
+  // Changes only when a lap, a pit event or a track-status event completes,
+  // so the memos below do not re-run on every replay frame
+  const causal = useMemo(
+    () => causalKey(lapTimes, sessionNow, trackStatus),
+    [lapTimes, sessionNow, trackStatus],
+  );
+
+  // Latest standings (ordered by position), from the laps completed at
+  // sessionNow: the lap in progress has no position yet
   const standings = useMemo(() => {
     const latest = {};
-    for (const lt of lapTimes) {
-      if (lt.LapNumber > currentLap) continue;
+    for (const lt of completedLaps(lapTimes, sessionNow)) {
       if (!latest[lt.Driver] || lt.LapNumber > latest[lt.Driver].LapNumber) {
         latest[lt.Driver] = lt;
       }
@@ -36,7 +56,7 @@ export default function UndercutCalculator() {
     return Object.values(latest)
       .filter((r) => r.Position != null && r.Position > 0)
       .sort((a, b) => a.Position - b.Position);
-  }, [lapTimes, currentLap]);
+  }, [lapTimes, causal]);
 
   const driverList = standings.map((d) => d.Driver);
 
@@ -62,13 +82,15 @@ export default function UndercutCalculator() {
     }
   }, [comparisonDriver, defaultRival, setComparisonDriver]);
 
-  // Race params: prefer existing projection, else compute
-  const raceParams = useMemo(() => {
-    if (raceProjection?.raceParams) return raceProjection.raceParams;
-    const strategies = sessionData?.tyre_strategy || sessionData?.strategies || [];
-    const trackStatus = sessionData?.track_status || [];
-    return extractRaceParams(lapTimes, strategies, trackStatus, currentLap);
-  }, [raceProjection, lapTimes, sessionData, currentLap]);
+  // Race params from what is known at sessionNow (completed laps and stints,
+  // utils/stints.js), recomputed whenever the causal key changes, i.e. on
+  // every lap / pit / track-status event and on any seek, backward included.
+  // Never store.raceProjection.raceParams: that object was computed at the
+  // clock of its own run and can hold later laps after a backward seek.
+  const raceParams = useMemo(() => extractRaceParams(
+    lapTimes, completedStints(lapTimes, sessionNow, { running }), trackStatus, currentLap,
+    { sessionNow, sessionTimeOffset, sessionType, running },
+  ), [lapTimes, trackStatus, currentLap, causal, sessionTimeOffset, sessionType, running]);
 
   // Analytical sweep: for each candidate pit lap, compute end-of-race delta
   const analysis = useMemo(() => {
@@ -84,7 +106,10 @@ export default function UndercutCalculator() {
     const focusIsAhead = currentGap < 0;
 
     const lapsRemaining = Math.max(1, maxLap - currentLap);
-    const pitLoss = raceParams?.pitLoss?.mean || 22;
+    // Pit loss = the race estimator's median (utils/pitLoss.js), or the
+    // labelled fallback before the first valid green-flag stop
+    const pitLossInfo = pitLossDisplay(raceParams?.pitLoss);
+    const pitLoss = pitLossInfo.value;
     const freshDelta = raceParams?.freshDelta || -0.4; // negative = faster
 
     const fCompound = fFeat.compoundName || 'MEDIUM';
@@ -170,6 +195,7 @@ export default function UndercutCalculator() {
       focusIsAhead,
       lapsRemaining,
       pitLoss,
+      pitLossInfo,
       freshDelta,
       fDeg,
       rDeg,
@@ -183,6 +209,13 @@ export default function UndercutCalculator() {
     };
   }, [effectiveFocus, rival, driverFeatures, raceParams, currentLap, maxLap]);
 
+  if (!isRace) {
+    return (
+      <div style={{ padding: 20, color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
+        The undercut calculator applies to race sessions only (race or sprint).
+      </div>
+    );
+  }
   if (!effectiveFocus || !rival) {
     return (
       <div style={{ padding: 20, color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
@@ -273,7 +306,17 @@ export default function UndercutCalculator() {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700, whiteSpace: 'nowrap' }} title="Time lost entering and exiting the pits">PIT LOSS</div>
-          <div style={{ color: '#f5a623', fontWeight: 800, fontSize: 11 }}>{analysis.pitLoss.toFixed(1)}s</div>
+          <div
+            title={analysis.pitLossInfo.isFallback
+              ? `No valid green-flag stop yet: ${FALLBACK_PIT_LOSS.median} s fallback (an assumption, not data)`
+              : `Median of ${analysis.pitLossInfo.n} green-flag stops in this race: in-lap + out-lap - 2 x the driver's green-flag median lap`}
+            style={{ color: '#f5a623', fontWeight: 800, fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+          >
+            {analysis.pitLoss.toFixed(1)}s
+            {analysis.pitLossInfo.isFallback && (
+              <span style={{ marginLeft: 3, fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>fallback</span>
+            )}
+          </div>
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title="Seconds gained per lap on fresh tyres vs rival's old tyres">UC GAIN/L</div>
@@ -371,7 +414,9 @@ export default function UndercutCalculator() {
       </div>
 
       <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 6, lineHeight: 1.4 }}>
-        Analytical projection using real pit-loss, tyre-deg, fresh-delta from current session.
+        Analytical projection using tyre-deg and fresh-delta from the laps completed so far, and the
+        pit loss measured from this race's green-flag stops (median; {FALLBACK_PIT_LOSS.median} s
+        fallback, labelled, before the first valid stop).
         Assumes rival pits on estimated optimal lap (tyre life reaches stint-length mean).
       </div>
     </div>

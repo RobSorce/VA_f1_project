@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS } from '../../utils/colors';
+import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
+import { deriveStints } from '../../utils/stints';
+import { causalKey, tyreStintStatus } from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
 
 /**
@@ -12,55 +15,46 @@ export default function TireSilhouette() {
   const focusDriver = useF1Store((s) => s.focusDriver);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const sessionData = useF1Store((s) => s.sessionData);
-  const currentLap = useF1Store((s) => s.currentLap);
   const selectedStint = useF1Store((s) => s.selectedStint);
   const highlightedCompound = useF1Store((s) => s.highlightedCompound);
   const setHighlightedCompound = useF1Store((s) => s.setHighlightedCompound);
 
   const driver = focusDriver || selectedDrivers[0] || null;
 
+  // Stints of every driver from the laps completed at sessionNow
+  // (utils/stints.js): the replay never reveals a stint's final length early
+  const sessionNow = useSessionNow();
+  const lapTimes = sessionData?.lap_times;
+  const causal = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
+  // Live mode: the set a driver is racing on stays ongoing until the flag
+  const running = useStintsRunning();
+  const allStints = useMemo(
+    () => deriveStints(lapTimes || [], { sessionNow, running }),
+    [lapTimes, causal, running],
+  );
+
   // Find current stint data for the driver
   const stintInfo = useMemo(() => {
-    // If a stint is explicitly selected from StrategyTimeline, use that
-    if (selectedStint && selectedStint.driver === driver) {
-      return {
-        compound: (selectedStint.compound || 'UNKNOWN').toUpperCase(),
-        stintLength: selectedStint.stintLength || 0,
-        lapStart: selectedStint.lapStart || 1,
-        tyreLife: Math.min(1, (currentLap - (selectedStint.lapStart || 1) + 1) / Math.max(1, selectedStint.stintLength)),
-        lapsOnTyre: currentLap - (selectedStint.lapStart || 1) + 1,
-      };
-    }
-
-    // Otherwise derive from session strategy data
-    const strategies = sessionData?.tyre_strategy || sessionData?.strategies || [];
-    if (!driver || strategies.length === 0) return null;
-
-    const driverStints = strategies.filter(
-      (s) => (s.Driver || s.driver) === driver
-    ).sort((a, b) => (a.LapStart || a.StartLap || 0) - (b.LapStart || b.StartLap || 0));
-
+    if (!driver) return null;
+    const driverStints = allStints.filter((s) => s.Driver === driver);
     if (driverStints.length === 0) return null;
 
-    // Find the active stint at currentLap
-    let active = driverStints[0];
-    for (const s of driverStints) {
-      const start = s.LapStart || s.StartLap || s.Stint_Start || 1;
-      if (start <= currentLap) active = s;
-    }
-
-    const lapStart = active.LapStart || active.StartLap || active.Stint_Start || 1;
-    const stintLength = active.StintLength || active.TotalLaps || active.Stint_Length || 20;
-    const compound = (active.Compound || 'UNKNOWN').toUpperCase();
-    const lapsOnTyre = currentLap - lapStart + 1;
-    const tyreLife = Math.min(1, lapsOnTyre / Math.max(1, stintLength));
-
-    return { compound, stintLength, lapStart, tyreLife, lapsOnTyre };
-  }, [driver, sessionData, currentLap, selectedStint]);
+    // A stint explicitly selected in StrategyTimeline, when it exists at sessionNow;
+    // otherwise the driver's current (last) stint
+    const selected = selectedStint && selectedStint.driver === driver
+      ? driverStints.find((s) => s.StartLap === selectedStint.lapStart)
+      : null;
+    const active = selected || driverStints[driverStints.length - 1];
+    // Ongoing stint: its final length is unknown, so wear is read against the
+    // average same-compound stint that ended in a pit stop after at least as
+    // many laps (utils/strategyViews.js tyreStintStatus; unknown if none)
+    return tyreStintStatus(active, { allStints });
+  }, [driver, allStints, selectedStint]);
 
   const compound = stintInfo?.compound || 'UNKNOWN';
   const tyreColor = TYRE_COLORS[compound] || '#888';
   const life = stintInfo?.tyreLife || 0;
+  const lifeKnown = stintInfo?.tyreLife != null;
   // Opacity: 1.0 fresh → 0.3 worn
   const tyreOpacity = Math.max(0.3, 1 - life * 0.7);
 
@@ -192,11 +186,21 @@ export default function TireSilhouette() {
           }}>
             {compound}
           </span>
-          <span>
-            Lap {stintInfo?.lapsOnTyre || 0} / {stintInfo?.stintLength || '?'}
+          <span
+            title={stintInfo?.lengthSource === 'race-average'
+              ? `Reference length: average of ${stintInfo.lengthSamples} ${compound} stint(s) in this race that ended in a pit stop after at least ${stintInfo.lapsOnTyre} laps`
+              : stintInfo?.lengthSource === 'actual'
+                ? 'Completed stint: its real length'
+                : `No ${compound} stint in this race has yet ended in a pit stop after at least ${stintInfo?.lapsOnTyre || 0} laps: length unknown`}
+          >
+            Lap {stintInfo?.lapsOnTyre || 0} / {stintInfo?.stintLength == null
+              ? '?'
+              : stintInfo.lengthSource === 'race-average'
+                ? `~${Math.round(stintInfo.stintLength)}`
+                : stintInfo.stintLength}
           </span>
-          <span style={{ color: life > 0.7 ? '#ef4444' : life > 0.4 ? '#fbbf24' : '#22c55e', fontWeight: 700 }}>
-            {((1 - life) * 100).toFixed(0)}% life
+          <span style={{ color: !lifeKnown ? 'var(--color-text-muted)' : life > 0.7 ? '#ef4444' : life > 0.4 ? '#fbbf24' : '#22c55e', fontWeight: 700 }}>
+            {lifeKnown ? `${((1 - life) * 100).toFixed(0)}% life` : 'life ?'}
           </span>
         </div>
 

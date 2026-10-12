@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from data.extractors.fastf1_extractor import FastF1Extractor, get_sample_session_data
 from data.processors.feature_engineering import FeatureEngineer, create_race_features
 from data.processors.tsne_compute import load_embeddings, load_pca_embeddings, analyze_selection
+from data.processors.stints import build_tyre_strategy
 from utils.json_helpers import clean_dataframe_for_json
 
 # Import routers with graceful fallback so that a broken optional dependency
@@ -191,11 +192,32 @@ def get_cache_key(year: int, round_num: int, session_type: str) -> str:
     return f"{year}_{round_num}_{session_type}"
 
 
+def _rebuild_tyre_strategy(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Replace data['tyre_strategy'] with stints rebuilt from data['lap_times'].
+
+    Session payloads cached on disk by the old extractor split stints only on
+    compound changes (Monza 2024: 40 stints instead of 50), and FastF1 cannot
+    be relied on to re-extract them offline. The FastF1 Stint column is in the
+    cached lap rows, so the stints are rebuilt from it on every load
+    (build_tyre_strategy, ~1 ms for a race) without rewriting the cache. The previous
+    payload's driver order is kept. Payloads without lap rows are untouched.
+    """
+    lap_times = data.get('lap_times') if isinstance(data, dict) else None
+    if lap_times:
+        previous = [s.get('Driver') for s in data.get('tyre_strategy') or [] if isinstance(s, dict)]
+        data['tyre_strategy'] = build_tyre_strategy(lap_times, driver_order=previous)
+    return data
+
+
 def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str, Any]:
-    """Load session data from memory cache, disk cache, or FastF1."""
+    """Load session data from memory cache, disk cache, or FastF1.
+
+    Every payload goes through _rebuild_tyre_strategy before entering the
+    memory cache, so all three paths return stints split by the Stint column.
+    """
     cache_key = get_cache_key(year, round_num, session_type)
 
-    # 1. In-memory cache (instant)
+    # 1. In-memory cache (instant; tyre_strategy already rebuilt on insert)
     if cache_key in session_cache:
         return session_cache[cache_key]
 
@@ -204,6 +226,7 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
     disk_data = _load_from_disk(disk_path)
     if disk_data is not None:
         logger.info(f"Loaded session from disk cache: {disk_path.name}")
+        disk_data = _rebuild_tyre_strategy(disk_data)
         session_cache[cache_key] = disk_data
         # Pre-load raw FastF1 session in background for telemetry readiness
         # Only load laps + telemetry (skip weather/messages for speed)
@@ -230,6 +253,7 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
                 return session_cache[cache_key]
             disk_data = _load_from_disk(disk_path)
             if disk_data is not None:
+                disk_data = _rebuild_tyre_strategy(disk_data)
                 session_cache[cache_key] = disk_data
                 return disk_data
 
@@ -282,6 +306,7 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
             'tyre_strategy': clean_dataframe_for_json(tyre_strategy),
             'track_status': track_status,
         }
+        data = _rebuild_tyre_strategy(data)
         session_cache[cache_key] = data
         _save_to_disk(disk_path, data)
         logger.info(f"Session loaded successfully with {len(data['lap_times'])} laps")
@@ -417,8 +442,9 @@ async def get_circuit_info(year: int, round_num: int):
 
 @app.get("/api/strategy/{year}/{round_num}")
 async def get_tyre_strategy(year: int, round_num: int):
-    """Get tyre strategy data for all drivers."""
+    """Get tyre strategy data for all drivers (one stint per tyre set)."""
     data = await asyncio.to_thread(load_session, year, round_num, "R")
+    # load_session rebuilt tyre_strategy from the lap rows' Stint column
     return {"strategies": data['tyre_strategy']}
 
 

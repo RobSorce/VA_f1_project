@@ -12,9 +12,55 @@ import time as _time
 from pathlib import Path
 from typing import Optional
 
+from data.processors.stints import build_tyre_strategy, leader_lap_times, map_track_status_to_laps
+
 logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path(__file__).parent.parent / "data" / "processed_cache"
+
+
+def _weather_at(weather_list, session_time):
+    """Weather row in force at a session time: the latest row with Time <=
+    session_time (a reading is known once taken); before the first row, the
+    first row; None without rows. Same rule as weatherAtSessionTime in
+    frontend/src/store/useF1Store.js."""
+    if not weather_list:
+        return None
+    if session_time is None:
+        return weather_list[0]
+    best = None
+    for w in weather_list:
+        try:
+            t = float(w.get("Time"))
+        except (TypeError, ValueError):
+            continue
+        if t > session_time:
+            continue
+        if best is None or t >= float(best.get("Time")):
+            best = w
+    return best if best is not None else weather_list[0]
+
+
+def _weather_message(w):
+    """WeatherData message body of one weather row."""
+    return {
+        "AirTemp": str(w.get("AirTemp", "")),
+        "TrackTemp": str(w.get("TrackTemp", "")),
+        "Humidity": str(w.get("Humidity", "")),
+        "Pressure": str(w.get("Pressure", "")),
+        "WindSpeed": str(w.get("WindSpeed", "")),
+        "WindDirection": str(w.get("WindDirection", "")),
+        "Rainfall": w.get("Rainfall", False),
+    }
+
+
+def _lap_fraction(session_time, window):
+    """Position of a session time inside a leader lap window (start, end),
+    clamped to [0, 1]; 0 when the window is unknown or empty."""
+    start, end = window if window else (None, None)
+    if session_time is None or start is None or end is None or end <= start:
+        return 0.0
+    return min(1.0, max(0.0, (session_time - start) / (end - start)))
 
 
 class MockReplay:
@@ -114,21 +160,20 @@ class MockReplay:
             # 3. Send session started
             await self.manager.on_message("SessionStatus", {"Status": "Started"})
 
-            # 4. Send weather
-            for w in session_data.get("weather_data", [])[:1]:
-                await self.manager.on_message("WeatherData", {
-                    "AirTemp": str(w.get("AirTemp", "")),
-                    "TrackTemp": str(w.get("TrackTemp", "")),
-                    "Humidity": str(w.get("Humidity", "")),
-                    "Pressure": str(w.get("Pressure", "")),
-                    "WindSpeed": str(w.get("WindSpeed", "")),
-                    "WindDirection": str(w.get("WindDirection", "")),
-                    "Rainfall": w.get("Rainfall", False),
-                })
+            # The race leader's lap clock (session seconds): lap L runs from
+            # leader_laps[L][0] to leader_laps[L][1]
+            lap_times = session_data.get("lap_times", [])
+            leader_laps = leader_lap_times(lap_times)
+            weather_list = session_data.get("weather_data", [])
+
+            # 4. Send weather: the reading in force at the race start
+            race_start = leader_laps[1][0] if 1 in leader_laps else None
+            w = _weather_at(weather_list, race_start)
+            if w is not None:
+                await self.manager.on_message("WeatherData", _weather_message(w))
             await asyncio.sleep(0.1)
 
             # 5. Group lap times by lap number and replay them
-            lap_times = session_data.get("lap_times", [])
             laps_by_number = {}
             for lt in lap_times:
                 lap_num = lt.get("LapNumber")
@@ -148,16 +193,22 @@ class MockReplay:
 
             delay_per_lap = avg_lap_time / speed
 
-            # Send track status events
+            # Track status changes, each on the lap the race leader is on when
+            # it happens (start_time is in session seconds; periods that ended
+            # before the race start or began after the last lap are dropped).
+            # Within a lap they are sent in session-time order, each at its
+            # fraction of the leader's lap, so a status deployed and ended
+            # inside one lap is still in force for part of that lap.
             track_statuses = session_data.get("track_status", [])
             status_by_lap = {}
-            if track_statuses and avg_lap_time > 0:
-                for ts in track_statuses:
-                    approx_lap = max(1, int(ts.get("start_time", 0) / avg_lap_time))
-                    status_by_lap.setdefault(approx_lap, []).append(ts)
+            for ts in map_track_status_to_laps(track_statuses, lap_times):
+                status_by_lap.setdefault(ts["start_lap"], []).append(ts)
+            for changes in status_by_lap.values():
+                changes.sort(key=lambda ts: float(ts["start_time"]))
 
-            # Send initial tyre stints
-            strategies = session_data.get("tyre_strategy", [])
+            # Send initial tyre stints, one per tyre set (FastF1 Stint column):
+            # the cached tyre_strategy may predate that rule, so rebuild it
+            strategies = build_tyre_strategy(lap_times) or session_data.get("tyre_strategy", [])
             stints_by_lap = {}
             for stint in strategies:
                 start_lap = stint.get("StartLap", 1)
@@ -172,13 +223,6 @@ class MockReplay:
                     "CurrentLap": lap_num,
                     "TotalLaps": max_lap,
                 })
-
-                # Send track status if any
-                for ts in status_by_lap.get(lap_num, []):
-                    await self.manager.on_message("TrackStatus", {
-                        "Status": ts.get("status", "1"),
-                        "Message": ts.get("message", ""),
-                    })
 
                 # Send stint changes
                 for stint in stints_by_lap.get(lap_num, []):
@@ -302,24 +346,30 @@ class MockReplay:
                         if not self._running:
                             break
 
-                # Weather updates every 5 laps
-                if lap_num % 5 == 0:
-                    weather_list = session_data.get("weather_data", [])
-                    if weather_list:
-                        idx = min(lap_num * len(weather_list) // max(max_lap, 1), len(weather_list) - 1)
-                        w = weather_list[idx]
-                        await self.manager.on_message("WeatherData", {
-                            "AirTemp": str(w.get("AirTemp", "")),
-                            "TrackTemp": str(w.get("TrackTemp", "")),
-                            "Humidity": str(w.get("Humidity", "")),
-                            "Pressure": str(w.get("Pressure", "")),
-                            "WindSpeed": str(w.get("WindSpeed", "")),
-                            "WindDirection": str(w.get("WindDirection", "")),
-                            "Rainfall": w.get("Rainfall", False),
-                        })
+                # Weather updates every 5 laps: the reading in force when the
+                # race leader starts this lap (session time)
+                lap_window = leader_laps.get(lap_num)
+                if lap_num % 5 == 0 and lap_window and lap_window[0] is not None:
+                    w = _weather_at(weather_list, lap_window[0])
+                    if w is not None:
+                        await self.manager.on_message("WeatherData", _weather_message(w))
 
-                # Delay to simulate real-time
-                await asyncio.sleep(delay_per_lap)
+                # Delay to simulate real-time; the lap's track status changes
+                # are sent during it, in session-time order, each at its
+                # fraction of the leader's lap
+                elapsed = 0.0
+                for ts in status_by_lap.get(lap_num, []):
+                    if not self._running:
+                        break
+                    wait = _lap_fraction(float(ts["start_time"]), lap_window) * delay_per_lap - elapsed
+                    if wait > 0:
+                        await asyncio.sleep(wait)
+                        elapsed += wait
+                    await self.manager.on_message("TrackStatus", {
+                        "Status": ts.get("status", "1"),
+                        "Message": ts.get("message", ""),
+                    })
+                await asyncio.sleep(max(0.0, delay_per_lap - elapsed))
 
             # Session end
             await self.manager.on_message("SessionStatus", {"Status": "Finished"})

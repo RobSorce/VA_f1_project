@@ -3,6 +3,11 @@ import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS, TYRE_LABELS, getTyreTextColor } from '../../utils/colors';
 import { exportAsPng } from '../../utils/exportChart';
+import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
+import { stintsByDriver, pitStops } from '../../utils/stints';
+import {
+  causalKey, pitCountsByDriver, driverCompletedLaps, stintLapsText,
+} from '../../utils/strategyViews';
 
 function formatTime(seconds) {
   if (!seconds || seconds <= 0) return '—';
@@ -46,10 +51,10 @@ function MetricsTable({ title, rows, driverA, driverB }) {
   );
 }
 
-function StrategyComparison({ driverA, driverB, strategies, currentLap, maxLap }) {
+// stintsA / stintsB: deriveStints rows at sessionNow (causal: the ongoing
+// stint already ends at the driver's last completed lap)
+function StrategyComparison({ driverA, driverB, stintsA, stintsB, currentLap, maxLap }) {
   const totalLaps = maxLap || currentLap || 1;
-  const stintsA = strategies.filter((s) => s.Driver === driverA && s.StartLap <= currentLap);
-  const stintsB = strategies.filter((s) => s.Driver === driverB && s.StartLap <= currentLap);
   if (stintsA.length === 0 && stintsB.length === 0) return null;
 
   const renderBar = (stints, driver) => (
@@ -58,8 +63,9 @@ function StrategyComparison({ driverA, driverB, strategies, currentLap, maxLap }
       <div className="compare-panel__stint-bar">
         {stints.map((s, i) => {
           const start = s.StartLap;
-          const end = Math.min(s.EndLap, currentLap);
-          const width = ((end - start + 1) / totalLaps) * 100;
+          const end = s.EndLap;
+          // A stint just begun (pit exit passed, no lap completed) has 0 laps
+          const width = (Math.max(0, end - start + 1) / totalLaps) * 100;
           const bg = TYRE_COLORS[s.Compound] || TYRE_COLORS.UNKNOWN;
           const textColor = getTyreTextColor(s.Compound);
           return (
@@ -67,7 +73,7 @@ function StrategyComparison({ driverA, driverB, strategies, currentLap, maxLap }
               key={i}
               className="compare-panel__stint-segment"
               style={{ width: `${Math.max(width, 2)}%`, backgroundColor: bg, color: textColor }}
-              title={`${s.Compound}: Laps ${start}-${end}`}
+              title={`${s.Compound}: laps ${stintLapsText(s)}`}
             >
               {width > 8 ? `${TYRE_LABELS[s.Compound] || '?'} ${end - start + 1}L` : TYRE_LABELS[s.Compound] || '?'}
             </span>
@@ -96,7 +102,6 @@ export default function DriverComparePanel() {
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
-  const totalFrames = useF1Store((s) => s.totalFrames);
   const driversList = useF1Store((s) => s.drivers);
   const speedUnit = useF1Store((s) => s.speedUnit);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
@@ -124,31 +129,47 @@ export default function DriverComparePanel() {
     }
   }, [compareDrivers, selectedDrivers, addCompareDriver]);
 
-  const replayActive = totalFrames > 0;
   const [driverA, driverB] = compareDrivers.length === 2 ? compareDrivers : [null, null];
   const colorA = getDriverColor(driverA);
   const colorB = getDriverColor(driverB);
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
-  const strategies = useMemo(() => sessionData?.strategies || sessionData?.tyre_strategy || [], [sessionData]);
+  // Causal "now" (session seconds) and a key that changes only when a lap or
+  // a pit event completes, so the memos and D3 charts do not redo every frame
+  const sessionNow = useSessionNow();
+  const causal = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
+  // Stints from the FastF1 Stint column of the completed laps (utils/stints.js)
+  // (live mode: the current stint of a driver still racing stays ongoing)
+  const running = useStintsRunning();
+  const stintsMap = useMemo(
+    () => stintsByDriver(lapTimes, { sessionNow, running }),
+    [lapTimes, causal, running],
+  );
+  // Pit stops (tyre changes) visible at sessionNow: from the pit exit, with
+  // the new stint, so each driver's count = stints - 1 (same as the Strategy
+  // Timeline STOPS badge)
+  const stops = useMemo(() => pitStops(lapTimes, { sessionNow }), [lapTimes, causal]);
+  const pitCounts = useMemo(() => pitCountsByDriver(stops), [stops]);
 
   const infoA = useMemo(() => driversList?.find((d) => d.Abbreviation === driverA), [driversList, driverA]);
   const infoB = useMemo(() => driversList?.find((d) => d.Abbreviation === driverB), [driversList, driverB]);
 
-  // Filter laps per driver, up to currentLap (or all if review mode), valid only
-  const effectiveLap = replayActive ? currentLap : Infinity;
+  // Laps per driver completed at sessionNow (never the lap in progress), valid only
   const { lapsA, lapsB } = useMemo(() => {
     if (!driverA || !driverB) return { lapsA: [], lapsB: [] };
-    const filter = (drv) =>
-      lapTimes.filter(
-        (lt) =>
-          lt.Driver === drv &&
-          lt.LapNumber <= effectiveLap &&
-          lt.LapTimeSeconds > 0 &&
-          lt.LapTimeSeconds < 300
-      );
-    return { lapsA: filter(driverA), lapsB: filter(driverB) };
-  }, [lapTimes, driverA, driverB, effectiveLap]);
+    return {
+      lapsA: driverCompletedLaps(lapTimes, driverA, sessionNow),
+      lapsB: driverCompletedLaps(lapTimes, driverB, sessionNow),
+    };
+  }, [lapTimes, driverA, driverB, causal]);
+
+  // In-laps of the driver's pit stops visible at sessionNow (pit markers)
+  const pitLapsOf = (laps, driver) => {
+    const inLaps = new Set(stops.filter((s) => s.Driver === driver).map((s) => s.inLap));
+    return laps.filter((l) => inLaps.has(l.LapNumber));
+  };
+  const pitLapsA = useMemo(() => pitLapsOf(lapsA, driverA), [lapsA, stops, driverA]);
+  const pitLapsB = useMemo(() => pitLapsOf(lapsB, driverB), [lapsB, stops, driverB]);
 
   // Racing laps (exclude pit laps) for stats
   const racingA = useMemo(() => lapsA.filter((l) => !l.PitInTime && !l.PitOutTime), [lapsA]);
@@ -243,8 +264,8 @@ export default function DriverComparePanel() {
     };
     const statsA = compute(racingA);
     const statsB = compute(racingB);
-    const pitsA = lapsA.filter((l) => l.PitInTime).length;
-    const pitsB = lapsB.filter((l) => l.PitInTime).length;
+    const pitsA = pitCounts[driverA] || 0;
+    const pitsB = pitCounts[driverB] || 0;
 
     const rows = [];
     if (statsA.avg && statsB.avg) {
@@ -286,7 +307,7 @@ export default function DriverComparePanel() {
       });
     }
     return rows;
-  }, [racingA, racingB, lapsA, lapsB]);
+  }, [racingA, racingB, pitCounts, driverA, driverB]);
 
   // Score: count wins across all metric rows
   const score = useMemo(() => {
@@ -418,9 +439,7 @@ export default function DriverComparePanel() {
     g.append('path').datum(racingB).attr('d', line)
       .attr('fill', 'none').attr('stroke', colorB).attr('stroke-width', 2).attr('opacity', 0.9);
 
-    // Pit markers
-    const pitLapsA = lapsA.filter((l) => l.PitInTime);
-    const pitLapsB = lapsB.filter((l) => l.PitInTime);
+    // Pit markers (in-laps of the pit stops visible at sessionNow)
     pitLapsA.forEach((l) => {
       g.append('circle').attr('cx', x(l.LapNumber)).attr('cy', y(l.LapTimeSeconds))
         .attr('r', 3).attr('fill', colorA).attr('stroke', '#fff').attr('stroke-width', 1);
@@ -486,7 +505,7 @@ export default function DriverComparePanel() {
 
     svg.selectAll('.domain').attr('stroke', 'rgba(255,255,255,0.1)');
     svg.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.08)');
-  }, [racingA, racingB, lapsA, lapsB, driverA, driverB, colorA, colorB, currentLap, lstmPredictions]);
+  }, [racingA, racingB, pitLapsA, pitLapsB, driverA, driverB, colorA, colorB, currentLap, lstmPredictions]);
 
   // ── Empty state ──
   if (!driverA || !driverB) {
@@ -582,7 +601,8 @@ export default function DriverComparePanel() {
         <StrategyComparison
           driverA={driverA}
           driverB={driverB}
-          strategies={strategies}
+          stintsA={stintsMap[driverA] || []}
+          stintsB={stintsMap[driverB] || []}
           currentLap={currentLap}
           maxLap={maxLap}
         />

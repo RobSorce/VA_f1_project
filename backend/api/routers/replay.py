@@ -21,6 +21,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from data.processors.stints import map_track_status_to_laps
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -236,8 +238,37 @@ def _build_laps_array(session) -> list:
     return result
 
 
-def _build_events(extractor, session, total_laps: int, avg_lap_time: float) -> list:
-    """Build the events list from track status data."""
+def _lap_rows(session) -> list:
+    """Lap windows of a raw FastF1 session as JSON-style lap rows
+    (LapNumber, LapStartTime, Time, LapTimeSeconds; session seconds)."""
+    all_laps = session.laps
+    if all_laps is None or all_laps.empty:
+        return []
+    cols = ["LapNumber", "LapStartTime", "Time", "LapTime"]
+    return [
+        {
+            "LapNumber": _safe_float(rec.get("LapNumber")),
+            "LapStartTime": _safe_float(rec.get("LapStartTime")),
+            "Time": _safe_float(rec.get("Time")),
+            "LapTimeSeconds": _safe_float(rec.get("LapTime")),
+        }
+        for rec in all_laps.reindex(columns=cols).to_dict("records")
+    ]
+
+
+def _build_events(extractor, session, total_laps: int) -> list:
+    """Build the events list from track status data.
+
+    Track-status times are session seconds and the race starts thousands of
+    seconds into the session, so each period is placed on laps through the lap
+    windows [LapStartTime, Time] (data.processors.stints.map_track_status_to_laps):
+    its start and its end each go to the lap the race LEADER is on at that
+    time (the highest lap whose window contains it), as in FIA race control
+    (2024 R5: VSC deployed on lap 22, SC deployed on laps 23 and 27) and in the
+    leader's (Position 1) TrackStatus. Periods that ended before the race start
+    (grid, formation lap) or began after the last lap are not race events and
+    are left out.
+    """
     track_status = extractor.extract_track_status(session)
     events = []
 
@@ -248,7 +279,7 @@ def _build_events(extractor, session, total_laps: int, avg_lap_time: float) -> l
         "description": "Race start",
     })
 
-    for period in track_status:
+    for period in map_track_status_to_laps(track_status, _lap_rows(session)):
         status_code = str(period.get("status", "1"))
         if status_code == "1":
             continue
@@ -257,17 +288,8 @@ def _build_events(extractor, session, total_laps: int, avg_lap_time: float) -> l
         if not event_type:
             continue
 
-        start_time = period.get("start_time", 0)
-        end_time = period.get("end_time")
-
-        start_lap = (
-            max(1, min(total_laps, round(start_time / avg_lap_time)))
-            if avg_lap_time > 0
-            else 1
-        )
-        end_lap = start_lap
-        if end_time is not None and avg_lap_time > 0:
-            end_lap = max(start_lap, min(total_laps, round(end_time / avg_lap_time)))
+        start_lap = period["start_lap"]
+        end_lap = period["end_lap"]
 
         message = period.get("message", event_type.replace("_", " ").title())
         event = {"type": event_type, "description": message}
@@ -341,21 +363,9 @@ async def get_replay_data(request: Request, year: int, round_num: int, session_t
             else 0
         )
 
-        # Average lap time for timestamp -> lap estimation in events
-        avg_lap_time = 90.0
-        if total_laps > 0:
-            lt = all_laps["LapTime"].dropna()
-            if not lt.empty:
-                avg_seconds = lt.apply(
-                    lambda td: td.total_seconds() if hasattr(td, "total_seconds") else 0
-                )
-                valid = avg_seconds[avg_seconds > 0]
-                if not valid.empty:
-                    avg_lap_time = float(valid.mean())
-
         # Build structured data
         laps_array = _build_laps_array(session)
-        events = _build_events(ext, session, total_laps, avg_lap_time)
+        events = _build_events(ext, session, total_laps)
 
         return {
             "totalLaps": total_laps,

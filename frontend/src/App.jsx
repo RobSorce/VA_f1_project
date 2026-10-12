@@ -57,6 +57,7 @@ import CommandPalette from './components/CommandPalette/CommandPalette';
 import ShortcutHints from './components/ShortcutHints/ShortcutHints';
 import ShortcutCheatsheet from './components/ShortcutCheatsheet/ShortcutCheatsheet';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { FALLBACK_PIT_LOSS } from './utils/pitLoss';
 
 // Per-panel `helpText` drives the (?) info button in each overlay header
 // (H10/V10.1). Kept short — long-form explanations live in docs/.
@@ -74,7 +75,7 @@ const OVERLAY_TABS = {
   analytics:    { title: 'Analytics',            Component: AnalyticsTabContent,   helpText: 'PCA biplot of per-(driver, race) feature vectors. Points are races; loading vectors indicate feature contributions. Lasso-select triggers Cohen\'s d analysis.', helpHref: 'https://github.com/RobSorce/VA_f1_project_v2/blob/main/docs/PCA_METHODOLOGY.md' },
   prediction:   { title: 'Race Prediction',      Component: RacePredictionPanel,   helpText: 'LSTM (64→32→Dense) predicts next 5 lap times + pit probability. "HEURISTIC" chip = no trained model loaded. Typical MAE 0.4–0.8s dry; up to 2.5s wet.', helpHref: 'https://github.com/RobSorce/VA_f1_project_v2/blob/main/docs/INSIGHTS_BRAZIL_2024.md' },
   simulator:    { title: 'Strategy Simulator',   Component: StrategySimulator,     helpText: 'Monte Carlo (100 iterations) race projection given a hypothetical strategy. Shows position distribution and podium/points probabilities.' },
-  strategy:     { title: 'Strategy Timeline',    Component: StrategyTimeline,      helpText: 'Gantt of each driver\'s stints, pit stops, and compound transitions. Overlay buttons inject predicted / ghost / Gemini scenarios.' },
+  strategy:     { title: 'Strategy Timeline',    Component: StrategyTimeline,      helpText: 'Gantt of each driver\'s stints (one bar per tyre set, from FastF1\'s Stint column), pit stops, and compound transitions. Each stop is labelled with its pit loss: measured, race median ("est"), or "fallback". Overlay buttons inject predicted / ghost / Gemini scenarios.' },
   analysis:     { title: 'Strategy Analysis',    Component: StrategyAnalysis,      helpText: 'Pattern analysis triggered by PCA/t-SNE lasso selection — Cohen\'s d feature ranking shows which metrics separate the selected cluster.' },
   racesituation:{ title: 'Race Situation',       Component: RaceSituationMap,      helpText: 'Live race state with exponential-smoothed features. Lasso-select a subset to filter other panels.' },
   racepace:     { title: 'Race Pace Grid',       Component: RacePaceGrid,          helpText: 'Median-normalised pace grid. Cells coloured by Δ to median lap of the race so fast/slow stints are visible at a glance.' },
@@ -84,7 +85,7 @@ const OVERLAY_TABS = {
   compare:      { title: 'Driver Comparison',    Component: DriverComparePanel,    helpText: 'Head-to-head on two drivers: lap-time delta, sectors, consistency. Select two drivers first.' },
   positionlaps: { title: 'Position Tracker',     Component: PositionByLap,         helpText: 'Position-per-lap lines for all drivers. Hover a driver to dim the rest; click to set focus.' },
   sectordelta:  { title: 'Sector Delta',         Component: SectorDeltaWaterfall,  helpText: 'Waterfall of sector deltas — where each driver gains/loses vs the session-best. Useful for setup and circuit-map comparisons.' },
-  undercut:     { title: 'Undercut Calculator',  Component: UndercutCalculator,    helpText: 'Projects undercut/overcut viability given current pace, tyre age, pit-loss (~22s), and gap to rivals.' },
+  undercut:     { title: 'Undercut Calculator',  Component: UndercutCalculator,    helpText: `Projects undercut/overcut viability given current pace, tyre age, pit loss, and gap to rivals. Pit loss is measured from this race's green-flag stops (in-lap + out-lap minus twice the driver's green-flag median lap; the median over stops is used). Before the first valid stop a ${FALLBACK_PIT_LOSS.median} s fallback is used, shown as "fallback".` },
   racecontrol:  { title: 'Race Control',          Component: RaceControlPanel,     helpText: 'Live race-control feed + retirements. Categorised messages (flags, DRS, safety car, penalties, stewards), filter chips, and an "out of session" sidebar populated from F1 SignalR Retired/Stopped flags.' },
 };
 

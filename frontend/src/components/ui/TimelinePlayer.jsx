@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
-import { useReplayEngine } from '../../hooks/useReplayEngine';
-import { useF1Store } from '../../store/useF1Store';
+import { useReplayEngine, trackStatusBandLaps } from '../../hooks/useReplayEngine';
+import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
 
 const SPEED_OPTIONS = [0.5, 1, 2, 5, 10, 20, 50];
@@ -43,6 +43,8 @@ export default function TimelinePlayer() {
   const qualiSegment = useF1Store((s) => s.qualiSegment);
   const qualiSegments = useF1Store((s) => s.qualiSegments);
   const setQualiSegment = useF1Store((s) => s.setQualiSegment);
+  // Lap mode: the race-over state (after the leader's last lap, skip-to-end)
+  const lapModeRaceOver = useF1Store((s) => s.lapModeRaceOver && s.totalFrames === 0);
 
   const [expanded, setExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -54,7 +56,7 @@ export default function TimelinePlayer() {
   const collapseTimerRef = useRef(null);
   const interactingRef = useRef(false);
 
-  const sessionType = useF1Store((s) => s.sessionType);
+  const sessionType = useF1Store(loadedSessionTypeOf); // the loaded session, not the pill
   const hasFrames = totalFrames > 1;
   const isNonRace = sessionType && sessionType !== 'R' && sessionType !== 'S' && sessionType !== 'Q';
   const hasData = maxLap > 1 || hasFrames;
@@ -130,28 +132,15 @@ export default function TimelinePlayer() {
 
     const xScale = d3.scaleLinear().domain([1, maxLap]).range([margin.left, margin.left + innerWidth]);
 
-    // Helper: resolve event x position. Uses lap-based positioning (now accurate
-    // thanks to frame-data lookup). Falls back to time-fraction for band width
-    // when laps collapse (e.g. red flag: no laps complete during suspension).
+    // Helper: resolve event x position on the lap axis
     const eventX = (evt, which = 'start') => {
       return xScale(which === 'end' ? evt.endLap : evt.startLap);
     };
-    // For bands: check if we need time-fraction fallback (when lap span is tiny
-    // but time span is significant, like a red flag suspension)
+    // Bands: the period's leader laps on the same lap axis
+    // (trackStatusBandLaps), never replay-time fractions (another axis)
     const bandX = (evt) => {
-      const x1 = xScale(evt.startLap);
-      const x2 = xScale(Math.max(evt.endLap, evt.startLap + 0.5));
-      const lapW = x2 - x1;
-      // If the band is very narrow but the event has significant time span, use time fractions
-      const sf = evt.startTimeFraction;
-      const ef = evt.endTimeFraction;
-      if (lapW < 20 && sf != null && ef != null && (ef - sf) > 0.02) {
-        return {
-          x1: margin.left + sf * innerWidth,
-          x2: margin.left + ef * innerWidth,
-        };
-      }
-      return { x1, x2 };
+      const [from, to] = trackStatusBandLaps(evt, maxLap);
+      return { x1: xScale(from), x2: xScale(to) };
     };
 
     const g = svg.append('g');
@@ -175,13 +164,17 @@ export default function TimelinePlayer() {
       .attr('rx', 3)
       .attr('fill', '#e10600');
 
-    // Safety Car / VSC / Red Flag / Yellow Flag bands (rendered ON TOP of progress fill)
+    // Safety Car / VSC / Red Flag / Yellow Flag bands (rendered ON TOP of progress fill).
+    // Causal: only periods started at the replay's now, a running one ending
+    // on the leader's current lap (hooks/useReplayEngine.js buildTrackStatusEvents)
     const segmentEvents = raceEvents.filter(
       (e) => e.type === 'SAFETY_CAR' || e.type === 'VSC' || e.type === 'RED_FLAG' || e.type === 'YELLOW_FLAG'
     );
     for (const evt of segmentEvents) {
-      const { x1, x2: x2Raw } = bandX(evt);
-      const bandW = Math.max(x2Raw - x1, 6);
+      const { x1: x1Raw, x2: x2Raw } = bandX(evt);
+      const bandW = Math.max(x2Raw - x1Raw, 6);
+      // A minimum-width band on the last lap stays inside the track
+      const x1 = Math.min(x1Raw, margin.left + innerWidth - bandW);
       // Full-height background band
       const bgFill = evt.type === 'VSC' ? 'rgba(255, 140, 0, 0.12)'
         : evt.type === 'RED_FLAG' ? 'rgba(255, 0, 0, 0.15)'
@@ -383,7 +376,8 @@ export default function TimelinePlayer() {
             openPanel('degradation');
           });
 
-      // ── Layer 2: Fastest lap (only the final one) ──
+      // ── Layer 2: Fastest lap among the laps completed at the replay's now
+      // (hooks/useReplayEngine.js fastestLapEvent): never a lap not run yet ──
       } else if (evt.type === 'FASTEST_LAP') {
         const flG = markersG.append('g')
           .attr('transform', `translate(${x}, ${markerY})`)
@@ -780,7 +774,7 @@ export default function TimelinePlayer() {
               className="timeline-player__skip-btn"
               onClick={skipToEnd}
               disabled={!hasData}
-              title="Skip to end"
+              title={hasFrames ? 'Skip to end' : 'Skip to the race end (final results)'}
             >
               {'\u23ED'}
             </button>
@@ -817,7 +811,9 @@ export default function TimelinePlayer() {
             <span className="timeline-player__lap-text">
               {isQualifyingReplay
                 ? <><strong>{qualiSegment}</strong> &mdash; {elapsedTime || '0:00'}</>
-                : <>LAP <strong>{currentLap}</strong> / {maxLap}</>
+                : lapModeRaceOver
+                  ? <>LAP <strong>{currentLap}</strong> / {maxLap} &middot; FINISH</>
+                  : <>LAP <strong>{currentLap}</strong> / {maxLap}</>
               }
             </span>
             {framesStatus && (

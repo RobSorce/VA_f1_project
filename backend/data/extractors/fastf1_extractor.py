@@ -8,6 +8,12 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import logging
+import sys
+
+# backend/ on the path, so the __main__ block below still runs as a script
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from data.processors.stints import build_tyre_strategy
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -856,66 +862,38 @@ class FastF1Extractor:
     def extract_tyre_strategy(self, session: fastf1.core.Session) -> pd.DataFrame:
         """
         Extract tyre strategy data - compounds and stint lengths.
-        
+
+        Stints follow the FastF1 Stint column (one per tyre set), so a stop
+        for the same compound opens a new stint, while a pit-lane pass that
+        keeps the same set (SC, drive-through) does not; see
+        data/processors/stints.py build_tyre_strategy, which also rebuilds
+        cached payloads at load time.
+
         Returns DataFrame with:
         - Driver, StintNumber, Compound, StartLap, EndLap, TotalLaps
         """
         laps = session.laps
-        
-        strategy_data = []
-        
-        for driver_num in session.drivers:
-            # Use pick_drivers to get laps by driver number (laps use abbreviations internally)
-            try:
-                driver_laps = laps.pick_drivers(driver_num).sort_values('LapNumber')
-            except Exception:
-                # Fallback for older fastf1 versions
-                driver_laps = laps.pick_driver(driver_num).sort_values('LapNumber')
-            
-            if driver_laps.empty:
-                continue
-            
-            # Get driver abbreviation for output
-            driver_abbr = driver_laps['Driver'].iloc[0] if 'Driver' in driver_laps.columns else driver_num
-            
-            stint_num = 1
-            current_compound = None
-            stint_start = None
-            
-            for _, lap in driver_laps.iterrows():
-                compound = lap.get('Compound', 'UNKNOWN')
-                if pd.isna(compound):
-                    compound = 'UNKNOWN'
-                lap_num = int(lap['LapNumber'])
-                
-                if current_compound != compound:
-                    if current_compound is not None:
-                        strategy_data.append({
-                            'Driver': driver_abbr,
-                            'StintNumber': stint_num,
-                            'Compound': current_compound,
-                            'StartLap': stint_start,
-                            'EndLap': lap_num - 1,
-                            'TotalLaps': lap_num - 1 - stint_start + 1
-                        })
-                        stint_num += 1
-                    
-                    current_compound = compound
-                    stint_start = lap_num
-            
-            # Final stint
-            if current_compound is not None:
-                max_lap = int(driver_laps['LapNumber'].max())
-                strategy_data.append({
-                    'Driver': driver_abbr,
-                    'StintNumber': stint_num,
-                    'Compound': current_compound,
-                    'StartLap': stint_start,
-                    'EndLap': max_lap,
-                    'TotalLaps': max_lap - stint_start + 1
-                })
-        
-        return pd.DataFrame(strategy_data)
+        if laps is None or laps.empty:
+            return pd.DataFrame([])
+
+        # JSON-style lap rows: the same input the processor gets from the cache.
+        # TyreLife is required: without it every Stint change counts as a tyre
+        # change, so SC pit-lane passes would split stints (is_tyre_change).
+        cols = ['Driver', 'DriverNumber', 'LapNumber', 'Stint', 'Compound', 'TyreLife',
+                'PitOutTime', 'PitInTime']
+        records = laps.reindex(columns=cols).to_dict('records')
+        for rec in records:
+            for col in ('PitOutTime', 'PitInTime'):
+                value = rec.get(col)
+                seconds = value.total_seconds() if hasattr(value, 'total_seconds') else value
+                rec[col] = None if seconds is None or pd.isna(seconds) else float(seconds)
+
+        # Keep the session's driver order (classification), as before
+        num_to_abbr = {str(rec['DriverNumber']): rec['Driver'] for rec in records
+                       if rec.get('Driver') and pd.notna(rec.get('DriverNumber'))}
+        driver_order = [num_to_abbr[str(num)] for num in session.drivers if str(num) in num_to_abbr]
+
+        return pd.DataFrame(build_tyre_strategy(records, driver_order=driver_order))
 
 
 def get_sample_session_data(year: int = 2024, round_num: int = 24) -> Dict[str, Any]:

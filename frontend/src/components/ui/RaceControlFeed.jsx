@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, formatReplayClock } from '../../store/useF1Store';
+import { useSessionNow } from '../../hooks/useSessionNow';
+import { raceClockLimit } from '../../utils/raceTime';
 
 const STATUS_MAP = {
   '1': { label: 'Green Flag', color: '#22c55e' },
@@ -10,19 +12,17 @@ const STATUS_MAP = {
   '7': { label: 'Virtual Safety Car', color: '#f97316' },
 };
 
-function formatTime(timeVal) {
-  if (timeVal == null) return '--:--';
-  if (typeof timeVal === 'string') {
-    const parts = timeVal.split(':');
-    if (parts.length >= 2) {
-      return parts.slice(-2).map((p) => p.padStart(2, '0')).join(':');
-    }
-    return timeVal;
-  }
-  const totalSec = Math.floor(Number(timeVal));
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+/** Live feed times (epoch seconds or milliseconds, or an ISO string) as ms. */
+function liveMs(t) {
+  if (typeof t === 'number' && Number.isFinite(t)) return t < 1e12 ? t * 1000 : t;
+  if (typeof t === 'string') return Date.parse(t) || 0;
+  return 0;
+}
+
+function formatWallClock(ms) {
+  if (!ms) return '--:--';
+  const d = new Date(ms);
+  return Number.isNaN(d.getTime()) ? '--:--' : d.toLocaleTimeString();
 }
 
 const panelStyle = {
@@ -44,35 +44,66 @@ export default function RaceControlFeed() {
   const trackStatus = useF1Store((s) => s.trackStatus);
   const raceControlMessages = useF1Store((s) => s.raceControlMessages);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
+  const sessionTimeOffset = useF1Store((s) => s.sessionTimeOffset);
+  const lapTimes = useF1Store((s) => s.sessionData?.lap_times);
+  // Replay: the changes up to the dashboard's clock; with the race over, up
+  // to the leader's chequered flag (raceClockLimit), the flag pill's reading
+  const sessionNow = useSessionNow();
+  const limit = useMemo(() => raceClockLimit(lapTimes, sessionNow), [lapTimes, sessionNow]);
+  // Changes only when a status change is reached, not on every replay tick
+  const reached = useMemo(() => {
+    if (isLiveMode) return (trackStatus || []).length;
+    let n = 0;
+    for (const e of trackStatus || []) if (Number(e?.start_time) <= limit) n++;
+    return n;
+  }, [trackStatus, limit, isLiveMode]);
 
   const messages = useMemo(() => {
-    // Track status messages (flags, SC, VSC)
-    const statusMsgs = (trackStatus || []).map((entry) => {
+    // Track status messages (flags, SC, VSC). Replay: only the changes that
+    // have happened at the replay's now (start_time <= sessionNow, session
+    // seconds; race over: by the chequered flag), timed on the replay clock
+    // (start_time - sessionTimeOffset, the clock of the elapsed-time
+    // capsule). Live: wall-clock times.
+    const statusMsgs = [];
+    for (const entry of trackStatus || []) {
       const info = STATUS_MAP[entry.status] || STATUS_MAP['1'];
-      return {
-        time: entry.start_time,
+      const start = Number(entry.start_time);
+      if (isLiveMode) {
+        statusMsgs.push({
+          time: formatWallClock(liveMs(entry.start_time)),
+          message: entry.message || info.label,
+          color: info.color,
+          sortKey: liveMs(entry.start_time),
+        });
+        continue;
+      }
+      if (!Number.isFinite(start) || start > limit) continue;
+      statusMsgs.push({
+        time: formatReplayClock(start - sessionTimeOffset),
         message: entry.message || info.label,
         color: info.color,
-        sortKey: typeof entry.start_time === 'number' ? entry.start_time : 0,
-      };
-    });
+        sortKey: start,
+      });
+    }
 
     // Live race control messages (penalties, directives, etc.)
     const rcMsgs = (isLiveMode && raceControlMessages?.length > 0)
       ? raceControlMessages.map((msg) => ({
-          time: msg.timestamp,
+          time: formatWallClock(liveMs(msg.timestamp)),
           message: msg.Message || msg.message || JSON.stringify(msg),
           color: msg.Flag === 'YELLOW' ? '#eab308'
             : msg.Flag === 'RED' ? '#ef4444'
             : msg.Flag === 'BLUE' ? '#3b82f6'
             : '#8b8fa3',
-          sortKey: msg.timestamp || 0,
+          sortKey: liveMs(msg.timestamp),
         }))
       : [];
 
     return [...statusMsgs, ...rcMsgs]
       .sort((a, b) => b.sortKey - a.sortKey);
-  }, [trackStatus, raceControlMessages, isLiveMode]);
+    // `reached` stands for the clock limit: the list changes only when it changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackStatus, raceControlMessages, isLiveMode, sessionTimeOffset, reached]);
 
   return (
     <div style={panelStyle}>
@@ -93,7 +124,7 @@ export default function RaceControlFeed() {
                 borderRadius: '50%', background: msg.color, flexShrink: 0,
               }} />
               <span style={{ color: '#bbc' }}>
-                {formatTime(msg.time)} &mdash; {msg.message}
+                {msg.time} &mdash; {msg.message}
               </span>
             </div>
           ))}

@@ -3,6 +3,9 @@ import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
 import { estimateFromFramePositions } from '../../utils/trackPositionEstimator';
+import { leaderLapEndTime, resolveSessionNow } from '../../utils/raceTime';
+import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
+import { causalKey, viewSessionType, isRaceSession } from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
@@ -36,6 +39,64 @@ const FLAG_LABEL_COLORS = {
 const SECTOR_COLORS = { 1: '#e10600', 2: '#ffd700', 3: '#0090ff' };
 const COMPOUND_NAMES = { 0: 'UNK', 1: 'SOFT', 2: 'MED', 3: 'HARD', 4: 'INTER', 5: 'WET' };
 const COMPOUND_COLORS = { 0: '#888', 1: '#FF3333', 2: '#FFC300', 3: '#EEEEEE', 4: '#39B54A', 5: '#00AAFF' };
+// lap_times Compound -> the frame tyre code above
+const COMPOUND_CODES = { SOFT: 1, MEDIUM: 2, HARD: 3, INTERMEDIATE: 4, WET: 5 };
+
+/**
+ * Per-driver status for the map at sessionNow (session seconds), causal
+ * (decision R6, utils/driverState.js): retired only once the retirement has
+ * happened (final lap over, or pit entry of a retirement in the pits); the
+ * tyre set in force, as a frame tyre code (the new set from the pit exit; the
+ * replay frames switch to it at the out-lap start, inside the pit lane);
+ * laps completed.
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
+ * @param {number} sessionNow - session seconds, Infinity = whole race
+ * @param {Object} [dnfMap] - store.dnfMap (did not finish; gated by time here)
+ * @returns {Object<string, {retired: boolean, tyre: number|null, tyreLife: number|null, lapsCompleted: number}>}
+ */
+export function trackMapDriverStatus(lapTimes, sessionNow, dnfMap = {}) {
+  const byDriver = new Map();
+  for (const lt of Array.isArray(lapTimes) ? lapTimes : []) {
+    if (!lt?.Driver) continue;
+    if (!byDriver.has(lt.Driver)) byDriver.set(lt.Driver, []);
+    byDriver.get(lt.Driver).push(lt);
+  }
+  // Results DNFs plus classified drivers who stopped before the flag
+  const nonFinishers = nonFinisherMap(lapTimes, dnfMap);
+  const out = {};
+  for (const [drv, rows] of byDriver) {
+    const st = driverStateAt(rows, drv, sessionNow, { dnf: !!nonFinishers[drv] });
+    out[drv] = {
+      retired: st.retired,
+      tyre: COMPOUND_CODES[st.compound] ?? null,
+      tyreLife: st.tyreLife,
+      lapsCompleted: st.lapsCompleted,
+    };
+  }
+  return out;
+}
+
+/**
+ * The map's clock in session seconds: the session time of the frame on screen
+ * (frame.t + sessionTimeOffset; utils/raceTime.js resolveSessionNow), the
+ * lap-mode / live clock otherwise. Same rule as the store's getSessionNow: a
+ * qualifying segment's last frame is not the end of the session (the next
+ * segments follow), so "last frame = Infinity" does not apply there.
+ *
+ * @param {Object} s - store fields plus frameTime (t of the frame on screen)
+ * @returns {number} session seconds, or Infinity
+ */
+export function trackMapSessionNow({
+  frameTime, sessionTimeOffset, totalFrames, currentLap, maxLap, lapTimes, isLiveMode,
+  isQualifyingReplay, maxTime, frameDt, lapModeRaceOver,
+}) {
+  return resolveSessionNow({
+    currentTime: frameTime, sessionTimeOffset, replayActive: totalFrames > 0, currentLap, maxLap,
+    lapTimes, isLiveMode, maxTime: isQualifyingReplay ? undefined : maxTime, frameDt,
+    raceOver: lapModeRaceOver,
+  });
+}
 
 // Race control overlay for live mode (when car positions are unavailable)
 function LiveRaceControlOverlay() {
@@ -162,6 +223,33 @@ export default function TrackMap({ compact = false }) {
   const telemetryCache = useF1Store((s) => s.telemetryCache);
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
   const fetchDriverTelemetry = useF1Store((s) => s.fetchDriverTelemetry);
+  // Only a race or a sprint ends with a winner under the chequered flag
+  const isRace = isRaceSession(useF1Store(viewSessionType));
+
+  // Causal per-driver status (trackMapDriverStatus above) at the time of the
+  // frame on screen: the map draws cars at frame positions, so its clock is the
+  // frame's session time (never after the dashboard's now; utils/raceTime.js).
+  // It changes only when a lap completes or a pit event happens (causalKey),
+  // so the car layer is not redrawn on every replay tick.
+  const sessionTimeOffset = useF1Store((s) => s.sessionTimeOffset);
+  const maxTime = useF1Store((s) => s.maxTime);
+  const lapModeRaceOver = useF1Store((s) => s.lapModeRaceOver);
+  const statusLapTimes = sessionData?.lap_times;
+  const frameTime = frameData?.frames?.[currentFrameIndex]?.t;
+  const sessionNow = useMemo(() => trackMapSessionNow({
+    frameTime, sessionTimeOffset, totalFrames, currentLap, maxLap, lapTimes: statusLapTimes,
+    isLiveMode, isQualifyingReplay, maxTime, frameDt, lapModeRaceOver,
+  }), [frameTime, sessionTimeOffset, totalFrames, currentLap, maxLap, statusLapTimes, isLiveMode,
+    isQualifyingReplay, maxTime, frameDt, lapModeRaceOver]);
+  const statusKey = useMemo(() => causalKey(statusLapTimes, sessionNow), [statusLapTimes, sessionNow]);
+  const driverStatus = useMemo(
+    () => trackMapDriverStatus(statusLapTimes, sessionNow, dnfMap),
+    // sessionNow enters through statusKey, which changes whenever the result does
+    [statusLapTimes, statusKey, dnfMap],
+  );
+  // The leader has taken the chequered flag (end of the last lap) at the map's clock
+  const chequered = useMemo(() => leaderLapEndTime(statusLapTimes, maxLap), [statusLapTimes, maxLap]);
+  const replayFinished = sessionNow === Infinity || (chequered != null && sessionNow >= chequered);
 
   // Track overlay toggles — synced with store for keyboard shortcuts
   const showTrackSectors = useF1Store((s) => s.showTrackSectors);
@@ -720,17 +808,20 @@ export default function TrackMap({ compact = false }) {
       (k) => k.startsWith(prefix) && k.endsWith(suffix)
     );
     if (hasAny) return;
-    const targetLap = Math.max(1, (currentLap || 1) - 1);
+    // The focus driver's last completed lap (a lap still running is not drawn)
+    const targetLap = driverStatus[focusDriver]?.lapsCompleted || 0;
+    if (targetLap < 1) return;
     fetchDriverTelemetry(focusDriver, targetLap);
-  }, [channelMode, focusDriver, telemetryCache, isQualifyingReplay, currentLap, fetchDriverTelemetry]);
+  }, [channelMode, focusDriver, telemetryCache, isQualifyingReplay, driverStatus, fetchDriverTelemetry]);
 
   // ── Channel-colored track overlay (speed / throttle / brake) ──
-  // Pick the most recent cached telemetry lap for the focus driver (≤ currentLap)
+  // Pick the most recent cached telemetry lap the focus driver has completed
   const channelTelemetry = useMemo(() => {
     if (!channelMode || !focusDriver || !telemetryCache) return null;
     const sessionType = isQualifyingReplay ? 'Q' : 'R';
     const prefix = `${focusDriver}-`;
     const suffix = `-${sessionType}`;
+    const lastDone = driverStatus[focusDriver]?.lapsCompleted ?? 0;
     let best = null;
     let bestLap = -1;
     for (const key of Object.keys(telemetryCache)) {
@@ -738,14 +829,14 @@ export default function TrackMap({ compact = false }) {
       const m = key.match(/^[A-Z0-9]{3}-(\d+)-/);
       if (!m) continue;
       const lap = parseInt(m[1], 10);
-      if (currentLap != null && lap > currentLap) continue;
+      if (lap > lastDone) continue;
       if (lap > bestLap) {
         bestLap = lap;
         best = telemetryCache[key];
       }
     }
     return best && best.length > 1 ? { samples: best, lap: bestLap } : null;
-  }, [channelMode, focusDriver, telemetryCache, isQualifyingReplay, currentLap]);
+  }, [channelMode, focusDriver, telemetryCache, isQualifyingReplay, driverStatus]);
 
   // Render channel overlay as thin colored segments; dim sectors to keep colors readable
   const sectorDimmedRef = useRef(false);
@@ -1005,10 +1096,8 @@ export default function TrackMap({ compact = false }) {
       return glowRadius;
     };
 
-    const isDriverRetired = (abbr) => {
-      const dnf = dnfMap[abbr];
-      return dnf && dnf.lastLap <= currentLap;
-    };
+    // Retired only once the retirement has happened (driverStatus)
+    const isDriverRetired = (abbr) => !!driverStatus[abbr]?.retired;
 
     const getDimmedOpacity = (abbr) => {
       if (abbr === focusDriver) return 1;
@@ -1059,6 +1148,14 @@ export default function TrackMap({ compact = false }) {
     // Remove retired drivers from the track entirely
     if (driverEntries && !isGridMode) {
       driverEntries = driverEntries.filter(([abbr]) => !isDriverRetired(abbr));
+      // Race replay: the tyre set in force from the lap data (the new set from
+      // the pit exit; the frames carry it from the out-lap start, in the pit lane)
+      if (!isLiveMode && !isQualifyingReplay) {
+        driverEntries = driverEntries.map(([abbr, d]) => {
+          const st = driverStatus[abbr];
+          return st?.tyre != null ? [abbr, { ...d, tyre: st.tyre, tyre_life: st.tyreLife }] : [abbr, d];
+        });
+      }
     }
 
     if (!driverEntries || driverEntries.length === 0) {
@@ -1200,7 +1297,7 @@ export default function TrackMap({ compact = false }) {
     isInitialRenderRef.current = false;
     prevFrameIndexRef.current = currentFrameIndex;
   }, [circuitInfo, sessionData, currentFrameIndex, frameData, totalFrames, frameDt,
-      selectedDrivers, highlightedDriver, focusDriver, gridPositions, dnfMap, currentLap,
+      selectedDrivers, highlightedDriver, focusDriver, gridPositions, driverStatus, isLiveMode, isQualifyingReplay,
       toggleDriver, setHighlightedDriver, isPlaying, compact, dotRadius, glowRadius,
       updateTrailPositions, renderTrails, trackRotationOffset]);
 
@@ -1209,9 +1306,9 @@ export default function TrackMap({ compact = false }) {
     const list = [];
     if (focusDriver) list.push(focusDriver);
     selectedDrivers.forEach((d) => { if (!list.includes(d)) list.push(d); });
-    // Filter out retired drivers
-    return list.filter((d) => !(dnfMap[d] && dnfMap[d].lastLap <= currentLap));
-  }, [focusDriver, selectedDrivers, dnfMap, currentLap]);
+    // Filter out drivers whose retirement has happened
+    return list.filter((d) => !driverStatus[d]?.retired);
+  }, [focusDriver, selectedDrivers, driverStatus]);
 
   const liveTelemetry = useF1Store((s) => s.liveTelemetry);
 
@@ -1226,7 +1323,10 @@ export default function TrackMap({ compact = false }) {
         return hudDrivers.map((drv) => {
           const d = frame.drivers[drv];
           if (!d) return null;
-          const tyreInt = d.tyre ?? 0;
+          // Race replay: the set in force from the lap data (new set from the pit exit)
+          const st = isLiveMode || isQualifyingReplay ? null : driverStatus[drv];
+          const tyreInt = st?.tyre ?? d.tyre ?? 0;
+          const tyreLife = st?.tyre != null ? st.tyreLife : d.tyre_life;
           const drsVal = d.drs;
           let drsText = 'OFF', drsClass = 'hud-drs--off';
           if (drsVal === 8) { drsText = 'AVAIL'; drsClass = 'hud-drs--avail'; }
@@ -1242,7 +1342,7 @@ export default function TrackMap({ compact = false }) {
             drsText, drsClass,
             compound: COMPOUND_NAMES[tyreInt] || 'UNK',
             compoundColor: COMPOUND_COLORS[tyreInt] || '#888',
-            tyreLife: d.tyre_life != null ? Math.round(d.tyre_life) : '—',
+            tyreLife: tyreLife != null ? Math.round(tyreLife) : '—',
             lap: d.lap != null ? d.lap : '—',
           };
         }).filter(Boolean);
@@ -1275,7 +1375,7 @@ export default function TrackMap({ compact = false }) {
     }
 
     return [];
-  }, [hudDrivers, focusDriver, frameData, currentFrameIndex, isLiveMode, liveTelemetry, currentLap]);
+  }, [hudDrivers, focusDriver, frameData, currentFrameIndex, isLiveMode, liveTelemetry, currentLap, driverStatus, isQualifyingReplay]);
 
   // Build driver legend
   const driverLegendItems = useMemo(() => {
@@ -1452,16 +1552,22 @@ export default function TrackMap({ compact = false }) {
 
   // Race finish + winner detection
   const raceTarget = totalRaceLaps || maxLap;
-  const raceFinished = isLiveMode
+  const raceFinished = isRace && (isLiveMode
     ? (currentLap >= raceTarget && raceTarget > 1 && currentLap > 2)
-    : (currentLap >= maxLap && maxLap > 1);
+    : (replayFinished && maxLap > 1));
+  // The winner is the car that took the chequered flag first: the Position-1
+  // row of the last lap (the same row that times the flag, leaderLapEndTime),
+  // as the Leaderboard's first row. Never race_results: the final
+  // classification is not known while the other cars are still finishing.
   const winnerAbbr = useMemo(() => {
-    if (!raceFinished || !sessionData?.race_results?.length) return null;
-    const sorted = [...sessionData.race_results].sort(
-      (a, b) => (a.Position || 99) - (b.Position || 99)
+    if (!raceFinished) return null;
+    const lastRows = (sessionData?.lap_times || []).filter(
+      (r) => Number(r.LapNumber) === maxLap && r.Driver,
     );
-    return sorted[0]?.Abbreviation || null;
-  }, [raceFinished, sessionData]);
+    const p1 = lastRows.find((r) => Number(r.Position) === 1)
+      || lastRows.filter((r) => Number.isFinite(r.Time)).sort((a, b) => a.Time - b.Time)[0];
+    return p1?.Driver || null;
+  }, [raceFinished, sessionData, maxLap]);
   const winnerColor = winnerAbbr ? getDriverColor(winnerAbbr) : null;
 
   const isHazardActive = currentFlagStatus && currentFlagStatus !== '1';
