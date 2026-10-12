@@ -331,6 +331,8 @@ export default function TimingTower() {
   const focusDriver = useF1Store((s) => s.focusDriver);
   const currentFlagStatus = useF1Store((s) => s.currentFlagStatus);
   const dnfMap = useF1Store((s) => s.dnfMap);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
+  const liveConnected = useF1Store((s) => s.liveConnected);
   const toggleDriver = useF1Store((s) => s.toggleDriver);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
@@ -359,7 +361,17 @@ export default function TimingTower() {
   const entries = useMemo(() => {
     if (!sessionData?.lap_times?.length) return [];
 
-    const lapTimes = sessionData.lap_times;
+    // Defence in depth against pre-DriverList lap entries: if we have a
+    // populated driver_info, only render rows whose abbreviation is in it.
+    // Otherwise raw racing numbers ("1", "11", "12") leak through as
+    // phantom extra drivers when SignalR's TimingData arrives before
+    // DriverList.
+    const validAbbrs = Object.keys(driverInfoMap);
+    const haveDriverInfo = validAbbrs.length > 0;
+    const validSet = new Set(validAbbrs);
+    const lapTimes = haveDriverInfo
+      ? sessionData.lap_times.filter((lt) => validSet.has(lt.Driver))
+      : sessionData.lap_times;
     const replayActive = totalFrames > 0;
 
     // Classified position fallback: DNS/DNF drivers often have no Position on
@@ -554,6 +566,31 @@ export default function TimingTower() {
 
   /* -- Empty state ------------------------------------------------------- */
   if (!entries.length) {
+    // In live mode, the timing tower will populate as SignalR pushes the
+    // first laps. Show a connection-aware "waiting" state instead of the
+    // generic "no data" so the user knows the feed is alive.
+    if (isLiveMode) {
+      return (
+        <div style={{ ...containerStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: 24 }}>
+            <span style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: liveConnected ? '#e10600' : '#666',
+              boxShadow: liveConnected ? '0 0 10px rgba(225,6,0,0.6)' : 'none',
+              animation: liveConnected ? 'livePulse 1.5s ease-in-out infinite' : 'none',
+            }} />
+            <span style={{ color: '#bbc', fontSize: 12, fontWeight: 600, letterSpacing: '0.04em' }}>
+              {liveConnected ? 'Waiting for first laps' : 'Connecting to live feed…'}
+            </span>
+            <span style={{ color: '#666', fontSize: 10, lineHeight: 1.4, maxWidth: 240 }}>
+              {liveConnected
+                ? 'Drivers haven’t crossed the line yet. Timing will populate row-by-row from lap 1.'
+                : 'Establishing SignalR connection.'}
+            </span>
+          </div>
+        </div>
+      );
+    }
     return (
       <div style={{ ...containerStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <span style={{ color: '#666', fontSize: 12 }}>No timing data available</span>

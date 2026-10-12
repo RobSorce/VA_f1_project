@@ -1446,8 +1446,8 @@
   }
   .session-screen__drivers {
     width: 100%;
-    max-width: 440px;
-    max-height: 360px;
+    max-width: 460px;
+    max-height: min(540px, 64vh);
     padding: 14px 18px;
   }
 }
@@ -2668,6 +2668,165 @@
 [data-theme="light"] .settings-help__row:hover { background: rgba(0,0,0,0.06); }
 [data-theme="light"] .settings-help__row-title { color: #111; }
 [data-theme="light"] .settings-help__row-summary { color: rgba(0,0,0,0.60); }
+
+/* ==========================================================================
+   Dock customize popover — opens from "Customize dock..." in the right-click
+   context menu. Toggle panels in/out of the bottom dock without leaving
+   the dashboard for the Settings overlay.
+   ========================================================================== */
+.dock-customize-popover {
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(50px) saturate(180%);
+  -webkit-backdrop-filter: blur(50px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.20);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 20px 56px rgba(0, 0, 0, 0.50),
+    0 4px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  animation: overlayScaleIn 140ms ease-out;
+}
+.dock-customize-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px;
+}
+.dock-customize-popover__title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.dock-customize-popover__reset {
+  background: rgba(229, 57, 53, 0.14);
+  border: 1px solid rgba(229, 57, 53, 0.34);
+  color: #ff7878;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 5px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.dock-customize-popover__reset:hover { background: rgba(229, 57, 53, 0.22); }
+
+.dock-customize-popover__hide {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.78);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 5px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.dock-customize-popover__hide:hover {
+  background: rgba(138, 180, 248, 0.14);
+  border-color: rgba(138, 180, 248, 0.40);
+  color: #8ab4f8;
+}
+.dock-customize-popover__search {
+  margin: 4px 12px 8px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 7px;
+  color: #fff;
+  font-family: var(--font-primary);
+  font-size: 12px;
+  outline: none;
+}
+.dock-customize-popover__search:focus { border-color: rgba(138, 180, 248, 0.4); }
+.dock-customize-popover__body {
+  /* Multi-column auto-flow — fits all 25+ panels without scroll. */
+  column-width: 160px;
+  column-gap: 10px;
+  column-fill: balance;
+  padding: 0 12px 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+.dock-customize-popover__empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.40);
+  font-size: 11px;
+  padding: 12px;
+}
+.dock-customize-popover__group {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  margin-bottom: 8px;
+  display: block;
+}
+.dock-customize-popover__group-label {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  color: rgba(255, 255, 255, 0.40);
+  text-transform: uppercase;
+  padding: 4px 4px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 3px;
+}
+.dock-customize-popover__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  user-select: none;
+}
+.dock-customize-popover__row:hover { background: rgba(255, 255, 255, 0.05); }
+.dock-customize-popover__row--on  { background: rgba(213, 253, 81, 0.06); }
+.dock-customize-popover__icon { color: rgba(255, 255, 255, 0.55); flex-shrink: 0; }
+.dock-customize-popover__row--on .dock-customize-popover__icon { color: #d5fd51; }
+.dock-customize-popover__label {
+  flex: 1; min-width: 0;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.80);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dock-customize-popover__row--on .dock-customize-popover__label { color: #fff; }
+.dock-customize-popover__kbd {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.dock-customize-popover__checkbox {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #d5fd51;
+}
+.dock-customize-popover__footer {
+  padding: 8px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+}
 
 /* ==========================================================================
    Help Overlay (H10/V10.1) — per-chart docs surface.
@@ -4066,7 +4225,9 @@
 
 .session-screen__drivers {
   width: 420px;
-  max-height: 520px;
+  /* Grow until all 20 drivers + chrome fit; cap at 70vh so the page is
+     still scrollable on very short viewports. */
+  max-height: min(700px, 70vh);
   display: flex;
   flex-direction: column;
   padding: 20px 24px;
@@ -4121,12 +4282,14 @@
 
 .driver-grid__list {
   flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  /* Two-column grid so all 20 drivers fit without scroll on a normal
+     viewport. Falls back to one column on narrow popovers. */
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
   min-height: 0;
-  padding-right: 4px;
+  padding-right: 2px;
+  overflow-y: auto;
 }
 
 .driver-grid__loading {
@@ -6726,13 +6889,17 @@
   -webkit-backdrop-filter: blur(40px) saturate(1.8);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  padding: 8px;
+  padding: 12px 14px;
   box-shadow: 0 12px 48px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.3);
+  /* Body doesn't scroll because the multi-column layout fits the
+     entire registry into the popover's height. overflow-y: auto stays
+     as a final fallback only if the registry ever grows beyond ~30
+     entries on very short viewports. */
   overflow-y: auto;
   animation: overlayScaleIn 120ms ease-out;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 .layout-dock-popover__title {
   font-size: 9px;
@@ -6774,12 +6941,20 @@
   margin: 6px 4px 2px;
 }
 .layout-dock-popover__body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 4px;
+  /* Multi-column auto-flow so all categories fit without scroll. Same
+     pattern as the Command Palette (column-width balances cols). */
+  column-width: 200px;
+  column-gap: 14px;
+  column-fill: balance;
+  padding: 0 8px;
 }
-.layout-dock-popover__group { margin-bottom: 2px; }
+.layout-dock-popover__group {
+  margin-bottom: 8px;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  display: block;
+}
 .layout-dock-popover__group-label {
   font-size: 8px;
   font-weight: 700;
@@ -6791,15 +6966,15 @@
 .layout-dock-popover__item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 5px 8px;
+  padding: 3px 6px;
   background: transparent;
   border: none;
   color: rgba(255,255,255,0.8);
-  font-size: 12px;
+  font-size: 11.5px;
   text-align: left;
-  border-radius: 6px;
+  border-radius: 5px;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }

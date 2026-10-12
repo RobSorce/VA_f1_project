@@ -253,7 +253,16 @@ export default function Leaderboard({ collapsed }) {
     }
 
     // ── Race mode: use lap_times for progressive positions ──
-    const lapTimes = sessionData.lap_times;
+    // Filter out lap entries whose Driver field is a raw racing number
+    // (TimingData arrived before DriverList — see backend guard).
+    const validAbbrs = new Set(
+      (driversInfo || [])
+        .map((d) => d.Abbreviation || d.abbr)
+        .filter(Boolean)
+    );
+    const lapTimes = validAbbrs.size > 0
+      ? sessionData.lap_times.filter((lt) => validAbbrs.has(lt.Driver))
+      : sessionData.lap_times;
 
     // Compute time offset: session times are absolute, frame times are 0-based
     let timeOffset = 0;

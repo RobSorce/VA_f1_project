@@ -101,9 +101,16 @@ export function estimateTrackPositions(trackCoords, driverStates, totalDistance)
  *
  * @param {Array} trackCoords - circuitInfo.track_coordinates
  * @param {Object} frameDrivers - frame.drivers map {ABBR: {x, y, position, speed, ...}}
+ * @param {Object} [opts]
+ * @param {number} [opts.typicalLapTime] - average lap time in seconds; used to
+ *   convert `gap_to_leader` (s) into a track-distance offset when per-driver
+ *   speed is unavailable (the case in live mode without OpenF1 telemetry).
+ * @param {number} [opts.leaderProgress] - leader's distance around the lap as a
+ *   fraction (0–1). Pass an advancing value (driven by wall-clock elapsed) to
+ *   make the cluster sweep around the track over time instead of staying static.
  * @returns {Object} Map of ABBR → {x, y, estimated: true}
  */
-export function estimateFromFramePositions(trackCoords, frameDrivers) {
+export function estimateFromFramePositions(trackCoords, frameDrivers, opts = {}) {
   const lookup = buildTrackLookup(trackCoords);
   if (!lookup) return {};
 
@@ -118,16 +125,26 @@ export function estimateFromFramePositions(trackCoords, frameDrivers) {
   const totalDrivers = sorted.length;
   if (totalDrivers === 0) return {};
 
-  // Spread drivers around the track proportionally to gap
-  // Use gap_to_leader to estimate relative positions
-  const leaderDist = trackLength * 0.8; // Put leader at ~80% of track
+  // Average track speed in m/s, derived from the typical lap time when
+  // per-driver speed isn't available. ~57 m/s for a 90 s lap on a 5.3 km
+  // track — close enough for visual placement.
+  const typicalLap = Number(opts.typicalLapTime) || 90;
+  const avgMps = trackLength / typicalLap;
+
+  // Leader sweeps around the lap as wall-clock advances. Default 80% if no
+  // progress fraction is supplied (static, but still spread by gap).
+  const leaderFrac = ((opts.leaderProgress ?? 0.8) % 1 + 1) % 1;
+  const leaderDist = leaderFrac * trackLength;
+
   for (let i = 0; i < sorted.length; i++) {
     const [abbr, driver] = sorted[i];
     let dist;
 
-    if (driver.gap_to_leader != null && driver.gap_to_leader > 0 && driver.speed > 0) {
-      // Convert time gap to distance gap
-      const gapMeters = (driver.gap_to_leader * driver.speed) / 3.6;
+    if (driver.gap_to_leader != null && driver.gap_to_leader > 0) {
+      // Prefer per-driver speed when present; otherwise use the typical-lap
+      // average so live SignalR-only sessions still get a sensible offset.
+      const speedMps = driver.speed > 0 ? driver.speed / 3.6 : avgMps;
+      const gapMeters = driver.gap_to_leader * speedMps;
       dist = leaderDist - gapMeters;
     } else {
       // Evenly space by position

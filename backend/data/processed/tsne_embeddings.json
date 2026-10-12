@@ -1,0 +1,5014 @@
+{
+  "points": [
+    {
+      "id": "VER_2024_10",
+      "x": -41.38201904296875,
+      "y": -2.7222070693969727,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "NOR_2024_10",
+      "x": -41.106422424316406,
+      "y": -3.125399112701416,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "HAM_2024_10",
+      "x": -40.750091552734375,
+      "y": -2.625986337661743,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "RUS_2024_10",
+      "x": -40.95044708251953,
+      "y": -2.041456460952759,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "LEC_2024_10",
+      "x": -40.240882873535156,
+      "y": -2.3819751739501953,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "SAI_2024_10",
+      "x": -40.339759826660156,
+      "y": -1.6982611417770386,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "PIA_2024_10",
+      "x": -39.4036750793457,
+      "y": -1.4130600690841675,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "PER_2024_10",
+      "x": -38.533294677734375,
+      "y": -0.3639381229877472,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "GAS_2024_10",
+      "x": -39.80973434448242,
+      "y": -0.8777599334716797,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "OCO_2024_10",
+      "x": -39.306884765625,
+      "y": -0.40683895349502563,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "HUL_2024_10",
+      "x": -37.973636627197266,
+      "y": 0.424385130405426,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "ALO_2024_10",
+      "x": -38.63010025024414,
+      "y": 0.2991602122783661,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_10",
+      "x": -37.24290466308594,
+      "y": 1.057404637336731,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "STR_2024_10",
+      "x": -37.591678619384766,
+      "y": 1.140772819519043,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "RIC_2024_10",
+      "x": -36.49916458129883,
+      "y": 1.2840042114257812,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "BOT_2024_10",
+      "x": -19.607425689697266,
+      "y": 17.508655548095703,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "MAG_2024_10",
+      "x": -36.58699417114258,
+      "y": 1.7979826927185059,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "ALB_2024_10",
+      "x": -21.1752986907959,
+      "y": 15.96147346496582,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "TSU_2024_10",
+      "x": -34.91337203979492,
+      "y": 4.081437587738037,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "SAR_2024_10",
+      "x": -36.05312728881836,
+      "y": 1.859656572341919,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 10,
+      "race_name": "Spanish Grand Prix"
+    },
+    {
+      "id": "RUS_2024_11",
+      "x": -15.607722282409668,
+      "y": 1.9130995273590088,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "PIA_2024_11",
+      "x": -44.389835357666016,
+      "y": -6.627403259277344,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "SAI_2024_11",
+      "x": -43.967552185058594,
+      "y": -6.824229717254639,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "HAM_2024_11",
+      "x": -44.42335891723633,
+      "y": -7.166974067687988,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "VER_2024_11",
+      "x": -43.02774429321289,
+      "y": -7.665206432342529,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "HUL_2024_11",
+      "x": -16.17367172241211,
+      "y": 2.627969264984131,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "PER_2024_11",
+      "x": -45.11749267578125,
+      "y": -6.818300247192383,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "MAG_2024_11",
+      "x": -16.661691665649414,
+      "y": 2.9995040893554688,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "RIC_2024_11",
+      "x": -16.508359909057617,
+      "y": 2.9321699142456055,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "GAS_2024_11",
+      "x": -45.955726623535156,
+      "y": -6.217637062072754,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "LEC_2024_11",
+      "x": -46.35855484008789,
+      "y": -7.686769008636475,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "OCO_2024_11",
+      "x": -45.61576843261719,
+      "y": -6.49884033203125,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "STR_2024_11",
+      "x": -16.565954208374023,
+      "y": 4.375904560089111,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "TSU_2024_11",
+      "x": -16.37244415283203,
+      "y": 3.823399543762207,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "ALB_2024_11",
+      "x": -17.019277572631836,
+      "y": 3.6073317527770996,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "BOT_2024_11",
+      "x": -16.920673370361328,
+      "y": 4.157702922821045,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_11",
+      "x": -47.098934173583984,
+      "y": -5.343079566955566,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "ALO_2024_11",
+      "x": -46.57292556762695,
+      "y": -6.016193389892578,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "SAR_2024_11",
+      "x": -47.3091926574707,
+      "y": -5.118472576141357,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "NOR_2024_11",
+      "x": -43.67551040649414,
+      "y": -7.051535606384277,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 11,
+      "race_name": "Austrian Grand Prix"
+    },
+    {
+      "id": "HAM_2024_12",
+      "x": 12.165348052978516,
+      "y": -18.540754318237305,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "VER_2024_12",
+      "x": 12.026772499084473,
+      "y": -18.027053833007812,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "NOR_2024_12",
+      "x": 12.4806489944458,
+      "y": -18.242713928222656,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "PIA_2024_12",
+      "x": 12.157464981079102,
+      "y": -17.647838592529297,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "SAI_2024_12",
+      "x": 10.78610610961914,
+      "y": -17.277433395385742,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "HUL_2024_12",
+      "x": 12.66608715057373,
+      "y": -16.98626136779785,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "STR_2024_12",
+      "x": 12.331753730773926,
+      "y": -16.50737762451172,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "ALO_2024_12",
+      "x": 12.956019401550293,
+      "y": -16.06778907775879,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "ALB_2024_12",
+      "x": 12.3484468460083,
+      "y": -15.902427673339844,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "TSU_2024_12",
+      "x": 13.285826683044434,
+      "y": -15.369122505187988,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "SAR_2024_12",
+      "x": 12.724712371826172,
+      "y": -15.128692626953125,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "MAG_2024_12",
+      "x": 13.66855239868164,
+      "y": -14.645646095275879,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "RIC_2024_12",
+      "x": 13.273903846740723,
+      "y": -14.53173828125,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "LEC_2024_12",
+      "x": 12.317205429077148,
+      "y": -14.022178649902344,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "BOT_2024_12",
+      "x": 13.20651626586914,
+      "y": -13.837560653686523,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "OCO_2024_12",
+      "x": 11.234831809997559,
+      "y": -10.289977073669434,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "PER_2024_12",
+      "x": 11.527464866638184,
+      "y": -10.614458084106445,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_12",
+      "x": 11.622337341308594,
+      "y": -10.783461570739746,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "RUS_2024_12",
+      "x": 29.708717346191406,
+      "y": -10.313031196594238,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 12,
+      "race_name": "British Grand Prix"
+    },
+    {
+      "id": "PIA_2024_13",
+      "x": -43.33249282836914,
+      "y": 0.4556015729904175,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "NOR_2024_13",
+      "x": -43.58652114868164,
+      "y": 0.7163445353507996,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "HAM_2024_13",
+      "x": -18.361915588378906,
+      "y": 22.82736587524414,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "LEC_2024_13",
+      "x": -42.61323165893555,
+      "y": 1.1818610429763794,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "VER_2024_13",
+      "x": -43.009788513183594,
+      "y": 0.721912145614624,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "SAI_2024_13",
+      "x": -42.96049118041992,
+      "y": 1.2555625438690186,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "PER_2024_13",
+      "x": -22.569046020507812,
+      "y": 21.118907928466797,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "RUS_2024_13",
+      "x": -39.7614860534668,
+      "y": 3.8058667182922363,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "TSU_2024_13",
+      "x": -22.500972747802734,
+      "y": 21.007802963256836,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "STR_2024_13",
+      "x": -41.3482780456543,
+      "y": 2.638718843460083,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "ALO_2024_13",
+      "x": -41.430599212646484,
+      "y": 2.60750675201416,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "RIC_2024_13",
+      "x": -24.64565086364746,
+      "y": 19.364782333374023,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "HUL_2024_13",
+      "x": -25.01488494873047,
+      "y": 18.954450607299805,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "ALB_2024_13",
+      "x": -24.551950454711914,
+      "y": 18.71955680847168,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "MAG_2024_13",
+      "x": -24.5800724029541,
+      "y": 18.36547088623047,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "BOT_2024_13",
+      "x": -23.937442779541016,
+      "y": 19.23519515991211,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "SAR_2024_13",
+      "x": -38.329498291015625,
+      "y": 6.045398712158203,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "OCO_2024_13",
+      "x": -38.30927276611328,
+      "y": 6.082531452178955,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_13",
+      "x": -24.697656631469727,
+      "y": 17.886083602905273,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "GAS_2024_13",
+      "x": -25.527496337890625,
+      "y": 23.797195434570312,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 13,
+      "race_name": "Hungarian Grand Prix"
+    },
+    {
+      "id": "HAM_2024_14",
+      "x": 41.42847442626953,
+      "y": 3.1955626010894775,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "PIA_2024_14",
+      "x": 40.95449447631836,
+      "y": 3.5006296634674072,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "LEC_2024_14",
+      "x": 41.334144592285156,
+      "y": 2.849238395690918,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "VER_2024_14",
+      "x": 37.099491119384766,
+      "y": 2.185218334197998,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "NOR_2024_14",
+      "x": 40.71787643432617,
+      "y": 3.2524406909942627,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "SAI_2024_14",
+      "x": 37.46849822998047,
+      "y": 1.899989366531372,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "PER_2024_14",
+      "x": 37.69895553588867,
+      "y": 1.6161412000656128,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "ALO_2024_14",
+      "x": 40.12019348144531,
+      "y": 9.898527145385742,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "OCO_2024_14",
+      "x": 40.23006057739258,
+      "y": 4.696191310882568,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "RIC_2024_14",
+      "x": 36.84923553466797,
+      "y": 2.8413593769073486,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "STR_2024_14",
+      "x": 40.124385833740234,
+      "y": 9.900609016418457,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "ALB_2024_14",
+      "x": 40.269737243652344,
+      "y": 5.254831790924072,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "GAS_2024_14",
+      "x": 39.8390007019043,
+      "y": 5.286715984344482,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "MAG_2024_14",
+      "x": 39.3986701965332,
+      "y": 6.017986297607422,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "BOT_2024_14",
+      "x": 36.79484558105469,
+      "y": 2.958643674850464,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "TSU_2024_14",
+      "x": 39.14414596557617,
+      "y": 6.378477573394775,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "SAR_2024_14",
+      "x": 39.132381439208984,
+      "y": 6.229289531707764,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "HUL_2024_14",
+      "x": 36.65222930908203,
+      "y": 3.314401388168335,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "RUS_2024_14",
+      "x": 41.10444641113281,
+      "y": 3.795344352722168,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 14,
+      "race_name": "Belgian Grand Prix"
+    },
+    {
+      "id": "NOR_2024_15",
+      "x": -12.181294441223145,
+      "y": 14.832633972167969,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "VER_2024_15",
+      "x": -12.293362617492676,
+      "y": 14.47181224822998,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "LEC_2024_15",
+      "x": -12.729734420776367,
+      "y": 13.83469295501709,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "PIA_2024_15",
+      "x": -12.85843563079834,
+      "y": 14.753281593322754,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "SAI_2024_15",
+      "x": -13.42502212524414,
+      "y": 13.3359375,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "PER_2024_15",
+      "x": -13.180882453918457,
+      "y": 14.219250679016113,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "RUS_2024_15",
+      "x": -37.7052116394043,
+      "y": -2.794814109802246,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "HAM_2024_15",
+      "x": -36.108192443847656,
+      "y": -2.075972318649292,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "GAS_2024_15",
+      "x": -14.322516441345215,
+      "y": 13.354551315307617,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "ALO_2024_15",
+      "x": -14.280608177185059,
+      "y": 13.89428424835205,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "HUL_2024_15",
+      "x": -14.918477058410645,
+      "y": 12.352930068969727,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "RIC_2024_15",
+      "x": -15.376866340637207,
+      "y": 13.080544471740723,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "STR_2024_15",
+      "x": -14.601563453674316,
+      "y": 13.63320541381836,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "ALB_2024_15",
+      "x": -34.49358367919922,
+      "y": -1.5222975015640259,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "OCO_2024_15",
+      "x": -15.969329833984375,
+      "y": 12.943648338317871,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "SAR_2024_15",
+      "x": -16.40146255493164,
+      "y": 12.529372215270996,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "TSU_2024_15",
+      "x": -34.97299575805664,
+      "y": -1.5977096557617188,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "MAG_2024_15",
+      "x": -16.670515060424805,
+      "y": 12.779516220092773,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "BOT_2024_15",
+      "x": -34.9722900390625,
+      "y": -1.1827878952026367,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_15",
+      "x": -34.62369155883789,
+      "y": -0.9785909056663513,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 15,
+      "race_name": "Dutch Grand Prix"
+    },
+    {
+      "id": "LEC_2024_16",
+      "x": -19.324325561523438,
+      "y": 25.810596466064453,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "PIA_2024_16",
+      "x": -19.052230834960938,
+      "y": 26.245994567871094,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "NOR_2024_16",
+      "x": -19.291547775268555,
+      "y": 26.63982582092285,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "SAI_2024_16",
+      "x": -19.79991912841797,
+      "y": 25.776697158813477,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "HAM_2024_16",
+      "x": -20.31084632873535,
+      "y": 26.16942596435547,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "VER_2024_16",
+      "x": -20.620498657226562,
+      "y": 25.830150604248047,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "RUS_2024_16",
+      "x": -20.349308013916016,
+      "y": 26.887500762939453,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "PER_2024_16",
+      "x": -21.30266761779785,
+      "y": 25.973796844482422,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "ALB_2024_16",
+      "x": -22.127517700195312,
+      "y": 25.823951721191406,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "MAG_2024_16",
+      "x": -23.224628448486328,
+      "y": 25.206329345703125,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "ALO_2024_16",
+      "x": -22.794876098632812,
+      "y": 25.722562789916992,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "COL_2024_16",
+      "x": -24.729379653930664,
+      "y": 24.973600387573242,
+      "driver": "COL",
+      "team": "Williams",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "RIC_2024_16",
+      "x": -23.380104064941406,
+      "y": 25.823579788208008,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "OCO_2024_16",
+      "x": -24.144062042236328,
+      "y": 24.764997482299805,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "GAS_2024_16",
+      "x": -24.10490608215332,
+      "y": 25.82244300842285,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "BOT_2024_16",
+      "x": -25.10498046875,
+      "y": 24.798519134521484,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "HUL_2024_16",
+      "x": -23.875093460083008,
+      "y": 26.64821434020996,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_16",
+      "x": -25.36504364013672,
+      "y": 25.234235763549805,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "STR_2024_16",
+      "x": -39.66182327270508,
+      "y": 4.1790971755981445,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "TSU_2024_16",
+      "x": 6.765615940093994,
+      "y": 16.203062057495117,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 16,
+      "race_name": "Italian Grand Prix"
+    },
+    {
+      "id": "VER_2024_17",
+      "x": 38.73847961425781,
+      "y": 1.029770016670227,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "GAS_2024_17",
+      "x": 45.18394470214844,
+      "y": 8.955657958984375,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "PER_2024_17",
+      "x": 44.05238342285156,
+      "y": 3.5573365688323975,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "ALO_2024_17",
+      "x": 45.52811050415039,
+      "y": 5.615099906921387,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "LEC_2024_17",
+      "x": 44.176185607910156,
+      "y": 3.08242130279541,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "STR_2024_17",
+      "x": 46.21100616455078,
+      "y": 9.13314151763916,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "TSU_2024_17",
+      "x": 43.035335540771484,
+      "y": 6.636478424072266,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "ALB_2024_17",
+      "x": 44.874786376953125,
+      "y": 6.042499542236328,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_17",
+      "x": 46.27939224243164,
+      "y": 8.762308120727539,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "HUL_2024_17",
+      "x": 45.777366638183594,
+      "y": 6.651681900024414,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "RIC_2024_17",
+      "x": 45.37581253051758,
+      "y": 8.673750877380371,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "OCO_2024_17",
+      "x": 45.678794860839844,
+      "y": 9.412393569946289,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "NOR_2024_17",
+      "x": 44.86238479614258,
+      "y": 7.5206193923950195,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "COL_2024_17",
+      "x": 45.68872833251953,
+      "y": 5.910003185272217,
+      "driver": "COL",
+      "team": "Williams",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "HAM_2024_17",
+      "x": 45.9434814453125,
+      "y": 7.740365982055664,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "BEA_2024_17",
+      "x": 45.3957633972168,
+      "y": 6.502749443054199,
+      "driver": "BEA",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "SAI_2024_17",
+      "x": 43.73668670654297,
+      "y": 3.5074198246002197,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "RUS_2024_17",
+      "x": 44.48717498779297,
+      "y": 4.270632743835449,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "BOT_2024_17",
+      "x": 46.535770416259766,
+      "y": 8.24050235748291,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "PIA_2024_17",
+      "x": 43.84974670410156,
+      "y": 3.0904042720794678,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 17,
+      "race_name": "Azerbaijan Grand Prix"
+    },
+    {
+      "id": "NOR_2024_18",
+      "x": 20.34209442138672,
+      "y": 13.611388206481934,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "VER_2024_18",
+      "x": 20.83977508544922,
+      "y": 13.784082412719727,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "PIA_2024_18",
+      "x": 21.59973907470703,
+      "y": 14.122588157653809,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "RUS_2024_18",
+      "x": 21.734811782836914,
+      "y": 14.28298568725586,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "LEC_2024_18",
+      "x": 22.359752655029297,
+      "y": 15.46179485321045,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "HAM_2024_18",
+      "x": 22.553661346435547,
+      "y": 13.915821075439453,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "SAI_2024_18",
+      "x": 23.973867416381836,
+      "y": 15.090065002441406,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "ALO_2024_18",
+      "x": 22.986072540283203,
+      "y": 14.965343475341797,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "HUL_2024_18",
+      "x": 22.58888816833496,
+      "y": 14.973688125610352,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "PER_2024_18",
+      "x": 23.528030395507812,
+      "y": 16.547285079956055,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "COL_2024_18",
+      "x": 23.24652671813965,
+      "y": 16.386011123657227,
+      "driver": "COL",
+      "team": "Williams",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "TSU_2024_18",
+      "x": 23.16781997680664,
+      "y": 15.658462524414062,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "OCO_2024_18",
+      "x": 23.982105255126953,
+      "y": 17.41485595703125,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "STR_2024_18",
+      "x": 24.051177978515625,
+      "y": 18.029993057250977,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_18",
+      "x": 24.543079376220703,
+      "y": 18.537431716918945,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "BOT_2024_18",
+      "x": 24.219945907592773,
+      "y": 18.55281639099121,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "GAS_2024_18",
+      "x": 24.595579147338867,
+      "y": 18.03847312927246,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "RIC_2024_18",
+      "x": 20.785507202148438,
+      "y": 7.212515354156494,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "MAG_2024_18",
+      "x": 20.736339569091797,
+      "y": 7.185486793518066,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "ALB_2024_18",
+      "x": 8.637491226196289,
+      "y": 15.57746410369873,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 18,
+      "race_name": "Singapore Grand Prix"
+    },
+    {
+      "id": "VER_2024_19",
+      "x": 18.116199493408203,
+      "y": 14.77053451538086,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "GAS_2024_19",
+      "x": 17.545940399169922,
+      "y": 17.759353637695312,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "PER_2024_19",
+      "x": 18.37586784362793,
+      "y": 17.668310165405273,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "ALO_2024_19",
+      "x": 17.647380828857422,
+      "y": 18.109291076660156,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "LEC_2024_19",
+      "x": 17.62232780456543,
+      "y": 14.660714149475098,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "STR_2024_19",
+      "x": 18.862228393554688,
+      "y": 19.164749145507812,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "MAG_2024_19",
+      "x": 18.74319839477539,
+      "y": 6.307708740234375,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "TSU_2024_19",
+      "x": 18.657791137695312,
+      "y": 18.45929527282715,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "ALB_2024_19",
+      "x": 18.6948184967041,
+      "y": 19.491439819335938,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_19",
+      "x": 19.136905670166016,
+      "y": 20.864015579223633,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "HUL_2024_19",
+      "x": 17.65836524963379,
+      "y": 18.684478759765625,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "LAW_2024_19",
+      "x": 17.711437225341797,
+      "y": 20.603853225708008,
+      "driver": "LAW",
+      "team": "RB",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "OCO_2024_19",
+      "x": 18.815174102783203,
+      "y": 6.3407135009765625,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "NOR_2024_19",
+      "x": 18.086441040039062,
+      "y": 14.596524238586426,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "COL_2024_19",
+      "x": 17.751495361328125,
+      "y": 19.971662521362305,
+      "driver": "COL",
+      "team": "Williams",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "SAI_2024_19",
+      "x": 17.91856575012207,
+      "y": 14.970846176147461,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "RUS_2024_19",
+      "x": 17.49607276916504,
+      "y": 20.74533462524414,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "BOT_2024_19",
+      "x": 18.627120971679688,
+      "y": 20.275497436523438,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "PIA_2024_19",
+      "x": 17.563983917236328,
+      "y": 15.977180480957031,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 19,
+      "race_name": "United States Grand Prix"
+    },
+    {
+      "id": "VER_2024_1",
+      "x": 13.382515907287598,
+      "y": -18.781192779541016,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "PER_2024_1",
+      "x": 13.563969612121582,
+      "y": -18.390165328979492,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "SAI_2024_1",
+      "x": 27.67556381225586,
+      "y": -9.74793529510498,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "LEC_2024_1",
+      "x": 27.58195686340332,
+      "y": -9.192113876342773,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "RUS_2024_1",
+      "x": 27.316268920898438,
+      "y": -9.218301773071289,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "NOR_2024_1",
+      "x": 26.86395835876465,
+      "y": -9.945145606994629,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "HAM_2024_1",
+      "x": 26.190126419067383,
+      "y": -10.179946899414062,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "PIA_2024_1",
+      "x": 26.33687400817871,
+      "y": -9.766740798950195,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "ALO_2024_1",
+      "x": 26.313276290893555,
+      "y": -9.233050346374512,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "STR_2024_1",
+      "x": 24.916805267333984,
+      "y": -10.510516166687012,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_1",
+      "x": 24.065683364868164,
+      "y": -10.78929328918457,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "MAG_2024_1",
+      "x": 24.18758201599121,
+      "y": -10.279525756835938,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "RIC_2024_1",
+      "x": 14.172521591186523,
+      "y": -13.407549858093262,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "TSU_2024_1",
+      "x": 25.098058700561523,
+      "y": -9.885445594787598,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "ALB_2024_1",
+      "x": 24.499418258666992,
+      "y": -9.851414680480957,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "HUL_2024_1",
+      "x": 14.692510604858398,
+      "y": -12.83052921295166,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "OCO_2024_1",
+      "x": 23.532054901123047,
+      "y": -10.685243606567383,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "GAS_2024_1",
+      "x": 13.941873550415039,
+      "y": -12.861989974975586,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "BOT_2024_1",
+      "x": 23.132003784179688,
+      "y": -10.27879810333252,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "SAR_2024_1",
+      "x": 13.63478946685791,
+      "y": -11.840298652648926,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 1,
+      "race_name": "Bahrain Grand Prix"
+    },
+    {
+      "id": "SAI_2024_20",
+      "x": -8.7483549118042,
+      "y": -25.841642379760742,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "NOR_2024_20",
+      "x": -8.727354049682617,
+      "y": -25.53057861328125,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "LEC_2024_20",
+      "x": -4.826766014099121,
+      "y": -25.039325714111328,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "HAM_2024_20",
+      "x": -8.620567321777344,
+      "y": -24.57632827758789,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "RUS_2024_20",
+      "x": -8.6442289352417,
+      "y": -24.848567962646484,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "VER_2024_20",
+      "x": -9.39992618560791,
+      "y": -24.901649475097656,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "MAG_2024_20",
+      "x": -8.772760391235352,
+      "y": -24.064401626586914,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "PIA_2024_20",
+      "x": -7.360188007354736,
+      "y": -22.38734245300293,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "HUL_2024_20",
+      "x": -8.260393142700195,
+      "y": -23.439104080200195,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "GAS_2024_20",
+      "x": -8.8961820602417,
+      "y": -23.463428497314453,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "STR_2024_20",
+      "x": -8.11886978149414,
+      "y": -22.4480037689209,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "COL_2024_20",
+      "x": -7.762452125549316,
+      "y": -22.10988998413086,
+      "driver": "COL",
+      "team": "Williams",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "OCO_2024_20",
+      "x": -10.047977447509766,
+      "y": -24.23046875,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "BOT_2024_20",
+      "x": -8.21909236907959,
+      "y": -21.955591201782227,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_20",
+      "x": -7.5641021728515625,
+      "y": -21.57838249206543,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "LAW_2024_20",
+      "x": -4.264354228973389,
+      "y": -24.19094467163086,
+      "driver": "LAW",
+      "team": "RB",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "PER_2024_20",
+      "x": -4.192639350891113,
+      "y": -23.918367385864258,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "ALO_2024_20",
+      "x": -9.705105781555176,
+      "y": -31.23143196105957,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 20,
+      "race_name": "Mexico City Grand Prix"
+    },
+    {
+      "id": "VER_2024_21",
+      "x": -24.30194854736328,
+      "y": -26.908945083618164,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "GAS_2024_21",
+      "x": -24.923885345458984,
+      "y": -26.857925415039062,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "PER_2024_21",
+      "x": -27.344219207763672,
+      "y": -15.35041332244873,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "ALO_2024_21",
+      "x": -25.39314842224121,
+      "y": -28.167129516601562,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "LEC_2024_21",
+      "x": -25.778974533081055,
+      "y": -27.718873977661133,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "TSU_2024_21",
+      "x": -28.155677795410156,
+      "y": -14.894185066223145,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_21",
+      "x": -26.864532470703125,
+      "y": -15.683961868286133,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "HUL_2024_21",
+      "x": -26.56122589111328,
+      "y": -16.033063888549805,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "LAW_2024_21",
+      "x": -28.038776397705078,
+      "y": -14.979872703552246,
+      "driver": "LAW",
+      "team": "RB",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "OCO_2024_21",
+      "x": -25.879365921020508,
+      "y": -26.788284301757812,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "NOR_2024_21",
+      "x": -26.390783309936523,
+      "y": -27.707063674926758,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "COL_2024_21",
+      "x": 2.0452868938446045,
+      "y": -6.7044172286987305,
+      "driver": "COL",
+      "team": "Williams",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "HAM_2024_21",
+      "x": -24.595537185668945,
+      "y": -27.5247802734375,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "BEA_2024_21",
+      "x": -24.325098037719727,
+      "y": -27.87657356262207,
+      "driver": "BEA",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "SAI_2024_21",
+      "x": 2.0237903594970703,
+      "y": -6.714343547821045,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "RUS_2024_21",
+      "x": -26.30543327331543,
+      "y": -27.148160934448242,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "BOT_2024_21",
+      "x": -24.93645668029785,
+      "y": -28.128889083862305,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "PIA_2024_21",
+      "x": -25.390060424804688,
+      "y": -27.27423667907715,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "RUS_2024_22",
+      "x": 28.055908203125,
+      "y": -19.168594360351562,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "HAM_2024_22",
+      "x": 26.549043655395508,
+      "y": -19.765235900878906,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "SAI_2024_22",
+      "x": 28.05908966064453,
+      "y": -19.66285514831543,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "LEC_2024_22",
+      "x": 27.763141632080078,
+      "y": -19.94221305847168,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "VER_2024_22",
+      "x": 27.359115600585938,
+      "y": -19.57845687866211,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "NOR_2024_22",
+      "x": 20.57903480529785,
+      "y": -20.819734573364258,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "PIA_2024_22",
+      "x": 26.748207092285156,
+      "y": -20.67819595336914,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "HUL_2024_22",
+      "x": 26.227624893188477,
+      "y": -20.43342399597168,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "TSU_2024_22",
+      "x": 27.04659652709961,
+      "y": -20.715511322021484,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "PER_2024_22",
+      "x": 19.72381591796875,
+      "y": -19.789466857910156,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "ALO_2024_22",
+      "x": 25.48565101623535,
+      "y": -21.944976806640625,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "MAG_2024_22",
+      "x": 25.388784408569336,
+      "y": -20.663402557373047,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_22",
+      "x": 25.837064743041992,
+      "y": -21.287036895751953,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "COL_2024_22",
+      "x": 19.481037139892578,
+      "y": -19.546287536621094,
+      "driver": "COL",
+      "team": "Williams",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "STR_2024_22",
+      "x": 24.963985443115234,
+      "y": -21.810197830200195,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "LAW_2024_22",
+      "x": 25.342544555664062,
+      "y": -21.272871017456055,
+      "driver": "LAW",
+      "team": "RB",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "OCO_2024_22",
+      "x": 20.260648727416992,
+      "y": -20.461048126220703,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "BOT_2024_22",
+      "x": 19.428264617919922,
+      "y": -19.513883590698242,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "ALB_2024_22",
+      "x": 23.983142852783203,
+      "y": -19.385229110717773,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "GAS_2024_22",
+      "x": 24.467571258544922,
+      "y": -18.184825897216797,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 22,
+      "race_name": "Las Vegas Grand Prix"
+    },
+    {
+      "id": "VER_2024_23",
+      "x": 1.3346912860870361,
+      "y": -31.626510620117188,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "GAS_2024_23",
+      "x": 1.6499513387680054,
+      "y": -29.33667755126953,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "PER_2024_23",
+      "x": 0.21542632579803467,
+      "y": -29.36522102355957,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "ALO_2024_23",
+      "x": -0.9723709225654602,
+      "y": -26.253324508666992,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "LEC_2024_23",
+      "x": 0.7311811447143555,
+      "y": -30.47420310974121,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "MAG_2024_23",
+      "x": 2.0482420921325684,
+      "y": -29.616540908813477,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "TSU_2024_23",
+      "x": -1.053088903427124,
+      "y": -25.683271408081055,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "ALB_2024_23",
+      "x": 2.6525349617004395,
+      "y": -28.600725173950195,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_23",
+      "x": 1.9155198335647583,
+      "y": -29.094045639038086,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "HUL_2024_23",
+      "x": 3.977440595626831,
+      "y": -27.735017776489258,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "LAW_2024_23",
+      "x": -1.1101083755493164,
+      "y": -25.480417251586914,
+      "driver": "LAW",
+      "team": "RB",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "NOR_2024_23",
+      "x": 1.7364280223846436,
+      "y": -31.377378463745117,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "HAM_2024_23",
+      "x": 1.7176570892333984,
+      "y": -30.331825256347656,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "SAI_2024_23",
+      "x": 0.9702200889587402,
+      "y": -30.0012264251709,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "RUS_2024_23",
+      "x": 0.3929799795150757,
+      "y": -30.991079330444336,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "BOT_2024_23",
+      "x": -0.8445597887039185,
+      "y": -25.75155258178711,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "PIA_2024_23",
+      "x": 1.1445915699005127,
+      "y": -30.902753829956055,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 23,
+      "race_name": "Qatar Grand Prix"
+    },
+    {
+      "id": "VER_2024_24",
+      "x": 12.255838394165039,
+      "y": 39.50225067138672,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "GAS_2024_24",
+      "x": 12.2656888961792,
+      "y": 40.599884033203125,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "ALO_2024_24",
+      "x": 11.448209762573242,
+      "y": 41.00968933105469,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "LEC_2024_24",
+      "x": 9.868983268737793,
+      "y": 42.698753356933594,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "STR_2024_24",
+      "x": 10.475725173950195,
+      "y": 41.33552932739258,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "MAG_2024_24",
+      "x": 8.281426429748535,
+      "y": 39.086360931396484,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "TSU_2024_24",
+      "x": 10.317485809326172,
+      "y": 40.51287078857422,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "ALB_2024_24",
+      "x": 9.483024597167969,
+      "y": 41.847782135009766,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_24",
+      "x": 9.964990615844727,
+      "y": 41.40485763549805,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "HUL_2024_24",
+      "x": 11.83410930633545,
+      "y": 40.73773956298828,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "LAW_2024_24",
+      "x": 9.546862602233887,
+      "y": 40.40196990966797,
+      "driver": "LAW",
+      "team": "RB",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "NOR_2024_24",
+      "x": 13.251580238342285,
+      "y": 39.182804107666016,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "COL_2024_24",
+      "x": 8.343400955200195,
+      "y": 40.21782302856445,
+      "driver": "COL",
+      "team": "Williams",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "HAM_2024_24",
+      "x": 10.175689697265625,
+      "y": 42.44231414794922,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "SAI_2024_24",
+      "x": 13.122554779052734,
+      "y": 39.34547805786133,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "DOO_2024_24",
+      "x": 9.281039237976074,
+      "y": 41.16587448120117,
+      "driver": "DOO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "RUS_2024_24",
+      "x": 12.479185104370117,
+      "y": 39.693603515625,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "BOT_2024_24",
+      "x": 9.63260269165039,
+      "y": 39.42059326171875,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "PIA_2024_24",
+      "x": 12.461226463317871,
+      "y": 41.502540588378906,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 24,
+      "race_name": "Abu Dhabi Grand Prix"
+    },
+    {
+      "id": "VER_2024_2",
+      "x": 7.5243024826049805,
+      "y": 3.4006824493408203,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "PER_2024_2",
+      "x": 7.0911664962768555,
+      "y": 3.6238839626312256,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "ALO_2024_2",
+      "x": 7.352771759033203,
+      "y": 4.439141750335693,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "LEC_2024_2",
+      "x": 7.598769664764404,
+      "y": 3.9321203231811523,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "STR_2024_2",
+      "x": 7.3993659019470215,
+      "y": 15.914600372314453,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "SAR_2024_2",
+      "x": 5.0742716789245605,
+      "y": 8.608748435974121,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "MAG_2024_2",
+      "x": 5.611401557922363,
+      "y": 7.592122554779053,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "TSU_2024_2",
+      "x": 5.403162956237793,
+      "y": 6.735893726348877,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "ALB_2024_2",
+      "x": 5.465202331542969,
+      "y": 7.314940929412842,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_2",
+      "x": 5.517592906951904,
+      "y": 9.192241668701172,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "HUL_2024_2",
+      "x": 6.178134918212891,
+      "y": 8.185872077941895,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "RIC_2024_2",
+      "x": 4.84313440322876,
+      "y": 7.690958499908447,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "OCO_2024_2",
+      "x": 5.264309406280518,
+      "y": 8.303938865661621,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "BEA_2024_2",
+      "x": 6.200186729431152,
+      "y": 6.854526042938232,
+      "driver": "BEA",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "NOR_2024_2",
+      "x": 6.911914825439453,
+      "y": 5.425204753875732,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "HAM_2024_2",
+      "x": 6.61863374710083,
+      "y": 5.800664901733398,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "RUS_2024_2",
+      "x": 6.604743480682373,
+      "y": 4.612195014953613,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "BOT_2024_2",
+      "x": 16.113096237182617,
+      "y": 3.1834523677825928,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "PIA_2024_2",
+      "x": 6.853168487548828,
+      "y": 4.225165843963623,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 2,
+      "race_name": "Saudi Arabian Grand Prix"
+    },
+    {
+      "id": "GAS_2024_3",
+      "x": -2.491919755935669,
+      "y": 27.791608810424805,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "PER_2024_3",
+      "x": -5.34247350692749,
+      "y": 27.836732864379883,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "ALO_2024_3",
+      "x": -2.7855074405670166,
+      "y": 24.217878341674805,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "LEC_2024_3",
+      "x": -6.193826198577881,
+      "y": 27.114578247070312,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "STR_2024_3",
+      "x": -4.5171380043029785,
+      "y": 28.41683006286621,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "MAG_2024_3",
+      "x": -3.2237653732299805,
+      "y": 27.962936401367188,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "TSU_2024_3",
+      "x": -4.526960372924805,
+      "y": 28.052034378051758,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "ALB_2024_3",
+      "x": -3.56998348236084,
+      "y": 28.035367965698242,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_3",
+      "x": -2.1960506439208984,
+      "y": 28.64901351928711,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "HUL_2024_3",
+      "x": -2.7035322189331055,
+      "y": 24.248132705688477,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "RIC_2024_3",
+      "x": -2.4020588397979736,
+      "y": 28.327608108520508,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "OCO_2024_3",
+      "x": -2.8574416637420654,
+      "y": 28.884748458862305,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "NOR_2024_3",
+      "x": -6.427639007568359,
+      "y": 27.245376586914062,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "HAM_2024_3",
+      "x": -3.5135765075683594,
+      "y": 23.826396942138672,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "SAI_2024_3",
+      "x": -6.713770389556885,
+      "y": 27.449678421020508,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "RUS_2024_3",
+      "x": -6.071609973907471,
+      "y": 26.381940841674805,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "BOT_2024_3",
+      "x": -3.2151288986206055,
+      "y": 28.78830337524414,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "PIA_2024_3",
+      "x": -5.84706449508667,
+      "y": 27.850120544433594,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 3,
+      "race_name": "Australian Grand Prix"
+    },
+    {
+      "id": "VER_2024_4",
+      "x": 27.03583526611328,
+      "y": -4.6421685218811035,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "PER_2024_4",
+      "x": 26.7902889251709,
+      "y": -4.634420871734619,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "SAI_2024_4",
+      "x": 26.44896125793457,
+      "y": -4.897733688354492,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "LEC_2024_4",
+      "x": 25.96923065185547,
+      "y": -4.511704921722412,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "NOR_2024_4",
+      "x": 26.597822189331055,
+      "y": -5.336671829223633,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "ALO_2024_4",
+      "x": 17.27507209777832,
+      "y": -8.361333847045898,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "RUS_2024_4",
+      "x": 16.680288314819336,
+      "y": -8.279928207397461,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "PIA_2024_4",
+      "x": 26.010650634765625,
+      "y": -5.379207134246826,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "HAM_2024_4",
+      "x": 16.709226608276367,
+      "y": -8.276079177856445,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "TSU_2024_4",
+      "x": 15.953804969787598,
+      "y": -8.324018478393555,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "HUL_2024_4",
+      "x": 23.300012588500977,
+      "y": -6.701357364654541,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "STR_2024_4",
+      "x": 12.801653861999512,
+      "y": -8.502522468566895,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "MAG_2024_4",
+      "x": 22.74333381652832,
+      "y": -6.499095916748047,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "BOT_2024_4",
+      "x": 23.01583480834961,
+      "y": -6.605280876159668,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "OCO_2024_4",
+      "x": 15.0372314453125,
+      "y": -8.280768394470215,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "GAS_2024_4",
+      "x": 12.680545806884766,
+      "y": -8.673748970031738,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "SAR_2024_4",
+      "x": 12.675823211669922,
+      "y": -8.750904083251953,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_4",
+      "x": 13.76318645477295,
+      "y": -7.4650797843933105,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 4,
+      "race_name": "Japanese Grand Prix"
+    },
+    {
+      "id": "VER_2024_5",
+      "x": 23.68376922607422,
+      "y": -32.874412536621094,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "GAS_2024_5",
+      "x": 19.89148712158203,
+      "y": -28.717639923095703,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "PER_2024_5",
+      "x": 23.180614471435547,
+      "y": -32.92534255981445,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "ALO_2024_5",
+      "x": 18.076160430908203,
+      "y": -27.246837615966797,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "LEC_2024_5",
+      "x": 23.092966079711914,
+      "y": -32.14746856689453,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "STR_2024_5",
+      "x": 17.914363861083984,
+      "y": -27.099395751953125,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "SAR_2024_5",
+      "x": 20.383258819580078,
+      "y": -28.76307487487793,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "MAG_2024_5",
+      "x": 21.464088439941406,
+      "y": -30.800222396850586,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "TSU_2024_5",
+      "x": 21.830045700073242,
+      "y": -27.36981773376465,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "ALB_2024_5",
+      "x": 21.75358772277832,
+      "y": -31.11610984802246,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_5",
+      "x": 19.981672286987305,
+      "y": -28.91340446472168,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "HUL_2024_5",
+      "x": 21.952442169189453,
+      "y": -32.38163375854492,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "RIC_2024_5",
+      "x": 22.363712310791016,
+      "y": -27.22039794921875,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "OCO_2024_5",
+      "x": 21.577880859375,
+      "y": -31.863252639770508,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "NOR_2024_5",
+      "x": 23.666250228881836,
+      "y": -32.1474723815918,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "HAM_2024_5",
+      "x": 20.224145889282227,
+      "y": -29.058256149291992,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "SAI_2024_5",
+      "x": 22.560827255249023,
+      "y": -32.27948760986328,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "RUS_2024_5",
+      "x": 22.64154052734375,
+      "y": -31.542699813842773,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "BOT_2024_5",
+      "x": 23.985111236572266,
+      "y": -18.863666534423828,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "PIA_2024_5",
+      "x": 23.21592903137207,
+      "y": -31.588760375976562,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 5,
+      "race_name": "Chinese Grand Prix"
+    },
+    {
+      "id": "VER_2024_6",
+      "x": 13.794389724731445,
+      "y": 11.297442436218262,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "GAS_2024_6",
+      "x": 10.970111846923828,
+      "y": 11.959432601928711,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "PER_2024_6",
+      "x": 15.697328567504883,
+      "y": 5.758857250213623,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "ALO_2024_6",
+      "x": 10.820393562316895,
+      "y": 12.756413459777832,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "LEC_2024_6",
+      "x": 13.669225692749023,
+      "y": 11.25374698638916,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "STR_2024_6",
+      "x": 16.342655181884766,
+      "y": 4.7739996910095215,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "SAR_2024_6",
+      "x": 8.71580982208252,
+      "y": 15.194934844970703,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "MAG_2024_6",
+      "x": 9.710247039794922,
+      "y": 13.529379844665527,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "TSU_2024_6",
+      "x": 12.099422454833984,
+      "y": 12.280428886413574,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "ALB_2024_6",
+      "x": 16.815797805786133,
+      "y": 4.422414779663086,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_6",
+      "x": 10.085371971130371,
+      "y": 13.55030632019043,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "HUL_2024_6",
+      "x": 16.264114379882812,
+      "y": 5.079319953918457,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "RIC_2024_6",
+      "x": 9.988700866699219,
+      "y": 13.640318870544434,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "OCO_2024_6",
+      "x": 11.228691101074219,
+      "y": 12.47598934173584,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "NOR_2024_6",
+      "x": 13.703361511230469,
+      "y": 12.175647735595703,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "HAM_2024_6",
+      "x": 12.445055961608887,
+      "y": 11.79596996307373,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "SAI_2024_6",
+      "x": 13.227270126342773,
+      "y": 11.065022468566895,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "RUS_2024_6",
+      "x": 12.588529586791992,
+      "y": 11.802881240844727,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "BOT_2024_6",
+      "x": 16.438947677612305,
+      "y": 4.179874420166016,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "PIA_2024_6",
+      "x": 15.818727493286133,
+      "y": 5.617720603942871,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 6,
+      "race_name": "Miami Grand Prix"
+    },
+    {
+      "id": "VER_2024_7",
+      "x": -16.598770141601562,
+      "y": 21.78380584716797,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "NOR_2024_7",
+      "x": -17.034435272216797,
+      "y": 21.912490844726562,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "LEC_2024_7",
+      "x": -16.936716079711914,
+      "y": 21.461153030395508,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "PIA_2024_7",
+      "x": -17.56329345703125,
+      "y": 21.43170166015625,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "SAI_2024_7",
+      "x": -17.19057273864746,
+      "y": 21.098432540893555,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "HAM_2024_7",
+      "x": -18.05891227722168,
+      "y": 20.454198837280273,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "RUS_2024_7",
+      "x": -40.95589065551758,
+      "y": -0.8412688374519348,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "PER_2024_7",
+      "x": -19.312063217163086,
+      "y": 19.170740127563477,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "STR_2024_7",
+      "x": -19.746543884277344,
+      "y": 18.528099060058594,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "TSU_2024_7",
+      "x": -21.17593765258789,
+      "y": 19.22469711303711,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "HUL_2024_7",
+      "x": -21.257591247558594,
+      "y": 18.763824462890625,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "MAG_2024_7",
+      "x": -20.52337074279785,
+      "y": 16.764883041381836,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "RIC_2024_7",
+      "x": -21.472089767456055,
+      "y": 18.872875213623047,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "OCO_2024_7",
+      "x": -20.1634578704834,
+      "y": 17.953033447265625,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_7",
+      "x": -20.167648315429688,
+      "y": 16.772836685180664,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "GAS_2024_7",
+      "x": -36.93425750732422,
+      "y": 2.3538918495178223,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "SAR_2024_7",
+      "x": -20.144630432128906,
+      "y": 16.351518630981445,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "BOT_2024_7",
+      "x": -22.262371063232422,
+      "y": 17.644433975219727,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "ALO_2024_7",
+      "x": -35.10271453857422,
+      "y": 4.068823337554932,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "ALB_2024_7",
+      "x": -33.14285659790039,
+      "y": 1.920230746269226,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 7,
+      "race_name": "Emilia Romagna Grand Prix"
+    },
+    {
+      "id": "LEC_2024_8",
+      "x": -17.2988338470459,
+      "y": -2.5547525882720947,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "PIA_2024_8",
+      "x": -17.390317916870117,
+      "y": -2.2986488342285156,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "SAI_2024_8",
+      "x": -17.87868881225586,
+      "y": -2.558649778366089,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "NOR_2024_8",
+      "x": -17.776092529296875,
+      "y": -2.1030242443084717,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "RUS_2024_8",
+      "x": -18.291715621948242,
+      "y": -2.1244263648986816,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "VER_2024_8",
+      "x": -39.190181732177734,
+      "y": -6.157495498657227,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "HAM_2024_8",
+      "x": -39.16446304321289,
+      "y": -6.168323993682861,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "TSU_2024_8",
+      "x": -19.812135696411133,
+      "y": -0.4644474685192108,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "ALB_2024_8",
+      "x": -20.09984588623047,
+      "y": -0.32836005091667175,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "GAS_2024_8",
+      "x": -20.192724227905273,
+      "y": -0.02438143454492092,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "ALO_2024_8",
+      "x": -20.73566436767578,
+      "y": 0.4715409278869629,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "RIC_2024_8",
+      "x": -20.666549682617188,
+      "y": 0.2624848186969757,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "BOT_2024_8",
+      "x": -28.997976303100586,
+      "y": 3.653165102005005,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "STR_2024_8",
+      "x": -33.75517272949219,
+      "y": 4.228384494781494,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "SAR_2024_8",
+      "x": -21.865859985351562,
+      "y": 1.0940594673156738,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_8",
+      "x": -28.866798400878906,
+      "y": 3.5846641063690186,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "VER_2024_9",
+      "x": -4.539767742156982,
+      "y": -34.63033676147461,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "GAS_2024_9",
+      "x": -7.8556084632873535,
+      "y": -34.518821716308594,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "PER_2024_9",
+      "x": -8.427572250366211,
+      "y": -33.49410629272461,
+      "driver": "PER",
+      "team": "Red Bull Racing",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "ALO_2024_9",
+      "x": -5.676196098327637,
+      "y": -34.67307662963867,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "LEC_2024_9",
+      "x": -4.43818998336792,
+      "y": -29.15565299987793,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "STR_2024_9",
+      "x": -6.518723011016846,
+      "y": -34.552249908447266,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "SAR_2024_9",
+      "x": -9.277416229248047,
+      "y": -31.95924186706543,
+      "driver": "SAR",
+      "team": "Williams",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "MAG_2024_9",
+      "x": -4.849184513092041,
+      "y": -30.055932998657227,
+      "driver": "MAG",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "TSU_2024_9",
+      "x": -6.412686347961426,
+      "y": -34.16506576538086,
+      "driver": "TSU",
+      "team": "RB",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "ALB_2024_9",
+      "x": -7.485474109649658,
+      "y": -33.33095169067383,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "ZHO_2024_9",
+      "x": -9.364204406738281,
+      "y": -34.370216369628906,
+      "driver": "ZHO",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "HUL_2024_9",
+      "x": -4.9185614585876465,
+      "y": -30.045059204101562,
+      "driver": "HUL",
+      "team": "Haas F1 Team",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "RIC_2024_9",
+      "x": -5.825632572174072,
+      "y": -34.166236877441406,
+      "driver": "RIC",
+      "team": "RB",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "OCO_2024_9",
+      "x": -8.243550300598145,
+      "y": -34.78919219970703,
+      "driver": "OCO",
+      "team": "Alpine",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "NOR_2024_9",
+      "x": -4.866533279418945,
+      "y": -34.85927963256836,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "HAM_2024_9",
+      "x": -4.430708408355713,
+      "y": -31.479623794555664,
+      "driver": "HAM",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "SAI_2024_9",
+      "x": -7.886003494262695,
+      "y": -33.31210708618164,
+      "driver": "SAI",
+      "team": "Ferrari",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "RUS_2024_9",
+      "x": -4.329822540283203,
+      "y": -31.729854583740234,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "BOT_2024_9",
+      "x": -8.557171821594238,
+      "y": -34.5836181640625,
+      "driver": "BOT",
+      "team": "Kick Sauber",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "PIA_2024_9",
+      "x": -4.929944038391113,
+      "y": -34.42099380493164,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2024,
+      "round": 9,
+      "race_name": "Canadian Grand Prix"
+    },
+    {
+      "id": "VER_2025_21",
+      "x": -25.76220703125,
+      "y": -12.879286766052246,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "GAS_2025_21",
+      "x": -18.85271453857422,
+      "y": -10.589577674865723,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "ANT_2025_21",
+      "x": -17.778684616088867,
+      "y": -9.845342636108398,
+      "driver": "ANT",
+      "team": "Mercedes",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "ALO_2025_21",
+      "x": -18.80406379699707,
+      "y": -11.404507637023926,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "LEC_2025_21",
+      "x": 30.97705841064453,
+      "y": -9.93914794921875,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "STR_2025_21",
+      "x": -19.3154354095459,
+      "y": -11.603302001953125,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "TSU_2025_21",
+      "x": -20.688474655151367,
+      "y": -10.475796699523926,
+      "driver": "TSU",
+      "team": "Red Bull Racing",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "ALB_2025_21",
+      "x": -26.55786895751953,
+      "y": -12.562307357788086,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "HUL_2025_21",
+      "x": -18.482746124267578,
+      "y": -11.77187442779541,
+      "driver": "HUL",
+      "team": "Kick Sauber",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "LAW_2025_21",
+      "x": -18.221729278564453,
+      "y": -10.683168411254883,
+      "driver": "LAW",
+      "team": "Racing Bulls",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "OCO_2025_21",
+      "x": -20.605579376220703,
+      "y": -10.657825469970703,
+      "driver": "OCO",
+      "team": "Haas F1 Team",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "NOR_2025_21",
+      "x": -28.19249725341797,
+      "y": -12.37566089630127,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "COL_2025_21",
+      "x": -26.242414474487305,
+      "y": -12.590083122253418,
+      "driver": "COL",
+      "team": "Alpine",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "HAM_2025_21",
+      "x": -26.426986694335938,
+      "y": -11.767495155334473,
+      "driver": "HAM",
+      "team": "Ferrari",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "SAI_2025_21",
+      "x": -19.811389923095703,
+      "y": -10.880011558532715,
+      "driver": "SAI",
+      "team": "Williams",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "HAD_2025_21",
+      "x": -17.99593162536621,
+      "y": -10.385467529296875,
+      "driver": "HAD",
+      "team": "Racing Bulls",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "RUS_2025_21",
+      "x": -27.596094131469727,
+      "y": -12.422200202941895,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "PIA_2025_21",
+      "x": -27.885202407836914,
+      "y": -12.449557304382324,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "BEA_2025_21",
+      "x": -18.623218536376953,
+      "y": -10.221202850341797,
+      "driver": "BEA",
+      "team": "Haas F1 Team",
+      "year": 2025,
+      "round": 21,
+      "race_name": "S\u00e3o Paulo Grand Prix"
+    },
+    {
+      "id": "VER_2025_8",
+      "x": -39.50471878051758,
+      "y": -5.883521556854248,
+      "driver": "VER",
+      "team": "Red Bull Racing",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "GAS_2025_8",
+      "x": 6.1899285316467285,
+      "y": 16.437763214111328,
+      "driver": "GAS",
+      "team": "Alpine",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "ANT_2025_8",
+      "x": -29.250228881835938,
+      "y": 2.8446571826934814,
+      "driver": "ANT",
+      "team": "Mercedes",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "ALO_2025_8",
+      "x": -16.625072479248047,
+      "y": -11.333250045776367,
+      "driver": "ALO",
+      "team": "Aston Martin",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "LEC_2025_8",
+      "x": -40.36172866821289,
+      "y": -4.7439961433410645,
+      "driver": "LEC",
+      "team": "Ferrari",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "STR_2025_8",
+      "x": -22.41654396057129,
+      "y": 2.4065678119659424,
+      "driver": "STR",
+      "team": "Aston Martin",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "TSU_2025_8",
+      "x": -29.011354446411133,
+      "y": 2.6572234630584717,
+      "driver": "TSU",
+      "team": "Red Bull Racing",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "ALB_2025_8",
+      "x": -23.422212600708008,
+      "y": 1.048608660697937,
+      "driver": "ALB",
+      "team": "Williams",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "HUL_2025_8",
+      "x": -31.66145133972168,
+      "y": 2.1791296005249023,
+      "driver": "HUL",
+      "team": "Kick Sauber",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "LAW_2025_8",
+      "x": -31.269235610961914,
+      "y": 1.971956491470337,
+      "driver": "LAW",
+      "team": "Racing Bulls",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "OCO_2025_8",
+      "x": -22.999921798706055,
+      "y": 0.6796737313270569,
+      "driver": "OCO",
+      "team": "Haas F1 Team",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "NOR_2025_8",
+      "x": -17.62883949279785,
+      "y": -3.894069194793701,
+      "driver": "NOR",
+      "team": "McLaren",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "COL_2025_8",
+      "x": -22.447580337524414,
+      "y": 2.3890955448150635,
+      "driver": "COL",
+      "team": "Alpine",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "HAM_2025_8",
+      "x": -18.14450454711914,
+      "y": -4.325726509094238,
+      "driver": "HAM",
+      "team": "Ferrari",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "BOR_2025_8",
+      "x": -33.26738739013672,
+      "y": 4.119727611541748,
+      "driver": "BOR",
+      "team": "Kick Sauber",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "SAI_2025_8",
+      "x": -23.1375732421875,
+      "y": 1.0995744466781616,
+      "driver": "SAI",
+      "team": "Williams",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "HAD_2025_8",
+      "x": -30.216650009155273,
+      "y": 1.545947790145874,
+      "driver": "HAD",
+      "team": "Racing Bulls",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "RUS_2025_8",
+      "x": -30.163190841674805,
+      "y": 2.6314167976379395,
+      "driver": "RUS",
+      "team": "Mercedes",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "PIA_2025_8",
+      "x": -17.82347297668457,
+      "y": -4.0517778396606445,
+      "driver": "PIA",
+      "team": "McLaren",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    },
+    {
+      "id": "BEA_2025_8",
+      "x": -29.766143798828125,
+      "y": 3.3610172271728516,
+      "driver": "BEA",
+      "team": "Haas F1 Team",
+      "year": 2025,
+      "round": 8,
+      "race_name": "Monaco Grand Prix"
+    }
+  ],
+  "feature_cols": [
+    "avg_lap_time",
+    "std_lap_time",
+    "best_lap_time",
+    "avg_sector1",
+    "avg_sector2",
+    "avg_sector3",
+    "pit_count",
+    "stint_count",
+    "avg_stint_length",
+    "max_stint_length",
+    "degradation_rate",
+    "grid_position",
+    "gap_to_leader_mean",
+    "rolling_pace_3",
+    "rolling_pace_5",
+    "track_temp",
+    "air_temp"
+  ],
+  "n_points": 499
+}

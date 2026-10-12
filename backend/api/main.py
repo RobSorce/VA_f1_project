@@ -871,11 +871,16 @@ async def _shutdown_live_timing():
 
 
 @app.get("/api/live/connect-signalr")
-async def connect_live_signalr():
+async def connect_live_signalr(reset: bool = False):
     """Manually start the SignalR connection to F1 live timing.
 
     Call this when an F1 session is about to start. The connection will
     auto-reconnect if dropped.
+
+    Pass ``?reset=true`` to wipe accumulated session state before reconnecting
+    (e.g. when starting a fresh session). Default is to PRESERVE accumulated
+    data so a viewer who exits and re-enters mid-race keeps their timing
+    grid, lap history, and race-control feed.
     """
     global _live_signalr_task, _live_session_manager
     if _live_session_manager is None:
@@ -886,7 +891,16 @@ async def connect_live_signalr():
     try:
         from live.signalr_client import F1SignalRClient
 
-        _live_session_manager.reset()
+        if reset:
+            _live_session_manager.reset()
+        else:
+            logger.info(
+                "Reconnecting SignalR — preserving %d laps, %d drivers, "
+                "%d retirements (pass ?reset=true to clear)",
+                len(_live_session_manager.lap_times),
+                len(_live_session_manager.driver_info),
+                len(_live_session_manager.driver_statuses),
+            )
 
         async def _on_msg(topic, data):
             await _live_session_manager.on_message(topic, data)
@@ -983,6 +997,33 @@ async def load_live_full_session():
     except Exception as e:
         logger.error(f"Failed to load full session: {e}", exc_info=True)
         return {"error": str(e)}
+
+
+@app.post("/api/live/load-team-radios")
+async def load_team_radios():
+    """Pull TeamRadio.json from F1's static CDN and ingest every capture.
+
+    Use this after a session ends (or for any past race in replay mode) to
+    backfill the team-radio feed. F1 paywalls this endpoint during live
+    sessions, so during a running race this returns ``status: paywalled``.
+    """
+    if _live_session_manager is None:
+        return {"error": "Live timing not initialized"}
+    return await _live_session_manager.fetch_static_team_radios()
+
+
+@app.post("/api/live/reset")
+async def reset_live_session():
+    """Explicitly wipe accumulated live-session state.
+
+    Use this when starting a brand-new session and you want a clean slate.
+    Normal exit/re-entry should NOT call this — the in-memory accumulation
+    is what makes data persist across viewer reconnects.
+    """
+    if _live_session_manager is None:
+        return {"error": "Live timing not initialized"}
+    _live_session_manager.reset()
+    return {"status": "reset"}
 
 
 @app.get("/api/live/disconnect-signalr")

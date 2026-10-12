@@ -30,7 +30,6 @@ export const CHART_HELP = {
     seeAlso: [
       { tabId: 'telemetry', label: 'Telemetry strip' },
       { tabId: 'sectors', label: 'Sector rankings' },
-      { tabId: 'speed', label: 'Speed rankings' },
     ],
   },
 
@@ -87,7 +86,6 @@ export const CHART_HELP = {
     ],
     seeAlso: [
       { tabId: 'trackmap', label: 'Track Map' },
-      { tabId: 'speed', label: 'Speed rankings' },
     ],
   },
 
@@ -164,24 +162,6 @@ export const CHART_HELP = {
     seeAlso: [
       { tabId: 'tiredeg', label: 'Tyre Degradation' },
       { tabId: 'consistency', label: 'Consistency' },
-    ],
-  },
-
-  speed: {
-    title: 'Speed Rankings',
-    summary: 'Driver rankings by speed-trap, finish-line, and two inline sector speeds.',
-    howToRead: [
-      'Four tabs: SpeedST (trap), SpeedFL (finish), SpeedI1, SpeedI2 (inline 1/2).',
-      'Best-of-session value per driver, descending.',
-      'Team colour bar + km/h value.',
-    ],
-    limitations: [
-      'Speeds are car-data snapshots, not GPS — accuracy depends on track sensor calibration.',
-      'Wet running typically produces zero meaningful rankings (drivers all lift).',
-    ],
-    seeAlso: [
-      { tabId: 'sectors', label: 'Sectors' },
-      { tabId: 'telemetry', label: 'Telemetry strip' },
     ],
   },
 
@@ -465,6 +445,28 @@ export const CHART_HELP = {
     seeAlso: [
       { tabId: 'strategy', label: 'Strategy Timeline' },
       { tabId: 'simulator', label: 'Strategy Simulator' },
+    ],
+  },
+
+  racecontrol: {
+    title: 'Race Control',
+    summary: 'Chronological feed of race-control messages, track-status changes, live retirements, and team-radio audio — a single place to read & listen to everything around the session.',
+    howToRead: [
+      'Each row: time · lap · category badge · driver chip · flag chip · message.',
+      'Category chips at the top filter the feed (Flag / DRS / Safety Car / Penalty / Stewards / Other) — count next to each chip is the per-category total.',
+      'Right rail (toggle "DNFs"): drivers currently OUT of the session — populated live from SignalR Retired/Stopped/KnockedOut flags.',
+      'Right rail (toggle "Radio"): team-radio captures with inline audio player + auto-transcript. Each row shows driver chip + UTC timestamp + an HTML5 audio player + the locally-produced transcript (faster-whisper tiny.en running on CPU; ~1-2 s per clip after the first model load).',
+      'Toggle "Auto-play" in the filter bar to hear new radios automatically as they arrive — playback is scoped to your selected drivers (or focus driver if nothing is selected). Audio + transcript pop up as a floating "Picture-in-Picture" toast in the top-right corner of the app, visible from any tab (Pit Wall, Track Map, anywhere). The toast is queued chronologically, has mute / dismiss controls, and dismisses 1.5 s after each clip ends. If your browser blocks autoplay (rare on desktop), tap the orange "Tap to enable" banner once.',
+      'Track-status header pill mirrors the track-map status (Track clear / Yellow / SC / VSC / Red flag).',
+    ],
+    limitations: [
+      'F1\'s SignalR feed ships team-radio AUDIO ONLY — no transcripts. We auto-transcribe locally with faster-whisper (tiny.en, int8, CPU). Driver radio is low-bitrate with engine noise, so expect occasional garbled words; this is NOT a substitute for F1\'s broadcast captions. To upgrade quality, set VA_WHISPER_MODEL=base.en or small.en in the backend env.',
+      'Penalty / stewards classification is best-effort: F1 sends most non-flag messages with Category="Other" and the type embedded in the message text (e.g. "5-second penalty").',
+      'In live mode timestamps come from the SignalR feed (broadcast time); in replay mode they come from the cached session.',
+    ],
+    seeAlso: [
+      { tabId: 'trackmap', label: 'Track Map' },
+      { tabId: 'strategy', label: 'Strategy Timeline' },
     ],
   },
 };

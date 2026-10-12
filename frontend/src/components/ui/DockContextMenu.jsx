@@ -23,14 +23,17 @@ export default function DockContextMenu({ target, position, onClose, onCustomize
   const [focused, setFocused] = useState(-1);
   const confirmTimerRef = useRef(null);
 
-  // Compute clamped screen position
-  const [pos, setPos] = useState(position);
+  // Anchor the menu by its BOTTOM edge to a point ~8 px above the click,
+  // so a right-click on a dock item produces a menu that sits flush above
+  // the dock — same behaviour as the Layouts and Customize popovers.
+  const [pos, setPos] = useState({ x: position.x, bottom: 8 });
   useEffect(() => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const left = Math.min(position.x, vw - MENU_WIDTH - EDGE_PAD);
-    const top = Math.min(position.y, vh - MENU_MAX_HEIGHT - EDGE_PAD);
-    setPos({ x: Math.max(EDGE_PAD, left), y: Math.max(EDGE_PAD, top) });
+    const left = Math.max(EDGE_PAD, Math.min(position.x, vw - MENU_WIDTH - EDGE_PAD));
+    // Distance from viewport bottom to the click point, plus a small gap.
+    const bottom = Math.max(EDGE_PAD, vh - position.y + 8);
+    setPos({ x: left, bottom });
   }, [position]);
 
   // Dismiss on outside click / Esc / scroll
@@ -98,7 +101,7 @@ export default function DockContextMenu({ target, position, onClose, onCustomize
       style={{
         position: 'fixed',
         left: pos.x,
-        top: pos.y,
+        bottom: pos.bottom,
         width: MENU_WIDTH,
         maxHeight: MENU_MAX_HEIGHT,
         zIndex: 10002,

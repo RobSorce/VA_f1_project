@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, getTeamColor, TYRE_COLORS } from '../../utils/colors';
@@ -38,6 +38,9 @@ export default function RaceSituationMap() {
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const currentLap = useF1Store((s) => s.currentLap);
   const driversInfo = useF1Store((s) => s.drivers);
+
+  // Toggle for axis chrome (gridlines + crosshair + loading arrows).
+  const [showAxes, setShowAxes] = useState(true);
 
   // Trigger computation on mount + lap changes
   useEffect(() => {
@@ -170,23 +173,24 @@ export default function RaceSituationMap() {
     // ── Grid (rebuild on scale changes) ──
     const gridLayer = g.select('.grid-layer');
     gridLayer.selectAll('*').remove();
+    if (showAxes) {
+      gridLayer.append('g').attr('class', 'x-grid')
+        .attr('transform', `translate(0,${innerH})`)
+        .call(d3.axisBottom(x).ticks(5).tickSize(-innerH).tickFormat(''))
+        .call((el) => el.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
+        .call((el) => el.select('.domain').remove());
 
-    gridLayer.append('g').attr('class', 'x-grid')
-      .attr('transform', `translate(0,${innerH})`)
-      .call(d3.axisBottom(x).ticks(5).tickSize(-innerH).tickFormat(''))
-      .call((el) => el.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
-      .call((el) => el.select('.domain').remove());
-
-    gridLayer.append('g').attr('class', 'y-grid')
-      .call(d3.axisLeft(y).ticks(5).tickSize(-innerW).tickFormat(''))
-      .call((el) => el.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
-      .call((el) => el.select('.domain').remove());
+      gridLayer.append('g').attr('class', 'y-grid')
+        .call(d3.axisLeft(y).ticks(5).tickSize(-innerW).tickFormat(''))
+        .call((el) => el.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
+        .call((el) => el.select('.domain').remove());
+    }
 
     // ── Crosshair at origin (field average) ──
     const crosshairLayer = g.select('.crosshair-layer');
     crosshairLayer.selectAll('*').remove();
     const ox = x(0), oy = y(0);
-    if (ox > 0 && ox < innerW && oy > 0 && oy < innerH) {
+    if (showAxes && ox > 0 && ox < innerW && oy > 0 && oy < innerH) {
       crosshairLayer.append('line').attr('x1', ox).attr('y1', 0).attr('x2', ox).attr('y2', innerH)
         .attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-dasharray', '3,5');
       crosshairLayer.append('line').attr('x1', 0).attr('y1', oy).attr('x2', innerW).attr('y2', oy)
@@ -199,7 +203,7 @@ export default function RaceSituationMap() {
     // ── Loading arrows (biplot vectors — top 6 features) ──
     const arrowsLayer = g.select('.arrows-layer');
     arrowsLayer.selectAll('*').remove();
-    const topLoadings = loadings.slice(0, 6);
+    const topLoadings = showAxes ? loadings.slice(0, 6) : [];
     const maxMag = Math.max(...topLoadings.map((l) => Math.sqrt(l.pc1 ** 2 + l.pc2 ** 2)));
     const arrowScale = Math.min(innerW, innerH) * 0.32 / (maxMag || 1);
 
@@ -579,7 +583,7 @@ export default function RaceSituationMap() {
       },
     });
 
-  }, [raceSituationData, selectedDrivers, highlightedDriver, focusDriver, driverInfoMap, setSelectedDrivers, toggleDriver, setHighlightedDriver, setFocusDriver]);
+  }, [raceSituationData, selectedDrivers, highlightedDriver, focusDriver, driverInfoMap, setSelectedDrivers, toggleDriver, setHighlightedDriver, setFocusDriver, showAxes]);
 
   // Cleanup on unmount
   useEffect(() => () => { if (cleanupRef.current) cleanupRef.current(); }, []);
@@ -606,8 +610,32 @@ export default function RaceSituationMap() {
     return items;
   }, [driversInfo]);
 
+  const axesToggleStyle = {
+    padding: '2px 8px', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+    border: '1px solid', borderRadius: 4, cursor: 'pointer',
+    background: showAxes ? 'rgba(138,180,248,0.14)' : 'transparent',
+    borderColor: showAxes ? 'rgba(138,180,248,0.40)' : 'rgba(255,255,255,0.14)',
+    color: showAxes ? '#8ab4f8' : 'rgba(255,255,255,0.55)',
+    transition: 'all 0.12s',
+  };
+
   return (
-    <Panel title={`Race Situation ${raceSituationData?.computedAtLap ? `— Lap ${raceSituationData.computedAtLap}` : ''}`} controls={<Legend items={teamLegend} shape="circle" />}>
+    <Panel
+      title={`Race Situation ${raceSituationData?.computedAtLap ? `— Lap ${raceSituationData.computedAtLap}` : ''}`}
+      controls={(
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            style={axesToggleStyle}
+            onClick={() => setShowAxes((v) => !v)}
+            title={showAxes ? 'Hide PCA axes + feature arrows' : 'Show PCA axes + feature arrows'}
+          >
+            {showAxes ? 'AXES ON' : 'AXES OFF'}
+          </button>
+          <Legend items={teamLegend} shape="circle" />
+        </span>
+      )}
+    >
       <div className="viz-container" style={{ position: 'relative' }}>
         {raceSituationData ? (
           <>

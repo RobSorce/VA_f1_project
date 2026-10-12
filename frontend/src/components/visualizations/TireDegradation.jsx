@@ -39,16 +39,27 @@ export default function TireDegradation() {
   const year = useF1Store((s) => s.year);
   const round = useF1Store((s) => s.round);
 
-  // Auto-trigger degradation regression when a lap range is selected via visual interaction
+  // Auto-trigger degradation regression when a lap range is selected via
+  // visual interaction. Debounced + min-width guarded so dragging the
+  // bottom-bar brush doesn't spam the backend with hundreds of requests
+  // (each mousemove updates selectedLapRange) — only the *settled* range
+  // after 250 ms of no further changes fires the request, and the
+  // backend's "Insufficient data" 422 is avoided by requiring ≥ 5 laps
+  // up front (least-squares on < 5 points is meaningless anyway).
   const activeRange = brushLapRange || selectedLapRange;
   useEffect(() => {
     const driver = focusDriver || selectedDrivers[0];
     if (!activeRange || !driver || !year || !round) return;
-    fetchDegradationRegression({
-      year, round, drivers: [driver],
-      lap_start: activeRange[0],
-      lap_end: activeRange[1],
-    });
+    const [lo, hi] = activeRange;
+    if (typeof lo !== 'number' || typeof hi !== 'number' || hi - lo < 4) return;
+    const t = setTimeout(() => {
+      fetchDegradationRegression({
+        year, round, drivers: [driver],
+        lap_start: lo,
+        lap_end: hi,
+      });
+    }, 250);
+    return () => clearTimeout(t);
   }, [activeRange, focusDriver, selectedDrivers, year, round, fetchDegradationRegression]);
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
@@ -61,13 +72,34 @@ export default function TireDegradation() {
   const driverDnf = driver ? dnfMap[driver] : null;
   const isDriverRetired = driverDnf && driverDnf.lastLap <= currentLap;
 
-  // Build stint data with linear regression per stint
+  // Build stint data with linear regression per stint. The brush filters
+  // by lap-number range so the scatter visibly redraws on the brushed
+  // window — but if the filter would produce nothing renderable (e.g.
+  // currentLap hasn't reached the brushed window yet, or the focus
+  // driver had no clean laps in that stretch), we fall back to the
+  // unfiltered view so the chart stays useful and the banner explains
+  // that the brushed slope is computed for the requested range.
   const chartData = useMemo(() => {
     if (!driver || lapTimes.length === 0) return { stints: [], yExtent: [80, 100] };
 
-    const driverLaps = lapTimes
-      .filter((d) => d.Driver === driver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
+    const [brushLo, brushHi] = activeRange || [null, null];
+
+    const buildLaps = (applyBrush) => lapTimes
+      .filter((d) => (
+        d.Driver === driver
+        && d.LapNumber <= currentLap
+        && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300
+        && (!applyBrush || brushLo == null || d.LapNumber >= brushLo)
+        && (!applyBrush || brushHi == null || d.LapNumber <= brushHi)
+      ))
       .sort((a, b) => a.LapNumber - b.LapNumber);
+
+    let driverLaps = buildLaps(true);
+    // If the brush filter zeroes everything out, drop it for rendering.
+    // The banner above the chart still shows the brushed-range API slope.
+    if (driverLaps.length < 3 && activeRange) {
+      driverLaps = buildLaps(false);
+    }
 
     if (driverLaps.length === 0) return { stints: [], yExtent: [80, 100] };
 
@@ -126,7 +158,7 @@ export default function TireDegradation() {
       : [80, 100];
 
     return { stints, yExtent };
-  }, [driver, lapTimes, maxLap, currentLap]);
+  }, [driver, lapTimes, maxLap, currentLap, activeRange]);
 
   // Pit window info
   const pitWindow = useMemo(() => {
@@ -475,6 +507,48 @@ export default function TireDegradation() {
     };
   }, [chartData, driver, driverColor, currentLap, isDriverRetired, driverDnf]);
 
+  // Build a banner whenever there's a brushed range — primary feedback
+  // that the user's selection actually triggered analysis. Source priority:
+  // backend regression result (richest, includes fuel-corrected slope and
+  // optimal-pit-lap projection) → fall back to the local stint regressions
+  // visible on screen.
+  const brushBanner = (() => {
+    if (!activeRange) return null;
+    const [lo, hi] = activeRange;
+    const reg = degradationRegression;
+    const hasFit = reg && reg.slope != null && reg.lap_start === lo && reg.lap_end === hi;
+    const slopeMs = hasFit ? Math.round(reg.slope * 1000) : null;
+    const slopeFc = hasFit && reg.slope_fuel_corrected != null
+      ? Math.round(reg.slope_fuel_corrected * 1000) : null;
+    return (
+      <div className="deg-brush-banner">
+        <span className="deg-brush-banner__label">BRUSHED LAPS</span>
+        <span className="deg-brush-banner__range">L{lo} – L{hi}</span>
+        {hasFit ? (
+          <>
+            <span className="deg-brush-banner__sep">·</span>
+            <span className="deg-brush-banner__slope">
+              <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>raw</span>
+              <strong style={{ color: slopeMs >= 0 ? '#ef4444' : '#22c55e' }}>
+                {slopeMs >= 0 ? '+' : ''}{slopeMs} ms/lap
+              </strong>
+            </span>
+            <span className="deg-brush-banner__slope">
+              <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>tyre only</span>
+              <strong style={{ color: slopeFc >= 0 ? '#ef4444' : '#22c55e' }}>
+                {slopeFc >= 0 ? '+' : ''}{slopeFc} ms/lap
+              </strong>
+            </span>
+          </>
+        ) : reg?.reason ? (
+          <span className="deg-brush-banner__reason">{reg.reason}</span>
+        ) : (
+          <span className="deg-brush-banner__reason">computing…</span>
+        )}
+      </div>
+    );
+  })();
+
   return (
     <Panel
       title="Tyre Degradation"
@@ -483,6 +557,7 @@ export default function TireDegradation() {
       focused={focusedView === 'tires'}
       shortcutKey="4"
     >
+      {brushBanner}
       <div className="viz-container deg-manager">
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
         {pitWindow && (

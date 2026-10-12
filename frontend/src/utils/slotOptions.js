@@ -30,11 +30,11 @@ const RaceSituationMap   = lazy(() => import('../components/visualizations/RaceS
 const TelemetryStrip     = lazy(() => import('../components/visualizations/TelemetryStrip'));
 const StrategyAnalysis   = lazy(() => import('../components/visualizations/StrategyAnalysis'));
 const RacePaceGrid       = lazy(() => import('../components/visualizations/RacePaceGrid'));
-const SpeedPanel         = lazy(() => import('../components/visualizations/SpeedPanel'));
 const StrategySimulator  = lazy(() => import('../components/visualizations/StrategySimulator'));
 const PositionByLap      = lazy(() => import('../components/visualizations/PositionByLap'));
 const SectorDeltaWaterfall = lazy(() => import('../components/visualizations/SectorDeltaWaterfall'));
 const UndercutCalculator = lazy(() => import('../components/visualizations/UndercutCalculator'));
+const RaceControlPanel   = lazy(() => import('../components/visualizations/RaceControlPanel'));
 const SettingsTabContent = lazy(() => import('../components/tabs/SettingsTabContent'));
 const ChampionshipTabContent = lazy(() => import('../components/tabs/ChampionshipTabContent'));
 
@@ -65,6 +65,7 @@ const ICONS = {
   sectordelta:   'M4 12h4v6H4zM10 8h4v10h-4zM16 14h4v4h-4z',
   undercut:      'M3 12h6l3-6 3 12 3-6h3',
   championship:  'M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M18 2H6v7a6 6 0 0 0 12 0V2z',
+  racecontrol:   'M5 4h14v6H5zM5 14h14v6H5zM8 7h2M8 17h8M14 7h2',
   settings:      'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.36.15.67.4.89.72.22.33.34.72.34 1.12v.32c0 .4-.12.79-.34 1.12-.22.32-.53.57-.89.72z',
 };
 
@@ -75,13 +76,13 @@ export const SLOT_OPTIONS = [
   // ── Monitor ────────────────────────────────────────────────────────────
   { id: 'trackmap',      label: 'Track Map',           component: TrackMap,        category: 'monitor',    icon: ICONS.trackmap,      hint: null },
   { id: 'telemetry',     label: 'Telemetry',           component: TelemetryStrip,  category: 'monitor',    icon: ICONS.telemetry,     hint: null },
+  { id: 'racecontrol',   label: 'Race Control',        component: RaceControlPanel,category: 'monitor',    icon: ICONS.racecontrol,   hint: null },
 
   // ── Timing ─────────────────────────────────────────────────────────────
   { id: 'laptimes',      label: 'Lap Times',           component: LapTimeChart,    category: 'timing',     icon: ICONS.laptimes,      hint: '1' },
   { id: 'lapdelta',      label: 'Lap Delta',           component: LapDeltaChart,   category: 'timing',     icon: ICONS.lapdelta,      hint: null },
   { id: 'sectors',       label: 'Sectors & Speeds',    component: SectorsPanel,    category: 'timing',     icon: ICONS.sectors,       hint: '4' },
   { id: 'sectordelta',   label: 'Sector Delta',        component: SectorDeltaWaterfall, category: 'timing', icon: ICONS.sectordelta,   hint: null },
-  { id: 'speed',         label: 'Speed Rankings',      component: SpeedPanel,      category: 'timing',     icon: ICONS.speed,         hint: null },
   { id: 'consistency',   label: 'Consistency',         component: ConsistencyPanel,category: 'timing',     icon: ICONS.consistency,   hint: '9' },
   { id: 'racepace',      label: 'Race Pace Grid',      component: RacePaceGrid,    category: 'timing',     icon: ICONS.racepace,      hint: null },
   { id: 'positionlaps',  label: 'Position Tracker',    component: PositionByLap,   category: 'timing',     icon: ICONS.positionlaps,  hint: null },

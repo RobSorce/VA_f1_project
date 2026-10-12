@@ -87,6 +87,15 @@ class LiveDataNormalizer:
                 "sector3": None,
                 "speed": 0,
                 "best_lap_time": None,
+                # Retirement / out-of-session tracking. F1 SignalR's TimingData
+                # carries these flags per-driver during a race; they're how
+                # we know to dim a driver on the timing tower mid-session
+                # (race_results only arrives at session end).
+                "retired": False,
+                "stopped": False,
+                "knocked_out": False,
+                "status": "",          # free-text Status field if present
+                "retired_lap": None,   # lap on which retired/stopped flipped True
             }
 
     # ── DriverList ────────────────────────────────────────────────────
@@ -131,26 +140,75 @@ class LiveDataNormalizer:
 
     # ── TimingData ────────────────────────────────────────────────────
 
-    def process_timing_data(self, data: Dict) -> Tuple[List[Dict], List[Dict]]:
+    def process_timing_data(self, data: Dict) -> Tuple[List[Dict], List[Dict], List[Dict]]:
         """Process TimingData topic.
 
-        Returns (lap_updates, strategy_updates) where:
+        Returns (lap_updates, strategy_updates, status_updates) where:
         - lap_updates: list of completed lap entries (same shape as lap_times[])
         - strategy_updates: list of new stint entries (same shape as tyre_strategy[])
+        - status_updates: list of driver-status changes (Retired / Stopped flips)
         """
         lap_updates = []
         strategy_updates = []
+        status_updates = []
 
         lines = data.get("Lines", data)
         if not isinstance(lines, dict):
-            return lap_updates, strategy_updates
+            return lap_updates, strategy_updates, status_updates
 
         for num, line in lines.items():
             if not isinstance(line, dict):
                 continue
-            abbr = self.get_abbreviation(num)
+            # Skip TimingData rows that arrive before DriverList. Without a
+            # real Tla we'd stamp lap_times with the raw racing number, and
+            # that number leaks through every consumer (TimingTower,
+            # RacePaceGrid, TrackMap) as a phantom extra driver.
+            info = self.driver_map.get(str(num), {})
+            if not info.get("Tla"):
+                continue
+            abbr = info["Tla"]
             self._ensure_driver_state(abbr)
             state = self.driver_state[abbr]
+
+            # Retirement flags. F1 sends these as bool *transitions* — we
+            # only emit a status update when the value flips from False to
+            # True so we don't spam the WS.
+            for key, statefield in (
+                ("Retired", "retired"),
+                ("Stopped", "stopped"),
+                ("KnockedOut", "knocked_out"),
+            ):
+                if key in line:
+                    new_val = bool(line[key])
+                    if new_val and not state[statefield]:
+                        state[statefield] = True
+                        if state["retired_lap"] is None:
+                            state["retired_lap"] = state["current_lap"]
+                        status_updates.append({
+                            "Driver": abbr,
+                            "Retired": state["retired"],
+                            "Stopped": state["stopped"],
+                            "KnockedOut": state["knocked_out"],
+                            "Status": state["status"] or key,
+                            "LastLap": state["retired_lap"],
+                        })
+                    elif not new_val and state[statefield]:
+                        # F1 occasionally clears a flag (e.g. driver re-joins after
+                        # a brief stop). Reflect that too.
+                        state[statefield] = False
+                        if not (state["retired"] or state["stopped"] or state["knocked_out"]):
+                            state["retired_lap"] = None
+                        status_updates.append({
+                            "Driver": abbr,
+                            "Retired": state["retired"],
+                            "Stopped": state["stopped"],
+                            "KnockedOut": state["knocked_out"],
+                            "Status": "Active",
+                            "LastLap": state["current_lap"],
+                        })
+
+            if "Status" in line and isinstance(line["Status"], str):
+                state["status"] = line["Status"]
 
             # NumberOfLaps — process early so current_lap is set before lap time emission
             if "NumberOfLaps" in line:
@@ -326,7 +384,7 @@ class LiveDataNormalizer:
                     state["sector2"] = None
                     state["sector3"] = None
 
-        return lap_updates, strategy_updates
+        return lap_updates, strategy_updates, status_updates
 
     # ── LapCount ──────────────────────────────────────────────────────
 
@@ -401,7 +459,47 @@ class LiveDataNormalizer:
             "gmt_offset": data.get("GmtOffset", ""),
             "start_date": data.get("StartDate", ""),
             "end_date": data.get("EndDate", ""),
+            # Static-asset path used to build TeamRadio audio URLs:
+            #   https://livetiming.formula1.com/static/<Path>/<radio.Path>
+            "path": data.get("Path", ""),
         }
+
+    # ── TeamRadio ─────────────────────────────────────────────────────
+
+    def process_team_radio(self, data: Dict, session_path: str) -> List[Dict[str, Any]]:
+        """Process TeamRadio topic → list of radio captures with audio URL.
+
+        F1 doesn't ship transcripts in this feed — only audio. Each capture
+        gives a relative .mp3 path that we resolve against the session's
+        static asset prefix.
+        """
+        captures = data.get("Captures", data) if isinstance(data, dict) else []
+        if isinstance(captures, dict):
+            iterable = captures.values()
+        elif isinstance(captures, list):
+            iterable = captures
+        else:
+            return []
+
+        base = "https://livetiming.formula1.com/static/"
+        results = []
+        for cap in iterable:
+            if not isinstance(cap, dict):
+                continue
+            num = str(cap.get("RacingNumber", ""))
+            abbr = self.get_abbreviation(num) if num else ""
+            path = cap.get("Path", "")
+            if not path:
+                continue
+            url = f"{base}{session_path}{path}" if session_path else f"{base}{path}"
+            results.append({
+                "timestamp": cap.get("Utc", ""),
+                "driver_number": num,
+                "driver": abbr,
+                "audio_url": url,
+                "received_at": _time.time(),
+            })
+        return results
 
     def process_session_status(self, data: Dict) -> str:
         """Process SessionStatus topic → status string."""

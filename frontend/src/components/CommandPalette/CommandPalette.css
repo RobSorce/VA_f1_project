@@ -21,10 +21,12 @@
   to   { opacity: 1; }
 }
 
-/* --- Modal --- */
+/* --- Modal — wide multi-column layout so 40+ commands fit without scroll
+       (H1 visibility / scroll-heuristic compliance). Width adapts to viewport;
+       column-count inside .cp-results auto-balances categories. --- */
 .cp-modal {
-  width: min(480px, 90vw);
-  max-height: 60vh;
+  width: min(960px, 92vw);
+  max-height: 80vh;
   background: var(--rh-surface, #141414);
   border: 1px solid var(--rh-border, #2A2A2A);
   border-radius: var(--rh-radius-2xl, 14px);
@@ -34,6 +36,12 @@
   box-shadow: var(--rh-shadow-modal, 0 24px 64px rgba(0, 0, 0, 0.6));
   animation: cp-slide-in 0.2s ease;
   align-self: flex-start;
+}
+
+/* Below the design canvas, narrow the modal so it still has internal
+   breathing room on a 1261-wide viewport. */
+@media (max-width: 1100px) {
+  .cp-modal { width: min(820px, 96vw); }
 }
 
 @keyframes cp-slide-in {
@@ -105,11 +113,20 @@
   flex-shrink: 0;
 }
 
-/* --- Results --- */
+/* --- Results — multi-column grid so the full command set is visible
+       without scroll. column-width drives natural reflow: ~3 cols on a
+       960-wide modal, 2 cols when narrowed below 700, 1 col on phones.
+       break-inside: avoid keeps each category column intact (a group
+       never splits across columns). overflow-y: auto stays as a final
+       fallback for unusually long sub-menus (e.g., the driver picker). --- */
 .cp-results {
   overflow-y: auto;
-  max-height: calc(60vh - 52px);
-  padding: 6px 0;
+  max-height: calc(80vh - 56px);
+  padding: 10px 14px;
+  /* Multi-column auto-flow */
+  column-width: 240px;
+  column-gap: 18px;
+  column-fill: balance;
 }
 
 .cp-results::-webkit-scrollbar {
@@ -125,29 +142,37 @@
   border-radius: 2px;
 }
 
-/* --- Groups --- */
+/* --- Groups (one category per "column-segment") --- */
 .cp-group {
   padding: 2px 0;
+  break-inside: avoid;             /* don't split a group across columns */
+  page-break-inside: avoid;        /* legacy */
+  -webkit-column-break-inside: avoid;
+  margin-bottom: 10px;
+  display: block;
 }
 
 .cp-group-label {
-  padding: 8px 16px 4px;
-  font-size: var(--rh-text-xs, 11px);
-  font-weight: 600;
+  padding: 4px 8px 4px;
+  font-size: var(--rh-text-xs, 10.5px);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: var(--rh-tracking-wide, 0.08em);
-  color: var(--rh-text-dimmed, #444);
+  letter-spacing: var(--rh-tracking-wide, 0.10em);
+  color: var(--rh-text-dimmed, #555);
   font-family: var(--rh-font-sans);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 4px;
 }
 
-/* --- Command Items --- */
+/* --- Command Items — tightened for the multi-column grid layout. --- */
 .cp-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 16px;
+  padding: 5px 8px;
+  border-radius: 5px;
   cursor: pointer;
-  transition: background var(--rh-transition-fast, 0.15s ease);
+  transition: background var(--rh-transition-fast, 0.12s ease);
   user-select: none;
 }
 
@@ -180,7 +205,7 @@
 }
 
 .cp-item__label {
-  font-size: var(--rh-text-base, 14px);
+  font-size: 12.5px;
   color: #C8C8C8;
   font-family: var(--rh-font-sans);
   white-space: nowrap;

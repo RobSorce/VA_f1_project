@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getTeamColor } from '../../utils/colors';
@@ -19,6 +19,10 @@ export default function PCABiplot() {
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const year = useF1Store((s) => s.year);
   const round = useF1Store((s) => s.round);
+
+  // Toggle for axis chrome (gridlines + labels + crosshair + loading arrows).
+  // Some users want a clean point-cloud; others want the full biplot.
+  const [showAxes, setShowAxes] = useState(true);
 
   // Load PCA embeddings on mount
   useEffect(() => {
@@ -61,64 +65,72 @@ export default function PCABiplot() {
       .domain([yExtent[0] - yPad, yExtent[1] + yPad])
       .range([innerH, 0]);
 
-    // Axes — meaningful for PCA
-    const xAxis = d3.axisBottom(x).ticks(5).tickSize(-innerH).tickFormat('');
-    const yAxis = d3.axisLeft(y).ticks(5).tickSize(-innerW).tickFormat('');
+    // Axes — meaningful for PCA. Hidden when `showAxes` is false to give
+    // a clean point-cloud view (handy for screenshots / exploration).
+    if (showAxes) {
+      const xAxis = d3.axisBottom(x).ticks(5).tickSize(-innerH).tickFormat('');
+      const yAxis = d3.axisLeft(y).ticks(5).tickSize(-innerW).tickFormat('');
 
-    g.append('g')
-      .attr('transform', `translate(0,${innerH})`)
-      .call(xAxis)
-      .call((g) => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
-      .call((g) => g.select('.domain').remove());
+      g.append('g')
+        .attr('transform', `translate(0,${innerH})`)
+        .call(xAxis)
+        .call((g) => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
+        .call((g) => g.select('.domain').remove());
 
-    g.append('g')
-      .call(yAxis)
-      .call((g) => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
-      .call((g) => g.select('.domain').remove());
+      g.append('g')
+        .call(yAxis)
+        .call((g) => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
+        .call((g) => g.select('.domain').remove());
 
-    // Axis labels with explained variance
-    const pc1Pct = explained[0] ? `${(explained[0] * 100).toFixed(0)}%` : '';
-    const pc2Pct = explained[1] ? `${(explained[1] * 100).toFixed(0)}%` : '';
+      // Axis labels with explained variance
+      const pc1Pct = explained[0] ? `${(explained[0] * 100).toFixed(0)}%` : '';
+      const pc2Pct = explained[1] ? `${(explained[1] * 100).toFixed(0)}%` : '';
 
-    g.append('text')
-      .attr('x', innerW / 2).attr('y', innerH + 28)
-      .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.5)')
-      .attr('font-size', '9px')
-      .attr('font-weight', 600)
-      .text(`PC1: ${pc1Label} (${pc1Pct})`);
-
-    g.append('text')
-      .attr('transform', `translate(-34, ${innerH / 2}) rotate(-90)`)
-      .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.5)')
-      .attr('font-size', '9px')
-      .attr('font-weight', 600)
-      .text(`PC2: ${pc2Label} (${pc2Pct})`);
-
-    // Crosshair at origin (average performance)
-    const originX = x(0);
-    const originY = y(0);
-    if (originX > 0 && originX < innerW && originY > 0 && originY < innerH) {
-      g.append('line')
-        .attr('x1', originX).attr('y1', 0)
-        .attr('x2', originX).attr('y2', innerH)
-        .attr('stroke', 'rgba(255,255,255,0.12)')
-        .attr('stroke-dasharray', '4,4');
-      g.append('line')
-        .attr('x1', 0).attr('y1', originY)
-        .attr('x2', innerW).attr('y2', originY)
-        .attr('stroke', 'rgba(255,255,255,0.12)')
-        .attr('stroke-dasharray', '4,4');
       g.append('text')
-        .attr('x', originX + 4).attr('y', 10)
-        .attr('fill', 'rgba(255,255,255,0.2)')
-        .attr('font-size', '7px')
-        .text('avg');
+        .attr('x', innerW / 2).attr('y', innerH + 28)
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'rgba(255,255,255,0.5)')
+        .attr('font-size', '9px')
+        .attr('font-weight', 600)
+        .text(`PC1: ${pc1Label} (${pc1Pct})`);
+
+      g.append('text')
+        .attr('transform', `translate(-34, ${innerH / 2}) rotate(-90)`)
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'rgba(255,255,255,0.5)')
+        .attr('font-size', '9px')
+        .attr('font-weight', 600)
+        .text(`PC2: ${pc2Label} (${pc2Pct})`);
+
+      // Crosshair at origin (average performance)
+      const originX = x(0);
+      const originY = y(0);
+      if (originX > 0 && originX < innerW && originY > 0 && originY < innerH) {
+        g.append('line')
+          .attr('x1', originX).attr('y1', 0)
+          .attr('x2', originX).attr('y2', innerH)
+          .attr('stroke', 'rgba(255,255,255,0.12)')
+          .attr('stroke-dasharray', '4,4');
+        g.append('line')
+          .attr('x1', 0).attr('y1', originY)
+          .attr('x2', innerW).attr('y2', originY)
+          .attr('stroke', 'rgba(255,255,255,0.12)')
+          .attr('stroke-dasharray', '4,4');
+        g.append('text')
+          .attr('x', originX + 4).attr('y', 10)
+          .attr('fill', 'rgba(255,255,255,0.2)')
+          .attr('font-size', '7px')
+          .text('avg');
+      }
     }
 
-    // Feature loading arrows (top 8 by magnitude)
-    const topLoadings = loadings.slice(0, 8);
+    // Feature loading arrows (top 8 by magnitude). Hidden when axes
+    // are toggled off — without axes the arrows have no semantic
+    // anchor (origin disappears) so it would just look noisy.
+    const topLoadings = showAxes ? loadings.slice(0, 8) : [];
+    // Recompute origin in case axes are off (we need it for arrow start).
+    const originX = x(0);
+    const originY = y(0);
     if (topLoadings.length > 0) {
       // Scale loadings to fit within the plot
       const maxLoading = Math.max(...topLoadings.map((l) => Math.sqrt(l.pc1 ** 2 + l.pc2 ** 2)));
@@ -271,7 +283,7 @@ export default function PCABiplot() {
         .text(`${selectedPCAPoints.length} selected`);
     }
 
-  }, [pcaEmbeddings, selectedPCAPoints, selectedDrivers, year, round, setSelectedPCAPoints, setSelectedDrivers, fetchPCAAnalysis]);
+  }, [pcaEmbeddings, selectedPCAPoints, selectedDrivers, year, round, setSelectedPCAPoints, setSelectedDrivers, fetchPCAAnalysis, showAxes]);
 
   // Cleanup lasso on unmount
   useEffect(() => () => { if (cleanupRef.current) cleanupRef.current(); }, []);
@@ -294,8 +306,34 @@ export default function PCABiplot() {
     setSelectedDrivers([]);
   };
 
+  const axesToggleStyle = {
+    padding: '2px 8px', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+    border: '1px solid', borderRadius: 4, cursor: 'pointer',
+    background: showAxes ? 'rgba(138,180,248,0.14)' : 'transparent',
+    borderColor: showAxes ? 'rgba(138,180,248,0.40)' : 'rgba(255,255,255,0.14)',
+    color: showAxes ? '#8ab4f8' : 'rgba(255,255,255,0.55)',
+    transition: 'all 0.12s',
+  };
+
   return (
-    <Panel title="PCA Biplot" controls={<Legend items={teamLegend} shape="circle" />}>
+    <Panel
+      title="PCA Biplot"
+      controls={(
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            style={axesToggleStyle}
+            onClick={() => setShowAxes((v) => !v)}
+            title={showAxes
+              ? 'Hide PCA axes, gridlines, and feature-loading arrows'
+              : 'Show PCA axes, gridlines, and feature-loading arrows'}
+          >
+            {showAxes ? 'AXES ON' : 'AXES OFF'}
+          </button>
+          <Legend items={teamLegend} shape="circle" />
+        </span>
+      )}
+    >
       <div className="viz-container" style={{ position: 'relative' }}>
         {pcaEmbeddings?.points?.length ? (
           <>

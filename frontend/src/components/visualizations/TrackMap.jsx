@@ -1030,7 +1030,11 @@ export default function TrackMap({ compact = false }) {
       }
     }
 
-    // 1b. Live mode: estimate positions when x,y are null
+    // 1b. Live mode with frames but missing x,y: estimate. We deliberately
+    // do NOT synthesise positions from lap_times alone — without F1's real
+    // CarData/Position feed, gap-only inference is too noisy and showed
+    // ghost cars. Track-only render until OpenF1 unlocks (post-session) is
+    // the user-preferred behaviour.
     if (driverEntries && circuitInfo?.track_coordinates) {
       const needsEstimation = driverEntries.some(([, d]) => d.x == null || d.y == null);
       if (needsEstimation) {

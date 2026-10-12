@@ -5,6 +5,7 @@ import { DOCK_STORAGE_KEY } from '../../store/useF1Store';
 import DockContextMenu from './DockContextMenu';
 import DockOverflowPopover from './DockOverflowPopover';
 import LayoutDockPopover from './LayoutDockPopover';
+import DockCustomizePopover from './DockCustomizePopover';
 
 const HOVER_ZONE_HEIGHT = 12;
 const DOCK_ITEM_WIDTH = 72;
@@ -72,6 +73,7 @@ export default function BottomTabBar() {
   const [layoutsOpen, setLayoutsOpen] = useState(false);
   const [layoutsAnchorRect, setLayoutsAnchorRect] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [customizeAnchor, setCustomizeAnchor] = useState(null);
   const [capacity, setCapacity] = useState(dockItems.length);
   const [dragId, setDragId] = useState(null);
   const [dropTargetId, setDropTargetId] = useState(null);
@@ -168,13 +170,11 @@ export default function BottomTabBar() {
   }, [openContextMenuFor]);
 
   const handleCustomizeDock = useCallback(() => {
-    // Ensure the Settings overlay is open — never toggle it off here.
-    if (openOverlays.includes('settings')) {
-      focusOverlay('settings');
-    } else {
-      setActiveTab('settings');
-    }
-  }, [openOverlays, focusOverlay, setActiveTab]);
+    // Open the inline DockCustomizePopover anchored to the dock — no
+    // detour through the Settings overlay (H7 efficiency of use).
+    const rect = navRef.current?.getBoundingClientRect();
+    if (rect) setCustomizeAnchor(rect);
+  }, []);
 
   const toggleOverflow = useCallback(() => {
     if (overflowOpen) { setOverflowOpen(false); return; }
@@ -358,6 +358,13 @@ export default function BottomTabBar() {
         <LayoutDockPopover
           anchorRect={layoutsAnchorRect}
           onClose={() => setLayoutsOpen(false)}
+        />
+      )}
+
+      {customizeAnchor && (
+        <DockCustomizePopover
+          anchorRect={customizeAnchor}
+          onClose={() => setCustomizeAnchor(null)}
         />
       )}
     </>

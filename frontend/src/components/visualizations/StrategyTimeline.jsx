@@ -56,7 +56,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
     const rect = container.getBoundingClientRect();
     const width = Math.round(rect.width) || 600;
     const height = Math.round(rect.height) || 350;
-    const margin = { top: 12, right: 18, bottom: 28, left: 70 };
+    const margin = { top: 12, right: 18, bottom: 28, left: 96 };
     const innerW = width - margin.left - margin.right;
     const innerH = height - margin.top - margin.bottom;
 
@@ -147,18 +147,48 @@ export default function StrategyTimeline({ showOverlays = false }) {
     // Add pit count badges to the left of driver names on y-axis
     driverList.forEach((driver) => {
       const pits = pitCountMap[driver] || 0;
+      // Filled circle pill so the count reads at a glance even at small font.
+      const cx = -78;
+      const cy = y(driver) + y.bandwidth() / 2;
+      g.append('rect')
+        .attr('x', cx - 11).attr('y', cy - 8)
+        .attr('width', 22).attr('height', 16)
+        .attr('rx', 4)
+        .attr('fill', pits > 0 ? 'rgba(229, 57, 53, 0.18)' : 'rgba(255,255,255,0.04)')
+        .attr('stroke', pits > 0 ? 'rgba(229, 57, 53, 0.50)' : 'rgba(255,255,255,0.10)')
+        .attr('stroke-width', 1);
       g.append('text')
         .attr('class', 'pit-count-badge')
-        .attr('x', -62)
-        .attr('y', y(driver) + y.bandwidth() / 2)
-        .attr('text-anchor', 'end')
+        .attr('x', cx)
+        .attr('y', cy)
+        .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('font-size', 8)
-        .attr('font-weight', 700)
+        .attr('font-size', 10)
+        .attr('font-weight', 800)
         .attr('font-family', 'var(--font-mono)')
-        .attr('fill', pits > 0 ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.2)')
+        .attr('fill', pits > 0 ? '#ff7878' : 'rgba(255,255,255,0.45)')
         .text(`${pits}P`);
     });
+
+    // Y-axis label — header above the column, explains what the badges mean.
+    g.append('text')
+      .attr('x', -78).attr('y', -2)
+      .attr('text-anchor', 'middle')
+      .attr('fill', 'rgba(255,255,255,0.55)')
+      .attr('font-size', 8.5)
+      .attr('font-weight', 700)
+      .attr('font-family', 'var(--font-display)')
+      .attr('letter-spacing', '0.08em')
+      .text('STOPS');
+    g.append('text')
+      .attr('x', -34).attr('y', -2)
+      .attr('text-anchor', 'middle')
+      .attr('fill', 'rgba(255,255,255,0.55)')
+      .attr('font-size', 8.5)
+      .attr('font-weight', 700)
+      .attr('font-family', 'var(--font-display)')
+      .attr('letter-spacing', '0.08em')
+      .text('DRIVER');
 
     // Draw stints (filtered incrementally by currentLap)
     driverStrats.forEach((stints, driver) => {

@@ -551,6 +551,59 @@
   font-family: var(--font-mono);
 }
 
+/* Banner shown above the chart when a brush range is active. Surfaces
+   the API-computed slope (raw + fuel-corrected) right next to the
+   re-filtered scatter, so the user immediately sees that the brush
+   actually triggered analysis. */
+.deg-brush-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  margin: 4px 8px 0;
+  border-radius: 8px;
+  background: rgba(225, 6, 0, 0.08);
+  border: 1px solid rgba(225, 6, 0, 0.32);
+  font-family: var(--font-primary);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
+  flex-shrink: 0;
+}
+.deg-brush-banner__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  color: rgba(225, 6, 0, 0.85);
+}
+.deg-brush-banner__range {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fff;
+}
+.deg-brush-banner__sep { color: rgba(255, 255, 255, 0.25); }
+.deg-brush-banner__slope {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.deg-brush-banner__reason {
+  font-size: 10px;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.55);
+}
+[data-theme="light"] .deg-brush-banner {
+  background: rgba(225, 6, 0, 0.06);
+  border-color: rgba(225, 6, 0, 0.30);
+  color: rgba(0, 0, 0, 0.80);
+}
+[data-theme="light"] .deg-brush-banner__range { color: #111; }
+[data-theme="light"] .deg-brush-banner__sep { color: rgba(0, 0, 0, 0.30); }
+[data-theme="light"] .deg-brush-banner__reason { color: rgba(0, 0, 0, 0.55); }
+
 /* --------------------------------------------------------------------------
    Tyre Health Chart
    -------------------------------------------------------------------------- */

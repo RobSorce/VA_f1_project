@@ -1003,6 +1003,30 @@ export default function TelemetryStrip({ embedded = false }) {
               Laps
             </button>
           </div>
+
+          {/* Export PNG — moved here from the now-removed SpeedPanel wrapper. */}
+          <button
+            onClick={() => {
+              const root = document.querySelector('.telemetry-strip');
+              if (root) import('../../utils/exportChart').then((m) => m.exportAsPng(root, 'telemetry.png'));
+            }}
+            title="Export telemetry as PNG"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 22, height: 22, borderRadius: 4,
+              border: '1px solid rgba(255,255,255,0.10)',
+              background: 'transparent',
+              color: 'rgba(255,255,255,0.55)', cursor: 'pointer',
+              fontSize: '12px', padding: 0, flexShrink: 0,
+              marginLeft: 6,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
         </div>
       </div>
 

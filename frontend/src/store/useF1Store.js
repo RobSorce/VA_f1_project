@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as api from '../utils/apiClient';
 import { setHealthReporter } from '../utils/apiClient';
+import { setSessionDriverColors } from '../utils/colors';
 import { computePCA, procrustesAlign2D } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
 import { simulateRaceFinish } from '../utils/raceSimulation';
@@ -17,6 +18,7 @@ export const DOCK_DEFAULTS = [
   'strategy',
   'analytics',
   'prediction',
+  'racecontrol',
   'ai',
   'championship',
 ];
@@ -346,6 +348,28 @@ export const useF1Store = create(persist((set, get) => ({
   liveConnectionStatus: 'disconnected', // 'connected'|'disconnected'|'reconnecting'
   liveStandings: null,           // driver standings from live position updates
   raceControlMessages: [],       // live race control messages
+  teamRadios: [],                // live team-radio captures (audio URLs)
+
+  // ── Team-radio PiP / autoplay ────────────────────────────────────
+  // Master toggle for the floating radio popup that appears anywhere in
+  // the app. When ON, new radios for the *selected* drivers (fall back
+  // to focusDriver) auto-play through a single shared <audio> element
+  // owned by RadioPipToast.
+  radioAutoplay: (() => {
+    try { return localStorage.getItem('va-radio-autoplay-v2') === '1'; }
+    catch { return false; }
+  })(),
+  setRadioAutoplay: (on) => {
+    try { localStorage.setItem('va-radio-autoplay-v2', on ? '1' : '0'); }
+    catch { /* ignore */ }
+    set({ radioAutoplay: !!on });
+  },
+  toggleRadioAutoplay: () => set((s) => {
+    const next = !s.radioAutoplay;
+    try { localStorage.setItem('va-radio-autoplay-v2', next ? '1' : '0'); }
+    catch { /* ignore */ }
+    return { radioAutoplay: next };
+  }),
   totalRaceLaps: null,           // total laps in the race (from lap_count)
   liveTelemetry: {},             // {DRIVER: {speed, throttle, brake, gear, rpm, drs, updated}}
 
@@ -483,6 +507,7 @@ export const useF1Store = create(persist((set, get) => ({
         liveConnectionStatus: 'disconnected',
         liveStandings: null,
         raceControlMessages: [],
+        teamRadios: [],
         totalRaceLaps: null,
         liveTelemetry: {},
       });
@@ -525,6 +550,11 @@ export const useF1Store = create(persist((set, get) => ({
 
       // Apply pre-selected drivers if any
       const preSelected = get().preSelectedDrivers;
+
+      // Refresh the live driver→team-colour map from this session's
+      // driver_info so per-driver colours track the actual lineup
+      // (e.g. HAM = Ferrari red in 2025, not the static Mercedes teal).
+      setSessionDriverColors(data.driver_info || []);
 
       set({
         sessionData: data,
@@ -643,12 +673,31 @@ export const useF1Store = create(persist((set, get) => ({
         circuitInfo = null;
       }
 
+      // Live mode: same dynamic colour-map refresh.
+      setSessionDriverColors(snapshot.driver_info || []);
+
+      // Pre-fill dnfMap from snapshot.driver_statuses so already-retired
+      // drivers show as DNF the moment a viewer connects mid-race.
+      const initialDnfMap = {};
+      for (const ds of snapshot.driver_statuses || []) {
+        if (!ds?.Driver) continue;
+        if (ds.Retired || ds.Stopped || ds.KnockedOut) {
+          initialDnfMap[ds.Driver] = {
+            status: ds.Status || (ds.Retired ? 'Retired' : ds.Stopped ? 'Stopped' : 'Out'),
+            lastLap: ds.LastLap ?? status.current_lap ?? computedMaxLap,
+            classifiedPosition: 'R',
+          };
+        }
+      }
+
       set({
         isLiveMode: true,
         liveSessionInfo: status.session_info || null,
         sessionData: snapshot,
         drivers: snapshot.driver_info || [],
         trackStatus: snapshot.track_status || [],
+        raceControlMessages: snapshot.race_control_messages || [],
+        teamRadios: snapshot.team_radios || [],
         maxLap: computedMaxLap,
         currentLap: status.current_lap || computedMaxLap,
         totalRaceLaps: status.total_laps || null,
@@ -658,7 +707,7 @@ export const useF1Store = create(persist((set, get) => ({
         currentFrameIndex: 0,
         totalFrames: 0,
         circuitInfo,
-        dnfMap: {},
+        dnfMap: initialDnfMap,
         telemetryCache: {},
         lstmPredictions: null,
         degradationRegression: null,
@@ -694,6 +743,7 @@ export const useF1Store = create(persist((set, get) => ({
             }
             const fullCircuitInfo = fullData.circuit_info?.track_coordinates
               ? fullData.circuit_info : get().circuitInfo;
+            if (fullData.driver_info) setSessionDriverColors(fullData.driver_info);
             set({
               sessionData: fullData,
               drivers: fullData.driver_info || get().drivers,
@@ -739,6 +789,7 @@ export const useF1Store = create(persist((set, get) => ({
       liveConnectionStatus: 'disconnected',
       liveStandings: null,
       raceControlMessages: [],
+      teamRadios: [],
       liveTelemetry: {},
       sessionData: null,
       drivers: [],
@@ -831,6 +882,8 @@ export const useF1Store = create(persist((set, get) => ({
       }
 
       case 'driver_list': {
+        // Live SignalR driver list — refresh colour map alongside.
+        setSessionDriverColors(Array.isArray(data) ? data : []);
         set({ drivers: data });
         break;
       }
@@ -877,6 +930,55 @@ export const useF1Store = create(persist((set, get) => ({
             { ...data, timestamp: Date.now() },
           ],
         }));
+        break;
+      }
+
+      case 'team_radio': {
+        // F1's TeamRadio topic ships .mp3 URLs only; the transcript field
+        // is filled in later by `team_radio_transcript` (faster-whisper).
+        if (!data?.audio_url) break;
+        set((s) => ({
+          teamRadios: [...s.teamRadios, data],
+        }));
+        break;
+      }
+
+      case 'team_radio_transcript': {
+        // Async transcript update — match by audio_url and merge in place.
+        if (!data?.audio_url) break;
+        set((s) => ({
+          teamRadios: s.teamRadios.map((r) =>
+            r.audio_url === data.audio_url
+              ? { ...r, transcript: data.transcript, transcript_status: data.transcript_status }
+              : r
+          ),
+        }));
+        break;
+      }
+
+      case 'driver_status': {
+        // Live retirement signal from F1's TimingData (Retired/Stopped/KnockedOut).
+        // race_results only arrives at session end, so this is the only way to
+        // dim a driver mid-race on the timing tower / track map.
+        const drv = data?.Driver;
+        if (!drv) break;
+        set((s) => {
+          const next = { ...s.dnfMap };
+          const isOut = !!(data.Retired || data.Stopped || data.KnockedOut);
+          if (isOut) {
+            next[drv] = {
+              status: data.Status || (data.Retired ? 'Retired' : data.Stopped ? 'Stopped' : 'Out'),
+              lastLap: data.LastLap ?? s.currentLap,
+              classifiedPosition: 'R',
+            };
+          } else if (next[drv]) {
+            // Driver re-joined (rare) — clear retirement
+            const copy = { ...next };
+            delete copy[drv];
+            return { dnfMap: copy };
+          }
+          return { dnfMap: next };
+        });
         break;
       }
 
@@ -1838,8 +1940,22 @@ export const useF1Store = create(persist((set, get) => ({
   fetchDegradationRegression: async (params) => {
     try {
       const data = await api.predictDegradation(params);
-      set({ degradationRegression: data });
+      // Backend now returns 200 with `reason: "..."` when no fit was
+      // possible — keep the previous regression visible (don't clear it
+      // mid-drag) but stash the diagnostic so the panel can show it.
+      if (data && data.slope == null && data.reason) {
+        set((s) => ({
+          degradationRegression: s.degradationRegression
+            ? { ...s.degradationRegression, lastReason: data.reason }
+            : data,
+        }));
+      } else {
+        set({ degradationRegression: data });
+      }
     } catch (e) {
+      // Network / 5xx errors only — 422-style "no data" cases are now
+      // 200 responses (see backend), so anything that lands here is a
+      // genuine failure worth reporting.
       console.error('Degradation regression failed', e);
     }
   },

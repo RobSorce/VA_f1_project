@@ -131,9 +131,10 @@ export default function SectorDeltaWaterfall() {
   const focusColor = getDriverColor(effectiveFocus);
   const refColor = getDriverColor(refDriver);
 
-  const BAR_COL = 80;  // width of each sector bar column
-  const LABEL_COL = 42;
-  const CUM_COL = 60;
+  const BAR_COL = 96;  // width of each sector bar column
+  const LABEL_COL = 48;
+  const CUM_COL = 70;
+  const COL_GAP = 22;  // generous breathing room between columns
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, padding: '8px 10px', fontSize: 11 }}>
@@ -176,7 +177,7 @@ export default function SectorDeltaWaterfall() {
       <div style={{
         display: 'grid',
         gridTemplateColumns: `${LABEL_COL}px repeat(3, ${BAR_COL}px) ${CUM_COL}px`,
-        gap: 4,
+        gap: COL_GAP,
         padding: '4px 0',
         borderBottom: '1px solid rgba(255,255,255,0.1)',
         marginBottom: 4,
@@ -198,7 +199,7 @@ export default function SectorDeltaWaterfall() {
       <div style={{
         display: 'grid',
         gridTemplateColumns: `${LABEL_COL}px repeat(3, ${BAR_COL}px) ${CUM_COL}px`,
-        gap: 4,
+        gap: COL_GAP,
         fontSize: 9,
         color: 'rgba(255,255,255,0.4)',
         fontWeight: 700,

@@ -14,10 +14,18 @@ export const TEAM_COLORS = {
   'Alfa Romeo': '#C92D4B',
 };
 
-// Driver abbreviation → team color
+// Driver abbreviation → team color (static fallback for the 2024 season).
+// The live `_dynamicDriverColors` map below overrides this whenever a
+// session is loaded, so 2025 line-up changes (HAM → Ferrari, SAI →
+// Williams, ANT → Mercedes, etc.) are picked up automatically.
+//
+// Note: `BEA` appears twice intentionally — Bearman raced for both
+// Ferrari (2024 reserve appearances) and Haas (2025 full season). The
+// dynamic map will override this with whichever team the loaded
+// session assigns him to.
 export const DRIVER_COLORS = {
   VER: '#3671C6', PER: '#3671C6',
-  LEC: '#E8002D', SAI: '#E8002D', BEA: '#E8002D',
+  LEC: '#E8002D', SAI: '#E8002D',
   HAM: '#27F4D2', RUS: '#27F4D2', ANT: '#27F4D2',
   NOR: '#FF8000', PIA: '#FF8000',
   ALO: '#229971', STR: '#229971',
@@ -27,6 +35,29 @@ export const DRIVER_COLORS = {
   BOT: '#52E252', ZHO: '#52E252', BOR: '#52E252',
   HUL: '#B6BABD', MAG: '#B6BABD', BEA: '#B6BABD',
 };
+
+// Mutable driver → team-color map populated from the loaded session's
+// `driver_info` (each entry has `Abbreviation` + `TeamName`). This makes
+// driver colours track season-specific lineups instead of being frozen
+// to the 2024 map. The store calls `setSessionDriverColors(...)` once
+// per session load.
+let _dynamicDriverColors = {};
+
+export function setSessionDriverColors(driverInfoArray) {
+  if (!Array.isArray(driverInfoArray) || driverInfoArray.length === 0) {
+    _dynamicDriverColors = {};
+    return;
+  }
+  const next = {};
+  for (const d of driverInfoArray) {
+    const abbr = d?.Abbreviation || d?.abbreviation;
+    const team = d?.TeamName || d?.teamName;
+    if (!abbr) continue;
+    const color = getTeamColor(team);
+    if (color && color !== '#888888') next[abbr] = color;
+  }
+  _dynamicDriverColors = next;
+}
 
 // Tyre compound colors — F1 broadcast standard
 export const TYRE_COLORS = {
@@ -57,9 +88,12 @@ export function getTeamColor(teamName) {
   return key ? TEAM_COLORS[key] : '#888888';
 }
 
-// Get driver color by abbreviation
+// Get driver color by abbreviation. Live session-derived team
+// assignments (set via `setSessionDriverColors`) take priority over
+// the static 2024 fallback map, so 2025 line-up changes (HAM → Ferrari,
+// SAI → Williams, ANT → Mercedes, etc.) are reflected automatically.
 export function getDriverColor(abbr) {
-  return DRIVER_COLORS[abbr] || '#888888';
+  return _dynamicDriverColors[abbr] || DRIVER_COLORS[abbr] || '#888888';
 }
 
 // Tyre compound text color (for contrast on tyre background)

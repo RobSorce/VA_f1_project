@@ -441,25 +441,39 @@ export default function RacePredictionPanel() {
                       </span>
                     )}
                   </div>
-                  {Object.entries(lstmPredictions).map(([driver, pred]) => {
-                    if (!pred || driver === 'driver_predictions') return null;
-                    const prediction = pred.predicted_lap_time || pred.predicted_position_change || pred;
-                    if (!prediction || typeof prediction !== 'object' && typeof prediction !== 'number') return null;
-                    return (
-                      <div key={driver} style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.05)',
-                        fontSize: 'var(--font-size-xs)',
-                      }}>
-                        <span style={{ fontWeight: 700, color: getDriverColor(driver) }}>{driver}</span>
-                        <span style={{ color: 'var(--color-text-secondary)' }}>
-                          {typeof prediction === 'number'
-                            ? prediction.toFixed(3) + 's'
-                            : JSON.stringify(prediction).slice(0, 40)}
-                        </span>
+                  {(() => {
+                    // The store has two paths that write to lstmPredictions:
+                    //   - triggerLSTMPredictions sets the *flat* response
+                    //     (predicted_times / pit_probability / ... at top level).
+                    //   - triggerPrediction sets a per-driver map
+                    //     ({ LEC: {...}, NOR: {...} }).
+                    // Normalise to a list of {driver, pred} regardless of shape.
+                    const isFlatResponse = Array.isArray(lstmPredictions.predicted_times);
+                    const rows = isFlatResponse
+                      ? [{
+                          driver: lastPredictionTrigger?.driver
+                            || Object.keys(lstmPredictions.driver_predictions || {})[0]
+                            || 'Driver',
+                          pred: lstmPredictions,
+                        }]
+                      : Object.entries(lstmPredictions)
+                          .filter(([key, pred]) => (
+                            // Only objects with at least one of the rendered
+                            // fields are real per-driver entries.
+                            pred && typeof pred === 'object' &&
+                            (Array.isArray(pred.predicted_times) ||
+                             typeof pred.pit_probability === 'number' ||
+                             Array.isArray(pred.predicted_stints))
+                          ))
+                          .map(([driver, pred]) => ({ driver, pred }));
+                    return rows.length === 0 ? (
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', padding: '4px 0' }}>
+                        No prediction features available yet.
                       </div>
-                    );
-                  })}
+                    ) : rows.map(({ driver, pred }) => (
+                      <LSTMDriverRow key={driver} driver={driver} pred={pred} />
+                    ));
+                  })()}
                 </div>
               )}
             </div>
@@ -493,5 +507,156 @@ export default function RacePredictionPanel() {
         )}
       </div>
     </Panel>
+  );
+}
+
+/**
+ * Pretty-printed driver row for the LSTM block.
+ * Replaces the previous `JSON.stringify(...).slice(0, 40)` debug output with
+ * a structured human-readable card: predicted lap times, pit probability,
+ * optimal pit lap, and predicted stints (compound x length).
+ */
+const COMPOUND_LETTER = {
+  SOFT: 'S', MEDIUM: 'M', HARD: 'H', INTERMEDIATE: 'I', WET: 'W', UNKNOWN: '?',
+};
+const COMPOUND_HEX = {
+  SOFT: '#FF3333', MEDIUM: '#FFC300', HARD: '#EEEEEE',
+  INTERMEDIATE: '#39B54A', WET: '#00AAFF', UNKNOWN: '#888',
+};
+function LSTMDriverRow({ driver, pred }) {
+  // Tolerate either the flat top-level response or a per-driver entry.
+  // Either way, only render sections we actually have data for.
+  const times = Array.isArray(pred.predicted_times)
+    ? pred.predicted_times
+    : (pred.predicted_laps && Array.isArray(pred.predicted_laps[driver])
+        ? pred.predicted_laps[driver]
+        : null);
+  const pit = typeof pred.pit_probability === 'number' ? pred.pit_probability : null;
+  const optimal = typeof pred.optimal_pit_lap === 'number' ? pred.optimal_pit_lap : null;
+  const stints = Array.isArray(pred.predicted_stints) ? pred.predicted_stints : [];
+  const isHeuristic = !!pred.is_heuristic;
+  const positionChange = (pred.driver_predictions && pred.driver_predictions[driver]?.predicted_position_change)
+    ?? (pred.positions && pred.positions[driver])
+    ?? null;
+  const summary = typeof pred.summary === 'string' ? pred.summary : null;
+
+  // If we genuinely have nothing to show beyond the header, render a
+  // single explanatory line instead of just a driver name with empty
+  // labels below it.
+  const hasAnyData = times || pit != null || optimal != null || stints.length > 0
+    || positionChange != null || summary;
+
+  // Pit-probability colour: green < 30%, amber 30-60%, red ≥ 60%
+  const pitPct = pit != null ? Math.round(pit * 100) : null;
+  const pitColor = pitPct == null ? 'rgba(255,255,255,0.5)'
+    : pitPct >= 60 ? '#ef4444'
+    : pitPct >= 30 ? '#f5a623'
+    : '#22c55e';
+
+  return (
+    <div style={{
+      padding: '6px 4px',
+      borderBottom: '1px solid rgba(255,255,255,0.05)',
+      fontSize: 'var(--font-size-xs)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+    }}>
+      {/* Header: driver + flags */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontWeight: 800, color: getDriverColor(driver), letterSpacing: '0.04em' }}>
+          {driver}
+        </span>
+        {isHeuristic && (
+          <span style={{
+            padding: '0 5px', borderRadius: 3, fontSize: 8.5, fontWeight: 700,
+            color: '#f5a623', background: 'rgba(245,166,35,0.14)',
+            border: '1px solid rgba(245,166,35,0.4)',
+            fontFamily: 'var(--font-mono)', letterSpacing: '0.06em',
+          }}>HEURISTIC</span>
+        )}
+        {pitPct != null && (
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.55)' }}>
+            pit: <strong style={{ color: pitColor, fontFamily: 'var(--font-mono)' }}>{pitPct}%</strong>
+          </span>
+        )}
+      </div>
+
+      {/* Predicted next 5 laps */}
+      {times && times.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+            next 5
+          </span>
+          {times.slice(0, 5).map((t, i) => (
+            <span key={i} style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10.5,
+              padding: '1px 5px',
+              borderRadius: 3,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: 'rgba(255,255,255,0.85)',
+            }}>
+              {typeof t === 'number' ? t.toFixed(2) + 's' : '—'}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Optimal pit lap + predicted stints + position change */}
+      {(optimal != null || stints.length > 0 || positionChange != null) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 10 }}>
+          {optimal != null && (
+            <span style={{ color: 'rgba(255,255,255,0.55)' }}>
+              optimal pit: <strong style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>L{optimal}</strong>
+            </span>
+          )}
+          {positionChange != null && positionChange !== 0 && (
+            <span style={{ color: 'rgba(255,255,255,0.55)' }}>
+              Δ position: <strong style={{
+                color: positionChange > 0 ? '#22c55e' : '#ef4444',
+                fontFamily: 'var(--font-mono)',
+              }}>
+                {positionChange > 0 ? '+' : ''}{positionChange}
+              </strong>
+            </span>
+          )}
+          {stints.length > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'rgba(255,255,255,0.55)' }}>
+              stints:
+              {stints.map((s, i) => {
+                const letter = COMPOUND_LETTER[s.compound] || '?';
+                const hex = COMPOUND_HEX[s.compound] || '#888';
+                return (
+                  <span key={i} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                    padding: '0 5px', borderRadius: 3,
+                    background: `${hex}22`, border: `1px solid ${hex}55`,
+                    color: hex, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                  }}>
+                    {letter} × {s.length || '?'}
+                  </span>
+                );
+              })}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Summary text (e.g. "LSTM prediction (lstm) based on last 10 laps"). */}
+      {summary && (
+        <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.40)', fontStyle: 'italic' }}>
+          {summary}
+        </div>
+      )}
+
+      {/* Fallback: nothing rendered above — don't show empty labels alone. */}
+      {!hasAnyData && (
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+          Waiting for prediction features…
+        </div>
+      )}
+    </div>
   );
 }

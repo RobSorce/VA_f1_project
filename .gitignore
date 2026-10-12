@@ -4,6 +4,7 @@ __pycache__/
 
 # Virtual Environment
 venv/
+.venv/
 env/
 .env
 
@@ -26,8 +27,7 @@ data/cache/
 # Assuming source code doesn't require these to run if they are fetched/generated
 f1_dataset/
 backend/data/processed_cache/
-backend/data/processed/
-data/
+/data/
 
 # Build artifacts
 frontend/dist/
@@ -36,4 +36,5 @@ frontend/dist/
 node_modules/
 npm-debug.log
 
-
+# Private working notes (local only)
+notes/

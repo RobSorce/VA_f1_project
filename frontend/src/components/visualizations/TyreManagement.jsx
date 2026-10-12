@@ -48,17 +48,33 @@ export default function TyreManagement() {
     });
     if (current.laps.length > 0) stints.push(current);
 
-    // Compute pace retention per stint
-    // bestTime within each stint → retention = bestTime / lapTime * 100
-    // First few laps get a warm-up allowance so they can still show ~100%
+    // Compute pace retention per stint.
+    //
+    // Definition: 100% = the driver's *opening pace* on this stint
+    //   (median of clean laps 2-4 — skipping cold lap 1 and any outliers).
+    // Anything below 100% = pace lost vs that opening baseline,
+    //   i.e. true pace decay over the stint.
+    //
+    // Why not "stint best": the previous implementation used the fastest
+    // lap of the stint as 100%. That conflates *warm-up* with *degradation*:
+    // an early slow lap looks like it has poor "retention" simply because
+    // a faster lap exists later in the stint. Opening pace is what
+    // strategists actually care about — "how much pace are you losing
+    // compared to when these tyres were fresh?".
     stints.forEach((stint) => {
       const times = stint.laps.map((l) => l.lapTime);
       const median = d3.median(times);
       const threshold = median * 1.4;
 
-      // Best time within this stint (excluding outliers)
-      const validTimes = stint.laps.filter((l) => l.lapTime < threshold);
-      const bestTime = d3.min(validTimes, (l) => l.lapTime) || median;
+      // Outlier-filtered laps for the baseline calculation.
+      const cleanLaps = stint.laps.filter((l) => l.lapTime < threshold);
+
+      // Baseline: median of laps 2-4 (after warm-up, before degradation).
+      // Falls back to lap-1 if the stint is too short.
+      const baselinePool = cleanLaps.slice(1, Math.min(4, cleanLaps.length));
+      const baseline = baselinePool.length > 0
+        ? d3.median(baselinePool, (l) => l.lapTime)
+        : (cleanLaps[0]?.lapTime || median);
 
       stint.laps.forEach((lap) => {
         const isOutlier = lap.lapTime > threshold;
@@ -67,13 +83,17 @@ export default function TyreManagement() {
         if (isOutlier) {
           lap.performance = null;
         } else {
-          const raw = (bestTime / lap.lapTime) * 100;
+          // raw = baseline / lap → if lap is slower than baseline, raw < 1.
+          // capped at 100% so a faster-than-baseline lap (driver pushing
+          // harder than the warmup average) doesn't read above 100%.
+          const raw = (baseline / lap.lapTime) * 100;
           lap.performance = Math.min(100, raw);
         }
       });
 
       stint.startLap = stint.laps[0].lapNumber;
       stint.endLap = stint.laps[stint.laps.length - 1].lapNumber;
+      stint.baseline = baseline;
     });
 
     const maxLapNum = maxLap || 1;

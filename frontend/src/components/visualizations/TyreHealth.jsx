@@ -67,6 +67,15 @@ export default function TyreHealth() {
       const validTimes = stint.laps.filter((l) => l.lapTime < threshold);
       const bestTime = d3.min(validTimes, (l) => l.lapTime) || median;
 
+      // Cumulative running minimum: tyre health is intrinsically a one-way
+      // function — once a tyre has worn down, it can't recover. The previous
+      // implementation produced non-monotone curves because warm-up laps had
+      // a high pace-penalty (slow vs the eventual stint-best) that lifted as
+      // faster laps arrived. We now floor every lap's health at the minimum
+      // observed so far, which both (a) is physically correct and (b) matches
+      // user expectation that the chart only ever goes down.
+      let runningMinHealth = 100;
+
       stint.laps.forEach((lap, i) => {
         const isOutlier = lap.lapTime > threshold;
         lap.isOutlier = isOutlier;
@@ -95,7 +104,9 @@ export default function TyreHealth() {
         const pacePenalty = deviation * 80;
 
         const raw = Math.max(0, Math.min(100, baseHealth - pacePenalty));
-        lap.health = raw;
+        // Lock in the running minimum so the curve is monotone-decreasing.
+        runningMinHealth = Math.min(runningMinHealth, raw);
+        lap.health = runningMinHealth;
       });
 
       stint.startLap = stint.laps[0].lapNumber;

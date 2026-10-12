@@ -451,12 +451,17 @@ export default function LapTimeChart() {
     </div>
   );
 
-  const brushTitle = brushLapRange
-    ? `Timing Sheet  (LAP ${brushLapRange[0]}–${brushLapRange[1]})`
+  // Title and accent reflect *either* brush source: brushLapRange comes
+  // from the Position-by-Lap chart (cross-panel filter), selectedLapRange
+  // from the bottom-bar brush (regression target). Both end up driving
+  // the Tyre Degradation panel; both deserve visible feedback here.
+  const titleRange = brushLapRange || selectedLapRange;
+  const brushTitle = titleRange
+    ? `Timing Sheet  (LAP ${titleRange[0]}–${titleRange[1]})`
     : 'Timing Sheet';
 
   return (
-    <Panel title={brushTitle} controls={controls} focused={focusedView === 'laptimes'} shortcutKey="2" style={brushLapRange ? { borderColor: 'rgba(225,6,0,0.35)' } : undefined}>
+    <Panel title={brushTitle} controls={controls} focused={focusedView === 'laptimes'} shortcutKey="2" style={titleRange ? { borderColor: 'rgba(225,6,0,0.35)' } : undefined}>
       {/* Column headers with drag-to-resize handles */}
       <div style={headerStyle}>
         {COLUMN_DEFS.map((col, i) => (

@@ -181,6 +181,7 @@ async def predict_degradation(request: DegradationRequest):
             lap_times["LapTimeSeconds"] = lap_times["LapTime"].dt.total_seconds()
 
         results = []
+        per_driver_diag = {}
         for driver in request.drivers:
             driver_laps = lap_times[
                 (lap_times["Driver"] == driver)
@@ -190,6 +191,7 @@ async def predict_degradation(request: DegradationRequest):
                 & (lap_times["LapTimeSeconds"] < 200)
             ].sort_values("LapNumber")
 
+            per_driver_diag[driver] = int(len(driver_laps))
             if len(driver_laps) < 3:
                 continue
 
@@ -225,15 +227,52 @@ async def predict_degradation(request: DegradationRequest):
             })
 
         if results:
-            primary = results[0]
-            primary["all_drivers"] = results
-            primary["undercut_window"] = [
-                max(1, primary["optimal_pit_lap"] - 3),
-                primary["optimal_pit_lap"] + 2,
-            ]
-            return primary
-        else:
-            raise HTTPException(status_code=422, detail="Insufficient data for regression")
+            # Build the response WITHOUT a circular reference. Previously this
+            # endpoint did `primary = results[0]; primary["all_drivers"] = results`,
+            # which made `primary` reference a list that contained `primary`
+            # itself — fastapi's jsonable_encoder would recurse forever and
+            # blow up with RecursionError. Spread the primary fields into a
+            # fresh dict and keep `all_drivers` as a separate (non-overlapping)
+            # list of *copies*.
+            primary_src = results[0]
+            optimal = primary_src["optimal_pit_lap"]
+            response = {
+                **primary_src,
+                "undercut_window": [max(1, optimal - 3), optimal + 2],
+                "all_drivers": [dict(r) for r in results],
+                "reason": None,
+            }
+            return response
+
+        # No driver had ≥ 3 valid laps in the brushed window. Return a clean
+        # 200 with an empty payload + diagnostic instead of a 422 — clients
+        # auto-trigger this endpoint on every brush change, and a 4xx logs
+        # an axios stack trace in the console for what is in fact a normal
+        # "no data here" answer.
+        logger.info(
+            "Degradation: no fit possible — drivers=%s lap_start=%s lap_end=%s lap_count=%s",
+            request.drivers, request.lap_start, request.lap_end, per_driver_diag,
+        )
+        return {
+            "driver": None,
+            "slope": None,
+            "slope_fuel_corrected": None,
+            "fuel_correction_per_lap": 0.030,
+            "intercept": None,
+            "lap_start": request.lap_start,
+            "lap_end": request.lap_end,
+            "optimal_pit_lap": None,
+            "degradation_per_lap": None,
+            "undercut_window": None,
+            "all_drivers": [],
+            "lap_count_per_driver": per_driver_diag,
+            "reason": (
+                "No driver had at least 3 clean laps in the selected range. "
+                "Brush a wider window or pick a driver with race laps in [{}, {}].".format(
+                    request.lap_start, request.lap_end,
+                )
+            ),
+        }
 
     except HTTPException:
         raise

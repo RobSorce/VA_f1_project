@@ -11,14 +11,71 @@ gear, RPM, DRS) and car positions (x, y, z) since those feeds are paywalled
 on the F1 SignalR hub since 2025.
 """
 import asyncio
+import glob
 import json
 import logging
+import os
 import time as _time
 from typing import Dict, Any, Optional, List
 
 from .data_normalizer import LiveDataNormalizer
+from .team_radio_transcriber import TeamRadioTranscriber
 
 logger = logging.getLogger(__name__)
+
+# Resolve once: backend/data/processed_cache (sibling of `live/`)
+_CACHE_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data", "processed_cache",
+)
+
+
+def _lookup_cached_circuit(event_name: str) -> Optional[Dict[str, Any]]:
+    """Find circuit_info by event_name across cached sessions.
+
+    Live SignalR session_info has event_name (e.g. "Miami Grand Prix") but no
+    track coordinates. Past seasons of the same GP share the circuit shape, so
+    we look up the most recent cached session_<year>_<round>_R.json whose
+    schedule matches the event_name and reuse its circuit_info.
+    """
+    if not event_name:
+        return None
+
+    # Walk schedules newest-first so we get the freshest layout
+    for sched_path in sorted(
+        glob.glob(os.path.join(_CACHE_DIR, "schedule_*.json")), reverse=True
+    ):
+        try:
+            with open(sched_path) as f:
+                sched = json.load(f)
+        except Exception:
+            continue
+        events = sched.get("events", []) if isinstance(sched, dict) else []
+        for evt in events:
+            if str(evt.get("EventName", "")).strip().lower() != event_name.strip().lower():
+                continue
+            year = sched.get("year")
+            rnd = evt.get("RoundNumber")
+            if not (year and rnd):
+                continue
+            # Try Race first, fall back to any session type
+            for stype in ("R", "Q", "S", "FP3", "FP2", "FP1"):
+                sess_path = os.path.join(_CACHE_DIR, f"session_{year}_{rnd}_{stype}.json")
+                if not os.path.exists(sess_path):
+                    continue
+                try:
+                    with open(sess_path) as f:
+                        sess = json.load(f)
+                except Exception:
+                    continue
+                ci = sess.get("circuit_info") or {}
+                if ci.get("track_coordinates"):
+                    logger.info(
+                        f"Resolved live circuit_info for '{event_name}' from "
+                        f"session_{year}_{rnd}_{stype}.json ({len(ci['track_coordinates'])} pts)"
+                    )
+                    return ci
+    return None
 
 
 class LiveSessionManager:
@@ -36,6 +93,17 @@ class LiveSessionManager:
         self.track_status: List[Dict[str, Any]] = []
         self.race_control_messages: List[Dict[str, Any]] = []
         self.race_results: List[Dict[str, Any]] = []
+        # Driver-status snapshot for live retirements (Retired/Stopped/KnockedOut).
+        # Keyed by abbreviation. Pushed to new WS clients in `session_init`.
+        self.driver_statuses: Dict[str, Dict[str, Any]] = {}
+        # Team-radio captures. Each entry starts as {timestamp, driver,
+        # driver_number, audio_url, received_at}; the transcription worker
+        # then mutates it with `transcript` (str or None) and
+        # `transcript_status` ("ok"|"empty"|"download_failed"|"queued").
+        self.team_radios: List[Dict[str, Any]] = []
+        # Lazy: only spun up once we get the first TeamRadio capture so the
+        # ~80 MB whisper model doesn't load when transcription is unused.
+        self._radio_transcriber: Optional[TeamRadioTranscriber] = None
 
         # Frames for position replay
         self.frames: List[Dict[str, Any]] = []
@@ -93,14 +161,33 @@ class LiveSessionManager:
 
     def get_snapshot(self) -> Dict[str, Any]:
         """Return full accumulated session data matching /api/session format."""
+        # SignalR's SessionInfo carries event_name but no track shape — backfill
+        # circuit_info from the most recent cached session for the same GP so
+        # the live TrackMap has coordinates from lap 1.
+        circuit_info = self.session_info.get("circuit_info") or {}
+        if not circuit_info.get("track_coordinates"):
+            event_name = self.session_info.get("event_name")
+            if event_name:
+                cached_ci = _lookup_cached_circuit(event_name)
+                if cached_ci:
+                    circuit_info = cached_ci
+                    # Cache so we don't hit disk on every snapshot/WS reconnect
+                    self.session_info["circuit_info"] = cached_ci
         return {
             "lap_times": self.lap_times,
-            "circuit_info": self.session_info.get("circuit_info", {}),
+            "circuit_info": circuit_info,
             "driver_info": self.driver_info,
             "race_results": self.race_results,
             "weather_data": self.weather_data,
             "tyre_strategy": self.tyre_strategy,
             "track_status": self.track_status,
+            "session_info": self.session_info,
+            "session_status": self.session_status,
+            "current_lap": self.current_lap,
+            "total_laps": self.total_laps,
+            "driver_statuses": list(self.driver_statuses.values()),
+            "race_control_messages": self.race_control_messages,
+            "team_radios": self.team_radios,
         }
 
     def get_frames_snapshot(self) -> Dict[str, Any]:
@@ -157,6 +244,8 @@ class LiveSessionManager:
                 await self._handle_car_data(data)
             elif topic == "Position":
                 await self._handle_position(data)
+            elif topic == "TeamRadio":
+                await self._handle_team_radio(data)
             elif topic == "HeartBeat":
                 await self._broadcast({"type": "heartbeat", "data": {"timestamp": _time.time()}})
         except Exception as e:
@@ -169,6 +258,23 @@ class LiveSessionManager:
         # Build driver colors map
         for d in self.driver_info:
             self.driver_colors[d["Abbreviation"]] = d.get("TeamColor", "#FFFFFF")
+
+        # Drop any lap_times entries whose Driver field is still a raw
+        # racing number (i.e. were emitted before the DriverList arrived
+        # in an earlier process_timing_data run that predates the no-Tla
+        # guard). Without this, viewers see ghost rows like "1", "11"
+        # next to the proper "VER", "PER" rows.
+        valid_abbrs = {d["Abbreviation"] for d in self.driver_info}
+        if self.lap_times:
+            before = len(self.lap_times)
+            self.lap_times = [
+                lt for lt in self.lap_times
+                if lt.get("Driver") in valid_abbrs
+            ]
+            removed = before - len(self.lap_times)
+            if removed:
+                logger.info(f"Scrubbed {removed} pre-DriverList lap_times entries with raw racing numbers")
+
         self.session_active = True
         await self._broadcast({
             "type": "driver_list",
@@ -176,7 +282,7 @@ class LiveSessionManager:
         })
 
     async def _handle_timing_data(self, data: Dict):
-        lap_updates, strategy_updates = self.normalizer.process_timing_data(data)
+        lap_updates, strategy_updates, status_updates = self.normalizer.process_timing_data(data)
 
         for lap_entry in lap_updates:
             self.lap_times.append(lap_entry)
@@ -185,6 +291,17 @@ class LiveSessionManager:
             await self._broadcast({
                 "type": "lap_update",
                 "data": lap_entry,
+            })
+
+        for status_entry in status_updates:
+            # Maintain a server-side copy so newly connecting clients receive
+            # the current retirement set in their initial snapshot.
+            self.driver_statuses[status_entry["Driver"]] = status_entry
+            logger.info(f"driver_status: {status_entry['Driver']} retired={status_entry['Retired']} "
+                        f"stopped={status_entry['Stopped']} lap={status_entry['LastLap']}")
+            await self._broadcast({
+                "type": "driver_status",
+                "data": status_entry,
             })
 
         for stint_entry in strategy_updates:
@@ -219,7 +336,7 @@ class LiveSessionManager:
             if isinstance(line, dict) and "Stints" in line:
                 wrapper["Lines"][num] = {"Stints": line["Stints"]}
         if wrapper["Lines"]:
-            _, strategy_updates = self.normalizer.process_timing_data(wrapper)
+            _, strategy_updates, _ = self.normalizer.process_timing_data(wrapper)
             for stint_entry in strategy_updates:
                 for existing in reversed(self.tyre_strategy):
                     if existing["Driver"] == stint_entry["Driver"] and existing["EndLap"] is None:
@@ -275,6 +392,122 @@ class LiveSessionManager:
                     "type": "race_control",
                     "data": msg,
                 })
+
+    async def fetch_static_team_radios(self, session_path: Optional[str] = None) -> Dict[str, Any]:
+        """Pull the full TeamRadio.json from F1's static CDN.
+
+        F1 paywalls this file during live sessions (returns 403). It opens up
+        once the session ends or for any past session, so we use it to
+        backfill everything that wasn't pushed via SignalR.
+
+        Returns a dict with `status` and `added` count for the API caller.
+        """
+        path = session_path or self.session_info.get("path", "")
+        if not path:
+            return {"status": "no_session_path", "added": 0}
+        url = f"https://livetiming.formula1.com/static/{path}TeamRadio.json"
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as http:
+                async with http.get(url, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                    if resp.status == 403:
+                        logger.info(
+                            f"TeamRadio.json paywalled (live session in progress): {url}"
+                        )
+                        return {"status": "paywalled", "added": 0, "url": url}
+                    if resp.status != 200:
+                        logger.warning(f"TeamRadio.json fetch {resp.status}: {url}")
+                        return {"status": f"http_{resp.status}", "added": 0, "url": url}
+                    raw = await resp.text()
+        except Exception as e:
+            logger.warning(f"TeamRadio.json fetch failed: {e}")
+            return {"status": "fetch_failed", "added": 0, "error": str(e)}
+
+        # F1 prefixes a UTF-8 BOM on these files
+        raw = raw.lstrip("﻿")
+        try:
+            payload = json.loads(raw)
+        except Exception as e:
+            logger.warning(f"TeamRadio.json parse failed: {e}")
+            return {"status": "parse_failed", "added": 0}
+
+        captures = self.normalizer.process_team_radio(payload, path)
+        # Skip ones we've already broadcast (match by audio_url)
+        existing_urls = {r.get("audio_url") for r in self.team_radios}
+
+        # Lazy-start transcriber on first capture
+        new_caps = [c for c in captures if c.get("audio_url") not in existing_urls]
+        if new_caps and self._radio_transcriber is None:
+            self._radio_transcriber = TeamRadioTranscriber()
+            await self._radio_transcriber.start()
+
+        for cap in new_caps:
+            cap["transcript"] = None
+            cap["transcript_status"] = "queued"
+            self.team_radios.append(cap)
+            await self._broadcast({"type": "team_radio", "data": cap})
+
+            if self._radio_transcriber is not None:
+                async def _on_done(updated_cap, _orig=cap):
+                    await self._broadcast({
+                        "type": "team_radio_transcript",
+                        "data": {
+                            "audio_url": updated_cap.get("audio_url"),
+                            "transcript": updated_cap.get("transcript"),
+                            "transcript_status": updated_cap.get("transcript_status"),
+                        },
+                    })
+                self._radio_transcriber.submit(cap, _on_done)
+
+        logger.info(f"TeamRadio backfill: +{len(new_caps)} captures from {url}")
+        return {"status": "ok", "added": len(new_caps), "total": len(self.team_radios)}
+
+    async def _handle_team_radio(self, data: Dict):
+        # SessionInfo's `path` is the static-asset prefix (e.g.
+        # "2025/2025-05-04_Miami_Grand_Prix/2025-05-04_Race/"). Without it
+        # the audio URLs come out malformed; bail rather than emit broken
+        # links.
+        session_path = self.session_info.get("path", "")
+        if not session_path:
+            logger.warning("TeamRadio received before SessionInfo path is known — dropping")
+            return
+        captures = self.normalizer.process_team_radio(data, session_path)
+
+        # Lazy-start the transcriber on first capture so we don't pay the
+        # ~80 MB model-load cost on every backend boot.
+        if captures and self._radio_transcriber is None:
+            self._radio_transcriber = TeamRadioTranscriber()
+            await self._radio_transcriber.start()
+
+        for cap in captures:
+            cap["transcript"] = None
+            cap["transcript_status"] = "queued"
+            self.team_radios.append(cap)
+            logger.info(f"team_radio: {cap.get('driver')} @ {cap.get('timestamp')}")
+            await self._broadcast({
+                "type": "team_radio",
+                "data": cap,
+            })
+
+            # Submit for background transcription. The callback fires WHEN the
+            # transcript is ready and broadcasts an update message that the
+            # frontend matches by audio_url.
+            if self._radio_transcriber is not None:
+                async def _on_done(updated_cap, _orig=cap):
+                    logger.info(
+                        f"team_radio_transcript: {updated_cap.get('driver')} "
+                        f"[{updated_cap.get('transcript_status')}] "
+                        f"'{(updated_cap.get('transcript') or '')[:80]}'"
+                    )
+                    await self._broadcast({
+                        "type": "team_radio_transcript",
+                        "data": {
+                            "audio_url": updated_cap.get("audio_url"),
+                            "transcript": updated_cap.get("transcript"),
+                            "transcript_status": updated_cap.get("transcript_status"),
+                        },
+                    })
+                self._radio_transcriber.submit(cap, _on_done)
 
     async def _handle_timing_stats(self, data: Dict):
         """TimingStats contains per-driver personal bests — extract best lap times."""
@@ -348,6 +581,15 @@ class LiveSessionManager:
                     "final_standings": self.normalizer.build_standings(),
                 },
             })
+            # F1 paywalls TeamRadio.json during live sessions — once the
+            # session ends it usually opens up. Try the static CDN backfill
+            # so the user gets every radio (with transcripts) for the
+            # session they just watched.
+            try:
+                result = await self.fetch_static_team_radios()
+                logger.info(f"Post-session TeamRadio backfill: {result}")
+            except Exception as e:
+                logger.warning(f"Post-session TeamRadio backfill failed: {e}")
 
         await self._broadcast({
             "type": "session_status",
@@ -503,6 +745,15 @@ class LiveSessionManager:
 
     def reset(self):
         """Reset all accumulated state for a new session."""
+        # Tear down the transcriber so a stale model doesn't keep accepting
+        # work for the old session. Re-created lazily on next radio capture.
+        if self._radio_transcriber is not None:
+            try:
+                # Fire-and-forget — runs on the existing loop.
+                asyncio.create_task(self._radio_transcriber.stop())
+            except RuntimeError:
+                pass
+            self._radio_transcriber = None
         self.normalizer = LiveDataNormalizer()
         self.session_info = {}
         self.driver_info = []
@@ -512,6 +763,8 @@ class LiveSessionManager:
         self.track_status = []
         self.race_control_messages = []
         self.race_results = []
+        self.driver_statuses = {}
+        self.team_radios = []
         self.frames = []
         self.driver_colors = {}
         self.session_active = False

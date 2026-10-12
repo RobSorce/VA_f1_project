@@ -13,6 +13,7 @@ import WelcomeToast from './components/ui/WelcomeToast';
 import ToastStack from './components/ui/ToastStack';
 import HelpOverlay from './components/ui/HelpOverlay';
 import GeminiFloatingButton from './components/ui/GeminiFloatingButton';
+import RadioPipToast from './components/ui/RadioPipToast';
 import { CHART_HELP } from './utils/chartHelp';
 
 // Layout
@@ -23,7 +24,6 @@ import DockedLayout from './components/layout/DockedLayout';
 // Visualizations
 import Leaderboard from './components/visualizations/Leaderboard';
 import SectorsPanel from './components/visualizations/SectorsPanel';
-import SpeedPanel from './components/visualizations/SpeedPanel';
 import ConsistencyPanel from './components/visualizations/ConsistencyPanel';
 import DriverComparePanel from './components/visualizations/DriverComparePanel';
 import TrackMap from './components/visualizations/TrackMap';
@@ -50,6 +50,7 @@ import RacePaceGrid from './components/visualizations/RacePaceGrid';
 import PositionByLap from './components/visualizations/PositionByLap';
 import SectorDeltaWaterfall from './components/visualizations/SectorDeltaWaterfall';
 import UndercutCalculator from './components/visualizations/UndercutCalculator';
+import RaceControlPanel from './components/visualizations/RaceControlPanel';
 
 // Command Palette & Keyboard
 import CommandPalette from './components/CommandPalette/CommandPalette';
@@ -68,7 +69,6 @@ const OVERLAY_TABS = {
   tiredeg:      { title: 'Tyre Degradation',     Component: TireDegradation,       helpText: 'Per-stint linear regression: lap_time = slope × TyreLife + intercept. Raw slope vs fuel-corrected (+30 ms/lap) shown. See docs/INSIGHTS_MONZA_2024.md.', helpHref: 'https://github.com/RobSorce/VA_f1_project_v2/blob/main/docs/INSIGHTS_MONZA_2024.md' },
   tyrehealth:   { title: 'Tyre Health',          Component: TyreHealth,            helpText: 'Per-driver tyre health bars using 1.6 decay exponent and 80 pace-penalty coefficient (Pirelli / 24-session calibration).' },
   tyremgmt:     { title: 'Pace Retention',       Component: TyreManagement,        helpText: 'Per-stint pace retention score — how well each driver holds their initial pace as tyres age.' },
-  speed:        { title: 'Speed Rankings',       Component: SpeedPanel,            helpText: 'Speed-trap, finish-line, and sector speeds. Rankings of peak speed per driver.' },
   consistency:  { title: 'Consistency',          Component: ConsistencyPanel,      helpText: 'Population σ of lap times (clean laps only, pit laps filtered). Drivers with fewer than 75% of current-lap count are flagged "LOW DATA" — σ from small samples is not comparable.' },
   ai:           { title: 'AI Assistant',         Component: AITabContent,          helpText: 'Gemini-backed strategy engineer. If API key is missing, responses show a MOCK badge and come from hand-written examples.' },
   analytics:    { title: 'Analytics',            Component: AnalyticsTabContent,   helpText: 'PCA biplot of per-(driver, race) feature vectors. Points are races; loading vectors indicate feature contributions. Lasso-select triggers Cohen\'s d analysis.', helpHref: 'https://github.com/RobSorce/VA_f1_project_v2/blob/main/docs/PCA_METHODOLOGY.md' },
@@ -85,6 +85,7 @@ const OVERLAY_TABS = {
   positionlaps: { title: 'Position Tracker',     Component: PositionByLap,         helpText: 'Position-per-lap lines for all drivers. Hover a driver to dim the rest; click to set focus.' },
   sectordelta:  { title: 'Sector Delta',         Component: SectorDeltaWaterfall,  helpText: 'Waterfall of sector deltas — where each driver gains/loses vs the session-best. Useful for setup and circuit-map comparisons.' },
   undercut:     { title: 'Undercut Calculator',  Component: UndercutCalculator,    helpText: 'Projects undercut/overcut viability given current pace, tyre age, pit-loss (~22s), and gap to rivals.' },
+  racecontrol:  { title: 'Race Control',          Component: RaceControlPanel,     helpText: 'Live race-control feed + retirements. Categorised messages (flags, DRS, safety car, penalties, stewards), filter chips, and an "out of session" sidebar populated from F1 SignalR Retired/Stopped flags.' },
 };
 
 export default function App() {
@@ -107,6 +108,7 @@ export default function App() {
         <SessionSelectorScreen />
         <ToastStack />
         <HelpOverlay />
+        <RadioPipToast />
       </>
     );
   }
@@ -181,6 +183,7 @@ export default function App() {
       <WelcomeToast />
       <ToastStack />
       <HelpOverlay />
+      <RadioPipToast />
     </div>
   );
 }

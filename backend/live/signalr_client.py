@@ -39,6 +39,7 @@ LIVE_TOPICS = [
     "SessionStatus",
     "TimingStats",
     "ExtrapolatedClock",
+    "TeamRadio",
     "HeartBeat",
 ]
 

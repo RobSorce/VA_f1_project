@@ -182,7 +182,23 @@ function RacePaceGrid() {
   const triggerLSTMPredictions = useF1Store((s) => s.triggerLSTMPredictions);
   const triggerPrediction = useF1Store((s) => s.triggerPrediction);
 
-  const lapTimes = sessionData?.lap_times || [];
+  // Defensive filter: when we have a real driver_info list, only consider
+  // lap_times whose Driver matches a known abbreviation. Without this,
+  // rows can leak in for pre-DriverList SignalR entries that used the raw
+  // racing number ("1", "11", ...) as the Driver field.
+  const validAbbrSet = useMemo(() => {
+    const s = new Set();
+    for (const d of drivers) {
+      const a = d.Abbreviation || d.abbr;
+      if (a) s.add(a);
+    }
+    return s;
+  }, [drivers]);
+
+  const lapTimes = useMemo(() => {
+    const all = sessionData?.lap_times || [];
+    return validAbbrSet.size > 0 ? all.filter((lt) => validAbbrSet.has(lt.Driver)) : all;
+  }, [sessionData, validAbbrSet]);
   const raceResults = sessionData?.race_results || [];
 
   const currentLapRef = useRef(null);
@@ -332,6 +348,24 @@ function RacePaceGrid() {
 
   // -- Render --
   if (!lapTimes.length || !sortedDrivers.length) {
+    if (isLiveMode) {
+      return (
+        <div style={{ ...containerStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbc', fontSize: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: 24 }}>
+            <span style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: '#e10600',
+              boxShadow: '0 0 10px rgba(225,6,0,0.6)',
+              animation: 'livePulse 1.5s ease-in-out infinite',
+            }} />
+            <span style={{ fontWeight: 600 }}>Waiting for live laps…</span>
+            <span style={{ color: '#777', fontSize: 10, maxWidth: 280 }}>
+              Pace cells will appear as drivers complete each lap.
+            </span>
+          </div>
+        </div>
+      );
+    }
     return (
       <div style={{ ...containerStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 13 }}>
         No lap time data available

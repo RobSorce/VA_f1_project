@@ -4,7 +4,7 @@ import { useF1Store } from '../../store/useF1Store';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 import { WINDOW_PRESETS } from '../../utils/windowPresets';
 
-const POPOVER_WIDTH = 320;
+const POPOVER_WIDTH = 640;
 const EDGE_PAD = 12;
 
 /**
@@ -50,12 +50,16 @@ export default function LayoutDockPopover({ anchorRect, onClose }) {
   const pos = useMemo(() => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const maxH = Math.min(540, vh * 0.72);
+    const width = Math.min(POPOVER_WIDTH, vw - EDGE_PAD * 2);
+    const maxH = Math.min(720, vh - 80);
     const anchorCenter = anchorRect.left + anchorRect.width / 2;
-    let left = anchorCenter - POPOVER_WIDTH / 2;
-    left = Math.max(EDGE_PAD, Math.min(vw - POPOVER_WIDTH - EDGE_PAD, left));
-    const top = Math.max(EDGE_PAD, anchorRect.top - maxH - 8);
-    return { left, top, maxH };
+    let left = anchorCenter - width / 2;
+    left = Math.max(EDGE_PAD, Math.min(vw - width - EDGE_PAD, left));
+    // Anchor the popover by its BOTTOM edge to a point 8 px above the
+    // dock. This way short popovers sit flush above the dock; tall
+    // ones grow upward instead of always pinning to the maxH ceiling.
+    const bottom = Math.max(EDGE_PAD, vh - anchorRect.top + 8);
+    return { left, bottom, maxH, width };
   }, [anchorRect]);
 
   useEffect(() => {
@@ -83,8 +87,8 @@ export default function LayoutDockPopover({ anchorRect, onClose }) {
       style={{
         position: 'fixed',
         left: pos.left,
-        top: pos.top,
-        width: POPOVER_WIDTH,
+        bottom: pos.bottom,
+        width: pos.width,
         maxHeight: pos.maxH,
         zIndex: 10001,
       }}
