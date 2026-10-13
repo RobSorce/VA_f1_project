@@ -444,6 +444,7 @@ export const DOCK_DEFAULTS = [
   'laptimes',
   'tyres',
   'strategy',
+  'circle',
   'analytics',
   'prediction',
   'racecontrol',
@@ -452,16 +453,53 @@ export const DOCK_DEFAULTS = [
 ];
 
 export const DOCK_STORAGE_KEY = 'va-dock-items-v1';
+// Defaults a stored dock has already been offered. A default added later is
+// inserted once into a dock saved before it existed; removing it afterwards
+// sticks. Saved together with the dock, so a dock is never marked as offered
+// a default it does not hold.
+export const DOCK_OFFERED_KEY = 'va-dock-offered-v1';
+// Defaults added after docks could be saved (a dock saved with no offered-list predates them)
+const DOCK_LATER_DEFAULTS = ['circle'];
+
+function saveDock(items) {
+  try {
+    localStorage.setItem(DOCK_STORAGE_KEY, JSON.stringify(items));
+    localStorage.setItem(DOCK_OFFERED_KEY, JSON.stringify(DOCK_DEFAULTS));
+  } catch { /* ignore */ }
+}
+
+/** Stored dock plus the defaults it has never been offered, each after the default before it. */
+function withNewDockDefaults(items) {
+  let offered = null;
+  try { offered = JSON.parse(localStorage.getItem(DOCK_OFFERED_KEY) || 'null'); }
+  catch { offered = null; }
+  if (!Array.isArray(offered)) offered = DOCK_DEFAULTS.filter((id) => !DOCK_LATER_DEFAULTS.includes(id));
+  const out = [...items];
+  DOCK_DEFAULTS.forEach((id, i) => {
+    if (offered.includes(id) || out.includes(id)) return;
+    let at = 0;
+    for (let j = i - 1; j >= 0; j--) {
+      const k = out.indexOf(DOCK_DEFAULTS[j]);
+      if (k >= 0) { at = k + 1; break; }
+    }
+    out.splice(at, 0, id);
+  });
+  saveDock(out);
+  return out;
+}
 
 function loadDockItems() {
   try {
     const raw = localStorage.getItem(DOCK_STORAGE_KEY);
-    if (!raw) return [...DOCK_DEFAULTS];
+    if (!raw) {
+      saveDock(DOCK_DEFAULTS);
+      return [...DOCK_DEFAULTS];
+    }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return [...DOCK_DEFAULTS];
     // Silently drop ids that no longer exist in the registry.
     const cleaned = parsed.filter((id) => typeof id === 'string' && SLOT_IDS.has(id));
-    return cleaned.length > 0 ? cleaned : [...DOCK_DEFAULTS];
+    return cleaned.length > 0 ? withNewDockDefaults(cleaned) : [...DOCK_DEFAULTS];
   } catch {
     return [...DOCK_DEFAULTS];
   }

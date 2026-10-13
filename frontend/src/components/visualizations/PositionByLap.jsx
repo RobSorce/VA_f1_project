@@ -4,8 +4,8 @@ import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { completedLaps, isLapCompleted } from '../../utils/raceTime';
-import { pitStops } from '../../utils/stints';
 import { causalKey } from '../../utils/strategyViews';
+import { positionPitMarkers } from '../../utils/views/positionByLap';
 import Panel from '../ui/Panel';
 
 const MARGIN = { top: 28, right: 90, bottom: 32, left: 36 };
@@ -64,38 +64,6 @@ function computeUndercutWindow(focus, driverLapMap, lap, maxLap) {
     focusTyreAge,
     focusPos: currentFocusLap.Position,
   };
-}
-
-/**
- * Pit-stop markers for the position chart at sessionNow (session seconds):
- * one per tyre change visible at that time (utils/stints.js pitStops, R2:
- * from the pit exit; drive-throughs and SC pit-lane passes are not stops),
- * placed on the in-lap at the position the driver had at its end.
- *
- * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
- * @param {number} sessionNow - session seconds, Infinity = whole race
- * @returns {Array<{driver: string, lap: number, position: number, fromCompound: string,
- *   toCompound: string, tyreAge: number|null}>}
- */
-export function positionPitMarkers(lapTimes, sessionNow) {
-  const rows = Array.isArray(lapTimes) ? lapTimes : [];
-  const inLaps = new Map();
-  for (const lt of rows) inLaps.set(`${lt.Driver}_${lt.LapNumber}`, lt);
-  const out = [];
-  for (const stop of pitStops(rows, { sessionNow })) {
-    const inRow = inLaps.get(`${stop.Driver}_${stop.inLap}`);
-    // The in-lap is over at the pit exit; its end position places the marker
-    if (!inRow?.Position || !isLapCompleted(inRow, sessionNow)) continue;
-    out.push({
-      driver: stop.Driver,
-      lap: stop.inLap,
-      position: inRow.Position,
-      fromCompound: stop.fromCompound,
-      toCompound: stop.toCompound,
-      tyreAge: inRow.TyreLife ?? null,
-    });
-  }
-  return out;
 }
 
 export default function PositionByLap() {
@@ -291,7 +259,7 @@ export default function PositionByLap() {
       });
 
     /* ── Layer 3: Pit stop markers ─────────────────────────────── */
-    // One per tyre change visible at sessionNow (positionPitMarkers above)
+    // One per tyre change visible at sessionNow (positionPitMarkers, utils/views)
     pitMarkers.forEach(({ driver, lap, position, fromCompound, toCompound, tyreAge }) => {
       const color = getDriverColor(driver);
       const isDimmed = focusDriver && driver !== focusDriver && !selectedDrivers.includes(driver);

@@ -2276,3 +2276,360 @@
   color: #6B7280;
 }
 
+
+/* ==========================================================================
+   Circle of Doom (CircleOfDoom.jsx): one lap in seconds, pit window of the
+   focus car. Pit-window purple = the palette's session-best purple #A855F7
+   (docs/COLOR_ENCODING.md); pit lane = --state-in-pit.
+   ========================================================================== */
+/* Laid out by CircleOfDoom.jsx (panelLayout) from the size of .cod: keep the
+   sizes below in step with its LEGEND_* / STATUS_* / BLOCK_GAP constants */
+.cod {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.cod--side {
+  flex-direction: row;
+}
+
+.cod__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cod__plot {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Legend line: the centre lines with no room inside the ring (never shrunk) */
+.cod-status {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 13px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  overflow: hidden;
+}
+
+.cod-status__line {
+  height: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cod-status__sep,
+.cod-status__note {
+  color: var(--color-text-muted);
+}
+
+.cod-status__note {
+  font-style: italic;
+}
+
+.cod-status__lap,
+.cod-status__value {
+  color: var(--color-text-primary);
+}
+
+.cod-status__value--fallback {
+  color: var(--color-accent-warning);
+}
+
+.cod-status__flag--green { color: #22c55e; }
+.cod-status__flag--yellow { color: #FFCC00; }
+.cod-status__flag--neutral { color: #FF8C00; }
+.cod-status__flag--red { color: #FF0000; }
+
+.cod-status__focus {
+  color: #A855F7;
+}
+
+.cod-status__warn {
+  color: #FF8C00;
+}
+
+.cod__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.cod-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Grid of LEGEND_ROW_H rows; the columns come from the layout (inline style) */
+.cod .cod-legend {
+  flex: none;
+  display: grid;
+  grid-auto-rows: 14px;
+  row-gap: 1px;
+  column-gap: 4px;
+  justify-content: center;
+  align-content: center;
+  padding: 0;
+}
+
+.cod .cod-legend__item {
+  height: 14px;
+  padding: 0 2px;
+  gap: 3px;
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: default;
+}
+
+.cod-legend__item:hover {
+  transform: none;
+}
+
+.cod-legend__swatch {
+  flex-shrink: 0;
+  width: 16px;
+  height: 10px;
+}
+
+.cod-ring {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1.2;
+}
+
+.cod-pitlane {
+  fill: none;
+  stroke: var(--state-in-pit);
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.cod-line-tick {
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 2;
+}
+
+.cod-pit-window {
+  fill: rgba(168, 85, 247, 0.26);
+  stroke: rgba(168, 85, 247, 0.65);
+  stroke-width: 0.8;
+}
+
+.cod-uncertainty {
+  stroke: #A855F7;
+  stroke-width: 0.8;
+}
+
+.cod-rejoin {
+  cursor: help;
+}
+
+.cod-rejoin-marker {
+  fill: #A855F7;
+  stroke: #fff;
+  stroke-width: 1.2;
+}
+
+.cod-traffic-ring {
+  fill: none;
+  stroke: var(--color-accent-warning);
+  stroke-width: 1.4;
+  stroke-dasharray: 2 2;
+}
+
+.cod-rejoin-label {
+  fill: #A855F7;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.cod-rejoin-label__traffic {
+  fill: var(--color-accent-warning);
+}
+
+.cod-car {
+  cursor: pointer;
+}
+
+.cod-car__hit {
+  fill: transparent;
+}
+
+.cod-focus-ring {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.cod-highlight-ring {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.4;
+  stroke-dasharray: 3 2;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* Selected in another view: the Track Map's selected-car red (.car-marker.selected) */
+.cod-select-ring {
+  fill: none;
+  stroke: var(--color-f1-red);
+  stroke-width: 1.8;
+  pointer-events: none;
+}
+
+.cod-leader--rejoin {
+  fill: none;
+}
+
+.cod-leader {
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 0.8;
+}
+
+.cod-leader--rejoin {
+  stroke: rgba(168, 85, 247, 0.7);
+}
+
+.cod-label {
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.cod-label__gap {
+  fill: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.cod-label--focus .cod-label__code {
+  text-decoration: underline;
+}
+
+.cod-gap-arc {
+  fill: #fff;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.cod-gap-text {
+  fill: #fff;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.8);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.cod-centre text {
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.cod-centre__lap {
+  fill: var(--color-text-primary);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+/* Small ring: the Bold face instead of the Wide one (about half as wide) */
+.cod-centre__lap--bold {
+  font-weight: 700;
+}
+
+.cod-centre__flag {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cod-centre__flag--green { fill: #22c55e; }
+.cod-centre__flag--yellow { fill: #FFCC00; }
+.cod-centre__flag--neutral { fill: #FF8C00; }
+.cod-centre__flag--red { fill: #FF0000; }
+
+.cod-centre__value {
+  fill: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.cod-centre__value--fallback {
+  fill: var(--color-accent-warning);
+}
+
+.cod-centre__note {
+  fill: var(--color-text-muted);
+  font-style: italic;
+}
+
+.cod-centre__focus {
+  fill: #A855F7;
+  font-weight: 700;
+}
+
+.cod-centre__warn {
+  fill: #FF8C00;
+  font-weight: 600;
+}
+
+[data-theme="light"] .cod-ring {
+  stroke: rgba(17, 24, 39, 0.25);
+}
+
+[data-theme="light"] .cod-line-tick,
+[data-theme="light"] .cod-gap-arc {
+  stroke: #111827;
+  fill: #111827;
+}
+
+[data-theme="light"] .cod-leader {
+  stroke: rgba(17, 24, 39, 0.3);
+}
+
+[data-theme="light"] .cod-label,
+[data-theme="light"] .cod-rejoin-label,
+[data-theme="light"] .cod-gap-text {
+  stroke: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme="light"] .cod-gap-text {
+  fill: #111827;
+}

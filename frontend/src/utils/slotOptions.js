@@ -33,7 +33,7 @@ const RacePaceGrid       = lazy(() => import('../components/visualizations/RaceP
 const StrategySimulator  = lazy(() => import('../components/visualizations/StrategySimulator'));
 const PositionByLap      = lazy(() => import('../components/visualizations/PositionByLap'));
 const SectorDeltaWaterfall = lazy(() => import('../components/visualizations/SectorDeltaWaterfall'));
-const UndercutCalculator = lazy(() => import('../components/visualizations/UndercutCalculator'));
+const CircleOfDoom       = lazy(() => import('../components/visualizations/CircleOfDoom'));
 const RaceControlPanel   = lazy(() => import('../components/visualizations/RaceControlPanel'));
 const SettingsTabContent = lazy(() => import('../components/tabs/SettingsTabContent'));
 const ChampionshipTabContent = lazy(() => import('../components/tabs/ChampionshipTabContent'));
@@ -63,7 +63,7 @@ const ICONS = {
   simulator:     'M6 4l14 8-14 8z',
   positionlaps:  'M3 20h18M6 20V10M12 20V4M18 20V14',
   sectordelta:   'M4 12h4v6H4zM10 8h4v10h-4zM16 14h4v4h-4z',
-  undercut:      'M3 12h6l3-6 3 12 3-6h3',
+  circle:        'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 1.5v4.5M3.5 9.5a9 9 0 0 1 4-5',
   championship:  'M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M18 2H6v7a6 6 0 0 0 12 0V2z',
   racecontrol:   'M5 4h14v6H5zM5 14h14v6H5zM8 7h2M8 17h8M14 7h2',
   settings:      'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.36.15.67.4.89.72.22.33.34.72.34 1.12v.32c0 .4-.12.79-.34 1.12-.22.32-.53.57-.89.72z',
@@ -97,7 +97,7 @@ export const SLOT_OPTIONS = [
   { id: 'strategy',      label: 'Strategy Timeline',   component: StrategyTimeline,category: 'strategy',   icon: ICONS.strategy,      hint: '3' },
   { id: 'analysis',      label: 'Strategy Analysis',   component: StrategyAnalysis,category: 'strategy',   icon: ICONS.analysis,      hint: null },
   { id: 'simulator',     label: 'Strategy Simulator',  component: StrategySimulator,category: 'strategy',  icon: ICONS.simulator,     hint: null },
-  { id: 'undercut',      label: 'Undercut Calculator', component: UndercutCalculator, category: 'strategy', icon: ICONS.undercut,     hint: null },
+  { id: 'circle',        label: 'Circle of Doom',      component: CircleOfDoom,    category: 'strategy',   icon: ICONS.circle,        hint: null },
 
   // ── Analysis ───────────────────────────────────────────────────────────
   { id: 'analytics',     label: 'Analytics (PCA)',     component: AnalyticsTabContent, category: 'analysis', icon: ICONS.analytics,   hint: '6' },

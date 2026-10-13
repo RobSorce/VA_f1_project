@@ -122,6 +122,28 @@ export const WINDOW_PRESETS = {
       { id: 'compare',     position: { left: '0%', top: '50%', width: '100%', height: '50%' } },
     ],
   },
+  pitwindow: {
+    label: 'Pit Window',
+    description: 'Track Map + Circle of Doom + Strategy Timeline',
+    dockedLayout: {
+      direction: 'vertical', ratio: 0.62,
+      children: [
+        {
+          direction: 'horizontal', ratio: 0.5,
+          children: [
+            { tabs: ['trackmap'], activeTab: 'trackmap' },
+            { tabs: ['circle'], activeTab: 'circle' },
+          ],
+        },
+        { tabs: ['strategy'], activeTab: 'strategy' },
+      ],
+    },
+    windows: [
+      { id: 'trackmap', position: { left: '0%', top: '0%', width: '50%', height: '62%' } },
+      { id: 'circle',   position: { left: '50%', top: '0%', width: '50%', height: '62%' } },
+      { id: 'strategy', position: { left: '0%', top: '62%', width: '100%', height: '38%' } },
+    ],
+  },
   simulator: {
     label: 'Simulator',
     description: 'Strategy Simulator + Strategy Timeline + Race Prediction',

@@ -4,6 +4,7 @@ import FocusDriverWidget from '../ui/FocusDriverWidget';
 import PitWallSectorPanel from '../ui/PitWallSectorPanel';
 import RacePaceGrid from '../visualizations/RacePaceGrid';
 import TrackMap from '../visualizations/TrackMap';
+import CircleOfDoom from '../visualizations/CircleOfDoom';
 import SessionInfoBar from '../ui/SessionInfoBar';
 import WeatherMini from '../ui/WeatherMini';
 import RaceControlFeed from '../ui/RaceControlFeed';
@@ -33,9 +34,11 @@ const mainStyle = {
   minHeight: 0,
 };
 
+// Track Map and Circle of Doom side by side: the same cars on the same replay
+// clock, in metres and in seconds (never overlaid)
 const bottomRowStyle = {
   display: 'grid',
-  gridTemplateColumns: '1fr 280px',
+  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) 280px',
   gap: 1,
   overflow: 'hidden',
   minHeight: 0,
@@ -62,6 +65,9 @@ export default function PitWallLayout() {
         <div style={bottomRowStyle}>
           <div style={{ overflow: 'hidden', minHeight: 0 }}>
             <TrackMap />
+          </div>
+          <div style={{ overflow: 'hidden', minHeight: 0 }}>
+            <CircleOfDoom />
           </div>
           <div style={{
             overflowY: 'hidden',

@@ -59,9 +59,8 @@ const {
   viewSessionType, pitStopMarkers, pitCountsByDriver, PIT_LOSS_LEGEND,
 } = await import('../utils/strategyViews.js');
 const { default: Leaderboard } = await import('../components/visualizations/Leaderboard.jsx');
-const {
-  default: TrackMap, trackMapSessionNow,
-} = await import('../components/visualizations/TrackMap.jsx');
+const { default: TrackMap } = await import('../components/visualizations/TrackMap.jsx');
+const { trackMapSessionNow } = await import('../utils/views/trackMap.js');
 const {
   hasCachedSession, hasCachedFrames, loadCachedSession, loadCachedFrames, listCachedRaces,
 } = await import('./helpers/cachedSession.js');

@@ -3,7 +3,7 @@ import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import Panel from '../ui/Panel';
-import { focusDriverStatus } from '../ui/FocusDriverWidget';
+import { focusDriverStatus } from '../../utils/views/focusDriverWidget';
 
 const COMPOUND_ORDER = ['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'];
 

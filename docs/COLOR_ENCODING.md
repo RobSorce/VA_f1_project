@@ -26,6 +26,13 @@ Standard Pirelli F1 compound colors, used universally in F1 media and graphics:
 
 These are the industry-standard colors taught to F1 viewers and analysts. The SOFT/MEDIUM/HARD sequence (red/yellow/white) provides strong perceptual differentiation across all forms of color vision.
 
+## Pit Window (Circle of Doom)
+
+| Mark | Color | Hex | Notes |
+|------|-------|-----|-------|
+| Pit window band (26% fill), predicted-rejoin diamond (solid), p10–p90 uncertainty arc (hatched), rejoin-probability label | Purple | #A855F7 | Reused from the existing palette (session-best purple of RacePaceGrid, Leaderboard "SB", the timeline's fastest-lap marker). No clash: the circle shows no lap-time bests, and cars keep their team colours, none of which is purple. |
+| Ring around a car selected in another view (e.g. a Track Map click) | F1 red | `var(--color-f1-red)` | The Track Map's selected-car stroke (`.car-marker.selected`), so a selection reads the same in both views. |
+
 ## Quantitative Scales
 
 ### Sector Times (RacePaceGrid, SectorsPanel)

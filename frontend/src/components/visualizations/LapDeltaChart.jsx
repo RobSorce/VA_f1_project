@@ -3,41 +3,9 @@ import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { completedLaps } from '../../utils/raceTime';
 import { causalKey } from '../../utils/strategyViews';
+import { cumulativeLapTimes } from '../../utils/views/lapDeltaChart';
 import Panel from '../ui/Panel';
-
-/**
- * Cumulative race time per driver over the laps COMPLETED at sessionNow
- * (session seconds, utils/raceTime.js): a lap time is known at the lap's
- * end, so the chart never draws a lap still running (decision R6). Laps
- * without a usable time (0 < LapTimeSeconds < 300) are skipped.
- *
- * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
- * @param {number} [sessionNow=Infinity] - session seconds
- * @returns {Object<string, Array<{lap: number, cumTime: number, lapTime: number}>>} by lap
- */
-export function cumulativeLapTimes(lapTimes, sessionNow = Infinity) {
-  const map = {};
-  for (const d of completedLaps(lapTimes || [], sessionNow)) {
-    if (!map[d.Driver]) map[d.Driver] = {};
-    if (d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300) {
-      map[d.Driver][d.LapNumber] = d.LapTimeSeconds;
-    }
-  }
-  const cumMap = {};
-  for (const [driver, laps] of Object.entries(map)) {
-    const sortedLaps = Object.keys(laps).map(Number).sort((a, b) => a - b);
-    const cumArr = [];
-    let sum = 0;
-    for (const lap of sortedLaps) {
-      sum += laps[lap];
-      cumArr.push({ lap, cumTime: sum, lapTime: laps[lap] });
-    }
-    cumMap[driver] = cumArr;
-  }
-  return cumMap;
-}
 
 export default function LapDeltaChart() {
   const svgRef = useRef(null);

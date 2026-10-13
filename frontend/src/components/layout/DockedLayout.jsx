@@ -26,6 +26,7 @@ const VIZ_TABS = [
   { id: 'prediction', label: 'Prediction' },
   { id: 'simulator', label: 'Strategy Simulator' },
   { id: 'strategy', label: 'Strategy Timeline' },
+  { id: 'circle', label: 'Circle of Doom' },
   { id: 'analysis', label: 'Strategy Analysis' },
   { id: 'racesituation', label: 'Race Situation' },
   { id: 'racepace', label: 'Race Pace Grid' },

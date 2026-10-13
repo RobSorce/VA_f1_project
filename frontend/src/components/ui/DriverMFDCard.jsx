@@ -4,30 +4,10 @@ import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { completedLaps, isLapCompleted } from '../../utils/raceTime';
-import { driverStateAt, qualifyingOrder } from '../../utils/driverState';
+import { qualifyingOrder } from '../../utils/driverState';
+import { mfdTyreInfo } from '../../utils/views/driverMFDCard';
 
 const PAGES = ['TYRE', 'PACE', 'POS', 'FEATURES'];
-
-/**
- * The tyre set in force for one driver at sessionNow (session seconds), from
- * the lap data (decision R3/R6, utils/driverState.js): the old set until the
- * pit exit, then the new one with its out-lap tyre age. null before the
- * driver's first lap.
- *
- * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
- * @param {string} driver
- * @param {number} sessionNow - session seconds, Infinity = whole race
- * @returns {{compound: string, tyreLife: number|null}|null}
- */
-export function mfdTyreInfo(lapTimes, driver, sessionNow) {
-  if (!driver || !Array.isArray(lapTimes)) return null;
-  const st = driverStateAt(lapTimes, driver, sessionNow, { dnf: false });
-  if (!st.stint) return null;
-  return {
-    compound: st.compound || 'UNKNOWN',
-    tyreLife: st.tyreLife != null ? Math.round(st.tyreLife) : null,
-  };
-}
 
 export default function DriverMFDCard() {
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);

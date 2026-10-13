@@ -2,49 +2,13 @@ import React, { useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { driverStateAt, qualifyingOrder } from '../../utils/driverState';
+import { focusDriverStatus, qualifyingPositionAt } from '../../utils/views/focusDriverWidget';
 
 function fmtTime(s) {
   if (!s || s <= 0) return '—';
   const min = Math.floor(s / 60);
   const sec = (s % 60).toFixed(3);
   return min > 0 ? `${min}:${sec.padStart(6, '0')}` : sec;
-}
-
-/**
- * Focus driver's position and tyre at sessionNow (session seconds), causal
- * (decision R6, utils/driverState.js): the position at the end of the last
- * completed lap (a lap's position is known once it is over), the tyre set in
- * force (the old set until the pit exit).
- *
- * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
- * @param {string} driver
- * @param {number} sessionNow - session seconds, Infinity = whole race
- * @returns {{position: number|null, compound: string|null, tyreLife: number|null}}
- */
-export function focusDriverStatus(lapTimes, driver, sessionNow) {
-  if (!driver || !Array.isArray(lapTimes)) return { position: null, compound: null, tyreLife: null };
-  const st = driverStateAt(lapTimes, driver, sessionNow, { dnf: false });
-  return {
-    position: st.lastCompleted?.Position || null,
-    compound: st.stint ? (st.compound || 'UNKNOWN') : null,
-    tyreLife: st.tyreLife != null ? Math.round(st.tyreLife) : null,
-  };
-}
-
-/**
- * Qualifying position of a driver at sessionNow, causal: the rank by best lap
- * completed so far (utils/driverState.js qualifyingOrder), null before the
- * driver's first timed lap. Never the final classification.
- *
- * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
- * @param {string} driver
- * @param {number} sessionNow - session seconds
- * @returns {number|null}
- */
-export function qualifyingPositionAt(lapTimes, driver, sessionNow) {
-  if (!driver) return null;
-  return qualifyingOrder(lapTimes, sessionNow).find((r) => r.driver === driver)?.position ?? null;
 }
 
 const TREND_ARROWS = { closing: '\u2191', opening: '\u2193', stable: '\u2194' };
@@ -72,7 +36,7 @@ export default function FocusDriverWidget() {
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
 
-  // Position and tyre from the lap data at sessionNow (focusDriverStatus above)
+  // Position and tyre from the lap data at sessionNow (focusDriverStatus, utils/views)
   const lapStatus = useMemo(
     () => (isQualifyingReplay ? null : focusDriverStatus(sessionData?.lap_times, focusDriver, sessionNow)),
     [sessionData, focusDriver, sessionNow, isQualifyingReplay],

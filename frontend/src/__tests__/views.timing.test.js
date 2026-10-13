@@ -14,23 +14,35 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
-import TimingTower, { timingTowerEntries } from '../components/visualizations/TimingTower.jsx';
-import LapTimeChart, { lapTimingSheet } from '../components/visualizations/LapTimeChart.jsx';
-import SectorsPanel, { sectorsPanelData } from '../components/visualizations/SectorsPanel.jsx';
-import SectorDeltaWaterfall, { sectorDeltaRows, runningOrderAt } from '../components/visualizations/SectorDeltaWaterfall.jsx';
-import ConsistencyPanel, { consistencyStats } from '../components/visualizations/ConsistencyPanel.jsx';
-import Leaderboard, { raceStandings } from '../components/visualizations/Leaderboard.jsx';
-import TrackMap, { trackMapDriverStatus } from '../components/visualizations/TrackMap.jsx';
-import RacePaceGrid, { paceGridData, paceCell } from '../components/visualizations/RacePaceGrid.jsx';
-import PositionByLap, { positionPitMarkers } from '../components/visualizations/PositionByLap.jsx';
+import TimingTower from '../components/visualizations/TimingTower.jsx';
+import LapTimeChart from '../components/visualizations/LapTimeChart.jsx';
+import SectorsPanel from '../components/visualizations/SectorsPanel.jsx';
+import SectorDeltaWaterfall from '../components/visualizations/SectorDeltaWaterfall.jsx';
+import ConsistencyPanel from '../components/visualizations/ConsistencyPanel.jsx';
+import Leaderboard from '../components/visualizations/Leaderboard.jsx';
+import TrackMap from '../components/visualizations/TrackMap.jsx';
+import RacePaceGrid from '../components/visualizations/RacePaceGrid.jsx';
+import PositionByLap from '../components/visualizations/PositionByLap.jsx';
 import RaceControlPanel from '../components/visualizations/RaceControlPanel.jsx';
-import TelemetryStrip, {
+import TelemetryStrip from '../components/visualizations/TelemetryStrip.jsx';
+import PitWallSectorPanel from '../components/ui/PitWallSectorPanel.jsx';
+import FocusDriverWidget from '../components/ui/FocusDriverWidget.jsx';
+import { timingTowerEntries } from '../utils/views/timingTower.js';
+import { lapTimingSheet } from '../utils/views/lapTimeChart.js';
+import { sectorsPanelData } from '../utils/views/sectorsPanel.js';
+import { sectorDeltaRows, runningOrderAt } from '../utils/views/sectorDeltaWaterfall.js';
+import { consistencyStats } from '../utils/views/consistencyPanel.js';
+import { raceStandings } from '../utils/views/leaderboard.js';
+import { trackMapDriverStatus } from '../utils/views/trackMap.js';
+import { paceGridData, paceCell } from '../utils/views/racePaceGrid.js';
+import { positionPitMarkers } from '../utils/views/positionByLap.js';
+import {
   telemetryReferenceLap, telemetryTargets, telemetryCards, truncateToNow, recordedExtent, inDomain,
-} from '../components/visualizations/TelemetryStrip.jsx';
-import { cumulativeLapTimes } from '../components/visualizations/LapDeltaChart.jsx';
-import PitWallSectorPanel, { pitWallSectorData } from '../components/ui/PitWallSectorPanel.jsx';
-import { mfdTyreInfo } from '../components/ui/DriverMFDCard.jsx';
-import FocusDriverWidget, { focusDriverStatus } from '../components/ui/FocusDriverWidget.jsx';
+} from '../utils/views/telemetryStrip.js';
+import { cumulativeLapTimes } from '../utils/views/lapDeltaChart.js';
+import { pitWallSectorData } from '../utils/views/pitWallSectorPanel.js';
+import { mfdTyreInfo } from '../utils/views/driverMFDCard.js';
+import { focusDriverStatus } from '../utils/views/focusDriverWidget.js';
 import { useF1Store, weatherAtSessionTime } from '../store/useF1Store.js';
 import {
   computeSessionTimeOffset, resolveSessionNow, isLapCompleted, lapStartTime,

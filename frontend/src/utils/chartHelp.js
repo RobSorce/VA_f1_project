@@ -444,6 +444,36 @@ export const CHART_HELP = {
     ],
   },
 
+  circle: {
+    title: 'Circle of Doom',
+    summary: 'One lap drawn as a circle in seconds: where every car is in time, and where the focus car would rejoin if it pitted now.',
+    howToRead: [
+      'The ring is one lap measured in seconds: the reference lap, the median of the clean green-flag laps of all drivers over the leader\'s last 5 laps (widened back until 10 laps qualify). The top is the timing line and the cars move clockwise, so the angle between two cars is their time gap.',
+      'Cars are filled with the team colour; the second car of each team has a white outline. Labels give the driver code and the gap to the focus car (+ behind, − ahead), or the laps between them (1L). Labels of cars that do not matter to the focus are dimmed.',
+      'A car selected in another view (for example clicked on the Track Map) has a red ring; with a selection and no focus, the labels of the other cars are dimmed.',
+      'Cars in the pit lane sit on the inner dashed arc. Cars lapped by the leader are drawn faded.',
+      'Click a car to focus it. The purple band runs from the car back to where it would rejoin if it pitted now; the diamond is the predicted rejoin point and the hatched arc spans the p10–p90 of the pit loss.',
+      'Next to the diamond: the probability of each rejoin position, from 1000 draws of the pit loss (a bootstrap of this race\'s measured stops). The position ranks the projected crossing of the line at the end of the out-lap against the other cars, lap by lap, as the validated rejoin rule does. When there is no room beside the diamond, the label sits a little further along the ring, joined to it by a purple leader.',
+      'In the tooltip, "Gain the place" lists the cars on the same lap behind the focus car by less than the pit loss, and "Within reach" the cars on the same lap ahead of it by less than the pit loss (they would drop behind if they pitted): the undercut threshold, which assumes equal pace. "Lapped traffic" lists the cars inside the band that are a lap down (1L) or about to lap the focus car (-1L): they never change place with it.',
+      PIT_LOSS_METHOD,
+      PIT_LOSS_FALLBACK,
+      'A "traffic" mark on the rejoin means the rejoin point is less than 1.0 s behind another car on the ring as drawn, on any lap (dirty air, DRS range). It is read again at every frame, so it follows the drawing, including a car held just before the line.',
+      'Click a car to focus it in the other views too (Track Map, Leaderboard, Timing Tower, Position Tracker, PCA panel). Hover a car to highlight it in the views that follow the highlight (Track Map, Leaderboard, Timing Tower, Lap Times, Strategy Timeline and others; the Position Tracker and the PCA views follow focus and selection only). With a focus set, hovering another car shows the time gap between the two. Centre: lap, track status, reference lap, the loss used and the focus car\'s projected place.',
+      'On lap 1, until a car crosses the line, its place comes from the last lap-1 timing point it has passed (end of sector 2), then from its grid slot; a car whose place the data leave open shows none.',
+    ],
+    limitations: [
+      'Under Safety Car or VSC the pit loss, the paces and the reference lap stay green-flag figures (no validated SC / VSC estimator yet); a car whose lap runs longer than the reference lap stops just before the line.',
+      'The other cars are assumed not to stop before the focus car completes its out-lap; the probabilities carry the pit-loss uncertainty only, not unseen rival stops or pace changes.',
+      'No pit window before the car has crossed the line for the first time (the projected place starts from its own line time), while a car still on lap 1 has not reached the end of sector 2 (a car on lap 1 is projected to the line from there, with the median last sector of the cars already across), once the leader has taken the chequered flag, nor when the out-lap would end after the car\'s own last lap (a lapped car finishes a lap or more early).',
+      'Race and sprint sessions only: there is no race pit loss in qualifying or practice.',
+    ],
+    seeAlso: [
+      { tabId: 'trackmap', label: 'Track Map' },
+      { tabId: 'strategy', label: 'Strategy Timeline' },
+      { tabId: 'positionlaps', label: 'Position Tracker' },
+    ],
+  },
+
   undercut: {
     title: 'Undercut Calculator',
     summary: 'Undercut / overcut viability calculator — projects gain or loss from pitting now vs staying out.',

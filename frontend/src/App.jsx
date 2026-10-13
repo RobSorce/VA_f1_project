@@ -50,6 +50,7 @@ import RacePaceGrid from './components/visualizations/RacePaceGrid';
 import PositionByLap from './components/visualizations/PositionByLap';
 import SectorDeltaWaterfall from './components/visualizations/SectorDeltaWaterfall';
 import UndercutCalculator from './components/visualizations/UndercutCalculator';
+import CircleOfDoom from './components/visualizations/CircleOfDoom';
 import RaceControlPanel from './components/visualizations/RaceControlPanel';
 
 // Command Palette & Keyboard
@@ -85,6 +86,8 @@ const OVERLAY_TABS = {
   compare:      { title: 'Driver Comparison',    Component: DriverComparePanel,    helpText: 'Head-to-head on two drivers: lap-time delta, sectors, consistency. Select two drivers first.' },
   positionlaps: { title: 'Position Tracker',     Component: PositionByLap,         helpText: 'Position-per-lap lines for all drivers. Hover a driver to dim the rest; click to set focus.' },
   sectordelta:  { title: 'Sector Delta',         Component: SectorDeltaWaterfall,  helpText: 'Waterfall of sector deltas — where each driver gains/loses vs the session-best. Useful for setup and circuit-map comparisons.' },
+  circle:       { title: 'Circle of Doom',       Component: CircleOfDoom,          helpText: 'One lap drawn as a circle in seconds: top = timing line, cars clockwise, angle between two cars = time gap. Click a car for its pit window: purple band back to the predicted rejoin, hatched p10–p90 arc, rejoin-position probabilities. The pit loss is measured from this race\'s green-flag stops, or labelled "fallback".' },
+  // Superseded by the Circle of Doom (not in the dock or the layouts); kept for direct opening
   undercut:     { title: 'Undercut Calculator',  Component: UndercutCalculator,    helpText: `Projects undercut/overcut viability given current pace, tyre age, pit loss, and gap to rivals. Pit loss is measured from this race's green-flag stops (in-lap + out-lap minus twice the driver's green-flag median lap; the median over stops is used). Before the first valid stop a ${FALLBACK_PIT_LOSS.median} s fallback is used, shown as "fallback".` },
   racecontrol:  { title: 'Race Control',          Component: RaceControlPanel,     helpText: 'Live race-control feed + retirements. Categorised messages (flags, DRS, safety car, penalties, stewards), filter chips, and an "out of session" sidebar populated from F1 SignalR Retired/Stopped flags.' },
 };
