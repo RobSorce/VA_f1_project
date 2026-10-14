@@ -1,1 +1,6 @@
-{"y_time_mean": 88.00652313232422, "y_time_std": 11.615918159484863}
+{
+  "y_delta_mean": -0.04566144943237305,
+  "y_delta_std": 1.3016667366027832,
+  "pit_rate": 0.13912056386470795,
+  "target": "lap time minus the last clean lap of the window, s"
+}

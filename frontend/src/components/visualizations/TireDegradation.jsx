@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, sessionScopeOf, telemetryKeySuffix } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { causalKey, fittedLapRange } from '../../utils/strategyViews';
@@ -9,6 +9,7 @@ import {
   tyreDegradationView, formatSlope, FUEL_NOTE, FIT_NOTE,
 } from '../../utils/views/degradationViews';
 import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
+import { focusForecast } from '../../utils/forecast';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
@@ -26,8 +27,10 @@ export default function TireDegradation() {
   const isLiveMode = useF1Store((s) => s.isLiveMode);
   const selectedLapRange = useF1Store((s) => s.selectedLapRange);
   const brushLapRange = useF1Store((s) => s.brushLapRange);
-  const year = useF1Store((s) => s.year);
-  const round = useF1Store((s) => s.round);
+  // The session on screen (year, round, type; 'live' for a live feed): a
+  // new session re-asks the brushed fit. The store sends that session's
+  // identity and the clock (session_now), never the year / round pills.
+  const sessionKey = useF1Store((s) => telemetryKeySuffix(sessionScopeOf(s)) || (s.isLiveMode ? 'live' : ''));
 
   // Auto-trigger degradation regression when a lap range is selected via
   // visual interaction. Debounced + min-width guarded so dragging the
@@ -39,18 +42,18 @@ export default function TireDegradation() {
   const activeRange = brushLapRange || selectedLapRange;
   useEffect(() => {
     const driver = focusDriver || selectedDrivers[0];
-    if (!activeRange || !driver || !year || !round) return;
+    if (!activeRange || !driver || !sessionKey) return;
     const [lo, hi] = activeRange;
     if (typeof lo !== 'number' || typeof hi !== 'number' || hi - lo < 4) return;
     const t = setTimeout(() => {
       fetchDegradationRegression({
-        year, round, drivers: [driver],
+        drivers: [driver],
         lap_start: lo,
         lap_end: hi,
       });
     }, 250);
     return () => clearTimeout(t);
-  }, [activeRange, focusDriver, selectedDrivers, year, round, fetchDegradationRegression]);
+  }, [activeRange, focusDriver, selectedDrivers, sessionKey, fetchDegradationRegression]);
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
   // Causal "now" (session seconds); the key changes only when a lap or a pit
@@ -94,12 +97,13 @@ export default function TireDegradation() {
     if (degradationRegression?.undercut_window) {
       return degradationRegression.undercut_window;
     }
-    if (lstmPredictions?.optimal_pit_lap) {
-      const pit = lstmPredictions.optimal_pit_lap;
+    // The forecast of the driver shown, if it is the one asked (utils/forecast.js)
+    const pit = focusForecast(lstmPredictions, driver)?.optimal_pit_lap;
+    if (Number.isFinite(pit)) {
       return [Math.max(1, pit - 3), pit + 3];
     }
     return null;
-  }, [degradationRegression, lstmPredictions]);
+  }, [degradationRegression, lstmPredictions, driver]);
 
   // Driver badge for panel header
   const driverBadge = driver ? (

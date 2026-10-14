@@ -184,7 +184,10 @@ export default function RaceControlPanel() {
     // the replay clock (start_time - sessionTimeOffset, the elapsed-time
     // capsule's clock) and placed on the leader's lap at that time
     // (utils/raceTime.js leaderLapAt, the rule of the timeline and backend).
-    // Live: wall-clock times, the lap the store stamped on arrival.
+    // Live: start_time is on the session clock too (the changes are ordered
+    // by it); the time shown is the wall clock of the change, received_at
+    // (epoch s, D13), on the clock of the race-control messages' timestamps;
+    // the lap is the leader's lap the backend / store stamped on it.
     let prev = null;
     // With the race over (Infinity) the list stops at the leader's chequered
     // flag (raceClockLimit), the reading of the flag pill.
@@ -205,7 +208,8 @@ export default function RaceControlPanel() {
         lap: isLiveMode
           ? (t.start_lap ?? null)
           : (windows.length ? leaderLapAt(windows, start) : null),
-        timestamp: isLiveMode ? (t.start_time || Date.now()) : start,
+        // live without received_at (an older backend): no wall-clock time known
+        timestamp: isLiveMode ? (t.received_at ?? null) : start,
         replayClock: isLiveMode ? null : start - sessionTimeOffset,
       });
     }

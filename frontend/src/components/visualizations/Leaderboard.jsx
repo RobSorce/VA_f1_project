@@ -7,6 +7,7 @@ import { pitStops } from '../../utils/stints';
 import { pitCountsByDriver, viewSessionType, isRaceSession } from '../../utils/strategyViews';
 import { raceStandings, qualifyingStandings } from '../../utils/views/leaderboard';
 import { battleLevel, BATTLE_BADGE_PCT, BADGE_INTERVAL_PCT } from '../../utils/simulationClient';
+import { focusForecast, forecastPit, forecastMethodLabel, FORECAST_LAPS } from '../../utils/forecast';
 import Panel from '../ui/Panel';
 
 /* ── Flag constants ─────────────────────────────────────────────────── */
@@ -69,6 +70,9 @@ export default function Leaderboard({ collapsed }) {
   const triggerPrediction = useF1Store((s) => s.triggerPrediction);
   const driversInfo = useF1Store((s) => s.drivers);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
+  // The focus driver's forecast only (utils/forecast.js)
+  const forecast = focusForecast(lstmPredictions, focusDriver);
+  const pit = forecastPit(forecast);
   const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
   // Causal "now" in session seconds (replay time + sessionTimeOffset; Infinity
   // in live mode), see utils/raceTime.js
@@ -785,17 +789,6 @@ export default function Leaderboard({ collapsed }) {
                 )}
                 <span className="tower-row__driver-name" style={d.isRetired ? { textDecoration: 'line-through', textDecorationColor: 'rgba(225,6,0,0.5)' } : undefined}>{d.abbr}</span>
                 {d.isRetired && <span className="tower-row__out-badge">OUT</span>}
-                {lstmPredictions?.driver_predictions?.[d.abbr] != null && (() => {
-                  const pred = lstmPredictions.driver_predictions[d.abbr];
-                  if (!pred) return null;
-                  const delta = pred.predicted_position_change || 0;
-                  if (delta === 0) return null;
-                  return (
-                    <span style={{ fontSize: '9px', marginLeft: 3, color: delta < 0 ? '#22c55e' : '#ef4444', fontWeight: 800 }}>
-                      {delta < 0 ? '\u25B2' : '\u25BC'}
-                    </span>
-                  );
-                })()}
                 {raceFinished && fastestLapDriver === d.abbr && (
                   <span style={{
                     fontSize: '7px', marginLeft: 4, padding: '1px 3px',
@@ -863,7 +856,10 @@ export default function Leaderboard({ collapsed }) {
       </div>
       </div>
 
-      {lstmPredictions && (
+      {/* The focus driver's forecast (double-click a row): pit probability
+          and projected pit lap, named by the methods that made them; nothing
+          when the response has none (outside a race, too few clean laps) */}
+      {forecast && (pit.probability != null || forecast.optimal_pit_lap != null) && (
         <div style={{
           padding: '4px 8px',
           background: 'rgba(255,255,255,0.04)',
@@ -872,16 +868,25 @@ export default function Leaderboard({ collapsed }) {
           color: 'rgba(255,255,255,0.6)',
           lineHeight: 1.4,
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-            <span>PIT PROB</span>
-            <span style={{ color: lstmPredictions.pit_probability > 0.5 ? '#f5a623' : '#888', fontWeight: 700 }}>
-              {(lstmPredictions.pit_probability * 100).toFixed(0)}%
-            </span>
-          </div>
-          {lstmPredictions.optimal_pit_lap && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          {pit.probability != null && (
+            <div
+              title={`${forecast.driver}: probability of a pit stop within ${FORECAST_LAPS} laps of lap ${forecast.lap}`
+                + `${pit.label ? `, by the ${pit.label}` : ''}`}
+              style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}
+            >
+              <span>{forecast.driver} PIT PROB{pit.label ? ` (${pit.label})` : ''}</span>
+              <span style={{ color: pit.probability > 0.5 ? '#f5a623' : '#888', fontWeight: 700 }}>
+                {(pit.probability * 100).toFixed(0)}%
+              </span>
+            </div>
+          )}
+          {forecast.optimal_pit_lap != null && (
+            <div
+              title={`Projected from the pit probability over the race distance; lap times by ${forecastMethodLabel(forecast)}`}
+              style={{ display: 'flex', justifyContent: 'space-between' }}
+            >
               <span>OPT PIT LAP</span>
-              <span style={{ color: '#f5a623', fontWeight: 700 }}>L{lstmPredictions.optimal_pit_lap}</span>
+              <span style={{ color: '#f5a623', fontWeight: 700 }}>L{forecast.optimal_pit_lap}</span>
             </div>
           )}
         </div>

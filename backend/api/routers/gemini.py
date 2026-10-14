@@ -2,6 +2,7 @@
 Gemini AI Strategy Integration
 Compiles race state into Gemini prompts and parses strategy responses.
 """
+import asyncio
 import os
 import json
 import logging
@@ -41,6 +42,14 @@ class GeminiRequest(BaseModel):
 # text that uses it labels it as a fallback.
 FALLBACK_PIT_LOSS_S = 22.0
 
+# Values the heuristic fallback (_mock_response) places its scenario laps
+# with when the client sent none. ASSUMPTION kept from the previous mock, not
+# data: the response text shows '?' for every value the client did not send.
+HEURISTIC_DEFAULTS = {
+    'current_lap': 20, 'max_lap': 57, 'compound': 'MEDIUM', 'pace_trend': 0.05,
+    'est_laps_to_pit': 10, 'position': 5,
+}
+
 # Session types with a race pit loss: race and sprint. Same rule as
 # isRaceSession in frontend/src/utils/pitLoss.js: a request without a type
 # counts as a race (clients that predate the field sent race context only).
@@ -70,6 +79,48 @@ def _finite(value):
         return None
     f = float(value)
     return f if math.isfinite(f) else None
+
+
+def _fmt(value, spec='', missing='?'):
+    """value formatted with spec when it is a finite number, else `missing`.
+    The client sends null for a value it does not know, and formatting None
+    with a spec raised (a 500 for the whole request)."""
+    f = _finite(value)
+    if f is None:
+        return missing
+    if spec == '' and f.is_integer():
+        return str(int(f))
+    return format(f, spec)
+
+
+def _txt(value, missing='?'):
+    """str(value), or `missing` for None / ''."""
+    return missing if value is None or value == '' else str(value)
+
+
+def _dict(value) -> dict:
+    """value when it is a dict, else {} (a null or malformed context field)."""
+    return value if isinstance(value, dict) else {}
+
+
+def _list(value) -> list:
+    """value when it is a list, else []."""
+    return value if isinstance(value, list) else []
+
+
+def _projected_position(proj) -> int | None:
+    """The finishing position of one Monte Carlo row as the Race Prediction
+    panel labels it: medianPos (the median simulated position, moved only
+    beyond the Monte Carlo error, so a same-state recompute with another seed
+    keeps it; decision D5). The rounded mean (expectedPos) only for a client
+    that sends no medianPos: the mean moves on Monte Carlo noise alone, so a
+    card derived from it changed between two seeds of the same state."""
+    proj = _dict(proj)
+    median = _finite(proj.get('medianPos'))
+    if median is not None:
+        return int(round(median))
+    expected = _finite(proj.get('expectedPos'))
+    return int(round(expected)) if expected is not None else None
 
 
 def _pit_loss_info(race_params) -> dict:
@@ -155,110 +206,124 @@ def _build_prompt(request: GeminiRequest) -> str:
         )
     parts.append("")
 
-    ctx = request.race_context or {}
+    # Every context field may be null or missing (the client sends null for
+    # what it does not know): read through _dict / _list / _fmt / _txt
+    ctx = _dict(request.race_context)
 
     # Race header
     if request.year:
-        parts.append(f"Race: {request.year} Round {request.round}")
+        parts.append(f"Race: {request.year} Round {_txt(request.round)}")
     if request.session_type:
         parts.append(f"Session type: {_session_type_name(request.session_type)}")
-    lap = request.current_lap or ctx.get('currentLap')
-    max_lap = ctx.get('maxLap')
+    lap = _finite(request.current_lap) or _finite(ctx.get('currentLap'))
+    max_lap = _finite(ctx.get('maxLap'))
     if lap:
-        remaining = f", {max_lap - lap} laps remaining" if max_lap and max_lap > lap else ""
-        parts.append(f"Current Lap: {lap}/{max_lap or '?'}{remaining}")
+        remaining = f", {_fmt(max_lap - lap)} laps remaining" if max_lap and max_lap > lap else ""
+        parts.append(f"Current Lap: {_fmt(lap)}/{_fmt(max_lap)}{remaining}")
     focus = ctx.get('focusDriver')
-    selected = ctx.get('selectedDrivers') or request.drivers or []
+    selected = _list(ctx.get('selectedDrivers')) or _list(request.drivers)
     if focus:
         parts.append(f"Focus Driver: {focus}")
     if selected:
-        parts.append(f"Selected Drivers: {', '.join(selected)}")
+        parts.append(f"Selected Drivers: {', '.join(_txt(d) for d in selected)}")
 
     # Session & weather
-    if ctx.get('session'):
+    if _dict(ctx.get('session')):
         s = ctx['session']
-        parts.append(f"\n## Session: {s.get('EventName', '?')} — {s.get('SessionName', '?')}")
-    if ctx.get('weather'):
+        parts.append(f"\n## Session: {_txt(s.get('EventName'))} — {_txt(s.get('SessionName'))}")
+    if _dict(ctx.get('weather')):
         w = ctx['weather']
-        parts.append(f"Weather: {w.get('AirTemp', '?')}°C air, {w.get('TrackTemp', '?')}°C track, "
-                      f"rain {w.get('Rainfall', 'no')}, humidity {w.get('Humidity', '?')}%")
+        parts.append(f"Weather: {_fmt(w.get('AirTemp'))}°C air, {_fmt(w.get('TrackTemp'))}°C track, "
+                      f"rain {_txt(w.get('Rainfall'), 'no')}, humidity {_fmt(w.get('Humidity'))}%")
 
     # Driver features (live PCA-derived)
-    if ctx.get('driverFeatures'):
+    if _dict(ctx.get('driverFeatures')):
         parts.append("\n## Driver State (live features)")
         for drv, feats in ctx['driverFeatures'].items():
-            compound = feats.get('compoundName', '?')
+            feats = _dict(feats)
             parts.append(
-                f"  {drv}: P{feats.get('position','?')}, "
-                f"pace {feats.get('recentPace', 0):.1f}s, "
-                f"tyre {compound} (age {feats.get('tyreLife', '?')} laps), "
-                f"trend {feats.get('paceTrend', 0):+.2f}s/lap, "
-                f"est. {feats.get('estLapsToPit', '?')} laps to pit"
+                f"  {drv}: P{_fmt(feats.get('position'))}, "
+                f"pace {_fmt(feats.get('recentPace'), '.1f')}s, "
+                f"tyre {_txt(feats.get('compoundName'))} (age {_fmt(feats.get('tyreLife'))} laps), "
+                f"trend {_fmt(feats.get('paceTrend'), '+.2f')}s/lap, "
+                f"est. {_fmt(feats.get('estLapsToPit'))} laps to pit"
             )
 
     # Recent lap times
-    if ctx.get('recentLaps'):
+    if _list(ctx.get('recentLaps')):
         parts.append(f"\n## Recent Laps ({focus or '?'})")
-        for lt in ctx['recentLaps']:
+        for lt in map(_dict, ctx['recentLaps']):
             sectors = ""
-            if lt.get('s1') and lt.get('s2') and lt.get('s3'):
+            if all(_finite(lt.get(k)) is not None for k in ('s1', 's2', 's3')):
                 sectors = f" [S1:{lt['s1']:.1f} S2:{lt['s2']:.1f} S3:{lt['s3']:.1f}]"
             parts.append(
-                f"  L{lt['lap']}: {lt['time']:.3f}s on {lt.get('compound','?')} "
-                f"(tyre age {lt.get('tyreLife','?')}){sectors}"
+                f"  L{_fmt(lt.get('lap'))}: {_fmt(lt.get('time'), '.3f')}s on {_txt(lt.get('compound'))} "
+                f"(tyre age {_fmt(lt.get('tyreLife'))}){sectors}"
             )
 
     # Tyre strategy history
-    if ctx.get('tyreStrategy'):
+    if _dict(ctx.get('tyreStrategy')):
         parts.append("\n## Tyre Strategy (stints completed)")
         for drv, stints in ctx['tyreStrategy'].items():
             stint_str = " → ".join(
-                f"{s['compound']}(L{s['startLap']}, {s['length']}laps)" for s in stints
+                f"{_txt(s.get('compound'))}(L{_fmt(s.get('startLap'))}, {_fmt(s.get('length'))}laps)"
+                for s in map(_dict, _list(stints))
             )
             parts.append(f"  {drv}: {stint_str}")
 
-    # LSTM predictions
-    if ctx.get('lstm'):
+    # Lap-time forecast of the focus driver (context key 'lstm'): named by the
+    # method that made it (the method chosen on the validation races, not
+    # always the LSTM), each time at its target lap, with its held-out MAE
+    if _dict(ctx.get('lstm')):
         lstm = ctx['lstm']
-        parts.append(f"\n## LSTM Predictions ({lstm.get('driver', '?')})")
-        if lstm.get('predictedTimes'):
-            for i, t in enumerate(lstm['predictedTimes']):
-                parts.append(f"  Lap +{i+1}: {t:.3f}s")
-        if lstm.get('pitProbability') is not None:
-            parts.append(f"  Pit probability: {lstm['pitProbability']*100:.0f}%")
+        method = _txt(lstm.get('methodLabel') or lstm.get('method'), 'LSTM')
+        origin = _finite(lstm.get('originLap'))
+        since = f", from lap {int(origin)}" if origin is not None else ""
+        parts.append(f"\n## Lap-time forecast ({_txt(lstm.get('driver'))}, method: {method}{since})")
+        targets = _list(lstm.get('targetLaps'))
+        for i, t in enumerate(_list(lstm.get('predictedTimes'))):
+            lap = _finite(targets[i]) if i < len(targets) else None
+            parts.append(f"  Lap {int(lap)}: {_fmt(t, '.3f')}s" if lap is not None else f"  Lap +{i+1}: {_fmt(t, '.3f')}s")
+        mae = _finite(lstm.get('heldOutMae'))
+        if mae is not None:
+            parts.append(f"  Held-out MAE of this method: {mae:.3f}s per lap")
+        pit_prob = _finite(lstm.get('pitProbability'))
+        if pit_prob is not None:
+            parts.append(f"  Pit probability: {pit_prob*100:.0f}%")
     elif request.lstm_predictions:
         parts.append("\n## LSTM Lap Time Predictions")
         parts.append(json.dumps(request.lstm_predictions, default=str, indent=2))
 
     # Monte Carlo projections
-    if ctx.get('monteCarloProjections'):
+    if _list(ctx.get('monteCarloProjections')):
         # the run count the frontend used (raceProjection.numSimulations); no
         # count is printed when an older client sends none
         n_sims = _finite(ctx.get('monteCarloSimulations'))
         runs = f" ({int(n_sims):,} simulations)" if n_sims and n_sims > 0 else ""
         parts.append(f"\n## Monte Carlo Race Predictions{runs}")
-        for p in ctx['monteCarloProjections']:
-            exp = p.get('expectedPos', '?')
-            exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
-            r = p.get('posRange', ['?', '?'])
+        for p in map(_dict, ctx['monteCarloProjections']):
+            r = _list(p.get('posRange')) + [None, None]
+            # the panel's finishing position (medianPos), then the mean
+            projected = (f"Projected P{_fmt(p.get('medianPos'))}, "
+                         if _finite(p.get('medianPos')) is not None else "")
             parts.append(
-                f"  {p['driver']}: P{p.get('currentPos','?')} → "
-                f"Expected P{exp_str} (range P{r[0]}-P{r[1]}), "
-                f"Podium: {p.get('podiumProb', 0)}%, Points: {p.get('pointsProb', 0)}%"
+                f"  {_txt(p.get('driver'))}: P{_fmt(p.get('currentPos'))} → {projected}"
+                f"Expected P{_fmt(p.get('expectedPos'), '.1f')} (range P{_fmt(r[0])}-P{_fmt(r[1])}), "
+                f"Podium: {_fmt(p.get('podiumProb'))}%, Points: {_fmt(p.get('pointsProb'))}%"
             )
-    if ctx.get('battles'):
+    if _list(ctx.get('battles')):
         parts.append("\n## Battles (overtake probabilities)")
-        for b in ctx['battles']:
+        for b in map(_dict, ctx['battles']):
             parts.append(
-                f"  {b.get('driver2','?')} vs {b.get('driver1','?')}: "
-                f"{b.get('overtakeProb', 0)}% swap ({b.get('type', '')})"
+                f"  {_txt(b.get('driver2'))} vs {_txt(b.get('driver1'))}: "
+                f"{_fmt(b.get('overtakeProb'))}% swap ({_txt(b.get('type'), '')})"
             )
-    if ctx.get('risks'):
+    if _list(ctx.get('risks')):
         parts.append("\n## Risk Alerts")
-        for r in ctx['risks']:
+        for r in map(_dict, ctx['risks']):
             parts.append(
-                f"  [{r.get('severity','?').upper()}] {r.get('driver','?')}: "
-                f"{r.get('description', r.get('message', ''))}"
+                f"  [{_txt(r.get('severity')).upper()}] {_txt(r.get('driver'))}: "
+                f"{_txt(r.get('description') or r.get('message'), '')}"
             )
 
     # Race parameters (pit loss in race sessions only)
@@ -278,21 +343,21 @@ def _build_prompt(request: GeminiRequest) -> str:
         parts.append(f"\n## Tyre Degradation: {json.dumps(deg, default=str)}")
 
     # Simulator what-if
-    if ctx.get('simulator'):
+    if _dict(ctx.get('simulator')):
         sim = ctx['simulator']
         parts.append(f"\n## Strategy Simulator Result")
-        parts.append(f"  Custom strategy → P{sim.get('customPos', '?')}")
-        parts.append(f"  Baseline → P{sim.get('baselinePos', '?')}")
-        parts.append(f"  Delta: {sim.get('delta', '?')}")
+        parts.append(f"  Custom strategy → P{_txt(sim.get('customPos'))}")
+        parts.append(f"  Baseline → P{_txt(sim.get('baselinePos'))}")
+        parts.append(f"  Delta: {_txt(sim.get('delta'))}")
 
     # PCA strategy patterns
-    if ctx.get('pcaPatterns'):
+    if _list(ctx.get('pcaPatterns')):
         parts.append(f"\n## Historical Strategy Patterns (PCA cluster analysis)")
         for i, pat in enumerate(ctx['pcaPatterns']):
             parts.append(f"  Pattern {i+1}: {json.dumps(pat, default=str)}")
 
     # Rival context
-    if ctx.get('rivals'):
+    if _list(ctx.get('rivals')):
         parts.append(f"\n## Rival Context")
         for r in ctx['rivals']:
             parts.append(f"  {json.dumps(r, default=str)}")
@@ -333,21 +398,27 @@ def _parse_gemini_response(text: str) -> dict:
 
 
 def _mock_response(request: GeminiRequest) -> dict:
-    """Generate a context-aware mock strategy response from race data."""
+    """Heuristic strategy response from the race context the client sent
+    (the fallback when Gemini cannot be called: rules on the pace trend and
+    the estimated laps to the stop, not a model and not Gemini).
+
+    Every context value may be null or missing: the text shows '?' for a
+    value the client did not send, and the scenario laps are placed with
+    HEURISTIC_DEFAULTS instead."""
+    D = HEURISTIC_DEFAULTS
     driver = request.drivers[0] if request.drivers else 'VER'
-    current_lap = request.current_lap or 20
     query = request.query.lower()
-    ctx = request.race_context or {}
+    ctx = _dict(request.race_context)
 
     # Extract race context
-    projections = ctx.get('monteCarloProjections', [])
-    battles = ctx.get('battles', [])
-    risks = ctx.get('risks', [])
-    features = ctx.get('driverFeatures', {})
-    race_params = ctx.get('raceParams') or {}
+    projections = [_dict(p) for p in _list(ctx.get('monteCarloProjections'))]
+    battles = [_dict(b) for b in _list(ctx.get('battles'))]
+    risks = [_dict(r) for r in _list(ctx.get('risks'))]
+    features = _dict(ctx.get('driverFeatures'))
+    race_params = _dict(ctx.get('raceParams'))
 
-    drv_feats = features.get(driver, {})
-    drv_proj = next((p for p in projections if p['driver'] == driver), None) if projections else None
+    drv_feats = _dict(features.get(driver))
+    drv_proj = next((p for p in projections if p.get('driver') == driver), None)
     # Pit loss: the race median when the client measured one, else a labelled fallback
     pit_info = _pit_loss_info(race_params)
     pit_loss = pit_info['value'] if pit_info['value'] is not None else FALLBACK_PIT_LOSS_S
@@ -360,27 +431,40 @@ def _mock_response(request: GeminiRequest) -> dict:
     # The pit loss appears in race sessions only (none in qualifying / practice)
     is_race = _is_race_session(request.session_type)
     pit_loss_note = f" Pit loss: {pit_loss_str}." if is_race else ""
-    max_lap = ctx.get('maxLap') or 57
 
-    # Current driver state
-    compound = drv_feats.get('compoundName', 'MEDIUM')
-    tyre_age = drv_feats.get('tyreLife', 15)
-    pace_trend = drv_feats.get('paceTrend', 0.05)
-    est_pit = drv_feats.get('estLapsToPit', 10)
-    position = drv_feats.get('position', 5)
-    recent_pace = drv_feats.get('recentPace', 92.0)
+    def value(raw, default):
+        f = _finite(raw)
+        return f if f is not None else default
+
+    current_lap = int(value(request.current_lap, D['current_lap']))
+    max_lap = int(value(ctx.get('maxLap'), D['max_lap']))
+
+    # Current driver state: the values computed with, and as shown
+    compound_sent = drv_feats.get('compoundName') if isinstance(drv_feats.get('compoundName'), str) else None
+    compound = compound_sent or D['compound']
+    pace_trend = value(drv_feats.get('paceTrend'), D['pace_trend'])
+    est_pit = int(round(value(drv_feats.get('estLapsToPit'), D['est_laps_to_pit'])))
+    position = int(value(drv_feats.get('position'), D['position']))
+    show_compound = _txt(compound_sent)
+    show_age = _fmt(drv_feats.get('tyreLife'))
+    show_trend = _fmt(drv_feats.get('paceTrend'), '+.2f')
+    show_est = _fmt(drv_feats.get('estLapsToPit'))
+    show_pos = _fmt(drv_feats.get('position'))
+    show_pace = _fmt(drv_feats.get('recentPace'), '.1f')
+    show_lap = _fmt(request.current_lap)
     laps_remaining = max(max_lap - current_lap, 10)
 
-    # Current projected position
+    # Current projected position: the panel's P label (_projected_position),
+    # so every card below agrees with the panel and holds on a reseed
     cur_proj_pos = position
     if drv_proj:
-        cur_proj_pos = drv_proj.get('expectedPos', position)
-        if isinstance(cur_proj_pos, float):
-            cur_proj_pos = round(cur_proj_pos)
+        projected = _projected_position(drv_proj)
+        if projected is not None:
+            cur_proj_pos = projected
 
     # ── Strategy comparison (primary use case) ──
     if 'compare' in query or 'strategy' in query or 'option' in query or 'optimal' in query or 'best' in query:
-        # Build 3 data-driven strategies based on current state
+        # Three heuristic strategies from the current state
         pit_lap_early = current_lap + max(2, min(est_pit - 3, 5))
         pit_lap_std = current_lap + max(5, min(est_pit, 12))
         pit_lap_late = current_lap + max(10, min(est_pit + 5, laps_remaining - 8))
@@ -416,15 +500,15 @@ def _mock_response(request: GeminiRequest) -> dict:
         ]
 
         text = (
-            f"STRATEGY ANALYSIS — {driver} at Lap {current_lap}\n\n"
-            f"Current: P{position}, {compound} tyres ({tyre_age} laps), "
-            f"pace {recent_pace:.1f}s, trend {pace_trend:+.2f}s/lap.\n"
-            f"Estimated tyre life remaining: ~{est_pit} laps.{pit_loss_note}\n\n"
+            f"STRATEGY ANALYSIS — {driver} at Lap {show_lap}\n\n"
+            f"Current: P{show_pos}, {show_compound} tyres ({show_age} laps), "
+            f"pace {show_pace}s, trend {show_trend}s/lap.\n"
+            f"Estimated tyre life remaining: ~{show_est} laps.{pit_loss_note}\n\n"
         )
 
         if pace_trend > 0.08:
             text += (
-                f"RECOMMENDATION: Tyres are degrading significantly ({pace_trend:+.2f}s/lap). "
+                f"RECOMMENDATION: Tyres are degrading significantly ({show_trend}s/lap). "
                 f"Early pit (Strategy B) recommended to undercut rivals. "
                 f"Pit window: laps {pit_lap_early}-{pit_lap_early + 2}.\n"
             )
@@ -443,8 +527,8 @@ def _mock_response(request: GeminiRequest) -> dict:
         if battles:
             b = battles[0]
             text += (
-                f"\nBattle factor: {b.get('driver2', '?')} vs {b.get('driver1', '?')} — "
-                f"{b.get('overtakeProb', 0)}% position swap probability."
+                f"\nBattle factor: {_txt(b.get('driver2'))} vs {_txt(b.get('driver1'))} — "
+                f"{_fmt(b.get('overtakeProb'))}% position swap probability."
             )
 
         scenarios = [
@@ -492,16 +576,16 @@ def _mock_response(request: GeminiRequest) -> dict:
         if pace_trend > 0.05:
             recommendation = "UNDERCUT"
             text = (
-                f"UNDERCUT RECOMMENDED — {driver}, Lap {current_lap}\n\n"
-                f"Degradation: {pace_trend:+.2f}s/lap on {compound} (age {tyre_age}).\n"
+                f"UNDERCUT RECOMMENDED — {driver}, Lap {show_lap}\n\n"
+                f"Degradation: {show_trend}s/lap on {show_compound} (age {show_age}).\n"
                 f"Pit lap {pit_now} for {next_compound}.{pit_loss_note}\n"
                 f"Expected to gain track position during rivals' stops."
             )
         else:
             recommendation = "OVERCUT"
             text = (
-                f"OVERCUT VIABLE — {driver}, Lap {current_lap}\n\n"
-                f"Tyres performing well ({pace_trend:+.2f}s/lap). Stay out.\n"
+                f"OVERCUT VIABLE — {driver}, Lap {show_lap}\n\n"
+                f"Tyres performing well ({show_trend}s/lap). Stay out.\n"
                 f"Extend to lap {pit_late}, gain time while others pit.\n"
                 f"{pit_loss_note.strip()}"
             )
@@ -536,16 +620,16 @@ def _mock_response(request: GeminiRequest) -> dict:
     # ── Pit now or extend ──
     elif 'pit' in query and ('now' in query or 'extend' in query):
         text = (
-            f"PIT DECISION — {driver}, Lap {current_lap}\n\n"
-            f"Current: {compound} (age {tyre_age}), pace trend {pace_trend:+.2f}s/lap.\n"
-            f"Est. remaining tyre life: {est_pit} laps.{pit_loss_note}\n\n"
+            f"PIT DECISION — {driver}, Lap {show_lap}\n\n"
+            f"Current: {show_compound} (age {show_age}), pace trend {show_trend}s/lap.\n"
+            f"Est. remaining tyre life: {show_est} laps.{pit_loss_note}\n\n"
         )
         if est_pit <= 3 or pace_trend > 0.1:
             text += "BOX BOX BOX. Tyres are done. Pit this lap or next."
         elif est_pit <= 6:
             text += f"Pit window is open. Target lap {current_lap + 2}-{current_lap + 4}."
         else:
-            text += f"Stay out. Tyres have {est_pit} laps remaining. Monitor pace."
+            text += f"Stay out. Tyres have {show_est} laps remaining (estimate). Monitor pace."
 
         pit_lap = current_lap + 1
         extend_lap = current_lap + est_pit
@@ -579,16 +663,16 @@ def _mock_response(request: GeminiRequest) -> dict:
 
     # ── Battle / overtake / defend ──
     elif 'attack' in query or 'defend' in query or 'overtake' in query or 'battle' in query or ' vs ' in query:
-        text = f"BATTLE ANALYSIS — {driver}, Lap {current_lap}\n\n"
+        text = f"BATTLE ANALYSIS — {driver}, Lap {show_lap}\n\n"
         if battles:
             for b in battles[:3]:
                 text += (
-                    f"{b.get('driver2', '?')} vs {b.get('driver1', '?')}: "
-                    f"{b.get('overtakeProb', 0)}% swap probability "
-                    f"({b.get('type', '')})\n"
+                    f"{_txt(b.get('driver2'))} vs {_txt(b.get('driver1'))}: "
+                    f"{_fmt(b.get('overtakeProb'))}% swap probability "
+                    f"({_txt(b.get('type'), '')})\n"
                 )
             top = battles[0]
-            if top.get('overtakeProb', 0) >= 50:
+            if (_finite(top.get('overtakeProb')) or 0) >= 50:
                 text += f"\nPUSH NOW — high probability of success. Use tyre advantage."
             else:
                 text += f"\nHOLD POSITION — manage tyres, use pit strategy to gain."
@@ -598,11 +682,11 @@ def _mock_response(request: GeminiRequest) -> dict:
 
     # ── Risk / mitigate ──
     elif 'risk' in query or 'mitigate' in query:
-        text = f"RISK ASSESSMENT — {driver}, Lap {current_lap}\n\n"
+        text = f"RISK ASSESSMENT — {driver}, Lap {show_lap}\n\n"
         if risks:
             for r in risks[:3]:
-                sev = r.get('severity', 'low').upper()
-                text += f"[{sev}] {r.get('driver', '?')}: {r.get('description', r.get('message', ''))}\n"
+                sev = _txt(r.get('severity'), 'low').upper()
+                text += f"[{sev}] {_txt(r.get('driver'))}: {_txt(r.get('description') or r.get('message'), '')}\n"
             high = [r for r in risks if r.get('severity') == 'high']
             text += f"\nMitigation: {'Early pit recommended.' if high else 'Monitor — no immediate action needed.'}"
         else:
@@ -611,17 +695,17 @@ def _mock_response(request: GeminiRequest) -> dict:
 
     # ── General / fallback ──
     else:
-        text = f"STRATEGY BRIEFING — {driver}, Lap {current_lap}\n\n"
-        text += f"P{position}, {compound} tyres (age {tyre_age}), pace {recent_pace:.1f}s, trend {pace_trend:+.2f}s/lap.\n"
+        text = f"STRATEGY BRIEFING — {driver}, Lap {show_lap}\n\n"
+        text += f"P{show_pos}, {show_compound} tyres (age {show_age}), pace {show_pace}s, trend {show_trend}s/lap.\n"
         if drv_proj:
-            exp = drv_proj.get('expectedPos', '?')
-            exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
-            text += f"MC projection: P{exp_str}, podium {drv_proj.get('podiumProb', 0)}%.\n"
-        text += f"Est. laps to pit: {est_pit}.{pit_loss_note}\n\n"
+            exp_str = _fmt(drv_proj.get('expectedPos'), '.1f')
+            text += (f"MC projection: P{_fmt(_projected_position(drv_proj))} (mean P{exp_str}), "
+                     f"podium {_fmt(drv_proj.get('podiumProb'))}%.\n")
+        text += f"Est. laps to pit: {show_est}.{pit_loss_note}\n\n"
 
         if battles:
             b = battles[0]
-            text += f"Battle: {b.get('driver2','?')} vs {b.get('driver1','?')} ({b.get('overtakeProb',0)}% swap)\n"
+            text += f"Battle: {_txt(b.get('driver2'))} vs {_txt(b.get('driver1'))} ({_fmt(b.get('overtakeProb'))}% swap)\n"
 
         pit_target = current_lap + max(3, min(est_pit, 10))
         next_compound = 'HARD' if compound in ('SOFT', 'MEDIUM') else 'MEDIUM'
@@ -646,31 +730,52 @@ def _mock_response(request: GeminiRequest) -> dict:
     return result
 
 
+# Gemini model of the strategy endpoint
+GEMINI_MODEL = 'gemini-2.0-flash'
+
+
+def _gemini_text(api_key: str, prompt: str):
+    """The blocking Gemini call (SDK client + generate_content): run in a
+    worker thread by the endpoint, never on the event loop (it held every
+    other request and the live WebSocket for the length of the call)."""
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+    return getattr(response, 'text', None)
+
+
+def _heuristic_fallback(request: GeminiRequest, reason: str) -> dict:
+    """The heuristic response (_mock_response) labelled as such: the text
+    starts with '[Heuristic fallback, not Gemini: <reason>]' and the fields
+    say it (is_mock, is_heuristic, fallback = 'heuristic', fallback_reason)."""
+    mock = _mock_response(request)
+    mock['response'] = f"[Heuristic fallback, not Gemini: {reason}]\n\n{mock['response']}"
+    mock['is_mock'] = True
+    mock['is_heuristic'] = True
+    mock['fallback'] = 'heuristic'
+    mock['fallback_reason'] = reason
+    return mock
+
+
 @router.post("/strategy")
 async def gemini_strategy(request: GeminiRequest):
-    """Query Gemini for strategy analysis with visual overlay data."""
+    """Query Gemini for strategy analysis with visual overlay data; the
+    labelled heuristic fallback when Gemini cannot answer."""
     api_key = os.environ.get('GEMINI_API_KEY', '')
 
-    if GEMINI_AVAILABLE and api_key:
-        try:
-            client = genai.Client(api_key=api_key)
-            prompt = _build_prompt(request)
-            response = client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt,
-            )
-            result = _parse_gemini_response(response.text)
-            result['is_mock'] = False
-            return result
-        except Exception as e:
-            logger.error(f"Gemini API error: {e}")
-            mock = _mock_response(request)
-            mock['response'] = f"[Gemini API unavailable — data-driven fallback]\n\n{mock['response']}"
-            return mock
-    else:
-        mock = _mock_response(request)
-        if not api_key:
-            mock['response'] = f"[Gemini AI not configured — set GEMINI_API_KEY in backend/.env]\n\n{mock['response']}"
-        elif not GEMINI_AVAILABLE:
-            mock['response'] = f"[google-genai not installed — using data-driven fallback]\n\n{mock['response']}"
-        return mock
+    if not api_key:
+        return _heuristic_fallback(request, 'Gemini AI not configured, set GEMINI_API_KEY in backend/.env')
+    if not GEMINI_AVAILABLE:
+        return _heuristic_fallback(request, 'google-genai not installed')
+    try:
+        prompt = _build_prompt(request)
+        text = await asyncio.to_thread(_gemini_text, api_key, prompt)
+        if not text:
+            raise ValueError('Gemini returned no text')
+        result = _parse_gemini_response(text)
+        result['is_mock'] = False
+        result['is_heuristic'] = False
+        result['fallback'] = None
+        return result
+    except Exception as e:
+        logger.error(f"Gemini API error: {e}")
+        return _heuristic_fallback(request, 'Gemini API unavailable')

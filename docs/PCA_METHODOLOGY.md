@@ -1,81 +1,75 @@
 # PCA Methodology
 
-## 1. The Feature Space
+The dashboard uses PCA twice:
 
-Each data point in the PCA biplot represents one (driver, race) pair. The feature matrix is built from historical session data cached in `backend/data/processed_cache/session_*_R.json`.
+- the **cross-race biplot** (Analytics tab, `PCABiplot.jsx`): one point per (driver, race) of the cached races, fitted in the backend (`backend/data/processors/pca_compute.py`);
+- the **Race Situation Map** (`RaceSituationMap.jsx`): one point per driver at the current lap of the race on screen, fitted in the browser every lap (`frontend/src/utils/livePCA.js`).
 
-**17 features per observation:**
+Every number below is a script output saved under `notes/experiments/phase67/` or `notes/experiments/phase7b/` (file named next to it).
+
+## 1. The cross-race feature space
+
+Each point is one (driver, race) row of the cached race sessions (`backend/data/processed_cache/session_*_R.json`). A row enters the matrix when the driver completed at least 90% of the race leader's laps and has at least 5 clean laps (both are named assumptions in `pca_compute.py`, `MIN_LAP_SHARE` and `MIN_CLEAN_LAPS`). The matrix has **534 rows from 30 cached races**; 64 (driver, race) pairs are left out by the lap-share rule (`pca_rebuild.txt`).
+
+**12 features per row** (`pca_compute.py` `FEATURE_COLS`; laps, stints and stops use the shared definitions of `data/processors/stints.py` and `data/processors/degradation.py`):
 
 | Feature | Description | Unit |
-|---------|------------|------|
-| `avg_lap_time` | Mean lap time across the race | s |
-| `std_lap_time` | Standard deviation of lap times (consistency) | s |
-| `best_lap_time` | Fastest single lap | s |
-| `avg_sector1` | Mean sector 1 time | s |
-| `avg_sector2` | Mean sector 2 time | s |
-| `avg_sector3` | Mean sector 3 time | s |
-| `pit_count` | Number of pit stops | count |
-| `stint_count` | Number of tyre stints | count |
-| `avg_stint_length` | Mean laps per stint | laps |
-| `max_stint_length` | Longest stint in the race | laps |
-| `degradation_rate` | Tyre degradation slope (lap time vs tyre life) | %/lap |
-| `grid_position` | Qualifying-determined starting position | rank |
-| `gap_to_leader_mean` | Average gap to race leader | s |
-| `rolling_pace_3` | Rolling pace over last 3 laps | s |
-| `rolling_pace_5` | Rolling pace over last 5 laps | s |
-| `track_temp` | Track surface temperature | C |
-| `air_temp` | Ambient air temperature | C |
+|---------|-------------|------|
+| `pace_delta_pct` | Mean fuel-corrected clean-lap time, relative to the median of the same race's rows | % |
+| `best_lap_delta_pct` | Fastest clean lap, relative to the race median | % |
+| `recent_pace_delta_pct` | Mean fuel-corrected time of the last `RECENT_LAPS` clean laps (an assumption in `pca_compute.py`), relative to the race median | % |
+| `sector1_delta_pct`, `sector2_delta_pct`, `sector3_delta_pct` | Mean sector time over the clean laps, relative to the race median | % |
+| `consistency_pct` | Pooled residual sigma of the per-stint fits, as a percent of the driver's mean clean lap | % |
+| `degradation_slope` | Lap-weighted mean of the per-stint tyre-age slopes (fuel-corrected) | s/lap |
+| `pit_count` | Pit stops (tyre changes, decision R2) | count |
+| `avg_stint_length`, `max_stint_length` | Laps of the stints | laps |
+| `grid_position` | Starting position (a pit-lane start counts as the back of the grid) | rank |
 
-**Removed features (data leakage):**
-- `finish_position`: directly encodes the race outcome, making PC1 trivially equal to finishing order.
-- `position_change`: derived from finish_position minus grid_position.
-- `fuel_corrected_pace`: always NaN from disk cache; excluded.
+Pace and sector features are relative to the field of the same race, so the circuit (lap length, weather) does not enter the PCA. Not features: the stint count (equal to stops + 1), the track and air temperatures (constant within a race: pure race identity), absolute lap and sector times (circuit length), and the outcome (finishing position, position change, gap to the leader). The finishing position is kept only as point metadata, for the colour and the tooltip of post-race rows.
 
-All features are standardized (zero mean, unit variance) before PCA is applied.
+All features are standardized (zero mean, unit variance) before PCA.
 
-## 2. Why PCA and Not t-SNE
+**What the first two components capture** (`pca_rebuild.txt`, `pca_diagnostic.txt`): PC1 44.1% and PC2 20.3% of the variance (64.5% together). PC1 is the pace axis (the six pace and sector features and the grid position load 0.33 to 0.42 on it) and is nearly free of race identity (eta-squared of the race 0.028); PC2 is the stint axis (average stint length 0.602, pit stops -0.562, longest stint 0.519), and the race explains 0.558 of its variance, since stop counts and stint lengths depend on the circuit.
 
-Four reasons specific to this project:
+## 2. Why PCA and not t-SNE
 
-1. **Interpretability via loadings.** PCA produces eigenvectors that we draw as biplot arrows. The strategist can read "PC1 is dominated by pace features, PC2 by tyre-life features" directly from the arrow directions. t-SNE has no such mapping: its axes are meaningless, and there are no loadings to display.
+1. **Interpretability via loadings.** PCA produces eigenvectors that we draw as biplot arrows; the strategist can read "PC1 is pace, PC2 is stints and stops" directly from the arrows. t-SNE has no such mapping: its axes are meaningless, and there are no loadings to display.
 
-2. **Deterministic, stable axes.** PCA with a frozen basis (see `frontend/src/utils/livePCA.js`, `WARMUP_LAPS = 8`) produces stable axes that do not rotate between lap updates. After 8 warmup laps the eigenvectors and standardization parameters are frozen; subsequent updates only project new data onto the fixed axes. t-SNE is stochastic and would produce different layouts on every recomputation, making live strategy tracking during a race impossible.
+2. **Deterministic, comparable axes.** PCA is deterministic: the same rows always give the same biplot. The live map is refitted every lap on the current means, SDs and eigenvectors of the field, so each axis label is the share of the variance that axis captures at that lap and the crosshair is the current field mean. To keep the map continuous from lap to lap, the new top-two eigenvectors are turned inside their own plane onto the previous lap's axes (orthogonal Procrustes, `livePCA.js` `LIVE_PCA_ALIGN = 'rotation'`); points and loading arrows use the same turned basis, and the map draws one arrow per input in the fit (`ARROW_COUNT`), so every dot sits at the field mean plus its standardized features times the arrows drawn. On every lap of the 30 cached races (1720 laps) the dots drawn match that sum to within 6.02e-14 PC units and their mean is the crosshair (`pca_repair_check.txt`, section 2; with the arrows the map draws, 0 laps leave an input without its arrow, `live_pca_rewind.txt`, section 4). During a replay the previous lap's axes are those a replay from the first lap draws (`raceSituationReference.js`: every lap fitted at its lap clock and turned onto the lap before), never whatever was computed last, so a lap is drawn the same whether it is reached by playing, a seek or a rewind: over 1690 one-lap steps back on the 30 cached races the lap stepped to is drawn as the forward pass drew it (largest mean dot distance 0.00e+0 PC units; turned > 45 deg or reflected 0 of 1690), and a step back moves the dots as much as a step forward (median 0.56, max 1.98 PC units; `live_pca_rewind.txt`, sections 1 to 3). Live, where the clock only moves forward, the previous computation is the reference. Compared with aligning only the signs of the eigenvectors, the rotation lowers the largest lap-to-lap mean move of the points from 3.26 to 1.98 PC units (median 0.65 to 0.56); on Monza 2024 lap 42, where the two leading eigenvalues are close and the principal axes turn inside their plane, the mean move is 0.47 instead of 2.67 (`pca_repair_check.txt`, section 3). The price: the displayed axes are an orthonormal basis of the PC1-PC2 plane rather than PC1 and PC2 themselves (median angle between axis 1 and PC1 22.6 degrees; the two axes together always capture PC1 + PC2, `pca_repair_check.txt`, section 4), so the map titles them "Axis 1" and "Axis 2" and shows the plane's total. t-SNE is stochastic and would produce a different layout on every recomputation.
 
-3. **No false negatives.** PCA preserves Euclidean distances in the projection: two drivers with similar stint shapes in the high-dimensional feature space remain close in the 2D projection. t-SNE models similarity as conditional probabilities on local density and amplifies separations, meaning two genuinely similar drivers could end up far apart in the embedding (false negative). For strategy comparison, missing a similarity is more dangerous than a spurious proximity.
+3. **No false negatives.** PCA preserves Euclidean distances in the projection up to the dropped components: two drivers that are far apart in 2D are also far apart in the full feature space. t-SNE models similarity as conditional probabilities on local density and amplifies separations, so two genuinely similar drivers could end up far apart in the embedding (false negative). For strategy comparison, missing a similarity is more dangerous than a spurious proximity.
 
-4. **Euclidean distance is the right metric.** The engineered features are all continuous numeric quantities measured on comparable scales (after standardization). The notion of "similar strategy profile" corresponds to Euclidean proximity in this space, which is exactly what PCA preserves.
+4. **Euclidean distance is the right metric.** The features are continuous numeric quantities on comparable scales after standardization, and "similar strategy profile" corresponds to Euclidean proximity in this space, which PCA preserves.
 
-## 3. Why Not UMAP or MDS
+## 3. Why not UMAP or MDS
 
 - **MDS** minimizes a stress function iteratively, is non-deterministic across runs, and introduces both false positives and false negatives. It is slower than PCA for live updates and offers no loading vectors for interpretation.
 - **UMAP** shares the non-linearity and interpretability problems of t-SNE. While it preserves more global structure than t-SNE, its axes remain uninterpretable and it is non-deterministic.
 - The course syllabus covers PCA, MDS, and t-SNE. UMAP is outside the scope of the lectures. PCA is the principled choice among the three taught techniques given the linear, interpretable feature space.
 
-## 4. Trade-offs We Accept
+## 4. Trade-offs we accept
 
-PCA introduces **false positives**: two drivers that are far apart in the full 17-dimensional space can project close together in 2D if they differ primarily along dimensions not captured by PC1 and PC2. The biplot mitigates this by showing the loading vectors. If two points are close but separated along a loading arrow direction, the strategist can inspect the raw feature bars in the PCA Analysis Panel to disambiguate.
+PCA introduces **false positives**: two rows that are far apart in the 12-dimensional space can project close together in 2D if they differ mainly along PC3-PC12 (35.5% of the variance, `pca_diagnostic.txt`). The biplot mitigates this with the loading arrows, and the lasso analysis compares the selected rows feature by feature.
 
-The first two principal components typically capture 55-75% of total variance in our dataset, depending on the race. The remaining variance is distributed across PC3-PC17. We display the explained variance ratio in the panel header so the user knows how much information the 2D view captures.
+## 5. How PCA is integrated in the analysis flow
 
-## 5. How PCA is Integrated in the Analysis Flow
+This is the VA requirement: dimensionality reduction integrated in the analysis pipeline, with analytics triggered by visual interaction.
 
-This is the critical VA requirement: dimensionality reduction integrated in the analysis pipeline, with analytics triggered by visual interaction.
+1. **Data loading.** `GET /api/pca/embeddings` serves the points, the loadings, the explained variance and the axis labels. With the race on screen and its clock (`?year&round&session_now`, store `pcaRequestOf`), the backend fits the axes **without** that race and computes its rows from the laps completed at `session_now` only (`pca_embeddings_at`): at the end of leader lap 10 of Monza 2024 its 19 points are rows as of lap 10, with no finishing position (`pca_clock_check.txt`, section 1). While another session of the same weekend is on screen (practice, qualifying, sprint) the race has not started (`session_now` 0) and has no point. Once the race on screen reaches its end, the post-race artefact is served.
 
-**The flow:**
+2. **Biplot rendering.** `PCABiplot.jsx` draws the points coloured by team or by finishing class (podium, points, no points), with the loading arrows. The race on screen is drawn with stars; the shape legend says what they are taken at ("at lap N" during a replay, "whole race" after it). Its result and its post-race rows are never drawn before that race has ended at the clock on screen. Filters: all races, the season, the race on screen.
 
-1. **Data loading.** User selects a race. The backend computes the feature matrix over all historical (driver, race) observations from cached sessions, applies StandardScaler, fits PCA, and streams the 2D points with loadings to the frontend via `/api/pca/embeddings`.
+3. **Lasso selection (visual interaction).** Shift+drag draws a lasso; the selected point ids go to the store (`selectedPCAPoints`) and to `POST /api/pca/analyze-selection` (the former `/api/tsne/analyze-selection` is kept as an alias), with the same clock as the biplot.
 
-2. **Biplot rendering.** `PCABiplot.jsx` renders points colored by team, with loading arrows showing feature contributions to each PC. The current race's drivers are highlighted with star markers.
+4. **Backend analytics** (`analyze_selection`), labelled "Descriptive differences, not a test":
+   - per feature, **Hedges' g** of the selection against the other rows (small-sample corrected), its 95% **normal-approximation interval** g +/- 1.96 SE with SE^2 = (n1 + n2) / (n1 n2) + g^2 / (2 (n1 + n2)), the large-sample standard error of a standardized mean difference (Hedges and Olkin 1985, *Statistical Methods for Meta-Analysis*; `pca_compute.py` `g_interval`), and N of both groups. A group of one row (a clicked point) gets no interval (`MIN_GROUP_FOR_INTERVAL = 2`): it has no spread of its own. On random selections, where the true difference is 0, the interval excludes 0 in at most 6.4% of the cases at every tested size from 2 to 50 rows, while the percentile bootstrap used before excluded 0 in 92.7% of the single-row cases and in 16.3% at 5 rows (`pca_interval_coverage.txt`, rerun unchanged in `phase7b/pca_interval_coverage.txt`): resampling one or two rows gives one or a few distinct values, so a bootstrap is degenerate exactly for the small selections a click or a short lasso makes;
+   - a **random-selection baseline**: the |g| that random selections of the same size reach, and the threshold a feature must pass to be marked "above random" (95th percentile of the largest |g| over all features in those random selections). The selection was drawn on a projection of these same features, so large |g| values are expected by construction: of 200 random 5-row selections, 41.0% show at least one |g| >= 0.8, while 3.0% pass the random threshold (1.399 for 5 rows; `pca_selection_baseline.txt`, rerun unchanged in `phase7b/pca_selection_baseline.txt`);
+   - during a replay the baseline is **stratified by row kind**: the rows of the race on screen are taken at the replay clock and the other races are whole races, so each random selection draws as many rows of each kind as the selection holds, from the rows of that kind, and the statistics block states the composition and the lap ("selection: 3 rows of the race on screen at lap 20, 2 rows of finished races; baseline drawn with the same mix"; a selection of finished rows only says that the other rows include the race on screen at that lap). Drawing from all rows, as before, flagged a selection of rows of the race in progress by the mix alone: over 15 replay clocks of 5 races, random selections of 2 to 8 of its rows flagged a progress-dependent feature in 63.5% of the cases with the former baseline and 1.7% with the stratified one (some feature: 73.0% and 5.9%), and random mixed selections flagged some feature in 30.9% and 5.4% of the cases (`phase7b/pca_stratified_baseline.txt`, section 1; the first stratified version, with one threshold for all features, in `phase7b/pca_stratified_baseline_round4.txt`); without rows at a clock (post-race) the stratified baseline is the former one (section 2). A finite clock at or after the end of the race's last timed lap gives the post-race answer, since the race's rows are then its whole-race rows. A feature whose distribution moves with race progress is marked **progress-dependent** on its row while the compared rows mix the two kinds (`PROGRESS_DEPENDENT_FEATURES`): pit stops and stint lengths (at a quarter of a race their mean is 1.984, 1.752 and 1.879 matrix SDs away from the same race's post-race rows) and the tyre degradation slope (its spread is 2.49 times the post-race spread at a quarter of the race; `phase7b/pca_progress_features.txt`). The baseline is cached per content hash of the rows compared (their values and kinds), the selection size and its composition: two clocks inside one leader lap give different keys, and the same request gets the same answer whatever was asked before (`phase7b/pca_stratified_baseline.txt`, section 3);
+   - with rows of the two kinds, **each feature has its own threshold**: in random selections with the same mix the progress-dependent features reach far larger |g| than the others by the mix alone, so the 95th percentile of the largest |g| over all features was theirs, and pace, sectors, consistency and grid could almost never pass it. Each feature is now held to the same quantile level of its own random |g| (0.992 to 0.994 at the four clocks of section 1 of the report below), that level chosen so that 5% of the random selections pass the threshold of some feature (`common_level_thresholds`: the maximum of per-feature statistics standardised by ranks, the min-p form of Westfall and Young 1993, *Resampling-Based Multiple Testing*); each row carries its threshold and the panel draws it. At lap 20 of Monza 2024, 5 rows of the race on screen with pace shifted by 1.5 matrix SDs were flagged in 0.0% of 60 selections with one threshold for all and in 55.0% with per-feature thresholds; of 96 real lassos (the 5 rows of the race on screen lowest or highest in a feature that is not progress-dependent, 6 clocks) 1 and 68 are flagged; on random selections some feature is flagged in 6.3% (rows of the race on screen only), 4.7% (mixed) and 5.6% (finished rows only) of the cases. Post-race the rule and the answers are unchanged (`phase7b/pca_mixed_threshold.txt`);
+   - the selection's stints, tyre strategies and pit windows (in-laps of the tyre changes). Rows of the race on screen during its replay stop at the replay clock and the answer says so (`current_race`): lassoing the 19 Monza 2024 stars at lap 10 returns one pit window (lap 5) instead of the whole race's three, and the summary ends with that note (`pca_clock_check.txt`, section 2).
 
-3. **Lasso selection (visual interaction).** The user draws a freehand lasso around a region of interest on the biplot. On lasso release, the selected point IDs are written to `selectedTSNEPoints` in the Zustand store and sent to the backend via `POST /api/tsne/analyze-selection`.
+5. **Analysis panel.** `PCAAnalysisPanel.jsx` shows the label, N, a forest plot of g with its interval, the baseline band and the threshold, the strategies and the pit windows; clicking a pit window sets `selectedLapRange`.
 
-4. **Backend analytics.** The backend computes over the lassoed subset:
-   - Feature importance ranking (which features most differentiate the cluster from the rest, using Cohen's d effect size).
-   - Common pit-stop windows across the selected driver-race observations.
-   - Stint pattern summary (compound sequences, stint lengths).
+6. **Cross-view coordination.** When `selectedLapRange` is set, `LapTimeChart`, `TrackMap` and `StrategyTimeline` dim the out-of-range laps, focusing the strategist on the laps of interest.
 
-5. **PCA Analysis Panel.** `PCAAnalysisPanel.jsx` / `StrategyAnalysis.jsx` displays the cluster analysis results. The user can click a pit window to set `selectedLapRange` in the store.
-
-6. **Cross-view coordination.** When `selectedLapRange` is set, `LapTimeChart`, `TrackMap`, and `StrategyTimeline` all dim the out-of-range region, focusing the strategist on the laps of interest.
-
-This chain (lasso on biplot -> backend cluster analysis -> cross-view highlighting) is analytics triggered by visual interaction, integrated in the analysis flow.
+This chain (lasso on the biplot -> backend comparison of the selection -> cross-view highlighting) is analytics triggered by visual interaction, integrated in the analysis flow.

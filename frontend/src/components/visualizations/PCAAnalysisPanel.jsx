@@ -1,8 +1,11 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react';
-import * as d3 from 'd3';
+import React, { useMemo, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
 import { patternStopCount } from '../../utils/strategyViews';
+import {
+  selectionRows, selectionStatistics, forestHalfWidth, forestX, fmtSigned, fmtInterval, fmtMean,
+  sameSelection, selectionClockNote, missingIntervalNote, progressRowNote,
+} from '../../utils/views/pcaSelection';
 import Panel from '../ui/Panel';
 
 /* ── Shared tab pill style helper ── */
@@ -10,33 +13,18 @@ const tabPillStyle = (active) => ({
   padding: '3px 8px', fontSize: '9px', fontWeight: 600,
   borderRadius: 4, border: 'none', cursor: 'pointer',
   background: active ? 'rgba(100,196,255,0.15)' : 'transparent',
-  color: active ? '#fff' : 'rgba(255,255,255,0.45)',
+  color: active ? '#fff' : 'rgba(255,255,255,0.6)',
   transition: 'background 0.12s, color 0.12s',
 });
 
-const FEATURE_DISPLAY = {
-  avg_lap_time: 'Avg Lap Time',
-  std_lap_time: 'Consistency',
-  best_lap_time: 'Best Lap',
-  avg_sector1: 'Sector 1',
-  avg_sector2: 'Sector 2',
-  avg_sector3: 'Sector 3',
-  pit_count: 'Pit Stops',
-  stint_count: 'Stints',
-  avg_stint_length: 'Avg Stint',
-  max_stint_length: 'Max Stint',
-  degradation_rate: 'Tyre Deg.',
-  grid_position: 'Grid Pos.',
-  gap_to_leader_mean: 'Gap to Leader',
-  rolling_pace_3: 'Last 3 Pace',
-  rolling_pace_5: 'Last 5 Pace',
-  track_temp: 'Track Temp',
-  air_temp: 'Air Temp',
-};
-
-function featureLabel(fi) {
-  return fi.label || FEATURE_DISPLAY[fi.feature] || fi.feature.replace(/_/g, ' ');
-}
+// Forest plot strip: drawing width (viewBox units) and height (px)
+const FOREST_W = 200;
+const FOREST_H = 16;
+// Colour of a feature flagged above random, and of the others
+const ABOVE_RANDOM_COLOR = '#64C4FF';
+const WITHIN_RANDOM_COLOR = 'rgba(255,255,255,0.75)';
+// Columns of a row: feature, forest strip, numbers
+const FOREST_COLUMNS = 'minmax(80px, 1fr) minmax(90px, 1.6fr) minmax(96px, auto)';
 
 export default function PCAAnalysisPanel() {
   const pcaStrategyAnalysis = useF1Store((s) => s.pcaStrategyAnalysis);
@@ -49,16 +37,23 @@ export default function PCAAnalysisPanel() {
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const simulatorStrategy = useF1Store((s) => s.simulatorStrategy);
   const setSelectedLapRange = useF1Store((s) => s.setSelectedLapRange);
-  const radarRef = useRef(null);
-  const barsRef = useRef(null);
+  const pcaAnalysisIds = useF1Store((s) => s.pcaAnalysisIds);
+  const pcaAnalysisError = useF1Store((s) => s.pcaAnalysisError);
   const [activeTab, setActiveTab] = useState('summary');
 
-  const analysis = pcaStrategyAnalysis;
-  const featureImportance = useMemo(() => analysis?.feature_importance || [], [analysis]);
-  const topFeatures = useMemo(() => featureImportance.slice(0, 8), [featureImportance]);
+  // An analysis is shown only for the selection it answers (an answer set
+  // without its ids is taken as the selection's)
+  const analysis = pcaStrategyAnalysis && (!pcaAnalysisIds || sameSelection(pcaAnalysisIds, selectedPCAPoints))
+    ? pcaStrategyAnalysis
+    : null;
+  const rows = useMemo(() => selectionRows(analysis), [analysis]);
+  const stats = useMemo(() => selectionStatistics(analysis), [analysis]);
+  const half = useMemo(() => forestHalfWidth(rows, stats.threshold), [rows, stats.threshold]);
   const strategies = useMemo(() => analysis?.strategies || [], [analysis]);
   const commonPatterns = useMemo(() => analysis?.common_patterns || [], [analysis]);
   const pitWindows = useMemo(() => analysis?.pit_windows || [], [analysis]);
+  // Rows of the race on screen taken at the replay clock (null otherwise)
+  const clockNote = selectionClockNote(analysis);
 
 
   // Convert PCA strategy pattern stints to simulator format with cumulative lapStart
@@ -106,141 +101,14 @@ export default function PCAAnalysisPanel() {
     const tabs = [{ id: 'summary', label: 'Summary' }];
     if (strategies.length > 0 || commonPatterns.length > 0)
       tabs.push({ id: 'patterns', label: `Patterns (${strategies.length})` });
-    if (topFeatures.length >= 3 || featureImportance.length > 0)
-      tabs.push({ id: 'features', label: 'Features' });
+    if (rows.length > 0)
+      tabs.push({ id: 'differences', label: 'Differences' });
     if (pitWindows.length > 0 || (selectionInfo && selectionInfo.drivers.length > 0))
       tabs.push({ id: 'details', label: 'Details' });
     return tabs;
-  }, [strategies, commonPatterns, topFeatures, featureImportance, pitWindows, selectionInfo]);
-
-  // Radar chart
-  useEffect(() => {
-    if (!radarRef.current || topFeatures.length < 3) return;
-
-    const container = radarRef.current;
-    const width = container.clientWidth || 220;
-    const height = 180;
-    const cx = width / 2;
-    const cy = height / 2;
-    const radius = Math.min(cx, cy) - 25;
-
-    const svg = d3.select(container).select('svg');
-    svg.selectAll('*').remove();
-    svg.attr('width', width).attr('height', height);
-
-    const g = svg.append('g').attr('transform', `translate(${cx},${cy})`);
-    const n = topFeatures.length;
-    const angleSlice = (2 * Math.PI) / n;
-    const maxEffect = d3.max(topFeatures, (d) => d.effect_size) || 1;
-    const rScale = d3.scaleLinear().domain([0, maxEffect]).range([0, radius]);
-
-    [0.25, 0.5, 0.75, 1].forEach((level) => {
-      g.append('circle')
-        .attr('r', radius * level)
-        .attr('fill', 'none')
-        .attr('stroke', 'rgba(255,255,255,0.08)')
-        .attr('stroke-dasharray', '2,3');
-    });
-
-    topFeatures.forEach((_, i) => {
-      const angle = angleSlice * i - Math.PI / 2;
-      g.append('line')
-        .attr('x1', 0).attr('y1', 0)
-        .attr('x2', radius * Math.cos(angle))
-        .attr('y2', radius * Math.sin(angle))
-        .attr('stroke', 'rgba(255,255,255,0.1)');
-    });
-
-    topFeatures.forEach((f, i) => {
-      const angle = angleSlice * i - Math.PI / 2;
-      const labelR = radius + 14;
-      g.append('text')
-        .attr('x', labelR * Math.cos(angle))
-        .attr('y', labelR * Math.sin(angle))
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .attr('fill', 'rgba(255,255,255,0.5)')
-        .attr('font-size', '7px')
-        .attr('font-weight', '600')
-        .text(featureLabel(f));
-    });
-
-    const radarLine = d3.lineRadial()
-      .angle((_, i) => angleSlice * i)
-      .radius((d) => rScale(d.effect_size))
-      .curve(d3.curveCardinalClosed);
-
-    g.append('path')
-      .datum(topFeatures)
-      .attr('d', radarLine)
-      .attr('fill', 'rgba(225, 6, 0, 0.15)')
-      .attr('stroke', '#e10600')
-      .attr('stroke-width', 1.5)
-      .attr('opacity', 0.8);
-
-    topFeatures.forEach((f, i) => {
-      const angle = angleSlice * i - Math.PI / 2;
-      const r = rScale(f.effect_size);
-      g.append('circle')
-        .attr('cx', r * Math.cos(angle))
-        .attr('cy', r * Math.sin(angle))
-        .attr('r', 3)
-        .attr('fill', f.direction === 'higher' ? '#22c55e' : '#ef4444')
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 0.5);
-    });
-  }, [topFeatures]);
-
-  // Feature importance bars
-  useEffect(() => {
-    if (!barsRef.current || featureImportance.length === 0) return;
-
-    const container = barsRef.current;
-    const width = container.clientWidth || 240;
-    const barH = 14;
-    const gap = 3;
-    const top6 = featureImportance.slice(0, 6);
-    const height = top6.length * (barH + gap) + 10;
-
-    const svg = d3.select(container).select('svg');
-    svg.selectAll('*').remove();
-    svg.attr('width', width).attr('height', height);
-
-    const maxEffect = d3.max(top6, (d) => d.effect_size) || 1;
-    const xScale = d3.scaleLinear().domain([0, maxEffect]).range([0, width - 130]);
-
-    const g = svg.append('g').attr('transform', 'translate(120, 4)');
-
-    top6.forEach((f, i) => {
-      const y = i * (barH + gap);
-      const color = f.direction === 'higher' ? '#22c55e' : '#ef4444';
-
-      svg.append('text')
-        .attr('x', 116).attr('y', y + barH / 2 + 4)
-        .attr('text-anchor', 'end')
-        .attr('fill', 'rgba(255,255,255,0.6)')
-        .attr('font-size', '8px')
-        .attr('font-weight', '600')
-        .text(featureLabel(f));
-
-      g.append('rect')
-        .attr('x', 0).attr('y', y)
-        .attr('width', xScale(f.effect_size))
-        .attr('height', barH)
-        .attr('rx', 2)
-        .attr('fill', color)
-        .attr('opacity', 0.6);
-
-      const mag = f.magnitude || (f.effect_size >= 0.8 ? 'large' : f.effect_size >= 0.5 ? 'medium' : 'small');
-      g.append('text')
-        .attr('x', xScale(f.effect_size) + 4).attr('y', y + barH / 2 + 1)
-        .attr('fill', color)
-        .attr('font-size', '8px')
-        .attr('font-weight', '700')
-        .attr('dominant-baseline', 'middle')
-        .text(`${f.effect_size.toFixed(2)} ${f.direction === 'higher' ? '\u2191' : '\u2193'} ${mag}`);
-    });
-  }, [featureImportance]);
+  }, [strategies, commonPatterns, rows, pitWindows, selectionInfo]);
+  // A tab the new answer does not have falls back to the summary
+  const tab = pcaTabs.some((t) => t.id === activeTab) ? activeTab : 'summary';
 
   // No selection state
   if (!selectedPCAPoints || selectedPCAPoints.length === 0) {
@@ -254,11 +122,11 @@ export default function PCAAnalysisPanel() {
             <strong>Lasso-select</strong> points on the PCA biplot to analyze cross-race strategy patterns.
           </div>
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', lineHeight: 1.6, marginTop: 12, maxWidth: 240 }}>
-            Each point represents one driver's full race performance. Clusters reveal similar strategies across different races and seasons.
+            Each point is one driver in one race (the race on screen: the laps completed so far during its replay). Clusters reveal similar strategies across different races and seasons.
           </div>
           <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', textAlign: 'left' }}>
             <span>Click a point to toggle selection</span>
-            <span>Drag to lasso-select a group</span>
+            <span>Shift+drag to lasso-select a group</span>
             <span>Loading vectors show feature directions</span>
           </div>
         </div>
@@ -266,16 +134,51 @@ export default function PCAAnalysisPanel() {
     );
   }
 
-  // Waiting for analysis response
+  // Waiting for analysis response (or its error)
   if (!analysis) {
     return (
       <Panel title="Cross-Race Analysis">
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-muted)' }}>Analyzing selection...</div>
+          <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+            {pcaAnalysisError ? `Analysis failed: ${pcaAnalysisError}` : 'Analyzing selection...'}
+          </div>
         </div>
       </Panel>
     );
   }
+
+  // The clock of the race on screen's rows, wherever its stints / stops show
+  const clockBanner = clockNote ? (
+    <div className="pca-clock-note" style={{
+      fontSize: 'var(--font-size-xs)', color: 'var(--color-text-primary)', lineHeight: 1.5,
+      padding: '3px 6px', borderLeft: '2px solid var(--color-text-secondary)', background: 'rgba(255,255,255,0.04)',
+    }}>
+      {clockNote}
+    </div>
+  ) : null;
+
+  // What the numbers are: label, group sizes, how many features pass the
+  // random-selection threshold
+  const statsBanner = (
+    <div className="pca-stats-banner" style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+      <div style={{ fontWeight: 700, color: 'var(--color-text-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {stats.label}
+      </div>
+      <div>
+        {stats.nSelected != null && stats.nRest != null
+          ? `N = ${stats.nSelected} selected vs ${stats.nRest} other rows`
+          : `N = ${selectedPCAPoints.length} selected`}
+        {stats.threshold != null && rows.length > 0
+          ? ` · ${stats.nAboveRandom} of ${stats.nFeatures} features above random`
+          : ''}
+      </div>
+      {/* the selection's mix of row kinds, and the baseline drawn with it */}
+      {stats.composition && (
+        <div className="pca-composition">{stats.composition}</div>
+      )}
+      {clockBanner && <div style={{ marginTop: 4 }}>{clockBanner}</div>}
+    </div>
+  );
 
   return (
     <Panel title="Cross-Race Analysis">
@@ -288,7 +191,7 @@ export default function PCAAnalysisPanel() {
             borderBottom: '1px solid rgba(255,255,255,0.06)',
           }}>
             {pcaTabs.map(t => (
-              <button key={t.id} onClick={() => setActiveTab(t.id)} style={tabPillStyle(activeTab === t.id)}>
+              <button key={t.id} onClick={() => setActiveTab(t.id)} style={tabPillStyle(tab === t.id)}>
                 {t.label}
               </button>
             ))}
@@ -298,7 +201,7 @@ export default function PCAAnalysisPanel() {
         {/* Tab content — takes all remaining space */}
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: 'var(--spacing-sm)' }}>
 
-          {activeTab === 'summary' && (
+          {tab === 'summary' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
               {/* Selection summary + cluster label */}
               <div style={{
@@ -311,6 +214,7 @@ export default function PCAAnalysisPanel() {
                 <div style={{ fontSize: 'var(--font-size-sm)', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>
                   {analysis.summary}
                 </div>
+                <div style={{ marginTop: 6 }}>{statsBanner}</div>
                 {selectionInfo && (
                   <div style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
                     <span>{selectionInfo.count} race entries</span>
@@ -344,8 +248,9 @@ export default function PCAAnalysisPanel() {
             </div>
           )}
 
-          {activeTab === 'patterns' && (
+          {tab === 'patterns' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+              {clockBanner}
               {strategies.length > 0 && (
                 <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
                   <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
@@ -401,48 +306,128 @@ export default function PCAAnalysisPanel() {
             </div>
           )}
 
-          {activeTab === 'features' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-              {topFeatures.length >= 3 && (
-                <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                  <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                    Cluster Feature Profile
-                  </h6>
-                  <div style={{ display: 'flex', gap: 12, marginBottom: 6, fontSize: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#22c55e' }} />
-                      <span style={{ color: 'rgba(255,255,255,0.5)' }}>Higher in cluster</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#ef4444' }} />
-                      <span style={{ color: 'rgba(255,255,255,0.5)' }}>Lower in cluster</span>
-                    </div>
-                  </div>
-                  <div ref={radarRef}><svg /></div>
+          {tab === 'differences' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)', height: '100%', overflowY: 'auto' }}>
+              {statsBanner}
+              <div className="pca-forest" role="table" aria-label="Differences of the selection from the other rows"
+                style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm)' }}>
+                {/* Column heads and the axis direction */}
+                <div role="row" style={{
+                  display: 'grid', gridTemplateColumns: FOREST_COLUMNS, gap: 6,
+                  fontSize: '9px', color: 'var(--color-text-secondary)', fontWeight: 600, marginBottom: 4,
+                }}>
+                  <span role="columnheader">Feature</span>
+                  <span role="columnheader" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>lower in selection</span><span>higher</span>
+                  </span>
+                  <span role="columnheader" style={{ textAlign: 'right' }}>g [interval] · random |g|</span>
                 </div>
-              )}
-
-              {featureImportance.length > 0 && (
-                <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                  <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
-                    Feature Importance (Cohen's d)
-                  </h6>
-                  <div ref={barsRef}><svg /></div>
-                  <div style={{
-                    display: 'flex', gap: 8, fontSize: '7px', color: 'rgba(255,255,255,0.35)',
-                    borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6, marginTop: 6,
-                  }}>
-                    <span style={{ color: 'rgba(255,255,255,0.4)' }}>&lt;0.5 = small</span>
-                    <span style={{ color: 'rgba(255,165,0,0.7)' }}>0.5–0.8 = medium</span>
-                    <span style={{ color: 'rgba(225,6,0,0.7)' }}>&gt;0.8 = large</span>
-                  </div>
+                {rows.map((r) => {
+                  const color = r.exceedsRandom ? ABOVE_RANDOM_COLOR : WITHIN_RANDOM_COLOR;
+                  const x = (v) => forestX(v, half, FOREST_W);
+                  const interval = fmtInterval(r.ciLow, r.ciHigh);
+                  // a group too small for an interval (one row has no spread of its own)
+                  const noInterval = interval ? null : missingIntervalNote(r, stats.minGroupForInterval);
+                  // a feature that moves with race progress, rows at the clock mixed with whole races
+                  const progressNote = progressRowNote(r, stats);
+                  const otherN = r.nSelected != null && r.nRest != null
+                    && (r.nSelected !== stats.nSelected || r.nRest !== stats.nRest);
+                  // the |g| this row must pass (its own during a replay, else the one of all rows)
+                  const threshold = r.threshold ?? stats.threshold;
+                  return (
+                    <div key={r.feature} role="row" className="pca-forest-row"
+                      title={`g = ${r.g} · selection mean ${fmtMean(r.selectedMean, r.unit)} · other rows ${fmtMean(r.restMean, r.unit)}`}
+                      style={{
+                        display: 'grid', gridTemplateColumns: FOREST_COLUMNS, gap: 6,
+                        alignItems: 'center', padding: '2px 0', borderTop: '1px solid rgba(255,255,255,0.05)',
+                      }}>
+                      <span role="cell" style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-primary)', fontWeight: r.exceedsRandom ? 700 : 500 }}>
+                        {r.label}
+                        {r.exceedsRandom && (
+                          <span className="pca-above-random" style={{ display: 'block', fontSize: '8px', color: ABOVE_RANDOM_COLOR, fontWeight: 700 }}>
+                            above random
+                          </span>
+                        )}
+                        {progressNote && (
+                          <span className="pca-progress-note" title={stats.progressNote || undefined}
+                            style={{ display: 'block', fontSize: '8px', color: 'var(--color-text-secondary)', fontWeight: 600, fontStyle: 'italic' }}>
+                            {progressNote}
+                          </span>
+                        )}
+                      </span>
+                      <svg role="cell" viewBox={`0 0 ${FOREST_W} ${FOREST_H}`} preserveAspectRatio="none"
+                        width="100%" height={FOREST_H} aria-label={`g ${fmtSigned(r.g)}`}>
+                        {/* expected |g| of a random selection of the same size */}
+                        {r.baseline != null && (
+                          <rect className="pca-forest-baseline" x={x(-r.baseline)} y={1}
+                            width={x(r.baseline) - x(-r.baseline)} height={FOREST_H - 2}
+                            style={{ fill: 'rgba(255,255,255,0.14)' }} />
+                        )}
+                        {/* threshold this feature must pass to be flagged */}
+                        {threshold != null && [-threshold, threshold].map((t) => (
+                          <line key={t} className="pca-forest-threshold" x1={x(t)} x2={x(t)} y1={0} y2={FOREST_H}
+                            vectorEffect="non-scaling-stroke" strokeDasharray="2,2"
+                            style={{ stroke: 'rgba(255,255,255,0.45)', strokeWidth: 1 }} />
+                        ))}
+                        <line x1={x(0)} x2={x(0)} y1={0} y2={FOREST_H} vectorEffect="non-scaling-stroke"
+                          style={{ stroke: 'rgba(255,255,255,0.3)', strokeWidth: 1 }} />
+                        {interval && (
+                          <line className="pca-forest-interval" x1={x(r.ciLow)} x2={x(r.ciHigh)} y1={FOREST_H / 2} y2={FOREST_H / 2}
+                            vectorEffect="non-scaling-stroke" style={{ stroke: color, strokeWidth: 2 }} />
+                        )}
+                        <line className="pca-forest-g" x1={x(r.g)} x2={x(r.g)} y1={2} y2={FOREST_H - 2}
+                          vectorEffect="non-scaling-stroke" style={{ stroke: color, strokeWidth: 3 }} />
+                      </svg>
+                      <span role="cell" style={{ fontSize: '9px', textAlign: 'right', lineHeight: 1.35, fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ color, fontWeight: 700 }}>g {fmtSigned(r.g)}</span>
+                        {interval && <span style={{ color: 'var(--color-text-secondary)' }}> {interval}</span>}
+                        {noInterval && (
+                          <span className="pca-no-interval" style={{ display: 'block', color: 'var(--color-text-secondary)' }}>
+                            {noInterval}
+                          </span>
+                        )}
+                        <span style={{ display: 'block', color: 'var(--color-text-secondary)' }}>
+                          {r.baseline != null ? `random |g| ${r.baseline.toFixed(2)}` : 'no random baseline'}
+                          {stats.perFeatureThreshold && r.threshold != null
+                            ? <span className="pca-row-threshold">{` · threshold ${r.threshold.toFixed(2)}`}</span>
+                            : null}
+                          {otherN ? ` · n ${r.nSelected} vs ${r.nRest}` : ''}
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
+                <div style={{ marginTop: 6, fontSize: '8.5px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  {`Tick = Hedges' g (selection minus other rows, in pooled SDs); bar = ${stats.intervalName || 'interval'}`
+                    + (stats.minGroupForInterval != null
+                      ? ` (none for a group of fewer than ${stats.minGroupForInterval} rows: one row has no spread of its own)`
+                      : '')
+                    + '; shaded = expected |g| of a random selection of the same size and mix; dashed = the threshold a feature must pass to be marked "above random"'
+                    + (stats.perFeatureThreshold
+                      ? ` (each feature its own: the ${stats.thresholdLevel != null ? `${(stats.thresholdLevel * 100).toFixed(1)}% quantile` : 'same high percentile'} of its random |g|, so that 5% of random selections pass some threshold).`
+                      : '.')
+                    + (stats.progressNote ? ` ${stats.progressNote}.` : '')}
                 </div>
+              </div>
+              {(stats.note || stats.effectSize || stats.baseline) && (
+                <details style={{ fontSize: '8.5px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Method</summary>
+                  {stats.effectSize && <div>{stats.effectSize}</div>}
+                  {stats.interval && <div>{stats.interval}</div>}
+                  {stats.baseline && <div>{stats.baseline}</div>}
+                  {stats.composition && <div>{stats.composition}</div>}
+                  {stats.perFeatureThreshold
+                    ? stats.thresholdText && <div className="pca-threshold-rule">{stats.thresholdText}</div>
+                    : stats.threshold != null && <div>{`Above random: |g| > ${stats.threshold}`}</div>}
+                  {stats.note && <div style={{ marginTop: 4 }}>{stats.note}</div>}
+                </details>
               )}
             </div>
           )}
 
-          {activeTab === 'details' && (
+          {tab === 'details' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+              {pitWindows.length > 0 && clockBanner}
               {pitWindows.length > 0 && (
                 <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
                   <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>

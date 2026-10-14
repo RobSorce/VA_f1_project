@@ -4,6 +4,7 @@ import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS, getTyreTextColor } from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { deriveStints } from '../../utils/stints';
+import { focusForecast } from '../../utils/forecast';
 import {
   causalKey, stintBars, pitStopMarkers, pitCountsByDriver, describeStopLoss, simulatorStints,
   layoutStopLabels, pitLaneNow, stintLapsText, viewSessionType, isRaceSession, PIT_LOSS_LEGEND,
@@ -20,6 +21,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const toggleDriver = useF1Store((s) => s.toggleDriver);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
+  const focusDriver = useF1Store((s) => s.focusDriver);
   const pcaStrategyAnalysis = useF1Store((s) => s.pcaStrategyAnalysis);
   const geminiOverlays = useF1Store((s) => s.geminiOverlays);
   const setSelectedPCAPoints = useF1Store((s) => s.setSelectedPCAPoints);
@@ -376,9 +378,10 @@ export default function StrategyTimeline({ showOverlays = false }) {
         .attr('stroke-dasharray', '2,1.5');
     });
 
-    // LSTM predicted stints
-    if (lstmPredictions?.predicted_stints) {
-      lstmPredictions.predicted_stints.forEach((stint) => {
+    // Predicted stints of the focus driver's forecast (utils/forecast.js)
+    const forecast = focusForecast(lstmPredictions, focusDriver);
+    if (Array.isArray(forecast?.predicted_stints)) {
+      forecast.predicted_stints.forEach((stint) => {
         const driver = stint.driver;
         if (y(driver) == null) return;
         const compound = (stint.compound || 'MEDIUM').toUpperCase();
@@ -514,7 +517,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
     return () => {
       d3.select('body').select('.strat-tooltip').remove();
     };
-  }, [strategies, pitMarkers, inPitLane, storeMaxLap, totalRaceLaps, selectedDrivers, currentLap, lstmPredictions, pcaStrategyAnalysis, geminiOverlays, showOverlays, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound, selectedLapRange, setSelectedLapRange, simulatorStrategy]);
+  }, [strategies, pitMarkers, inPitLane, storeMaxLap, totalRaceLaps, selectedDrivers, currentLap, lstmPredictions, focusDriver, pcaStrategyAnalysis, geminiOverlays, showOverlays, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound, selectedLapRange, setSelectedLapRange, simulatorStrategy]);
 
   // Lightweight highlight effect — updates opacity without full redraw
   useEffect(() => {

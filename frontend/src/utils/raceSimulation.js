@@ -196,8 +196,10 @@ export const PRIORS = deepFreeze({
       raceMean: 0.007, withinSd: 0.1041, betweenSd: 0.0976, races: 30, minFitLaps: 12,
     },
   },
-  // s: pooled over every stint (value); dry / wet: the prior of a race's lap
-  // noise (lapNoiseFromFits), worth nu0 residual degrees of freedom
+  // s: pooled over every stint (value); dry / wet: the cached races' lap noise
+  // of that kind (lapNoisePrior); lapNoiseFromFits uses dry / wet.value only
+  // before a race's first fit (D1: no prior mixed into a race's own value);
+  // nu0 is kept as a measurement of the spread between races
   lapNoise: {
     value: 0.636,
     stints: 1222,
@@ -342,32 +344,31 @@ function residualSums(fits) {
 }
 
 /**
- * Lap noise of a race at its clock: the race's pooled residual sigma
- * (residualSums) combined with the prior of the cached races of the same kind
- * (PRIORS.lapNoise.dry, or .wet once an intermediate / wet lap is completed),
- * the conjugate update of a variance: sqrt((nu0 x s0^2 + sse) / (nu0 + dof)).
- * The prior counts as nu0 residual degrees of freedom, read off the spread of
- * the cached races' lap noise (computePriors), so one short stint early in a
- * race does not replace it (a stint of 8 clean laps has 6), while a race's
- * hundreds of laps soon outweigh it.
+ * Lap noise of a race at its clock (S2, lead decision D1): the race's pooled
+ * residual sigma of the per-stint fits at the clock, sqrt(sse / dof)
+ * (residualSums: the consistencySigma definition of utils/degradation.js,
+ * pooled over every driver), with no floor and no prior mixed in, so early in
+ * a race it is the value of the few stints fitted so far, shown with its n
+ * (laps, stints). Before the race's first fit (MIN_FIT_LAPS clean laps in a
+ * stint) there is no race value: the cached races' value of the same kind
+ * (PRIORS.lapNoise.dry, or .wet once an intermediate / wet lap is completed;
+ * computePriors), source 'prior', n = 0.
  *
  * @param {Array<Object>} fits - stintFits rows
  * @param {Object} [opts]
  * @param {boolean} [opts.wet=false] - an intermediate / wet lap completed so far
  * @returns {{value: number, raceValue: number|null, laps: number, stints: number, dof: number,
- *   prior: {value: number, nu0: number, kind: 'dry'|'wet'}, source: 'race'|'prior'}} seconds;
- *   raceValue = the race's own pooled sigma (null before its first fit)
+ *   prior: {value: number, kind: 'dry'|'wet'}, source: 'race'|'prior'}} seconds;
+ *   raceValue = the race's pooled sigma (= value; null before its first fit)
  */
 export function lapNoiseFromFits(fits, { wet = false } = {}) {
   const { sse, dof, laps, stints } = residualSums(fits);
   const kind = wet ? 'wet' : 'dry';
-  const p = PRIORS.lapNoise[kind];
-  const prior = { value: p?.value ?? PRIORS.lapNoise.value, nu0: p?.nu0 ?? 0, kind };
+  const prior = { value: PRIORS.lapNoise[kind]?.value ?? PRIORS.lapNoise.value, kind };
   if (dof > 0) {
+    const value = Math.sqrt(sse / dof);
     return {
-      value: Math.sqrt((prior.nu0 * prior.value * prior.value + sse) / (prior.nu0 + dof)),
-      raceValue: Math.sqrt(sse / dof),
-      laps, stints, dof, prior, source: 'race',
+      value, raceValue: value, laps, stints, dof, prior, source: 'race',
     };
   }
   return { value: prior.value, raceValue: null, laps: 0, stints: 0, dof: 0, prior, source: 'prior' };
@@ -915,8 +916,9 @@ function compoundTransitions(lapTimes, sessionNow) {
  *                the fits long enough combined with the prior (degradationFor reads it)
  *   stintLength  { compound: { survival, median, mean, n, events, censored, dropped, source } }
  *   freshDelta   seconds (<= 0), estimates.freshDelta.value
- *   lapNoise     seconds, estimates.lapNoise.value (the race's residual sigma combined
- *                with the dry / wet prior, lapNoiseFromFits)
+ *   lapNoise     seconds, estimates.lapNoise.value (the race's pooled residual sigma of
+ *                the stint fits at the clock; the cached races' before its first fit;
+ *                lapNoiseFromFits)
  *   scRate       episodes per leader lap, estimates.safetyCar.rate
  *   scDuration   median laps of an SC episode (race, else prior)
  *   estimates    { degradation, freshDelta, lapNoise, stintLife, safetyCar, fuelEffect },
@@ -1530,6 +1532,10 @@ function aggregateResults(allSims, driverFeatures) {
       // Risks tab judges the range against its threshold beyond them
       posRangeCI: [quantileInterval(positions, 0.05), quantileInterval(positions, 0.95)],
       posDistribution,
+      // simulations per finishing position (unrounded): the finishing position
+      // the views show is read off their cumulative share
+      // (utils/simulationClient.js shownPositions)
+      posCount: { ...posCount },
       podiumProb: Math.round((podiumCount / positions.length) * 100),
       pointsProb: Math.round((pointsCount / positions.length) * 100),
       pitStopsRemaining: {
@@ -1816,13 +1822,16 @@ function defaultSeed(currentLap, maxLap, sessionNow) {
  *   least optionalStopMinLapsLeft laps are left) or 'payback' (taken when the old set would
  *   lose more than the pit loss against a new one); compared in the benchmark
  * @param {number} [params.optionalStopMinLapsLeft=OPTIONAL_STOP_MIN_LAPS_LEFT]
- * @returns {{ projections, battles, risks, raceParams, numSimulations, seed } | null}
+ * @param {string} [params.tracePositionsOf] - a driver whose finishing position in every run
+ *   is returned as positionsOf (by run index): the what-if pairs its two runs run by run
+ *   (common random numbers, utils/simulationClient.js compareJob)
+ * @returns {{ projections, battles, risks, raceParams, numSimulations, seed, positionsOf? } | null}
  */
 export function simulateRaceFinish({
   driverFeatures, currentLap, maxLap, lapTimes, strategies, trackStatus,
   sessionNow, sessionTimeOffset, sessionType, running, dnfMap,
   numSimulations = DEFAULT_NUM_SIMULATIONS, seed, plans, raceParams: given, useTrend = false,
-  stopRule, optionalStopMinLapsLeft,
+  stopRule, optionalStopMinLapsLeft, tracePositionsOf,
 }) {
   if (!driverFeatures || currentLap < 5 || maxLap <= currentLap) return null;
 
@@ -1849,7 +1858,9 @@ export function simulateRaceFinish({
   // ── Step 4: Risks ──
   const risks = identifyRisks(projections, driverFeatures, raceParams, currentLap, maxLap, { n: sims.length });
 
-  return { projections, battles, risks, raceParams, numSimulations: sims.length, seed: usedSeed };
+  const out = { projections, battles, risks, raceParams, numSimulations: sims.length, seed: usedSeed };
+  if (tracePositionsOf) out.positionsOf = sims.map((sim) => sim?.[tracePositionsOf]?.pos ?? null);
+  return out;
 }
 
 /**
@@ -2110,8 +2121,9 @@ function degradationHierarchy(perRaceFits, partialDiffs) {
  * Lap-noise prior of a kind of race: the race lap-noise variances (pooled
  * residual variance per race) as a scaled-inverse-chi-square distribution,
  * moments matched: nu0 = 4 + 2 / cv^2 (cv = coefficient of variation of the
- * variances), s0^2 = mean x (nu0 - 2) / nu0. lapNoiseFromFits weighs the prior
- * as nu0 residual degrees of freedom.
+ * variances), s0^2 = mean x (nu0 - 2) / nu0. lapNoiseFromFits uses s0 only
+ * before a race's first fit; nu0 is a measurement (how much races differ),
+ * no longer a weight (lead decision D1).
  */
 function lapNoisePrior(raceVariances) {
   const n = raceVariances.length;

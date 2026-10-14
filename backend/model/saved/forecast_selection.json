@@ -1,0 +1,510 @@
+{
+  "generated_by": "scripts/evaluate_forecast.py",
+  "generated_at": "2026-10-14T20:45:44",
+  "model_fingerprint": "9e8eecc2540090fa1fc98410974bb741dd28a397",
+  "split": {
+    "train": [
+      "2024-1",
+      "2024-2",
+      "2024-3",
+      "2024-4",
+      "2024-5",
+      "2024-6",
+      "2024-7",
+      "2024-8",
+      "2024-9",
+      "2024-10",
+      "2024-11",
+      "2024-12",
+      "2024-13",
+      "2024-15",
+      "2024-18",
+      "2024-19",
+      "2024-21",
+      "2024-23",
+      "2024-24"
+    ],
+    "val": [
+      "2024-14",
+      "2024-17",
+      "2024-20",
+      "2024-22"
+    ],
+    "test": [
+      "2024-16",
+      "2025-1",
+      "2025-6",
+      "2025-8",
+      "2025-16",
+      "2025-21",
+      "2025-24"
+    ]
+  },
+  "windows": {
+    "train": 20263,
+    "val": 3636,
+    "test": 6599
+  },
+  "lap_time": {
+    "metric": "MAE over laps +1..+5, s, pooled over the target laps of the test races",
+    "methods": {
+      "persistence": {
+        "test": 0.6372602635096429,
+        "val": 0.5348859194806987,
+        "test_by_horizon": [
+          0.47820003481894136,
+          0.5835396129974444,
+          0.6582213725865036,
+          0.726187374749499,
+          0.7752884858709406
+        ],
+        "val_by_horizon": [
+          0.43352841781874035,
+          0.5047053077173559,
+          0.5570089872105081,
+          0.5897276407802724,
+          0.6172420432220037
+        ],
+        "n_test_laps": 26185,
+        "n_val_laps": 14481
+      },
+      "stint_linear": {
+        "test": 0.7487042932360883,
+        "val": 0.5983756997713711,
+        "test_by_horizon": [
+          0.576568610442772,
+          0.6821551668277919,
+          0.766650811386073,
+          0.8466182631003841,
+          0.9112590233845597
+        ],
+        "val_by_horizon": [
+          0.4864938026896514,
+          0.5583332071527547,
+          0.615980904057959,
+          0.6583895165855845,
+          0.7057064162929629
+        ],
+        "n_test_laps": 26185,
+        "n_val_laps": 14481
+      },
+      "compound_mean": {
+        "test": 0.6298180509425405,
+        "val": 0.5369722384873221,
+        "test_by_horizon": [
+          0.4797136155076838,
+          0.5796839145581008,
+          0.6497890244478238,
+          0.7137010652580088,
+          0.7592550548251751
+        ],
+        "val_by_horizon": [
+          0.4339721653256546,
+          0.5057529097727745,
+          0.5587238843257318,
+          0.5927141081638634,
+          0.6221438004920065
+        ],
+        "n_test_laps": 26185,
+        "n_val_laps": 14481
+      },
+      "lstm": {
+        "test": 0.6081617106857448,
+        "val": 0.5084785199687765,
+        "test_by_horizon": [
+          0.4653639298890558,
+          0.5560060210205687,
+          0.6236461362145732,
+          0.6912414015861695,
+          0.7368779977687467
+        ],
+        "val_by_horizon": [
+          0.41737484606527325,
+          0.47987482423868316,
+          0.5310527172109896,
+          0.5575456654720493,
+          0.5814694123809193
+        ],
+        "n_test_laps": 26185,
+        "n_val_laps": 14481
+      }
+    },
+    "bootstrap_diff_to_persistence_95": {
+      "persistence": [
+        0.0,
+        0.0
+      ],
+      "stint_linear": [
+        0.059321979046453095,
+        0.17322783029837682
+      ],
+      "compound_mean": [
+        -0.03176637305002991,
+        0.004170791122358383
+      ],
+      "lstm": [
+        -0.04303310048592391,
+        -0.016724104796836264
+      ]
+    },
+    "selection_set": "val",
+    "ranking": [
+      "lstm",
+      "persistence",
+      "compound_mean",
+      "stint_linear"
+    ],
+    "test_ranking": [
+      "lstm",
+      "compound_mean",
+      "persistence",
+      "stint_linear"
+    ],
+    "selected": "lstm"
+  },
+  "pit": {
+    "metric": "Brier score of a stop within 5 laps on the test races",
+    "test_base_rate": 0.13759660554629488,
+    "methods": {
+      "lstm": {
+        "test": 0.11468744420360337,
+        "val": 0.12371642181513912,
+        "pr_auc_test": 0.2931939415874134,
+        "precision_test": 0.35082872928176795,
+        "recall_test": 0.13986784140969163,
+        "calibration_test": [
+          {
+            "bin": [
+              0.0,
+              0.1
+            ],
+            "n": 4245,
+            "mean_predicted": 0.0355462141811093,
+            "observed_rate": 0.07632508833922262
+          },
+          {
+            "bin": [
+              0.1,
+              0.2
+            ],
+            "n": 909,
+            "mean_predicted": 0.14415461419209658,
+            "observed_rate": 0.17381738173817382
+          },
+          {
+            "bin": [
+              0.2,
+              0.30000000000000004
+            ],
+            "n": 438,
+            "mean_predicted": 0.24673345977585065,
+            "observed_rate": 0.23972602739726026
+          },
+          {
+            "bin": [
+              0.30000000000000004,
+              0.4
+            ],
+            "n": 348,
+            "mean_predicted": 0.34690285354167566,
+            "observed_rate": 0.2557471264367816
+          },
+          {
+            "bin": [
+              0.4,
+              0.5
+            ],
+            "n": 297,
+            "mean_predicted": 0.45156209928419455,
+            "observed_rate": 0.35353535353535354
+          },
+          {
+            "bin": [
+              0.5,
+              0.6000000000000001
+            ],
+            "n": 156,
+            "mean_predicted": 0.5381114566937472,
+            "observed_rate": 0.358974358974359
+          },
+          {
+            "bin": [
+              0.6000000000000001,
+              0.7000000000000001
+            ],
+            "n": 206,
+            "mean_predicted": 0.6165664088957518,
+            "observed_rate": 0.3446601941747573
+          },
+          {
+            "bin": [
+              0.7000000000000001,
+              0.8
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.8,
+              0.9
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.9,
+              1.0
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          }
+        ]
+      },
+      "tyre_age_logistic": {
+        "test": 0.1155779278336752,
+        "val": 0.12414613454929314,
+        "pr_auc_test": 0.22142715963121662,
+        "precision_test": NaN,
+        "recall_test": 0.0,
+        "calibration_test": [
+          {
+            "bin": [
+              0.0,
+              0.1
+            ],
+            "n": 2713,
+            "mean_predicted": 0.06960024535791078,
+            "observed_rate": 0.09472908219683007
+          },
+          {
+            "bin": [
+              0.1,
+              0.2
+            ],
+            "n": 2391,
+            "mean_predicted": 0.16415451862557587,
+            "observed_rate": 0.12588874947720619
+          },
+          {
+            "bin": [
+              0.2,
+              0.30000000000000004
+            ],
+            "n": 1397,
+            "mean_predicted": 0.23304061789290842,
+            "observed_rate": 0.2376521116678597
+          },
+          {
+            "bin": [
+              0.30000000000000004,
+              0.4
+            ],
+            "n": 95,
+            "mean_predicted": 0.3287725860554684,
+            "observed_rate": 0.18947368421052632
+          },
+          {
+            "bin": [
+              0.4,
+              0.5
+            ],
+            "n": 3,
+            "mean_predicted": 0.4067248218002191,
+            "observed_rate": 0.0
+          },
+          {
+            "bin": [
+              0.5,
+              0.6000000000000001
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.6000000000000001,
+              0.7000000000000001
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.7000000000000001,
+              0.8
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.8,
+              0.9
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.9,
+              1.0
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          }
+        ]
+      },
+      "base_rate": {
+        "test": 0.11866610213955595,
+        "val": 0.130516513796773,
+        "pr_auc_test": 0.13759660554629488,
+        "precision_test": NaN,
+        "recall_test": 0.0,
+        "calibration_test": [
+          {
+            "bin": [
+              0.0,
+              0.1
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.1,
+              0.2
+            ],
+            "n": 6599,
+            "mean_predicted": 0.1391205645758278,
+            "observed_rate": 0.13759660554629488
+          },
+          {
+            "bin": [
+              0.2,
+              0.30000000000000004
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.30000000000000004,
+              0.4
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.4,
+              0.5
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.5,
+              0.6000000000000001
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.6000000000000001,
+              0.7000000000000001
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.7000000000000001,
+              0.8
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.8,
+              0.9
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          },
+          {
+            "bin": [
+              0.9,
+              1.0
+            ],
+            "n": 0,
+            "mean_predicted": null,
+            "observed_rate": null
+          }
+        ]
+      }
+    },
+    "selection_set": "val",
+    "ranking": [
+      "lstm",
+      "tyre_age_logistic",
+      "base_rate"
+    ],
+    "test_ranking": [
+      "lstm",
+      "tyre_age_logistic",
+      "base_rate"
+    ],
+    "selected": "lstm"
+  },
+  "baselines": {
+    "compound_slopes": {
+      "SOFT": 0.046363876561837526,
+      "HARD": 0.03615386632508736,
+      "MEDIUM": 0.037736174647275605,
+      "INTERMEDIATE": -0.22755582534647684,
+      "WET": -0.32722972972973036,
+      "ALL": 0.009875331874032167
+    },
+    "logistic": {
+      "intercept": -1.3241548464048116,
+      "coef": [
+        0.024238951896646353,
+        -0.2008063245446401,
+        -0.4592623902648155,
+        -1.6322130397685253,
+        -0.4789184849996206,
+        1.6307576984145575
+      ],
+      "inputs": [
+        "origin_tyre_life",
+        "compound_SOFT",
+        "compound_MEDIUM",
+        "compound_HARD",
+        "compound_INTERMEDIATE",
+        "compound_WET"
+      ]
+    },
+    "base_rate": 0.13912056457582786
+  }
+}

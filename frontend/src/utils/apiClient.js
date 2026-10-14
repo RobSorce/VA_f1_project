@@ -42,8 +42,8 @@ export const getTelemetry = (year, round, driver, lap, sessionType = 'R') => {
 };
 export const getCircuit = (year, round) =>
   client.get(`/circuit/${year}/${round}`, { timeout: 600000 }).then((r) => r.data);
-export const getStrategy = (year, round) =>
-  client.get(`/strategy/${year}/${round}`, { timeout: 600000 }).then((r) => r.data);
+export const getStrategy = (year, round, type = 'R') =>
+  client.get(`/strategy/${year}/${round}`, { params: { session_type: type }, timeout: 600000 }).then((r) => r.data);
 export const getDrivers = (year, round) =>
   client.get(`/drivers/${year}/${round}`).then((r) => r.data);
 export const getResults = (year, round) =>
@@ -58,29 +58,40 @@ export const getReplayData = (year, round, type = 'R') =>
   client.get(`/session/${year}/${round}/${type}/replay`).then((r) => r.data);
 
 // ── PCA ──────────────────────────────────────────────────────────────
-export const getPCAEmbeddings = () =>
-  client.get('/pca/embeddings').then((r) => r.data);
-// Backend endpoint still named tsne — kept for compatibility
-export const analyzeTSNESelection = (pointIds) =>
-  client.post('/tsne/analyze-selection', { point_ids: pointIds }).then((r) => r.data);
+// clock {year, round, session_now}: that race's rows at session_now, on axes
+// fitted without it (backend pca_compute.pca_embeddings_at); none = post-race
+export const getPCAEmbeddings = (clock = null) =>
+  client.get('/pca/embeddings', clock ? { params: clock } : undefined).then((r) => r.data);
+// Descriptive analysis of a lasso selection (Hedges' g, its 95% interval, N,
+// random-selection baseline: backend pca_compute.analyze_selection). opts
+// {year, round, session_now} ask for the rows of that race at session_now.
+export const analyzePCASelection = (pointIds, opts = {}) =>
+  client.post('/pca/analyze-selection', { point_ids: pointIds, ...opts }).then((r) => r.data);
+// Former name; the backend keeps /tsne/analyze-selection as an alias of the route
+export const analyzeTSNESelection = analyzePCASelection;
 
 // ── Predictions ─────────────────────────────────────────────────────
+// POST bodies carry session_type (D16; 'R' when the caller names none) and
+// /degradation its session_now (session seconds or null, D6)
 export const predictLSTM = (data) =>
-  client.post('/predict/lstm', data).then((r) => r.data);
+  client.post('/predict/lstm', { session_type: 'R', ...data }).then((r) => r.data);
 export const predictDegradation = (data) =>
-  client.post('/predict/degradation', data).then((r) => r.data);
+  client.post('/predict/degradation', { session_type: 'R', session_now: null, ...data }).then((r) => r.data);
 
 // ── Gemini ──────────────────────────────────────────────────────────
 export const queryGemini = (data) =>
   client.post('/gemini/strategy', data).then((r) => r.data);
 
 // ── Analytics ────────────────────────────────────────────────────────
-export const getSectors = (year, round) =>
-  client.get(`/analytics/sectors/${year}/${round}`).then((r) => r.data);
-export const getConsistency = (year, round) =>
-  client.get(`/analytics/consistency/${year}/${round}`).then((r) => r.data);
-export const getSpeedRankings = (year, round) =>
-  client.get(`/analytics/speed-rankings/${year}/${round}`).then((r) => r.data);
+// Every analytics / prediction call names the type of the session on screen
+// (D16): session_type as a query parameter for GET, a body field for POST
+// (store/useF1Store.js passes it); 'R' when a caller names none.
+export const getSectors = (year, round, type = 'R') =>
+  client.get(`/analytics/sectors/${year}/${round}`, { params: { session_type: type } }).then((r) => r.data);
+export const getConsistency = (year, round, type = 'R') =>
+  client.get(`/analytics/consistency/${year}/${round}`, { params: { session_type: type } }).then((r) => r.data);
+export const getSpeedRankings = (year, round, type = 'R') =>
+  client.get(`/analytics/speed-rankings/${year}/${round}`, { params: { session_type: type } }).then((r) => r.data);
 
 // ── Championship ──────────────────────────────────────────────────────
 export const getChampionship = (year, loadAll = false) =>

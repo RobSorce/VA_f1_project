@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import * as d3 from 'd3';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, sessionScopeOf, telemetryKeySuffix } from '../../store/useF1Store';
+import { seasonHasDrs, sessionSeasonOf } from '../../utils/seasons';
 import { getDriverColor } from '../../utils/colors';
 import { estimateFromFramePositions } from '../../utils/trackPositionEstimator';
 import { leaderLapEndTime } from '../../utils/raceTime';
@@ -163,8 +164,15 @@ export default function TrackMap({ compact = false }) {
   const isLiveMode = useF1Store((s) => s.isLiveMode);
   const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
   const telemetryCache = useF1Store((s) => s.telemetryCache);
+  // Telemetry cache keys of the session on screen end with this (store telemetryCacheKey)
+  const telemetrySuffix = useF1Store((s) => telemetryKeySuffix(sessionScopeOf(s)));
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
   const fetchDriverTelemetry = useF1Store((s) => s.fetchDriverTelemetry);
+  // DRS exists in the season on screen (utils/seasons.js: none from 2026): the
+  // DRS zones, their toggle, the tooltip row and the HUD readout follow it
+  const seasonDrs = useF1Store((s) => seasonHasDrs(sessionSeasonOf(s)));
+  const seasonDrsRef = useRef(seasonDrs);
+  seasonDrsRef.current = seasonDrs;
   // Only a race or a sprint ends with a winner under the chequered flag
   const isRace = isRaceSession(useF1Store(viewSessionType));
 
@@ -733,9 +741,10 @@ export default function TrackMap({ compact = false }) {
 
   useEffect(() => {
     if (!gRef.current) return;
-    gRef.current.select('.drs-outer-layer').attr('opacity', showDRS ? 1 : 0);
-    gRef.current.select('.drs-detection-layer').attr('opacity', showDRS ? 1 : 0);
-  }, [showDRS]);
+    const visible = showDRS && seasonDrs;
+    gRef.current.select('.drs-outer-layer').attr('opacity', visible ? 1 : 0);
+    gRef.current.select('.drs-detection-layer').attr('opacity', visible ? 1 : 0);
+  }, [showDRS, seasonDrs]);
 
   useEffect(() => {
     if (!gRef.current) return;
@@ -744,32 +753,28 @@ export default function TrackMap({ compact = false }) {
 
   // Auto-fetch telemetry for focus driver when channel mode is activated
   useEffect(() => {
-    if (!channelMode || !focusDriver || !fetchDriverTelemetry) return;
-    const sessionType = isQualifyingReplay ? 'Q' : 'R';
+    if (!channelMode || !focusDriver || !fetchDriverTelemetry || !telemetrySuffix) return;
     const prefix = `${focusDriver}-`;
-    const suffix = `-${sessionType}`;
     const hasAny = Object.keys(telemetryCache || {}).some(
-      (k) => k.startsWith(prefix) && k.endsWith(suffix)
+      (k) => k.startsWith(prefix) && k.endsWith(telemetrySuffix)
     );
     if (hasAny) return;
     // The focus driver's last completed lap (a lap still running is not drawn)
     const targetLap = driverStatus[focusDriver]?.lapsCompleted || 0;
     if (targetLap < 1) return;
     fetchDriverTelemetry(focusDriver, targetLap);
-  }, [channelMode, focusDriver, telemetryCache, isQualifyingReplay, driverStatus, fetchDriverTelemetry]);
+  }, [channelMode, focusDriver, telemetryCache, telemetrySuffix, driverStatus, fetchDriverTelemetry]);
 
   // ── Channel-colored track overlay (speed / throttle / brake) ──
   // Pick the most recent cached telemetry lap the focus driver has completed
   const channelTelemetry = useMemo(() => {
-    if (!channelMode || !focusDriver || !telemetryCache) return null;
-    const sessionType = isQualifyingReplay ? 'Q' : 'R';
+    if (!channelMode || !focusDriver || !telemetryCache || !telemetrySuffix) return null;
     const prefix = `${focusDriver}-`;
-    const suffix = `-${sessionType}`;
     const lastDone = driverStatus[focusDriver]?.lapsCompleted ?? 0;
     let best = null;
     let bestLap = -1;
     for (const key of Object.keys(telemetryCache)) {
-      if (!key.startsWith(prefix) || !key.endsWith(suffix)) continue;
+      if (!key.startsWith(prefix) || !key.endsWith(telemetrySuffix)) continue;
       const m = key.match(/^[A-Z0-9]{3}-(\d+)-/);
       if (!m) continue;
       const lap = parseInt(m[1], 10);
@@ -780,7 +785,7 @@ export default function TrackMap({ compact = false }) {
       }
     }
     return best && best.length > 1 ? { samples: best, lap: bestLap } : null;
-  }, [channelMode, focusDriver, telemetryCache, isQualifyingReplay, driverStatus]);
+  }, [channelMode, focusDriver, telemetryCache, telemetrySuffix, driverStatus]);
 
   // Render channel overlay as thin colored segments; dim sectors to keep colors readable
   const sectorDimmedRef = useRef(false);
@@ -1018,7 +1023,7 @@ export default function TrackMap({ compact = false }) {
         <div class="tooltip-row"><span class="tooltip-label">Throttle</span><span class="tooltip-value tooltip-throttle">${typeof throttle === 'number' ? throttle.toFixed(0) : throttle}%</span></div>
         <div class="tooltip-row"><span class="tooltip-label">Brake</span><span class="tooltip-value tooltip-brake">${typeof brake === 'number' ? brake.toFixed(0) : brake}%</span></div>
         <div class="tooltip-row"><span class="tooltip-label">Gear</span><span class="tooltip-value">${typeof gear === 'number' ? Math.round(gear) : gear}</span></div>
-        <div class="tooltip-row"><span class="tooltip-label">DRS</span><span class="tooltip-value ${drsClass}">${drsText}</span></div>
+        ${seasonDrsRef.current ? `<div class="tooltip-row"><span class="tooltip-label">DRS</span><span class="tooltip-value ${drsClass}">${drsText}</span></div>` : ''}
         <div class="tooltip-row"><span class="tooltip-label">Tyre</span><span class="tooltip-value">${compound} ${tyreLife != null ? `(${Math.round(tyreLife)} laps)` : ''}</span></div>
       `;
     };
@@ -1442,7 +1447,9 @@ export default function TrackMap({ compact = false }) {
       <button style={toggleBtnStyle(showSector1, SECTOR_COLORS[1])} onClick={() => setShowSector1(!showSector1)}>S1</button>
       <button style={toggleBtnStyle(showSector2, SECTOR_COLORS[2])} onClick={() => setShowSector2(!showSector2)}>S2</button>
       <button style={toggleBtnStyle(showSector3, SECTOR_COLORS[3])} onClick={() => setShowSector3(!showSector3)}>S3</button>
-      <button style={toggleBtnStyle(showDRS, '#00cc00')} onClick={() => setShowDRS(!showDRS)}>DRS</button>
+      {seasonDrs && (
+        <button style={toggleBtnStyle(showDRS, '#00cc00')} onClick={() => setShowDRS(!showDRS)}>DRS</button>
+      )}
       <button style={toggleBtnStyle(showCorners, '#aaa')} onClick={() => setShowCorners(!showCorners)}>Corners</button>
       <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
       <button
@@ -1652,10 +1659,12 @@ export default function TrackMap({ compact = false }) {
                   <span className="track-telemetry-hud__label">GEAR</span>
                   <span className="track-telemetry-hud__value track-telemetry-hud__gear">{hud.gear}</span>
                 </div>
-                <div className="track-telemetry-hud__row">
-                  <span className="track-telemetry-hud__label">DRS</span>
-                  <span className={`track-telemetry-hud__value ${hud.drsClass}`}>{hud.drsText}</span>
-                </div>
+                {seasonDrs && (
+                  <div className="track-telemetry-hud__row">
+                    <span className="track-telemetry-hud__label">DRS</span>
+                    <span className={`track-telemetry-hud__value ${hud.drsClass}`}>{hud.drsText}</span>
+                  </div>
+                )}
                 <div className="track-telemetry-hud__row">
                   <span className="track-telemetry-hud__label">TYRE</span>
                   <span className="track-telemetry-hud__value">

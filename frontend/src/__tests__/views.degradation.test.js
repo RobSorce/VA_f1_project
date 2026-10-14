@@ -50,7 +50,7 @@ const { default: ConsistencyPanel } = await import('../components/visualizations
 const { default: DriverComparePanel } = await import('../components/visualizations/DriverComparePanel.jsx');
 const {
   tyreDegradationView, consistencyView, fitLapTime, formatSlope, FUEL_NOTE, FIT_NOTE,
-  BRUSH_MIN_LAPS, LOW_DATA_FRACTION,
+  BRUSH_MIN_LAPS, LOW_DATA_FRACTION, LOW_DATA_MIN_LAPS,
 } = await import('../utils/views/degradationViews.js');
 const {
   stintFits, consistencySigma, compoundDegradation, FUEL_EFFECT_S_PER_LAP, MIN_FIT_LAPS,
@@ -428,13 +428,25 @@ describe.skipIf(!haveMonza)('G5 consistency on the shared definition (Monza 2024
         expect(row.deg_fits).toBe(deg[c] ? deg[c].n : 0);
       }
     }
+    // the true median (D10): the mean of the two middle values for an even count
     const sigmas = view.drivers.map((d) => d.std_dev).sort((a, b) => a - b);
-    const median = sigmas[Math.floor(sigmas.length / 2)];
+    const mid = Math.floor(sigmas.length / 2);
+    const median = sigmas.length % 2 ? sigmas[mid] : (sigmas[mid - 1] + sigmas[mid]) / 2;
+    expect(view.medianSigma).toBe(median);
     for (const d of view.drivers) expect(d.is_consistent).toBe(d.std_dev <= median);
-    const largest = Math.max(...view.drivers.map((d) => d.sample_size));
-    expect(view.minLapsThreshold).toBe(Math.floor(largest * LOW_DATA_FRACTION));
+    // LOW DATA: laps completed below LOW_DATA_FRACTION of the most laps
+    // completed in the field (the backend's MIN_RACE_SHARE rule)
+    const most = Math.max(...view.drivers.map((d) => d.laps_completed));
+    expect(view.minLapsThreshold).toBe(Math.max(LOW_DATA_MIN_LAPS, Math.floor(most * LOW_DATA_FRACTION)));
+    for (const d of view.drivers) expect(d.insufficient_data).toBe(d.laps_completed < view.minLapsThreshold);
     // at the end no finisher is LOW DATA
     for (const drv of FINISHERS) expect(byDriver[drv].insufficient_data).toBe(false);
+    // even count of drivers (a synthetic field without the last-listed one): the median is between two
+    const even = consistencyView(LT.filter((r) => r.Driver !== view.drivers[view.drivers.length - 1].driver), Infinity);
+    if (even.drivers.length % 2 === 0) {
+      const ss = even.drivers.map((d) => d.std_dev).sort((a, b) => a - b);
+      expect(even.medianSigma).toBe((ss[ss.length / 2 - 1] + ss[ss.length / 2]) / 2);
+    }
   });
 
   it('causal: same cards whatever the unknown future; none before a stint has 8 clean laps', () => {

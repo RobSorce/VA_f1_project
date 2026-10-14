@@ -1,6 +1,9 @@
 """
 Feature Engineering Module
-Creates derived metrics for F1 race analysis and ML model training.
+Per-lap derived metrics for the lap-time forecast model (model/prepare_data.py).
+
+The cross-race PCA features (biplot) are built by
+data/processors/pca_compute.py (race_feature_rows), not here.
 """
 import pandas as pd
 import numpy as np
@@ -12,85 +15,6 @@ logger = logging.getLogger(__name__)
 
 class FeatureEngineer:
     """Generate engineered features for F1 data analysis and ML models."""
-    
-    # F1 team colors for visualization
-    TEAM_COLORS = {
-        'Red Bull Racing': '#3671C6',
-        'Ferrari': '#E8002D',
-        'Mercedes': '#27F4D2',
-        'McLaren': '#FF8000',
-        'Aston Martin': '#229971',
-        'Alpine': '#FF87BC',
-        'Williams': '#64C4FF',
-        'AlphaTauri': '#5E8FAA',
-        'RB': '#6692FF',
-        'Alfa Romeo': '#C92D4B',
-        'Haas F1 Team': '#B6BABD',
-        'Kick Sauber': '#52E252',
-    }
-    
-    # Tyre compound characteristics
-    COMPOUND_BASE_DELTA = {
-        'SOFT': 0.0,      # Baseline
-        'MEDIUM': 0.5,    # ~0.5s slower per lap
-        'HARD': 1.0,      # ~1.0s slower per lap
-        'INTERMEDIATE': 5.0,
-        'WET': 8.0
-    }
-    
-    def calculate_tyre_degradation(self, lap_times: pd.DataFrame) -> pd.DataFrame:
-        """
-        Calculate tyre degradation rate for each driver stint.
-        
-        Degradation = lap time increase per lap on used tyres
-        """
-        if lap_times.empty:
-            return lap_times
-        
-        df = lap_times.copy()
-        
-        # Ensure we have lap time in seconds
-        if 'LapTimeSeconds' not in df.columns and 'LapTime' in df.columns:
-            df['LapTimeSeconds'] = df['LapTime'].dt.total_seconds()
-        
-        # Calculate degradation per driver and stint
-        degradation_data = []
-        
-        for driver in df['Driver'].unique():
-            driver_laps = df[df['Driver'] == driver].sort_values('LapNumber')
-            
-            # Group by compound (pit stops change compound)
-            stint_num = 0
-            prev_compound = None
-            
-            for _, lap in driver_laps.iterrows():
-                compound = lap.get('Compound', 'UNKNOWN')
-                tyre_life = lap.get('TyreLife', 1)
-                lap_time = lap.get('LapTimeSeconds', np.nan)
-                
-                if compound != prev_compound:
-                    stint_num += 1
-                    stint_start_time = lap_time
-                    prev_compound = compound
-                
-                degradation_data.append({
-                    'Driver': driver,
-                    'LapNumber': lap['LapNumber'],
-                    'Compound': compound,
-                    'TyreLife': tyre_life,
-                    'StintNumber': stint_num,
-                    'LapTimeSeconds': lap_time,
-                    'DegradationFromStintStart': lap_time - stint_start_time if pd.notna(lap_time) and pd.notna(stint_start_time) else np.nan
-                })
-        
-        result = pd.DataFrame(degradation_data)
-        
-        # Calculate degradation rate (seconds lost per lap)
-        result['DegradationRate'] = result.groupby(['Driver', 'StintNumber'])['DegradationFromStintStart'].transform(
-            lambda x: x / (result.loc[x.index, 'TyreLife'].clip(lower=1))
-        )
-        
-        return result
     
     def calculate_fuel_corrected_pace(self, lap_times: pd.DataFrame, 
                                        total_laps: int,
@@ -145,22 +69,6 @@ class FeatureEngineer:
             if col in df.columns:
                 session_best = df[col].min()
                 df[f'{col.replace("Seconds", "")}Delta'] = df[col] - session_best
-        
-        return df
-    
-    def calculate_position_changes(self, race_results: pd.DataFrame) -> pd.DataFrame:
-        """
-        Calculate position gains/losses from grid to finish.
-        """
-        df = race_results.copy()
-        
-        if 'GridPosition' in df.columns and 'Position' in df.columns:
-            df['PositionChange'] = df['GridPosition'] - df['Position']
-            df['PositionChangeCategory'] = pd.cut(
-                df['PositionChange'],
-                bins=[-20, -3, -0.5, 0.5, 3, 20],
-                labels=['Lost 3+', 'Lost 1-2', 'Same', 'Gained 1-2', 'Gained 3+']
-            )
         
         return df
     
@@ -223,19 +131,17 @@ class FeatureEngineer:
         df = self.calculate_pit_stop_metrics(df)
         df = self.calculate_recent_pace(df)
         
-        # Merge final position from results
+        # Merge final position from results. FastF1 results name the driver
+        # code 'Abbreviation' (callers may have renamed it to 'Driver').
         if race_results is not None and 'Position' in race_results.columns:
-            finish_positions = race_results[['Driver', 'Position']].rename(
-                columns={'Position': 'FinishPosition'}
-            )
-            df = df.merge(finish_positions, on='Driver', how='left')
+            key = next((c for c in ('Driver', 'Abbreviation') if c in race_results.columns), None)
+            if key is not None:
+                finish_positions = race_results[[key, 'Position']].rename(
+                    columns={key: 'Driver', 'Position': 'FinishPosition'}
+                )
+                df = df.merge(finish_positions, on='Driver', how='left')
         
         return df
-    
-    @staticmethod
-    def get_team_color(team_name: str) -> str:
-        """Get hex color for a team."""
-        return FeatureEngineer.TEAM_COLORS.get(team_name, '#FFFFFF')
     
     @staticmethod
     def encode_compound(compound: str) -> int:
@@ -249,20 +155,3 @@ class FeatureEngineer:
             'UNKNOWN': -1
         }
         return encoding.get(compound, -1)
-
-
-def create_race_features(session_data: Dict[str, Any]) -> pd.DataFrame:
-    """
-    Convenience function to create all features from session data.
-    """
-    engineer = FeatureEngineer()
-    
-    lap_times = session_data.get('lap_times', pd.DataFrame())
-    race_results = session_data.get('race_results', pd.DataFrame())
-    
-    # Estimate total laps from max lap number
-    total_laps = int(lap_times['LapNumber'].max()) if not lap_times.empty else 56
-    
-    features = engineer.prepare_ml_features(lap_times, race_results, total_laps)
-    
-    return features

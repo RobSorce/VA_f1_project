@@ -370,19 +370,11 @@ class LiveSessionManager:
         list. Each stint but the last closes on the lap before the next one
         (as _add_stint); the last stays open.
 
-        Broadcast as 'strategy_update' messages, one per entry of the
-        driver's corrected list, in order: the dashboard appends every
-        'strategy_update' and has no other stint message (frontend
-        useF1Store.js _handleLiveMessage), and a lap shows the driver's
-        last entry that starts on or before it, so the whole list sent
-        again, from lap 1, is what an open dashboard ends up showing. The
-        'strategy_correction' message used before had no consumer: a
-        connected client kept the old compound until it reconnected (16
-        FastF1 stints of the recorded feed, verify_live/
-        r2_client_strategy_view_WORKTREE.txt); now the client is right on
-        the 1532 of 1552 the server is right on (notes/experiments/phase8/
-        repair_r2/AFTER_r2_client_strategy_view.txt). A reconnecting client
-        gets the corrected list alone (session_init)."""
+        Broadcast as one 'strategy_correction' message {Driver, stints}: the
+        driver's whole corrected list, which the dashboard puts in place of
+        every entry of that driver (frontend useF1Store.js _handleLiveMessage,
+        decision D14); 'strategy_update' stays append-only, for new entries.
+        A reconnecting client gets the corrected list alone (session_init)."""
         stints = [dict(s) for s in stints]
         for cur, nxt in zip(stints, stints[1:]):
             cur["EndLap"] = nxt["StartLap"] - 1
@@ -396,11 +388,10 @@ class LiveSessionManager:
             others_before += 1
         others = [s for s in self.tyre_strategy if s["Driver"] != driver]
         self.tyre_strategy = others[:others_before] + stints + others[others_before:]
-        for stint_entry in stints:
-            await self._broadcast({
-                "type": "strategy_update",
-                "data": stint_entry,
-            })
+        await self._broadcast({
+            "type": "strategy_correction",
+            "data": {"Driver": driver, "stints": stints},
+        })
 
     async def _add_stint(self, stint_entry: Dict[str, Any]):
         """Append a new stint and close the driver's previous open one on
@@ -659,12 +650,11 @@ class LiveSessionManager:
         """Handle decompressed CarData — telemetry samples."""
         car_data = self.normalizer.process_car_data(data)
 
-        # Accumulate telemetry per driver per lap
+        # Accumulate telemetry per driver per lap (the lap in progress, D11)
         for num, samples in car_data.items():
             abbr = self.normalizer.get_abbreviation(num)
             state = self.normalizer.driver_state.get(abbr, {})
-            current_lap = state.get("current_lap", 0)
-            key = f"{abbr}-{current_lap}"
+            key = f"{abbr}-{self.normalizer.lap_in_progress(state)}"
 
             if key not in self.telemetry_buffers:
                 self.telemetry_buffers[key] = []
@@ -731,10 +721,9 @@ class LiveSessionManager:
         self.normalizer._ensure_driver_state(abbr)
         self.normalizer.driver_state[abbr]["speed"] = latest.get("speed", 0)
 
-        # Accumulate into telemetry buffers (per driver per lap)
+        # Accumulate into telemetry buffers (per driver per lap in progress, D11)
         state = self.normalizer.driver_state.get(abbr, {})
-        current_lap = state.get("current_lap", 0)
-        key = f"{abbr}-{current_lap}"
+        key = f"{abbr}-{self.normalizer.lap_in_progress(state)}"
         if key not in self.telemetry_buffers:
             self.telemetry_buffers[key] = []
         for s in samples:
@@ -780,7 +769,7 @@ class LiveSessionManager:
             frame_drivers[abbr] = {
                 "x": pos.get("x"),
                 "y": pos.get("y"),
-                "lap": state["current_lap"],
+                "lap": self.normalizer.lap_in_progress(state),
                 "position": state["position"],
                 "gap_to_leader": state["gap_to_leader"],
                 "speed": car.get("speed", state["speed"]),

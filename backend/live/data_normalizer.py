@@ -29,15 +29,18 @@ Italian GP race, notes/experiments/phase8/live_B/probe_raw_formats.txt):
   suspension in it (2024 R4 VER lap 2: 1711.131 s).
 
 Times: every live time (lap Time / LapStartTime, PitInTime / PitOutTime,
-track-status start_time / end_time) is in SESSION seconds on one clock
-(session_time), the time base of the replay's FastF1 SessionTime
-(notes/experiments/phase3_round1/DECISIONS.md). Live, session time 0 is the
-first message after a reset; the mock replay pins the clock to the replayed
-session's own times (set_session_time), so its live rows carry the replay's
-session times exactly.
+track-status start_time / end_time, weather Time) is in SESSION seconds on
+one clock (session_time), the time base of the replay's FastF1 SessionTime
+(notes/experiments/phase3_round1/DECISIONS.md, decision D13). Live, session
+time 0 is the first message after a reset; the mock replay pins the clock to
+the replayed session's own times (set_session_time), so its live rows carry
+the replay's session times exactly, and un-pins it when it stops (the clock
+then runs on from the last pinned time). Wall-clock times (epoch seconds)
+are kept apart as received_at (track status, weather, team radio).
 """
 import datetime as _dt
 import logging
+import math
 import re
 import time as _time
 from typing import Dict, Any, Optional, List, Tuple
@@ -164,8 +167,10 @@ class LiveDataNormalizer:
         self.driver_state: Dict[str, Dict[str, Any]] = {}
         # Session start timestamp (for relative timing)
         self.session_start_time: Optional[float] = None
-        # Current lap count
+        # Current lap count (the race leader's lap, LapCount CurrentLap) and
+        # the race distance (LapCount TotalLaps; None until sent)
         self.lap_count: int = 0
+        self.total_laps: Optional[int] = None
         # Session clock (see the module docstring): time.monotonic() at
         # session time 0, or a pinned session time (mock replay)
         self._clock_origin: Optional[float] = None
@@ -181,6 +186,10 @@ class LiveDataNormalizer:
         # Track-status changes [(session time, status code)] in arrival order,
         # for the TrackStatus string of each lap row
         self.track_status_history: List[Tuple[float, str]] = []
+        # Lap rows completed before any track status was known (a connect's
+        # TimingData snapshot comes before its TrackStatus snapshot): their
+        # TrackStatus is set when the first status arrives
+        self._rows_without_status: List[Dict[str, Any]] = []
         # (Status, Message) of the track status in force: a re-subscription
         # snapshot sends it again, which is not a change
         self._track_status_in_force: Optional[Tuple[str, str]] = None
@@ -207,25 +216,42 @@ class LiveDataNormalizer:
 
     def set_session_time(self, t: Optional[float]):
         """Pin the session clock to `t` (mock replay: the replayed session's
-        own time of the message about to be sent); None un-pins it."""
-        self._pinned_time = float(t) if t is not None else None
+        own time of the message about to be sent). None un-pins it: the
+        clock then runs on from the last pinned time (a stopped mock left it
+        pinned, so every later live message got the same time: two laps fed
+        0.4 s apart both ended at 6654.29, notes/experiments/phase8/
+        verify_live/r3_pinned_clock_after_mock.txt)."""
+        if t is None:
+            if self._pinned_time is not None:
+                self._clock_origin = _time.monotonic() - self._pinned_time
+            self._pinned_time = None
+            return
+        self._pinned_time = float(t)
 
     def _lap_track_status(self, start: Optional[float], end: float) -> str:
         """Track-status codes in force during a lap [start, end], in time
         order, each once: FastF1's Laps TrackStatus rule (core.py
         _add_track_status_to_laps): a status period [t, next_t] counts when
         the lap ends in it, starts in it, or contains it; the last period
-        counts for every lap that ends after it began. '' with no status."""
+        counts for every lap that ends after it began. '' with no status.
+
+        The first status known is the one in force when the feed was joined
+        (the TrackStatus snapshot), so its period starts before it: a lap
+        that ended before it arrived (a connect's TimingData snapshot rows)
+        gets it, not ''. A lap whose start is unknown (start None: a connect
+        during it, no lap time) ran through every period up to its end that
+        the history holds (2024 R8, connect during the lap-1 red flag: the
+        lap-1 rows lacked the '5' in force at the connect)."""
         out = ""
         hist = self.track_status_history
+        lo = -math.inf if start is None else start
         for i, (t, code) in enumerate(hist):
+            t0 = -math.inf if i == 0 else t
             next_t = hist[i + 1][0] if i + 1 < len(hist) else None
             if next_t is None:
-                sel = t <= end
+                sel = t0 <= end
             else:
-                sel = t <= end <= next_t
-                if start is not None:
-                    sel = sel or (t <= start <= next_t) or (start <= t and next_t <= end)
+                sel = (t0 <= end <= next_t) or (t0 <= lo <= next_t) or (lo <= t0 and next_t <= end)
             if sel and code not in out:
                 out += code
         return out
@@ -296,9 +322,11 @@ class LiveDataNormalizer:
                 "stint_first_lap": {},
                 # stints that first arrived after SessionStatus 'Finished'
                 "post_race_stints": set(),
-                # stints of a mid-race snapshot (no arrival lap), the laps
+                # stints of a mid-race snapshot (no arrival lap: placed by
+                # the cumulative TotalLaps rule, _stint_anchors), the laps
                 # completed when it arrived, and the first lap of its set in
-                # use by that set's age (laps + 1 - TotalLaps + StartLaps)
+                # use when the feed's own records rule the cumulative
+                # placement out (_note_snapshot_laps)
                 "snapshot_stints": set(),
                 "snapshot_laps": None,
                 "snapshot_age_anchor": None,
@@ -507,11 +535,20 @@ class LiveDataNormalizer:
                     lap_time_sec = _parse_lap_time(last_lap.get("Value"))
                     if not (lap_time_sec and lap_time_sec > 0) or (n > 1 and lap_time_sec >= MAX_LAP_TIME_S):
                         lap_time_sec = None
-                lap_updates.append(self._complete_lap(num, abbr, state, n, lap_time_sec))
+                row = self._complete_lap(num, abbr, state, n, lap_time_sec)
+                if "RacingNumber" in line:
+                    # a full record: a snapshot (connect, re-subscription), so
+                    # the lap ended before now, when is not known; the next
+                    # lap then starts LapTime before its end, not at the
+                    # connect (it started on the earlier unknown end: 2024 R1
+                    # connect on lap 14, VER lap 13 started at 4860.799
+                    # instead of 4763.969, notes/experiments/phase8/
+                    # verify_live/r3_midrace_rows.txt)
+                    state["last_lap_end"] = None
+                lap_updates.append(row)
             if n is not None and state["snapshot_stints"] and state["snapshot_laps"] is None:
                 # the laps of a driver whose stints came in a mid-race
-                # snapshot (TimingAppData comes first on connect): its
-                # stints' first laps can now be checked against them
+                # snapshot (TimingAppData comes first on connect)
                 self._note_snapshot_laps(state, n)
                 strategy_updates.extend(self._rebuild_stints(abbr, state))
 
@@ -605,6 +642,9 @@ class LiveDataNormalizer:
             "SpeedFL": None,
             "SpeedST": state["speed"] if state["speed"] else None,
         }
+
+        if not self.track_status_history:
+            self._rows_without_status.append(lap_entry)
 
         # Reset sectors for next lap
         state["sector1"] = None
@@ -700,6 +740,8 @@ class LiveDataNormalizer:
                 if self.session_finished:
                     state["post_race_stints"].add(stint)
             feed.setdefault(stint, {}).update(val)
+        if fresh and state["snapshot_stints"] and state["current_lap"] > 0:
+            self._note_snapshot_laps(state, state["current_lap"])
         if not streamed and feed:
             # the in-laps before a snapshot were not seen: the counter comes
             # from the TimingData record that follows it on connect
@@ -709,8 +751,6 @@ class LiveDataNormalizer:
             if max(feed) >= state["bracket_stint"]:
                 state["bracket_stint"] = max(feed)
                 state["bracket_matched"] = True
-        if fresh and state["snapshot_stints"] and state["current_lap"] > 0:
-            self._note_snapshot_laps(state, state["current_lap"])
         return self._rebuild_stints(abbr, state)
 
     def _sync_snapshot_bracket(self, state: Dict[str, Any]):
@@ -726,63 +766,115 @@ class LiveDataNormalizer:
         indexes than stops (2025 R1: six indexes for three stops on lap 14,
         notes/experiments/phase8/repair_r2/probe_pitstops_vs_counter.txt).
         A connect's snapshot stints above it are those extra indexes: they
-        are merged into it as FastF1 merges them, so the feed's later reuse
-        of one of them opens a stint (2025 R1 BOR, MEDIUM from lap 34). A
-        re-subscription only raises the counter (in-laps lost in the gap:
-        2025 R6 ALO, a stop in a 3-lap gap, had its MEDIUM merged into the
-        HARD stint)."""
+        are merged (_merge_snapshot_extras) so that the set in use is the
+        counter's stint and the feed's later reuse of an index opens a stint
+        (2025 R1 BOR, MEDIUM from lap 34). A re-subscription only raises the
+        counter (in-laps lost in the gap: 2025 R6 ALO, a stop in a 3-lap gap,
+        had its MEDIUM merged into the HARD stint)."""
         state["bracket_sync"] = False
         pits = state["pit_stops"]
-        feed, index_map = state["feed_stints"], state["stint_index_map"]
+        feed = state["feed_stints"]
         fresh = not state["stint_first_lap"] and set(feed) <= state["snapshot_stints"]
         if fresh:
-            for stint in [x for x in sorted(feed) if x > pits]:
-                feed.setdefault(pits, {}).update(feed.pop(stint))
-                state["snapshot_stints"].discard(stint)
-                state["snapshot_stints"].add(pits)
-            for idx, stint in index_map.items():
-                if stint > pits:
-                    index_map[idx] = pits
+            self._merge_snapshot_extras(state, pits)
             state["bracket_stint"] = pits
             state["bracket_matched"] = pits in feed
         elif pits > state["bracket_stint"]:
             state["bracket_stint"] = pits
             state["bracket_matched"] = pits in feed
 
+    @staticmethod
+    def _same_set(stint: Dict[str, Any], before: Dict[str, Any]) -> bool:
+        """A snapshot stint that only repeats the set of the stint before it:
+        TyresNotChanged '1' (a pit-lane pass on the same set) on the same
+        compound or an unknown one (_rebuild_stints opens no entry for it)."""
+        if not _is_true(stint.get("TyresNotChanged")):
+            return False
+        a = COMPOUND_MAP.get(str(stint.get("Compound", "")).upper(), "UNKNOWN")
+        b = COMPOUND_MAP.get(str(before.get("Compound", "")).upper(), "UNKNOWN")
+        return a == "UNKNOWN" or b == "UNKNOWN" or a == b
+
+    def _merge_snapshot_extras(self, state: Dict[str, Any], pits: int):
+        """Merge a connect snapshot's stints down to pits + 1 (the counter's
+        stints 0..pits), as FastF1 merges the indexes of one bracket: the
+        later values win (dict update).
+
+        The extra indexes are taken among the stints that repeat the set of
+        the stint before them (_same_set), the latest first: merging one of
+        them changes no tyre set. The previous rule merged every index above
+        pits into stint pits, which lost a set whenever the extras were
+        earlier passes (2025 R1 BOR, connect on lap 47: indexes 0-6 for 5
+        pit entries, the INTER of lap 45 overwrote the MEDIUM of laps 34-44;
+        BEA lost its MEDIUM of laps 40-44 the same way;
+        notes/experiments/phase45c/b4_midrace_sweep_STEP3_AFTER.txt). Only
+        when no such stint is left are the top indexes merged into pits, as
+        before. The index map follows the renumbering."""
+        feed, index_map = state["feed_stints"], state["stint_index_map"]
+        while feed and max(feed) > pits:
+            keys = sorted(feed)
+            pos = next((i for i in range(len(keys) - 1, 0, -1)
+                        if self._same_set(feed[keys[i]], feed[keys[i - 1]])), None)
+            if pos is None:
+                for stint in [x for x in keys if x > pits]:
+                    feed.setdefault(pits, {}).update(feed.pop(stint))
+                for idx, stint in index_map.items():
+                    if stint > pits:
+                        index_map[idx] = pits
+                break
+            gone, into = keys[pos], keys[pos - 1]
+            feed[into].update(feed.pop(gone))
+            # the stints above it move down one
+            for stint in keys[pos + 1:]:
+                feed[stint - 1] = feed.pop(stint)
+            for idx, stint in index_map.items():
+                if stint == gone:
+                    index_map[idx] = into
+                elif stint > gone:
+                    index_map[idx] = stint - 1
+        state["snapshot_stints"] = set(feed)
+
     def _note_snapshot_laps(self, state: Dict[str, Any], laps_done: int):
         """The laps completed when a mid-race snapshot's stints arrived, and
-        whether the snapshot's runs place its set in use (_stint_anchors).
+        the one case where the set in use is not placed by the cumulative
+        TotalLaps rule (D12): when the feed's own records rule that placement
+        out. The set in use then starts where its own age puts it (laps + 1
+        - its run), frozen at the snapshot.
 
-        Each stint's run is TotalLaps - StartLaps; the runs of a consistent
-        snapshot add up to the laps completed (D = laps - runs is 0, or 1
-        while the last lap's TotalLaps update is on its way). The set in use
-        is then placed after the earlier runs. It is placed by its own age
-        (laps + 1 - its run) instead when that is impossible (after the lap
-        in progress), or when the runs miss more than 3 laps and the set in
-        use has counted some of its own: the 2025 R1 feed counted none of
-        LAW's laps on stints 0-4 and 16 of 29 on stint 5, so on a lap-42
-        connect the MEDIUM of lap 34 went on lap 17 (D = 33). Recorded feed,
-        connects at 1/4, 1/2 and 3/4 of 30 races, 1712 driver-connects with
-        two laps or more done (notes/experiments/phase8/repair_r2/
-        probe_set_in_use_anchor.txt): the two readings differ 46 times. With
-        D = 0 or 1 the runs give the replay's start 14 times in 14; with
-        D = -1, 2 or 3 (mostly 2025 R6, whose TotalLaps lag two laps) 19 of
-        20 times, the age once; beyond, where the set in use has counted laps
-        of its own the age is right 4 times in 8 and the runs never, and
-        where it has counted none (TotalLaps = StartLaps: 2024 R11 LEC / SAR,
-        2025 R1 TSU, 2025 R8 BOR) the runs 4 times in 4."""
+        Ruled out: (a) it starts on or before the LapNumber of an earlier
+        stint (a lap the feed timed on that earlier stint, so the set in use
+        cannot have been fitted yet: 2025 R8 RUS, connect on lap 74, the
+        MEDIUM's TotalLaps count 6 of its 15 laps, so the runs put the HARD
+        of lap 69 on lap 60, before the MEDIUM's LapNumber 67; 2025 R1 LAW,
+        the runs count 22 of 39 laps and put the MEDIUM of lap 34 on lap 17,
+        before the INTER's LapNumber 29); (b) a set before it would run no
+        lap while the runs miss laps (2025 R1 TSU, connect on lap 50: the
+        MEDIUM of laps 34-47 has TotalLaps 0, so the INTER of lap 48 landed
+        on its lap and the MEDIUM was dropped). The age is only taken when it
+        is later than the cumulative placement and agrees with the LapNumbers
+        (after the earlier ones, not after the set's own). Nothing else moves
+        a stint: the age anchor used whenever the runs missed laps moved a
+        dry race (2025 R6 Miami, connect on lap 32: BOR's HARD from 26, the
+        runs' 20 is right: its TotalLaps lag its laps), and is gone.
+        notes/experiments/phase45c/b4_midrace_sweep_STEP3_AFTER.txt."""
         state["snapshot_laps"] = laps_done
+        state["snapshot_age_anchor"] = None
         feed = state["feed_stints"]
         snap = sorted(state["snapshot_stints"] & set(feed))
+        if len(snap) < 2:
+            return
         runs = [max(0, (_to_int(feed[x].get("TotalLaps")) or 0) - (_to_int(feed[x].get("StartLaps")) or 0))
                 for x in snap]
-        state["snapshot_age_anchor"] = None
-        if not snap:
-            return
-        by_runs = 1 + sum(runs[:-1])
+        cumulative = 1 + sum(runs[:-1])
         age = max(1, min(laps_done + 1, laps_done + 1 - runs[-1]))
-        missed = laps_done - sum(runs)
-        if by_runs > laps_done + 1 or (abs(missed) > 3 and runs[-1] > 0):
+        if age <= cumulative:
+            return
+        timed = [_to_int(feed[x].get("LapNumber")) for x in snap]
+        after = max((n for n in timed[:-1] if n), default=0) + 1
+        own = timed[-1]
+        before_timed_lap = cumulative < after
+        empty_set = (runs[-2] == 0 and sum(runs) < laps_done - 1
+                     and not self._same_set(feed[snap[-1]], feed[snap[-2]]))
+        if (before_timed_lap or empty_set) and age >= after and (not own or age <= own):
             state["snapshot_age_anchor"] = age
 
     def _stint_anchors(self, state: Dict[str, Any]) -> Dict[int, int]:
@@ -791,11 +883,12 @@ class LiveDataNormalizer:
         A stint with an arrival lap starts there; a stint of a snapshot
         starts after the laps of the stints before it, each of which ran
         TotalLaps - StartLaps laps (its set's age now minus when fitted; the
-        past stints used to all get the current lap, EndLap < StartLap), or,
-        for the set in use, where its own age puts it when the snapshot's
-        runs cannot (_note_snapshot_laps), the stints before it then ending
-        no later. The first stint is on the car from lap 1 (2025 R6: its late
-        first message counted one lap too few for 3 drivers).
+        past stints used to all get the current lap, EndLap < StartLap): the
+        cumulative TotalLaps rule (decision D12), but for the set in use where
+        the feed's own records rule it out (_note_snapshot_laps), the stints
+        before it then ending no later. The first stint is on the car from
+        lap 1 (2025 R6: its late first message counted one lap too few for 3
+        drivers).
         """
         feed, first_lap = state["feed_stints"], state["stint_first_lap"]
         order = sorted(feed)
@@ -899,18 +992,38 @@ class LiveDataNormalizer:
     # ── LapCount ──────────────────────────────────────────────────────
 
     def process_lap_count(self, data: Dict) -> int:
-        """Process LapCount topic → current lap number."""
+        """Process LapCount topic → current lap number (TotalLaps, when
+        sent, is kept as the race distance: lap_in_progress caps at it)."""
         current = _to_int(data.get("CurrentLap"))
         if current:
             self.lap_count = current
+        total = _to_int(data.get("TotalLaps"))
+        if total:
+            self.total_laps = total
         return self.lap_count
+
+    def lap_in_progress(self, state: Dict[str, Any]) -> int:
+        """The lap a driver is on (decision D11): laps completed + 1, capped
+        at the race distance when it is known (a car that has taken the flag
+        stays on the last lap). The live frames' 'lap', as in the replay
+        frames (frames_<y>_<r>_R.json: lap 1 from t = 0); lap rows keep
+        LapNumber = NumberOfLaps, the lap completed."""
+        lap = int(state.get("current_lap") or 0) + 1
+        if self.total_laps:
+            lap = min(lap, self.total_laps)
+        return lap
 
     # ── WeatherData ───────────────────────────────────────────────────
 
     def process_weather(self, data: Dict) -> Dict[str, Any]:
-        """Process WeatherData topic → weather_data entry."""
+        """Process WeatherData topic → weather_data entry. Time is in session
+        seconds, the time base of the lap rows (D13: a weather Time in epoch
+        seconds matched no lap, so every live lap showed the first reading,
+        notes/experiments/phase8/verify_live/r3_weather_card.txt);
+        received_at is the wall clock (epoch s)."""
         return {
-            "Time": _time.time(),
+            "Time": self.session_time(),
+            "received_at": _time.time(),
             "AirTemp": _safe_float(data.get("AirTemp")),
             "TrackTemp": _safe_float(data.get("TrackTemp")),
             "Humidity": _safe_float(data.get("Humidity")),
@@ -944,6 +1057,9 @@ class LiveDataNormalizer:
         self._track_status_in_force = (status, message or "")
         t = self.session_time()
         self.track_status_history.append((t, status))
+        for row in self._rows_without_status:
+            row["TrackStatus"] = self._lap_track_status(row.get("LapStartTime"), row["Time"])
+        self._rows_without_status = []
         return {
             "status": status,
             "start_time": t,
@@ -1073,12 +1189,18 @@ class LiveDataNormalizer:
         connect (2024 R4 ALO lap 2 at 4630.807 s, not 5458.774). 'Aborted'
         always follows a 'Started' (34 recorded races, notes/experiments/
         phase8/repair_r2/session_status_sequences.txt), so the race start is
-        then before the connect and unknown: race_start_time stays None."""
+        then before the connect and unknown: race_start_time stays None. So
+        it does when the 'Started' comes in the snapshot of a connect once
+        the race is under way (a lap completed or the leader past lap 1): it
+        used to be taken for the race start and dropped the pit entry the
+        TimingData snapshot had just stamped on a car in the pit lane (2024
+        R1 PER lap 13 lost its PitInTime)."""
         status = data.get("Status", "")
         if status == "Started":
+            under_way = self.lap_count > 1 or any(st["current_lap"] > 0 for st in self.driver_state.values())
             if self._aborted:
                 self.restart_time = self.session_time()
-            elif self.race_start_time is None:
+            elif self.race_start_time is None and not under_way:
                 self.race_start_time = self.session_time()
                 for state in self.driver_state.values():
                     state["pending_pit_in"] = state["pending_pit_out"] = None
@@ -1162,7 +1284,7 @@ class LiveDataNormalizer:
             frame_drivers[abbr] = {
                 "x": pos.get("x"),  # May be None in live
                 "y": pos.get("y"),  # May be None in live
-                "lap": state["current_lap"],
+                "lap": self.lap_in_progress(state),
                 "position": state["position"],
                 "gap_to_leader": state["gap_to_leader"],
                 "speed": car.get("speed", state["speed"]),

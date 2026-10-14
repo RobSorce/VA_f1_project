@@ -2,8 +2,10 @@ import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, getTeamColor, TYRE_COLORS } from '../../utils/colors';
-import { FEATURE_LABELS } from '../../utils/raceSituationFeatures';
 import { attachLasso } from '../../utils/lasso';
+import {
+  advanceDisplay, fieldMean, biplotArrows, axisTitles,
+} from '../../utils/views/raceSituationMap';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
@@ -16,16 +18,13 @@ const COMPOUND_COLORS = {
   UNKNOWN: '#888',
 };
 
-const MAX_TRAIL_LENGTH = 20; // number of past positions to store per driver
-const SMOOTHING_ALPHA = 0.35; // exponential smoothing factor (0 = fully smooth, 1 = no smoothing)
-const JUMP_THRESHOLD = 2.5; // PCA-space distance beyond which smoothing kicks in
-
 export default function RaceSituationMap() {
   const svgRef = useRef(null);
   const cleanupRef = useRef(null);
-  const trajectoryRef = useRef({}); // { driverAbbr: [{x, y, lap}, ...] }
-  const lastTrailLapRef = useRef(null); // track the lap we last added to trails
-  const smoothedPositionsRef = useRef({}); // { driverAbbr: {x, y} } for exponential smoothing
+  // Drawn positions + trails (utils/views/raceSituationMap.js advanceDisplay):
+  // each dot at its score, advanced only on new lap data (re-renders never
+  // move the points); the D3 transition below animates the move
+  const displayRef = useRef(null);
 
   const raceSituationData = useF1Store((s) => s.raceSituationData);
   const computeRaceSituation = useF1Store((s) => s.computeRaceSituation);
@@ -56,40 +55,11 @@ export default function RaceSituationMap() {
     return map;
   }, [driversInfo]);
 
-  // Update trajectory history when PCA data changes
+  // Advance the drawn positions and trails once per new race situation;
+  // the same data returns the same state
   useEffect(() => {
     if (!raceSituationData) return;
-    const { driverAbbrs, scores, computedAtLap } = raceSituationData;
-
-    // Only add to trail if this is a new lap computation
-    if (lastTrailLapRef.current === computedAtLap) return;
-
-    const history = trajectoryRef.current;
-
-    // If user rewound, trim future trail points to avoid confusing paths
-    if (lastTrailLapRef.current != null && computedAtLap < lastTrailLapRef.current) {
-      for (const abbr of Object.keys(history)) {
-        history[abbr] = (history[abbr] || []).filter((pt) => pt.lap <= computedAtLap);
-      }
-    }
-
-    lastTrailLapRef.current = computedAtLap;
-
-    driverAbbrs.forEach((abbr, i) => {
-      if (!history[abbr]) history[abbr] = [];
-      // Avoid duplicate entries for the same lap
-      const last = history[abbr][history[abbr].length - 1];
-      if (last && last.lap === computedAtLap) {
-        last.x = scores[i].x;
-        last.y = scores[i].y;
-      } else {
-        history[abbr].push({ x: scores[i].x, y: scores[i].y, lap: computedAtLap });
-      }
-      // Trim to max length
-      if (history[abbr].length > MAX_TRAIL_LENGTH) {
-        history[abbr] = history[abbr].slice(-MAX_TRAIL_LENGTH);
-      }
-    });
+    displayRef.current = advanceDisplay(displayRef.current, raceSituationData);
   }, [raceSituationData]);
 
   // Main D3 render — uses update pattern for animated transitions
@@ -98,6 +68,9 @@ export default function RaceSituationMap() {
 
     const data = raceSituationData;
     const { driverAbbrs, scores, loadings, explainedVariance, driverFeatures, computedAtLap } = data;
+    // Idempotent: on a re-render (hover, selection) the state drawn already
+    const display = advanceDisplay(displayRef.current, data);
+    displayRef.current = display;
 
     const container = svgRef.current.parentElement;
     const rect = container.getBoundingClientRect();
@@ -148,10 +121,12 @@ export default function RaceSituationMap() {
     }
 
     // ── Scales (include trail history for stable framing) ──
-    const history = trajectoryRef.current;
-    let allX = scores.map((d) => d.x);
-    let allY = scores.map((d) => d.y);
+    const history = display.trails;
+    const allX = scores.map((d) => d.x);
+    const allY = scores.map((d) => d.y);
     for (const abbr of driverAbbrs) {
+      allX.push(display.positions[abbr].x);
+      allY.push(display.positions[abbr].y);
       const trail = history[abbr];
       if (trail) {
         for (const pt of trail) {
@@ -186,10 +161,11 @@ export default function RaceSituationMap() {
         .call((el) => el.select('.domain').remove());
     }
 
-    // ── Crosshair at origin (field average) ──
+    // ── Crosshair at the field average (the current mean: the PCA is refitted per lap) ──
     const crosshairLayer = g.select('.crosshair-layer');
     crosshairLayer.selectAll('*').remove();
-    const ox = x(0), oy = y(0);
+    const mean = fieldMean(scores);
+    const ox = x(mean.x), oy = y(mean.y);
     if (showAxes && ox > 0 && ox < innerW && oy > 0 && oy < innerH) {
       crosshairLayer.append('line').attr('x1', ox).attr('y1', 0).attr('x2', ox).attr('y2', innerH)
         .attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-dasharray', '3,5');
@@ -200,17 +176,23 @@ export default function RaceSituationMap() {
         .attr('font-style', 'italic').text('field avg');
     }
 
-    // ── Loading arrows (biplot vectors — top 6 features) ──
+    // ── Loading arrows (biplot vectors from the field average, the same basis
+    //    as the points: a driver moves along an arrow as that feature rises) ──
     const arrowsLayer = g.select('.arrows-layer');
     arrowsLayer.selectAll('*').remove();
-    const topLoadings = showAxes ? loadings.slice(0, 6) : [];
-    const maxMag = Math.max(...topLoadings.map((l) => Math.sqrt(l.pc1 ** 2 + l.pc2 ** 2)));
-    const arrowScale = Math.min(innerW, innerH) * 0.32 / (maxMag || 1);
+    const topLoadings = showAxes ? biplotArrows(loadings) : [];
+    const maxMag = Math.max(0, ...topLoadings.map((l) => l.magnitude));
+    // Arrow length in PC units (the longest = 32 % of the shorter axis span),
+    // drawn through the points' own x / y scales so the directions match
+    const xSpan = x.domain()[1] - x.domain()[0];
+    const ySpan = y.domain()[1] - y.domain()[0];
+    const arrowScale = Math.min(xSpan, ySpan) * 0.32 / (maxMag || 1);
 
     topLoadings.forEach((l) => {
-      const dx = l.pc1 * arrowScale;
-      const dy = -l.pc2 * arrowScale;
-      const endX = ox + dx, endY = oy + dy;
+      const endX = x(mean.x + l.pc1 * arrowScale);
+      const endY = y(mean.y + l.pc2 * arrowScale);
+      const dx = endX - ox;
+      const dy = endY - oy;
       if (endX < -10 || endX > innerW + 10 || endY < -10 || endY > innerH + 10) return;
 
       arrowsLayer.append('line')
@@ -220,7 +202,7 @@ export default function RaceSituationMap() {
 
       const labelX = endX + (dx > 0 ? 5 : -5);
       const labelY = endY + (dy > 0 ? 12 : -5);
-      const labelText = FEATURE_LABELS[l.feature] || l.feature;
+      const labelText = l.label;
       const labelAnchor = dx > 0 ? 'start' : 'end';
 
       arrowsLayer.append('text')
@@ -234,28 +216,14 @@ export default function RaceSituationMap() {
         .text(labelText);
     });
 
-    // ── Build point data with exponential smoothing for large jumps ──
-    const smoothed = smoothedPositionsRef.current;
-    const pointData = driverAbbrs.map((abbr, i) => {
-      const raw = scores[i];
-      let sx = raw.x, sy = raw.y;
-
-      if (smoothed[abbr]) {
-        const dx = raw.x - smoothed[abbr].x;
-        const dy = raw.y - smoothed[abbr].y;
-        const jumpDist = Math.sqrt(dx * dx + dy * dy);
-        if (jumpDist > JUMP_THRESHOLD) {
-          // Large jump: blend toward new position with exponential smoothing
-          sx = smoothed[abbr].x + SMOOTHING_ALPHA * dx;
-          sy = smoothed[abbr].y + SMOOTHING_ALPHA * dy;
-        }
-      }
-      smoothed[abbr] = { x: sx, y: sy };
-
+    // ── Point data: the drawn positions (each dot at its score, so it sits at
+    //    the crosshair + sum of z x arrow) ──
+    const pointData = driverAbbrs.map((abbr) => {
+      const drawn = display.positions[abbr];
       return {
         abbr,
-        x: sx,
-        y: sy,
+        x: drawn.x,
+        y: drawn.y,
         ...driverFeatures[abbr],
         teamName: driverInfoMap[abbr]?.TeamName || 'Unknown',
       };
@@ -424,7 +392,7 @@ export default function RaceSituationMap() {
           `<div class="tooltip-row"><span class="tooltip-label">Tyre</span><span class="tooltip-value">${d.compoundName} (${d.tyreLife} laps)</span></div>` +
           `<div class="tooltip-row"><span class="tooltip-label">Stint</span><span class="tooltip-value">#${d.stintNumber}</span></div>` +
           `<div class="tooltip-row"><span class="tooltip-label">Pit Stops</span><span class="tooltip-value">${d.pitStops ?? (d.stintNumber - 1)}</span></div>` +
-          `<div class="tooltip-row"><span class="tooltip-label">Est. pit in</span><span class="tooltip-value">~${d.estLapsToPit} laps</span></div>` +
+          `<div class="tooltip-row"><span class="tooltip-label">Est. pit in</span><span class="tooltip-value">~${d.estLapsToPit} laps${d.estLapsToPitSource === 'prior' ? ' (prior)' : ''}</span></div>` +
           `<div class="tooltip-row"><span class="tooltip-label">Pred. pace +5</span><span class="tooltip-value">${d.predictedPace5?.toFixed(1)}s</span></div>` +
           (trailLen > 1 ? `<div class="tooltip-row"><span class="tooltip-label">Trail</span><span class="tooltip-value">${trailLen} snapshots</span></div>` : '')
         ).style('left', event.pageX + 12 + 'px').style('top', event.pageY - 10 + 'px')
@@ -531,27 +499,23 @@ export default function RaceSituationMap() {
     const infoLayer = g.select('.info-layer');
     infoLayer.selectAll('*').remove();
 
-    const pc1Pct = explainedVariance[0] ? `${(explainedVariance[0] * 100).toFixed(0)}%` : '';
-    const pc2Pct = explainedVariance[1] ? `${(explainedVariance[1] * 100).toFixed(0)}%` : '';
-
-    const topPC1 = [...loadings].sort((a, b) => Math.abs(b.pc1) - Math.abs(a.pc1)).slice(0, 2);
-    const topPC2 = [...loadings].sort((a, b) => Math.abs(b.pc2) - Math.abs(a.pc2)).slice(0, 2);
-    const pc1Desc = topPC1.map((l) => FEATURE_LABELS[l.feature] || l.feature).join(' / ');
-    const pc2Desc = topPC2.map((l) => FEATURE_LABELS[l.feature] || l.feature).join(' / ');
+    // Variance each axis captures at this lap (computePCA explainedVariance),
+    // and the PC1-PC2 plane both axes span (turned to follow the previous lap)
+    const titles = axisTitles(loadings, explainedVariance);
 
     infoLayer.append('text').attr('class', 'axis-label-x')
       .attr('x', innerW / 2).attr('y', innerH + 34)
       .attr('text-anchor', 'middle')
       .attr('fill', 'rgba(255,255,255,0.5)')
       .attr('font-size', '10px').attr('font-weight', 600)
-      .text(`PC1: ${pc1Desc} (${pc1Pct})`);
+      .text(titles.x);
 
     infoLayer.append('text').attr('class', 'axis-label-y')
       .attr('transform', `translate(-38, ${innerH / 2}) rotate(-90)`)
       .attr('text-anchor', 'middle')
       .attr('fill', 'rgba(255,255,255,0.5)')
       .attr('font-size', '10px').attr('font-weight', 600)
-      .text(`PC2: ${pc2Desc} (${pc2Pct})`);
+      .text(titles.y);
 
     infoLayer.append('text')
       .attr('x', innerW / 2).attr('y', innerH + 20)
@@ -559,15 +523,28 @@ export default function RaceSituationMap() {
       .attr('fill', 'var(--color-text-muted)').attr('font-size', 8)
       .text('Click driver to select | Shift+drag to lasso | Dbl-click to focus');
 
+    if (data.paceInPca === false) {
+      infoLayer.append('text').attr('class', 'pace-note')
+        .attr('x', 4).attr('y', 12)
+        .attr('fill', 'var(--color-text-muted)').attr('font-size', '9px')
+        .text('Pace left out until every driver has 2 green laps');
+    }
+
     infoLayer.append('text').attr('class', 'lap-indicator')
       .attr('x', innerW - 4).attr('y', 12)
       .attr('text-anchor', 'end')
       .attr('fill', '#00e676').attr('font-size', '10px').attr('font-weight', 700)
       .text(`Lap ${computedAtLap}`);
 
+    infoLayer.append('text').attr('class', 'plane-label')
+      .attr('x', innerW - 4).attr('y', 25)
+      .attr('text-anchor', 'end')
+      .attr('fill', 'var(--color-text-secondary)').attr('font-size', '9px')
+      .text(titles.plane);
+
     if (selectedDrivers.length > 0) {
       infoLayer.append('text').attr('class', 'sel-count')
-        .attr('x', innerW - 4).attr('y', 26)
+        .attr('x', innerW - 4).attr('y', 38)
         .attr('text-anchor', 'end')
         .attr('fill', 'var(--color-f1-red)').attr('font-size', '9px').attr('font-weight', 700)
         .text(`${selectedDrivers.length} selected`);
@@ -591,9 +568,7 @@ export default function RaceSituationMap() {
   // Reset trajectory when session changes
   const sessionKey = useF1Store((s) => s.sessionData?.session_info?.year + '-' + s.sessionData?.session_info?.round);
   useEffect(() => {
-    trajectoryRef.current = {};
-    lastTrailLapRef.current = null;
-    smoothedPositionsRef.current = {};
+    displayRef.current = null;
   }, [sessionKey]);
 
   // Build team legend from current drivers (matches primary dot encoding)

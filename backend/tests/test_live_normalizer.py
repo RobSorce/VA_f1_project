@@ -252,14 +252,14 @@ def test_a_compound_corrected_after_the_stint_was_sent_replaces_it():
     send(m, "TimingAppData", lines(**{"81": {"Stints": {"1": {"Compound": "HARD"}}}}))
     got = [(s["StintNumber"], s["Compound"], s["StartLap"], s["EndLap"], s["TotalLaps"]) for s in m.tyre_strategy]
     assert got == [(1, "MEDIUM", 1, 19, 19), (2, "HARD", 20, None, 0)]
-    # an open dashboard gets the driver's corrected list again as
-    # 'strategy_update' messages, the only stint message it applies (it
-    # appends them; a lap shows the last entry starting on or before it). The
-    # 'strategy_correction' sent before had no consumer: the client kept MEDIUM
+    # an open dashboard gets the driver's corrected list in one
+    # 'strategy_correction' {Driver, stints}, which replaces that driver's
+    # entries (D14, frontend useF1Store.js); 'strategy_update' stays append-only
     msgs = [x for x in drain(q) if x["type"].startswith("strategy")]
-    assert [x["type"] for x in msgs] == ["strategy_update", "strategy_update"]
-    assert [(x["data"]["Driver"], x["data"]["Compound"], x["data"]["StartLap"], x["data"]["EndLap"])
-            for x in msgs] == [("PIA", "MEDIUM", 1, 19), ("PIA", "HARD", 20, None)]
+    assert [x["type"] for x in msgs] == ["strategy_correction"]
+    assert msgs[0]["data"]["Driver"] == "PIA"
+    assert [(x["Driver"], x["Compound"], x["StartLap"], x["EndLap"]) for x in msgs[0]["data"]["stints"]] == \
+        [("PIA", "MEDIUM", 1, 19), ("PIA", "HARD", 20, None)]
     laps(m, "81", 20, first=20)
     assert m.lap_times[-1]["Compound"] == "HARD"
 
@@ -320,17 +320,37 @@ def test_an_index_reused_for_a_later_set_starts_that_set_on_its_lap():
     assert got == [("INTERMEDIATE", 1, 33), ("MEDIUM", 34, 44), ("INTERMEDIATE", 45, None)]
 
 
-def test_a_connect_places_the_set_in_use_by_its_age_when_the_runs_miss_laps():
-    """Recorded 2025 R1 LAW, connect on lap 42 (40 laps done, 4 pit entries):
-    the feed counted none of the laps of stints 0-4 (TotalLaps = StartLaps)
-    and 16 of the 29 of stint 5, so the runs put the MEDIUM fitted on lap 34
-    on lap 17 (replay: 34) and stints 0-4 all on lap 1 (two stints on one
-    StartLap). Indexes above the pit entries are merged as FastF1 merges
-    them; the set in use counts its own 7 laps: it starts on lap 34, and the
-    stints that ran no lap have no entry."""
+def snapshot_connect(stints, laps_done, pit_stops, t=9000.0):
+    """A connect: the TimingAppData snapshot (a list), then the TimingData
+    record (full: RacingNumber) with the laps done and the pit entries."""
     m = manager()
+    send(m, "TimingAppData", lines(**{"81": {"Stints": stints}}), t=t)
+    send(m, "TimingData", lines(**{"81": {"RacingNumber": "81", "Position": "10", "NumberOfLaps": laps_done,
+                                          "NumberOfPitStops": pit_stops}}), t=t)
+    return m, [(s["Compound"], s["StartLap"], s["EndLap"]) for s in m.tyre_strategy]
+
+
+def test_a_dry_race_connect_places_stints_by_the_cumulative_total_laps():
+    """D12, recorded 2025 R6 Miami BOR, connect on lap 32 (30 laps done):
+    MEDIUM TotalLaps 19, HARD TotalLaps 5. The cumulative rule gives the
+    HARD from lap 1 + 19 = 20 (full-race live run and FastF1: 20); the
+    set-in-use age anchor (30 + 1 - 5 = 26, the HARD's TotalLaps lag its
+    laps) moved it to 26 and is gone."""
+    _, got = snapshot_connect([st("MEDIUM", total=19), st("HARD", total=5)], laps_done=30, pit_stops=1)
+    assert got == [("MEDIUM", 1, 19), ("HARD", 20, None)]
+
+
+def test_a_feed_that_does_not_count_laps_is_checked_against_its_timed_laps():
+    """Recorded 2025 R1 LAW, connect on lap 42 (40 laps done, 4 pit
+    entries): the feed counted none of the laps of stints 0-4 (TotalLaps =
+    StartLaps) and 16 of the 29 of stint 5, 23 laps for 40 run. The
+    cumulative rule puts the MEDIUM fitted on lap 34 on lap 17, before the
+    lap the feed timed on the INTER set (LapNumber 29): ruled out, the set in
+    use starts where its own age puts it (40 + 1 - 7 = 34, the full-race run
+    and FastF1). The extra indexes (7 for 4 pit entries) are merged among
+    the passes on the same set, so no set is lost."""
     inter = {"Compound": "INTERMEDIATE", "New": "false", "TyresNotChanged": "1"}
-    send(m, "TimingAppData", lines(**{"81": {"Stints": [
+    m, got = snapshot_connect([
         dict(inter, TyresNotChanged="0", TotalLaps=0, StartLaps=0),
         dict(inter, TotalLaps=0, StartLaps=0),
         dict(inter, TotalLaps=0, StartLaps=0, LapNumber=2),
@@ -339,11 +359,70 @@ def test_a_connect_places_the_set_in_use_by_its_age_when_the_runs_miss_laps():
         dict(inter, New="true", TyresNotChanged="0", TotalLaps=16, StartLaps=0, LapNumber=29),
         {"Compound": "MEDIUM", "New": "true", "TyresNotChanged": "0", "TotalLaps": 7, "StartLaps": 0,
          "LapNumber": 40},
-    ]}}), t=8717.766)
-    send(m, "TimingData", lines(**{"81": {"RacingNumber": "81", "Position": "15", "NumberOfLaps": 40,
-                                          "NumberOfPitStops": 4}}), t=8717.766)
-    got = [(s["Compound"], s["StartLap"], s["EndLap"]) for s in m.tyre_strategy]
+    ], laps_done=40, pit_stops=4, t=8717.766)
     assert got == [("INTERMEDIATE", 1, 33), ("MEDIUM", 34, None)]
+    state = m.normalizer.driver_state["PIA"]
+    assert sorted(state["feed_stints"]) == [0, 1, 2, 3, 4] and state["bracket_stint"] == 4
+    runs = sum(v["TotalLaps"] - v["StartLaps"] for v in state["feed_stints"].values())
+    assert runs < 40 - 3  # the feed's own count misses the laps
+
+
+def test_a_dry_race_set_placed_before_a_timed_lap_takes_its_age():
+    """Recorded 2025 R8 Monaco RUS, connect on lap 74 (70 laps done): the
+    MEDIUM (rewritten from a drive-through on lap 63) counts 6 of its 15
+    laps, so the runs put the HARD of lap 69 on lap 60, before the lap the
+    feed timed on the MEDIUM (67). Its age gives 70 + 1 - 2 = 69, the
+    full-race run and FastF1. (Miami above: no timed lap rules the runs
+    out, the runs stand.)"""
+    _, got = snapshot_connect([
+        dict(st("HARD", total=53), LapNumber=50), dict(st("MEDIUM", total=6), LapNumber=67),
+        dict(st("HARD", total=2), LapNumber=70)], laps_done=70, pit_stops=3)
+    assert got == [("HARD", 1, 53), ("MEDIUM", 54, 68), ("HARD", 69, None)]
+
+
+def test_a_set_that_would_run_no_lap_while_the_runs_miss_laps_takes_its_age():
+    """Recorded 2025 R1 TSU, connect on lap 50 (48 laps done): the MEDIUM of
+    laps 34-47 has TotalLaps 0, so the runs put the INTER of lap 48 on lap 34
+    too and the MEDIUM ran no lap (dropped). The runs count 34 of 48 laps:
+    the set in use takes its age, 48 + 1 - 1 = 48."""
+    i = "INTERMEDIATE"
+    _, got = snapshot_connect([
+        dict(st(i, total=2), LapNumber=2), st(i, "1", 3, 2, "false"), st(i, "1", 4, 3, "false"),
+        dict(st(i, "1", 33, 4, "false"), LapNumber=29), st("MEDIUM", "1", 0, 0), st(i, "1", 1, 0)],
+        laps_done=48, pit_stops=5)
+    assert got == [(i, 1, 33), ("MEDIUM", 34, 47), (i, 48, None)]
+
+
+def test_a_late_connect_keeps_every_set_when_the_feed_sent_extra_indexes():
+    """Recorded 2025 R1 BOR and BEA, connect on lap 47: 7 indexes for 5 pit
+    entries. Every index above the pit entries used to be merged into the
+    counter's stint, so the INTER of lap 45 overwrote the MEDIUM of laps
+    34-44 (BOR [(1, INTER), (45, INTER)]; BEA lost its MEDIUM of 40-44). The
+    extras are now taken among the passes on the same set: both get the
+    full-race live run's stints."""
+    i = "INTERMEDIATE"
+    _, bor = snapshot_connect([
+        st(i, total=2), st(i, "1", 3, 2, "false"), st(i, "1", 3, 2, "false"), st(i, "1", 4, 3, "false"),
+        st(i, "1", 32, 3, "false"), st("MEDIUM", total=11), st(i, total=1)], laps_done=45, pit_stops=5)
+    assert bor == [(i, 1, 33), ("MEDIUM", 34, 44), (i, 45, None)]
+    _, bea = snapshot_connect([
+        st(i, total=2, new="false"), st(i, "1", 4, 2, "false"), st(i, "1", 3, 2, "false"), st(i, total=1),
+        st(i, "0", 38, 3, "false"), st("MEDIUM", total=5), st(i, total=0)], laps_done=44, pit_stops=5)
+    assert bea == [(i, 1, 3), (i, 4, 4), (i, 5, 39), ("MEDIUM", 40, 44), (i, 45, None)]
+
+
+def test_the_set_in_use_takes_its_later_updates_after_a_late_connect():
+    """After the merge the set in use is the counter's stint: its TotalLaps
+    updates (index 6) age it and open no stint."""
+    i = "INTERMEDIATE"
+    m, _ = snapshot_connect([
+        st(i, total=2), st(i, "1", 3, 2, "false"), st(i, "1", 3, 2, "false"), st(i, "1", 4, 3, "false"),
+        st(i, "1", 32, 3, "false"), st("MEDIUM", total=11), st(i, total=1)], laps_done=45, pit_stops=5)
+    send(m, "TimingData", lines(**{"81": {"NumberOfLaps": 46}}), t=9090.0)
+    send(m, "TimingAppData", lines(**{"81": {"Stints": {"6": {"TotalLaps": 2}}}}), t=9090.0)
+    got = [(s["Compound"], s["StartLap"], s["EndLap"]) for s in m.tyre_strategy]
+    assert got == [(i, 1, 33), ("MEDIUM", 34, 44), (i, 45, None)]
+    assert m.normalizer.driver_state["PIA"]["tyre_life"] == 2
 
 
 def test_a_connect_after_a_stop_opens_the_stint_of_the_index_still_to_come():
@@ -640,3 +719,115 @@ def test_a_resubscription_repeats_no_track_status_or_team_radio():
     send(m, "TeamRadio", radio)
     send(m, "TeamRadio", radio)
     assert len(m.team_radios) == 1
+
+
+# ---------------------------------------------------------------- B5 (D13): one clock, snapshot rows
+
+def test_weather_time_is_on_the_session_clock():
+    """Live weather Time was epoch while the lap rows are in session seconds:
+    no reading was at or before any lap start, and every lap showed the
+    first one. Time is now the session clock, received_at the wall clock."""
+    m = manager()
+    send(m, "WeatherData", {"AirTemp": "28.1", "TrackTemp": "52.1", "Rainfall": "0"}, t=3350.0)
+    send(m, "WeatherData", {"AirTemp": "27.0", "TrackTemp": "43.5", "Rainfall": "0"}, t=7700.0)
+    assert [(w["Time"], w["TrackTemp"]) for w in m.weather_data] == [(3350.0, 52.1), (7700.0, 43.5)]
+    assert all(w["received_at"] > 1e9 for w in m.weather_data)
+
+
+def test_snapshot_rows_take_the_track_status_in_force_and_the_next_lap_its_own_start():
+    """A connect: the TimingData snapshot (full records) comes before the
+    TrackStatus snapshot, so its rows had TrackStatus '' (equal to the
+    replay on 0 of 1737), and the next lap started at the connect (2024 R1,
+    connect on lap 14, VER lap 13 at 4860.799 instead of 4763.969). The
+    clock is not pinned here: the status arrives a little after the rows."""
+    m = manager()
+    m.set_session_time(4860.0)
+    m.set_session_time(None)  # the free-running clock, from 4860 s
+    send(m, "TimingData", lines(**{"16": {"RacingNumber": "16", "NumberOfLaps": 12, "Position": "1",
+                                          "LastLapTime": {"Value": "1:36.900"}, "NumberOfPitStops": 0},
+                                   "81": {"RacingNumber": "81", "NumberOfLaps": 12, "Position": "2",
+                                          "LastLapTime": {"Value": "1:37.100"}, "NumberOfPitStops": 0}}))
+    send(m, "TrackStatus", {"Status": "1", "Message": "AllClear"})
+    assert [(r["Driver"], r["LapNumber"], r["TrackStatus"]) for r in m.lap_times] == [
+        ("LEC", 12, "1"), ("PIA", 12, "1")]
+    send(m, "TimingData", lines(**{"16": {"NumberOfLaps": 13, "LastLapTime": {"Value": "1:36.700"}}}), t=4950.0)
+    row = m.lap_times[-1]
+    assert (row["LapNumber"], row["LapStartTime"], row["Time"], row["TrackStatus"]) == (13, 4853.3, 4950.0, "1")
+
+
+def test_a_snapshot_started_status_mid_race_keeps_the_pit_entry():
+    """The SessionStatus snapshot's 'Started' of a mid-race connect was taken
+    for the race start, which drops the pit passages before it: a car in
+    the pit lane at the connect lost its in-lap's PitInTime (2024 R1 PER
+    lap 13). The race is already under way, so the 'Started' is not its
+    start; the in-lap keeps the entry known at the connect."""
+    m = manager()
+    t = 4790.0
+    send(m, "TimingData", lines(**{"81": {"RacingNumber": "81", "NumberOfLaps": 12, "InPit": True,
+                                          "NumberOfPitStops": 0}}), t=t)
+    send(m, "LapCount", {"CurrentLap": 14, "TotalLaps": 57}, t=t)
+    send(m, "SessionStatus", {"Status": "Started"}, t=t)
+    send(m, "TimingData", lines(**{"81": {"NumberOfLaps": 13, "LastLapTime": {"Value": "1:58.000"}}}), t=4800.0)
+    assert m.normalizer.race_start_time is None
+    row = m.lap_times[-1]
+    assert (row["LapNumber"], row["PitInTime"], row["LapStartTime"]) == (13, t, 4682.0)
+
+
+def test_a_lap_with_an_unknown_start_carries_every_status_since_the_connect():
+    """Recorded 2024 R8, connect during the lap-1 red flag (4558.453): the
+    lap-1 rows have no start (the race start was before the connect) and
+    kept only the status at their end ('4'); the red flag in force at the
+    connect and the statuses since were left out (16 of 16 rows lacked
+    '5'). Replay: '1254' (the same codes; the live side never saw the green
+    and yellow before the connect)."""
+    m = manager()
+    t = 4558.453
+    send(m, "TimingData", lines(**{"16": {"RacingNumber": "16", "NumberOfLaps": 0, "InPit": True,
+                                          "NumberOfPitStops": 0}}), t=t)
+    send(m, "TrackStatus", {"Status": "5", "Message": "Red"}, t=t)
+    send(m, "SessionStatus", {"Status": "Aborted"}, t=t)
+    send(m, "TrackStatus", {"Status": "1", "Message": "AllClear"}, t=5258.765)
+    send(m, "TrackStatus", {"Status": "2", "Message": "Yellow"}, t=5301.354)
+    send(m, "TrackStatus", {"Status": "4", "Message": "SCDeployed"}, t=5700.0)
+    send(m, "SessionStatus", {"Status": "Started"}, t=5754.733)
+    send(m, "TimingData", lines(**{"16": {"NumberOfLaps": 1}}), t=5762.379)
+    row = m.lap_times[-1]
+    assert (row["LapNumber"], row["LapStartTime"]) == (1, None)
+    assert row["TrackStatus"] == "5124"
+    # a lap with a known start still gets only its own window
+    send(m, "TimingData", lines(**{"16": {"NumberOfLaps": 2, "LastLapTime": {"Value": "1:50.000"}}}), t=5872.379)
+    assert m.lap_times[-1]["TrackStatus"] == "4"
+
+
+def test_unpinning_the_clock_runs_on_from_the_pinned_time():
+    """A stopped mock left the clock pinned: every later live message got
+    the same time. Un-pinned, it runs on from the pinned time."""
+    n = LiveDataNormalizer()
+    n.set_session_time(6654.29)
+    assert n.session_time() == 6654.29
+    n.set_session_time(None)
+    first = n.session_time()
+    import time as _t
+    _t.sleep(0.05)
+    second = n.session_time()
+    assert 6654.29 <= first < second < 6654.29 + 5
+
+
+# ---------------------------------------------------------------- B3 (D11): the frames' lap
+
+def test_live_frames_carry_the_lap_in_progress():
+    """D11: the live frames' lap is the lap in progress (laps completed + 1,
+    capped at the race distance), as the replay frames; it was the laps
+    completed, one lap behind (leader LEC on lap 13 showed L12). Lap rows
+    keep LapNumber = NumberOfLaps."""
+    m = manager()
+    send(m, "LapCount", {"CurrentLap": 13, "TotalLaps": 53})
+    send(m, "TimingData", lines(**{"16": {"NumberOfLaps": 12, "Position": "1", "LastLapTime": {"Value": "1:24.500"}},
+                                   "43": {"NumberOfLaps": 11, "Position": "18", "LastLapTime": {"Value": "1:26.500"}}}))
+    frame = m.normalizer.build_position_frame({"16": {}, "43": {}}, {})
+    assert {k: v["lap"] for k, v in frame["drivers"].items()} == {"LEC": 13, "COL": 12}
+    asyncio.run(m._on_openf1_location("16", [{"x": 1.0, "y": 2.0}]))
+    assert m.frames[-1]["drivers"]["LEC"]["lap"] == 13
+    assert [(r["Driver"], r["LapNumber"]) for r in m.lap_times] == [("LEC", 12), ("COL", 11)]
+    send(m, "TimingData", lines(**{"16": {"NumberOfLaps": 53, "LastLapTime": {"Value": "1:24.000"}}}))
+    assert m.normalizer.build_position_frame({"16": {}}, {})["drivers"]["LEC"]["lap"] == 53

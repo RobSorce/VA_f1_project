@@ -771,15 +771,17 @@ describe.skipIf(!have(2024, 16))('R8: clock-derived analytics follow every clock
     store().setCurrentFrameIndex(lfm[40]);
     let answer;
     fixtures.lstm = () => new Promise((r) => { answer = r; });
-    const pending = store().triggerLSTMPredictions();
+    const pending = store().triggerPrediction('PIA', 40);
     store().setCurrentFrameIndex(lfm[12]);
-    answer({ PIA: { predicted_times: [90] } });
+    answer({ driver: 'PIA', predicted_times: [90] });
     await pending;
     expect(store().lstmPredictions).toBeNull();
+    expect(store().predictionLoading).toBe(false);
     // asked at the current clock it is kept, stamped with that clock
     fixtures.lstm = null;
-    await store().triggerLSTMPredictions();
+    await store().triggerPrediction('PIA', 12);
     expect(store()._lstmAt).toBe(store().getSessionNow());
+    expect(store().lstmPredictions.PIA.computedAtNow).toBe(store().getSessionNow());
   });
 
   it('degradation: the fitted lap range is exposed, and a retirement is named (D4 problems 10-11)', async () => {
@@ -857,16 +859,17 @@ describe.skipIf(!have(2025, 1))('R2: the focus-driver pit trigger counts tyre ch
     const trigger = vi.fn();
     const noop = vi.fn();
     const saved = {
-      triggerLSTMPredictions: store().triggerLSTMPredictions,
       updateRivalContext: store().updateRivalContext,
       computeRaceSituation: store().computeRaceSituation,
     };
+    // the pit-exit recompute (rival context + race situation; the lap-time
+    // forecast is asked by a double-click only)
     useF1Store.setState({
-      focusDriver: 'NOR', triggerLSTMPredictions: trigger, updateRivalContext: noop, computeRaceSituation: noop,
+      focusDriver: 'NOR', updateRivalContext: trigger, computeRaceSituation: noop,
     });
     try {
-      // Step over each pit exit; a frame that changes lap into an even lap or
-      // turns SC/VSC back to green triggers for its own reasons
+      // Step over each pit exit; a frame that changes lap or turns SC/VSC
+      // back to green triggers for its own reasons
       const stepOver = (exit) => {
         const idx = frameAtSession(exit);
         store().setCurrentFrameIndex(idx - 3);
@@ -880,7 +883,7 @@ describe.skipIf(!have(2025, 1))('R2: the focus-driver pit trigger counts tyre ch
           store().setCurrentFrameIndex(i);
           vi.runOnlyPendingTimers();
           const s = store();
-          const otherReason = (s.currentLap !== lapBefore && s.currentLap % 2 === 0)
+          const otherReason = s.currentLap !== lapBefore
             || (s.currentFlagStatus === '1' && ['4', '6', '7'].includes(flagBefore));
           if (trigger.mock.calls.length && !otherReason) fired = true;
           trigger.mockClear();

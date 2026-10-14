@@ -18,12 +18,22 @@
  *  - planFromStints: a Strategy Simulator plan as the engine's planned stops;
  *  - runSimulationJob: the job dispatcher shared by the worker and the
  *    synchronous fallback (a what-if is two runs from the same seed);
- *  - the badge rule of the projection views (projectionBadges, battleLevel,
- *    listedBattles, modePosition, projectionRisks): Wilson interval plus
- *    hysteresis, so a badge, the most likely position shown, the list of
- *    battles shown and its order, and the risk rows never change on Monte
- *    Carlo noise alone: only on evidence beyond the sampling error, or on
- *    new data.
+ *  - the badge rule of the projection views (projectionBadges, withBadges,
+ *    battleLevel, listedBattles, modePosition, positionChange,
+ *    orderedProjections, projectionRisks): Wilson interval plus hysteresis,
+ *    so a badge, the finishing position shown (the median) with its gold and
+ *    its gain / loss arrow, the row order, the list of battles shown and its
+ *    order, and the risk rows never change on Monte Carlo noise alone: only on
+ *    evidence beyond the sampling error, or on new data. Marks drawn once per
+ *    driver or per pair use intervals simultaneous over the table (familyZ).
+ *    Measured by scripts/mc_stability.mjs (lead decision D5:
+ *    notes/experiments/phase45c/mc_stability.txt);
+ *  - the same rule for the Strategy Simulator's what-if (pairedDifferences,
+ *    pairedSign, whatIfVerdict, whatIfMarks): the verdict and the colours of
+ *    the differences from the run-by-run differences of the two runs beyond
+ *    their error, the cards' P labels as the projection's, chained over the
+ *    recomputes of the same what-if. Measured by scripts/whatif_stability.mjs
+ *    (notes/experiments/phase45c/whatif_stability.txt).
  *
  * The worker is created by the caller (createWorker option): this module never
  * names the worker file, so the worker bundle, which imports this module, does
@@ -75,19 +85,22 @@ function round1(v) {
  * @param {Object} params - simulateRaceFinish params (seed included) plus
  *   focusDriver, plan ([{ lap, compound }]) and basePlan ([{ lap, compound }] or null)
  * @returns {Object|null} { focusDriver, seed, numSimulations, baselineProjection,
- *   simProjection, delta: { position, podium, points }, baseline, custom }
+ *   simProjection, delta: { position, podium, points }, paired, baseline, custom }
  *   delta.position = baseline expected position - plan expected position
- *   (positive = the plan gains places); podium / points in percentage points
+ *   (positive = the plan gains places); podium / points in percentage points;
+ *   paired = pairedDifferences of the two runs (whatIfMarks)
  */
 function compareJob(params) {
   const { focusDriver, plan, basePlan, ...common } = params || {};
-  const baseline = simulateRaceFinish({
-    ...common, plans: basePlan ? { [focusDriver]: basePlan } : undefined,
+  const baseRun = simulateRaceFinish({
+    ...common, plans: basePlan ? { [focusDriver]: basePlan } : undefined, tracePositionsOf: focusDriver,
   });
-  const custom = simulateRaceFinish({
-    ...common, raceParams: baseline?.raceParams, plans: { [focusDriver]: plan || [] },
+  const customRun = simulateRaceFinish({
+    ...common, raceParams: baseRun?.raceParams, plans: { [focusDriver]: plan || [] }, tracePositionsOf: focusDriver,
   });
-  if (!baseline || !custom) return null;
+  if (!baseRun || !customRun) return null;
+  const { positionsOf: basePositions, ...baseline } = baseRun;
+  const { positionsOf: planPositions, ...custom } = customRun;
   const baselineProjection = baseline.projections.find((p) => p.driver === focusDriver);
   const simProjection = custom.projections.find((p) => p.driver === focusDriver);
   if (!baselineProjection || !simProjection) return null;
@@ -102,9 +115,55 @@ function compareJob(params) {
       podium: simProjection.podiumProb - baselineProjection.podiumProb,
       points: simProjection.pointsProb - baselineProjection.pointsProb,
     },
+    paired: pairedDifferences(basePositions, planPositions),
     baseline,
     custom,
   };
+}
+
+/**
+ * The last place of a podium and of the points (the sporting regulations, not
+ * a model value: P1-P3, P1-P10), as raceSimulation.js aggregateResults counts
+ * podiumProb and pointsProb.
+ */
+const PODIUM_LAST = 3;
+const POINTS_LAST = 10;
+
+/**
+ * The what-if's differences run by run: run i of the baseline and run i of
+ * the plan share every random draw (common random numbers), so each
+ * difference is taken per run and its mean is known better than the
+ * difference of two independent estimates (the shared noise cancels). Each
+ * is signed so that positive = the plan does better:
+ *  - position: baseline position_i - plan position_i (places);
+ *  - podium / points: [plan_i in the podium / points] - [baseline_i in them]
+ *    (a share of the runs; x 100 = delta.podium / delta.points before rounding).
+ *
+ * @param {Array<number|null>} basePositions - the focus driver's position in each baseline run
+ * @param {Array<number|null>} planPositions - the same runs under the plan
+ * @returns {{position: {mean: number, sd: number, n: number}, podium: Object, points: Object}|null}
+ *   mean of the differences, their sample standard deviation, the runs paired; null without a pair
+ */
+export function pairedDifferences(basePositions, planPositions) {
+  const a = Array.isArray(basePositions) ? basePositions : [];
+  const b = Array.isArray(planPositions) ? planPositions : [];
+  const acc = { position: [0, 0], podium: [0, 0], points: [0, 0] }; // [sum, sum of squares]
+  const add = (k, d) => { acc[k][0] += d; acc[k][1] += d * d; };
+  let n = 0;
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    if (!Number.isFinite(a[i]) || !Number.isFinite(b[i])) continue;
+    n += 1;
+    add('position', a[i] - b[i]);
+    add('podium', (b[i] <= PODIUM_LAST) - (a[i] <= PODIUM_LAST));
+    add('points', (b[i] <= POINTS_LAST) - (a[i] <= POINTS_LAST));
+  }
+  if (!n) return null;
+  const stats = ([sum, sumSq]) => {
+    const mean = sum / n;
+    const sd = n > 1 ? Math.sqrt(Math.max(0, (sumSq - n * mean * mean) / (n - 1))) : 0;
+    return { mean, sd, n };
+  };
+  return { position: stats(acc.position), podium: stats(acc.podium), points: stats(acc.points) };
 }
 
 /**
@@ -357,10 +416,12 @@ export function wilsonInterval(p, n, z = BADGE_Z) {
  * @param {number} n - simulations behind it
  * @param {number} thresholdPct
  * @param {boolean} [prevOn] - the state in the previous projection
+ * @param {number} [z=BADGE_Z] - normal quantile of the interval (familyZ for a mark drawn
+ *   once per pair or per row, read together)
  * @returns {boolean}
  */
-export function badgeOn(pct, n, thresholdPct, prevOn) {
-  const [lo, hi] = wilsonInterval(pct / 100, n);
+export function badgeOn(pct, n, thresholdPct, prevOn, z = BADGE_Z) {
+  const [lo, hi] = wilsonInterval(pct / 100, n, z);
   const t = thresholdPct / 100;
   if (lo >= t) return true;
   if (hi < t) return false;
@@ -443,63 +504,190 @@ function battleList(battles, n, prevListed) {
   return listed.map((i) => battleKey(sorted[i]));
 }
 
+/** Inverse of the standard normal CDF (Acklam's rational approximation, relative error < 1.2e-9). */
+function normalQuantile(p) {
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269,
+    -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972,
+    -13.28068155288572];
+  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734,
+    4.374664141464968, 2.938163982698783];
+  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  const lowTail = 0.02425;
+  if (p <= 0) return -Infinity;
+  if (p >= 1) return Infinity;
+  if (p < lowTail) {
+    const q = Math.sqrt(-2 * Math.log(p));
+    return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
+      / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  }
+  if (p > 1 - lowTail) return -normalQuantile(1 - p);
+  const q = p - 0.5;
+  const r = q * q;
+  return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q
+    / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+}
+
 /**
- * The most likely finishing position shown for each driver, with hysteresis:
- * the previous projection's position stays while its share is within the
- * Monte Carlo error of the most frequent one's (the Wilson intervals of the
- * two shares overlap); the most frequent position replaces it once its share
- * is beyond that error. No previous position: the most frequent (modePos).
+ * Normal quantile of BADGE_INTERVAL_PCT intervals taken SIMULTANEOUSLY over
+ * the m rows of the projection table (Bonferroni): z = Phi^-1(1 - alpha / (2 m)),
+ * alpha = 1 - BADGE_INTERVAL_PCT / 100 (m = 20 drivers: z = 3.02). A
+ * convention, like BADGE_Z: the projection table draws one mark per driver
+ * (the finishing position shown, its gold, the gain / loss arrow), read
+ * together, so the whole column, not each row alone, must change only beyond
+ * the Monte Carlo error (a 95 % interval per row lets one of 20 rows move on
+ * noise in about one recompute in five: scripts/mc_stability.mjs).
  *
- * @param {Object} result - simulateRaceFinish result
- * @param {Object} [prevMode] - { driver: position } of the previous projection
+ * @param {number} m - rows (drivers) of the table
+ * @returns {number}
+ */
+export function familyZ(m) {
+  const k = Math.max(1, Math.round(Number(m)) || 1);
+  const alpha = 1 - BADGE_INTERVAL_PCT / 100;
+  return normalQuantile(1 - alpha / (2 * k));
+}
+
+/** [position, simulations] of a projection row, ascending: posCount, else posDistribution (percent). */
+function positionCounts(p) {
+  const src = p?.posCount && Object.keys(p.posCount).length ? p.posCount : (p?.posDistribution || {});
+  return Object.entries(src)
+    .map(([pos, c]) => [Number(pos), Number(c)])
+    .filter(([pos, c]) => Number.isFinite(pos) && c > 0)
+    .sort((x, y) => x[0] - y[0]);
+}
+
+/**
+ * The finishing position each projection row shows: the median simulated
+ * position (the smallest k with at least half of the runs finishing P1..Pk),
+ * judged beyond the Monte Carlo error of the whole column. For each k the
+ * cumulative share F(k) gets its Wilson interval at familyZ(rows): "F(k) >=
+ * 50 %" is true when the whole interval is at or above 50 %, false when it is
+ * entirely below, and inside it the previous projection's statement is kept
+ * (previous position <= k); with no previous position the point decides. The
+ * position shown is the smallest k for which it holds (F is monotone, so the
+ * statements are). So the label moves only when the median has moved beyond
+ * the simultaneous error, and P1-P3 (gold) is exactly "a podium in at least
+ * half of the runs", the podium badge (PODIUM_BADGE_PCT = 50). The median, not
+ * the most frequent position: a flat distribution (a car that could finish
+ * anywhere) has a most frequent position decided by noise, e.g. a gold P2 for
+ * a car with an 18 % podium chance.
+ *
+ * @param {Object} result - simulateRaceFinish result (projections with posCount or posDistribution)
+ * @param {Object} [prevShown] - { driver: position } of the previous projection
+ * @param {number} [z=familyZ(rows)] - normal quantile of the intervals (a view that draws other
+ *   marks with these rows passes the familyZ of all of them: whatIfMarks)
  * @returns {Object<string, number>}
  */
-function modePositions(result, prevMode) {
+export function shownPositions(result, prevShown, z = familyZ((result?.projections || []).length)) {
   const n = result?.numSimulations;
+  const rows = result?.projections || [];
   const out = {};
-  for (const p of result?.projections || []) {
-    const point = p.modePos;
-    const was = prevMode?.[p.driver];
-    if (was == null || was === point || !(n > 0)) { out[p.driver] = point; continue; }
-    const dist = p.posDistribution || {};
-    const [, wasHi] = wilsonInterval((dist[was] || 0) / 100, n);
-    const [pointLo] = wilsonInterval((dist[point] || 0) / 100, n);
-    out[p.driver] = wasHi >= pointLo ? was : point;
+  for (const p of rows) {
+    const counts = positionCounts(p);
+    const total = counts.reduce((s, [, c]) => s + c, 0);
+    if (!total) { out[p.driver] = p.modePos ?? p.currentPos; continue; }
+    const was = prevShown?.[p.driver];
+    let cum = 0;
+    let shown = counts[counts.length - 1][0];
+    for (const [pos, c] of counts) {
+      cum += c;
+      const share = cum / total;
+      let atLeastHalf;
+      if (n > 0) {
+        const [lo, hi] = wilsonInterval(share, n, z);
+        if (lo >= 0.5) atLeastHalf = true;
+        else if (hi < 0.5) atLeastHalf = false;
+        else atLeastHalf = Number.isFinite(was) ? pos >= was : share >= 0.5;
+      } else {
+        atLeastHalf = share >= 0.5;
+      }
+      if (atLeastHalf) { shown = pos; break; }
+    }
+    out[p.driver] = shown;
   }
   return out;
 }
 
 /**
- * Badge states of a projection (badgeOn on every podium probability and on
- * every battle, against the previous projection's states), the battle list
- * (battleList, against the previous list), the most likely position shown
- * (modePositions) and, given the projection's inputs (ctx), the risk rows
- * (raceSimulation.js evaluateRisks against the previous levels).
+ * The finishing positions one row's label may take within the Monte Carlo
+ * error (the rule of shownPositions): [low, high], low = the smallest
+ * position whose cumulative share F(k) could be at least half (its Wilson
+ * interval at z reaches 50 %), high = the smallest one whose share surely is
+ * (the whole interval at or above 50 %). shownPositions shows `high`, or the
+ * previous label when it lies in between; any position in [low, high] states
+ * nothing the runs contradict beyond the error.
+ *
+ * @param {Object} row - a projection row (posCount or posDistribution)
+ * @param {number} n - simulations behind it
+ * @param {number} z - normal quantile of the intervals
+ * @returns {[number, number]|null} null without counts
+ */
+export function shownPositionRange(row, n, z) {
+  const counts = positionCounts(row);
+  const total = counts.reduce((s, [, c]) => s + c, 0);
+  if (!total) return null;
+  let low = null;
+  let cum = 0;
+  for (const [pos, c] of counts) {
+    cum += c;
+    const share = cum / total;
+    const [lo, hi] = n > 0 ? wilsonInterval(share, n, z) : [share, share];
+    if (low == null && hi >= 0.5) low = pos;
+    if (lo >= 0.5) return [low ?? pos, pos];
+  }
+  const last = counts[counts.length - 1][0];
+  return [low ?? last, last];
+}
+
+/**
+ * Rows of a projection in the order the views list them: by the finishing
+ * position shown (shownPositions), then by the current race position (data),
+ * then by driver code. Never by a raw Monte Carlo statistic (the expected
+ * position of two cars within the error of each other would swap rows on
+ * noise alone).
+ */
+function stableOrder(projections, shown) {
+  return [...(projections || [])].sort((a, b) => ((shown[a.driver] ?? Infinity) - (shown[b.driver] ?? Infinity))
+    || ((a.currentPos ?? Infinity) - (b.currentPos ?? Infinity))
+    || (a.driver < b.driver ? -1 : a.driver > b.driver ? 1 : 0));
+}
+
+/**
+ * Badge states of a projection: the finishing position shown per driver
+ * (shownPositions, against the previous projection's) and the podium badge it
+ * implies (shown position P1-P3 = a podium in at least PODIUM_BADGE_PCT of the
+ * runs, beyond the simultaneous error), badgeOn on every battle against the
+ * previous states, the battle list (battleList, against the previous list),
+ * the row order (stableOrder) and, given the projection's inputs (ctx), the
+ * risk rows (raceSimulation.js evaluateRisks against the previous levels).
  *
  * @param {Object} result - simulateRaceFinish result ({ projections, battles, numSimulations })
  * @param {Object} [prev] - the previous projection's badges (same session, earlier clock)
  * @param {Object} [ctx] - { driverFeatures, currentLap, maxLap } of the projection; without it
  *   no risk rows are judged (risks / riskLevels null)
  * @returns {{podium: Object<string, boolean>, battles: Object<string, {level: number}>,
- *   listed: string[], mode: Object<string, number>, risks: Array<Object>|null,
- *   riskLevels: Object<string, number>|null, n: number, z: number}}
- *   battle level 0 / 1 / 2 = below 30 % / 30 % / 60 %
+ *   listed: string[], mode: Object<string, number>, order: string[], risks: Array<Object>|null,
+ *   riskLevels: Object<string, number>|null, n: number, z: number, familyZ: number}}
+ *   battle level 0 / 1 / 2 = below 30 % / 30 % / 60 %; mode = the finishing position shown
  */
 export function projectionBadges(result, prev = null, ctx = null) {
   const n = result?.numSimulations;
+  const mode = shownPositions(result, prev?.mode);
   const podium = {};
-  for (const p of result?.projections || []) {
-    podium[p.driver] = badgeOn(p.podiumProb, n, PODIUM_BADGE_PCT, prev?.podium?.[p.driver]);
-  }
+  for (const p of result?.projections || []) podium[p.driver] = mode[p.driver] <= 3;
+  // Battle colours: one per pair, read together (the Leaderboard draws every
+  // adjacent pair, the panel the listed ones): intervals simultaneous over the
+  // pairs of the projection (familyZ)
   const battles = {};
+  const zBattles = familyZ((result?.battles || []).length);
   for (const b of result?.battles || []) {
     const key = battleKey(b);
     const was = prev?.battles?.[key];
-    const on = BATTLE_BADGE_PCT.map((t, i) => badgeOn(b.prob, n, t, was ? was.level > i : undefined));
+    const on = BATTLE_BADGE_PCT.map((t, i) => badgeOn(b.prob, n, t, was ? was.level > i : undefined, zBattles));
     battles[key] = { level: on[1] ? 2 : on[0] ? 1 : 0 };
   }
   const listed = battleList(result?.battles, n, prev?.listed);
-  const mode = modePositions(result, prev?.mode);
+  const order = stableOrder(result?.projections, mode).map((p) => p.driver);
   let risks = null;
   let riskLevels = null;
   if (ctx?.driverFeatures && result?.raceParams && Array.isArray(result?.projections)) {
@@ -508,14 +696,43 @@ export function projectionBadges(result, prev = null, ctx = null) {
     risks = judged.rows.slice(0, RISK_LIST_SIZE);
     riskLevels = judged.levels;
   }
-  return { podium, battles, listed, mode, risks, riskLevels, n, z: BADGE_Z };
+  return {
+    podium, battles, listed, mode, order, risks, riskLevels, n, z: BADGE_Z,
+    familyZ: familyZ((result?.projections || []).length),
+  };
 }
 
 /**
- * The most likely finishing position a view shows for a projection row: the
- * store's (projection.badges.mode, chained over recomputes by modePositions:
- * it changes only on evidence beyond the Monte Carlo error); modePos for a
- * projection without badges.
+ * A simulation result as the store holds it (store.raceProjection, without
+ * the clock stamps): its badges (projectionBadges against the previous
+ * projection's), the risk rows judged with them, and the rows in the order
+ * the views list them (badges.order). Shared by the store and the stability
+ * script (scripts/mc_stability.mjs), so both measure the same thing.
+ *
+ * @param {Object} result - simulateRaceFinish result
+ * @param {Object} [prevBadges] - the badges of the projection held (earlier clock)
+ * @param {Object} [ctx] - { driverFeatures, currentLap, maxLap } (projectionBadges)
+ * @returns {Object}
+ */
+export function withBadges(result, prevBadges = null, ctx = null) {
+  const badges = projectionBadges(result, prevBadges, ctx);
+  const rank = new Map(badges.order.map((d, i) => [d, i]));
+  return {
+    ...result,
+    projections: [...(result?.projections || [])].sort((a, b) => rank.get(a.driver) - rank.get(b.driver)),
+    badges,
+    // the risk rows every view reads (Risks tab, Strategy Analysis, assistant)
+    risks: badges.risks ?? result?.risks,
+  };
+}
+
+/**
+ * The finishing position a view shows for a projection row (the P label of
+ * the Race Prediction panel, Strategy Analysis, the assistant's context): the
+ * store's (projection.badges.mode, chained over recomputes by shownPositions:
+ * it changes only on evidence beyond the Monte Carlo error of the whole
+ * column); for a projection without badges, the rule with no previous state
+ * (the median simulated position).
  *
  * @param {Object} projection - store.raceProjection
  * @param {Object} row - one of projection.projections
@@ -523,7 +740,45 @@ export function projectionBadges(result, prev = null, ctx = null) {
  */
 export function modePosition(projection, row) {
   const shown = projection?.badges?.mode?.[row?.driver];
-  return Number.isFinite(shown) ? shown : row?.modePos;
+  if (Number.isFinite(shown)) return shown;
+  const own = shownPositions({ numSimulations: projection?.numSimulations, projections: [row] })[row?.driver];
+  return Number.isFinite(own) ? own : row?.modePos;
+}
+
+/** The finishing position shown (modePosition under the name the views read). */
+export const shownPosition = modePosition;
+
+/**
+ * Places a driver is projected to gain (positive) or lose (negative): the
+ * current position minus the finishing position shown (modePosition), so the
+ * gain / loss arrow of a row changes only when its P label does.
+ *
+ * @param {Object} projection - store.raceProjection
+ * @param {Object} row - one of projection.projections
+ * @returns {number|null} null without a current position
+ */
+export function positionChange(projection, row) {
+  const cur = row?.currentPos;
+  const shown = modePosition(projection, row);
+  return Number.isFinite(cur) && Number.isFinite(shown) ? cur - shown : null;
+}
+
+/**
+ * Rows of a projection in the order the views list them: the store's
+ * (withBadges: by the position shown, then the current race position); for a
+ * projection without badges, the same rule with no previous state.
+ *
+ * @param {Object} projection - store.raceProjection
+ * @returns {Array<Object>}
+ */
+export function orderedProjections(projection) {
+  const rows = projection?.projections || [];
+  const order = projection?.badges?.order;
+  if (Array.isArray(order)) {
+    const rank = new Map(order.map((d, i) => [d, i]));
+    return [...rows].sort((a, b) => (rank.get(a.driver) ?? Infinity) - (rank.get(b.driver) ?? Infinity));
+  }
+  return stableOrder(rows, shownPositions(projection));
 }
 
 /**
@@ -553,7 +808,8 @@ export function battleLevel(projection, battle) {
   const key = battleKey(battle);
   const stored = projection?.badges?.battles?.[key]?.level;
   if (typeof stored === 'number') return stored;
-  const on = BATTLE_BADGE_PCT.map((t) => badgeOn(battle.prob, projection?.numSimulations, t));
+  const zBattles = familyZ((projection?.battles || []).length);
+  const on = BATTLE_BADGE_PCT.map((t) => badgeOn(battle.prob, projection?.numSimulations, t, undefined, zBattles));
   return on[1] ? 2 : on[0] ? 1 : 0;
 }
 
@@ -582,4 +838,205 @@ export function listedBattles(projection) {
     if (b) out.push({ ...b, level: battleLevel(projection, b) });
   }
   return out.sort((a, b) => (b.level - a.level) || raceOrder(a, b));
+}
+
+// ─── What-if marks (Strategy Simulator) ───
+
+/**
+ * Marks a what-if result draws together (Strategy Simulator: the P labels of
+ * the plan's card and of the baseline's card, the verdict, the colours of the
+ * podium and points differences): their intervals hold for the five at once
+ * (familyZ(WHATIF_MARKS)), as the projection table's hold for all its rows. A
+ * display fact, not a model value.
+ */
+export const WHATIF_MARKS = 5;
+
+/**
+ * Identity of a what-if: the focus driver, the plan's stops and the
+ * baseline's (null = the stop model). A what-if's marks are chained only over
+ * recomputes of the same one (whatIfMarks).
+ *
+ * @param {string} driver
+ * @param {Array<{lap: number, compound: string}>} plan
+ * @param {Array<{lap: number, compound: string}>|null} basePlan
+ * @returns {string}
+ */
+export function whatIfKey(driver, plan, basePlan) {
+  const stops = (list) => (Array.isArray(list) ? list.map((s) => `${s.lap}:${s.compound}`).join(',') : 'model');
+  return `${driver}|${stops(plan)}|${stops(basePlan)}`;
+}
+
+/**
+ * Interval of a what-if's mean paired difference (one of compareJob paired:
+ * position, podium, points): mean -/+ z sd / sqrt(n), the normal
+ * approximation of a mean over n paired runs.
+ *
+ * @param {{mean: number, sd: number, n: number}|null} stats
+ * @param {number} [z=familyZ(WHATIF_MARKS)]
+ * @returns {[number, number]|null} positive = the plan does better
+ */
+export function pairedInterval(stats, z = familyZ(WHATIF_MARKS)) {
+  if (!stats || !(stats.n > 0) || !Number.isFinite(stats.mean)) return null;
+  const half = (z * (Number.isFinite(stats.sd) ? stats.sd : 0)) / Math.sqrt(stats.n);
+  return [stats.mean - half, stats.mean + half];
+}
+
+/**
+ * Sign of a paired difference beyond the Monte Carlo error, with hysteresis:
+ * 1 (the plan does better) when the whole interval (pairedInterval) is above
+ * 0, -1 when it is entirely below; when 0 is inside it, the previous sign of
+ * the same what-if (an earlier recompute) while the mean is still on its side
+ * (> 0 for 1, < 0 for -1), otherwise 0. So a gain or a loss is shown only
+ * beyond the error, and goes only when the mean changes side or the opposite
+ * is beyond the error, never on a recompute that only drew other random
+ * numbers.
+ *
+ * @param {{mean: number, sd: number, n: number}|null} stats
+ * @param {number} [prevSign]
+ * @param {number} [z=familyZ(WHATIF_MARKS)]
+ * @returns {-1|0|1|null} null without paired runs
+ */
+export function pairedSign(stats, prevSign, z = familyZ(WHATIF_MARKS)) {
+  const iv = pairedInterval(stats, z);
+  if (!iv) return null;
+  if (iv[0] > 0) return 1;
+  if (iv[1] < 0) return -1;
+  if (prevSign === 1 && stats.mean > 0) return 1;
+  if (prevSign === -1 && stats.mean < 0) return -1;
+  return 0;
+}
+
+/**
+ * Verdict of a what-if (the Strategy Simulator's PLACES GAINED / PLACES LOST /
+ * NO CLEAR CHANGE, its arrow and colour, the colour of a saved comparison):
+ * 1 = the plan gains places, -1 = it loses places, 0 = no difference beyond
+ * the Monte Carlo error: pairedSign of the run-by-run position difference
+ * (paired.position). A result without paired runs falls back on the sign of
+ * delta.position.
+ *
+ * @param {Object} result - compareJob result (paired, delta)
+ * @param {number} [prevVerdict] - the previous verdict of the same what-if
+ * @returns {-1|0|1}
+ */
+export function whatIfVerdict(result, prevVerdict) {
+  const sign = pairedSign(result?.paired?.position, prevVerdict);
+  if (sign != null) return sign;
+  const d = result?.delta?.position;
+  return d > 0 ? 1 : d < 0 ? -1 : 0;
+}
+
+/**
+ * True when a verdict and the two cards' P labels say opposite things: places
+ * gained (1) while the plan's card shows a worse position than the
+ * baseline's, or places lost (-1) while it shows a better one.
+ *
+ * @param {-1|0|1} verdict
+ * @param {number|null} custom - the plan card's P label
+ * @param {number|null} baseline - the baseline card's P label
+ * @returns {boolean}
+ */
+export function whatIfContradiction(verdict, custom, baseline) {
+  if (!Number.isFinite(custom) || !Number.isFinite(baseline)) return false;
+  return (verdict > 0 && custom > baseline) || (verdict < 0 && custom < baseline);
+}
+
+/**
+ * The marks of a what-if result, as the Strategy Simulator draws them,
+ * chained over the recomputes of the same what-if (the store keeps them in
+ * simulatorResult.marks; scripts/whatif_stability.mjs measures them): the
+ * verdict (whatIfVerdict), the finishing position of each result card
+ * (shownPositions on that card's row: its median, judged beyond the error of
+ * the five marks against the card's previous position; with none, the point
+ * median) and the colour of the podium / points differences (pairedSign of
+ * paired.podium / paired.points; without paired runs, the sign of delta).
+ *
+ * The stop-model baseline (opts.stopModel: no saved plan) is the race
+ * projection's own row of the driver (compareJob runs the projection's job),
+ * so its card shows the Race Prediction panel's P label of that row:
+ * shownPositions on the whole stop-model run (result.baseline) against the
+ * panel's chained labels (opts.panelMode = store.raceProjection.badges.mode),
+ * the panel's rule and intervals; one driver never shows two finishing
+ * positions.
+ *
+ * The verdict compares expected positions (the mean of the run-by-run
+ * differences), the cards show medians: the marks are reconciled so that a
+ * mark kept only within the Monte Carlo error never contradicts another
+ * (whatIfContradiction). The plan's card, then a saved plan's card, takes the
+ * position within its own error (shownPositionRange) nearest to the other
+ * card's; a verdict still contradicted that is held only by hysteresis (its
+ * interval contains 0) becomes 0 (NO CLEAR CHANGE). A contradiction left
+ * after that has the verdict and the plan's card beyond their error (the mean
+ * and the medians of the runs disagree) and a baseline card that is either
+ * beyond its error too or the stop-model card, which stays the panel's label
+ * (one finishing position per driver) even where the panel holds it within
+ * its own error: the marks then say what the runs and the panel say
+ * (scripts/whatif_stability.mjs counts them).
+ *
+ * @param {Object} result - compareJob result
+ * @param {Object} [prev] - marks of the previous result of the same what-if (whatIfKey)
+ * @param {{stopModel?: boolean, panelMode?: Object<string, number>|null}} [opts]
+ * @returns {{verdict: -1|0|1, shown: {custom: number|null, baseline: number|null},
+ *   podium: -1|0|1, points: -1|0|1, z: number}}
+ */
+export function whatIfMarks(result, prev = null, { stopModel = false, panelMode = null } = {}) {
+  const z = familyZ(WHATIF_MARKS);
+  const n = result?.numSimulations;
+  const card = (row, was) => {
+    if (!row?.driver) return null;
+    const prevShown = Number.isFinite(was) ? { [row.driver]: was } : undefined;
+    const shown = shownPositions({ numSimulations: n, projections: [row] }, prevShown, z)[row.driver];
+    return Number.isFinite(shown) ? shown : null;
+  };
+  const sign = (k) => {
+    const s = pairedSign(result?.paired?.[k], prev?.[k], z);
+    if (s != null) return s;
+    const d = result?.delta?.[k];
+    return d > 0 ? 1 : d < 0 ? -1 : 0;
+  };
+  const baseRow = result?.baselineProjection;
+  // the panel's label of the stop-model row (its rule, its intervals)
+  const panelShown = stopModel && Array.isArray(result?.baseline?.projections) && baseRow?.driver
+    ? shownPositions(result.baseline, panelMode || undefined)[baseRow.driver]
+    : undefined;
+  const baselineFixed = Number.isFinite(panelShown);
+  let verdict = whatIfVerdict(result, prev?.verdict);
+  let custom = card(result?.simProjection, prev?.shown?.custom);
+  let baseline = baselineFixed ? panelShown : card(baseRow, prev?.shown?.baseline);
+
+  if (whatIfContradiction(verdict, custom, baseline)) {
+    const customRange = shownPositionRange(result?.simProjection, n, z) || [custom, custom];
+    const baseRange = baselineFixed ? [baseline, baseline] : (shownPositionRange(baseRow, n, z) || [baseline, baseline]);
+    if (verdict > 0) {
+      // the plan's card at most the baseline's
+      custom = Math.max(customRange[0], baseline);
+      if (custom > baseline) baseline = Math.min(baseRange[1], custom);
+    } else {
+      // the plan's card at least the baseline's
+      custom = Math.min(customRange[1], baseline);
+      if (custom < baseline) baseline = Math.max(baseRange[0], custom);
+    }
+    const iv = pairedInterval(result?.paired?.position, z);
+    const heldOnly = !!iv && !(iv[0] > 0) && !(iv[1] < 0);
+    if (whatIfContradiction(verdict, custom, baseline) && heldOnly) verdict = 0;
+  }
+  return {
+    verdict,
+    shown: { custom, baseline },
+    podium: sign('podium'),
+    points: sign('points'),
+    z,
+  };
+}
+
+/**
+ * The marks a view draws for a what-if result: the store's (result.marks,
+ * chained over recomputes); for a result without them, the rule with no
+ * previous state.
+ *
+ * @param {Object} result - store.simulatorResult (or a saved comparison's result)
+ * @returns {{verdict: -1|0|1, shown: {custom: number|null, baseline: number|null},
+ *   podium: -1|0|1, points: -1|0|1}}
+ */
+export function whatIfMarksOf(result) {
+  return result?.marks?.shown ? result.marks : whatIfMarks(result);
 }

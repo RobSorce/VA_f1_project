@@ -24,7 +24,7 @@ Interactive visual analytics platform for Formula 1 race strategy analysis.
 
 **Usage scenario:** During the 2024 Monza GP, the strategist focuses on their driver (double-click on Leaderboard). All views highlight that driver. The StrategyTimeline shows the current stint is 18 laps on Hard compound. The degradation rate in the LapTimeChart (brushed to the current stint via StrategyTimeline click) shows a 0.12s/lap upward trend. The PCA biplot clusters this stint profile with historical 2-stop aggressive strategies. The LSTM prediction (triggered by double-click) forecasts a 0.5s lap time spike in 3 laps. The strategist radios: "Box this lap."
 
-**Why visual analytics (not just visualization):** The system integrates dimensionality reduction (PCA biplot with interpretable loading vectors), machine learning (LSTM lap time prediction, Monte Carlo simulation), and analytics triggered by visual interaction (lasso selection on PCA triggers backend cluster analysis with Cohen's d feature importance). This goes beyond information visualization into visual analytics as defined by the VA course framework.
+**Why visual analytics (not just visualization):** The system integrates dimensionality reduction (PCA biplot with interpretable loading vectors), machine learning (LSTM lap time prediction, Monte Carlo simulation), and analytics triggered by visual interaction (lasso selection on PCA triggers a backend comparison of the selection with the other rows: Hedges' g per feature with an interval and a random-selection baseline). This goes beyond information visualization into visual analytics as defined by the VA course framework.
 
 ## Architecture
 

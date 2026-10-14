@@ -5,8 +5,8 @@
 // counted once, signed gain), the rivals-stop toggle, causality.
 import { describe, it, expect } from 'vitest';
 import {
-  lapIncrements, pitInLaps, undercutSweep, likelyNextCompound, likelyStop, tyreStates,
-  PIT_IN_LAPS_MAX, UNDERCUT_SWEEP_LAPS,
+  lapIncrements, pitInLaps, undercutSweep, likelyNextCompound, likelyStop, tyreStates, feasibleStintLength,
+  PIT_IN_LAPS_MAX, UNDERCUT_SWEEP_LAPS, STINT_FEASIBLE_QUANTILE,
 } from '../undercut.js';
 import { circleState, pitWindow } from '../circleOfDoom.js';
 import { FRESH_TYRE_LAPS, PRIORS } from '../raceSimulation.js';
@@ -155,7 +155,7 @@ describe('likelyNextCompound / likelyStop / tyreStates', () => {
     const ds = driverStateAt(RACE, 'FOC', NOW, { stints: stintsByDriver(RACE, { sessionNow: NOW }) });
     expect(t.get('FOC')).toEqual({
       driver: 'FOC', compound: 'MEDIUM', tyreAge: 6, lapsCompleted: 6, used: ['MEDIUM'], fitted: null,
-      current: { compound: ds.compound, tyreLife: ds.tyreLife }, inPitLane: ds.inPitLane,
+      current: { compound: ds.compound, tyreLife: ds.tyreLife }, inPitLane: false, stints: 1,
     });
     expect(t.get('B30').lapsCompleted).toBe(5);
     expect(withoutCurrent(tyreStates(perturbFuture(RACE, NOW), NOW))).toEqual(withoutCurrent(t));
@@ -436,6 +436,144 @@ describe('undercutSweep: the Undercut Calculator', () => {
     // last out-lap = lap 20 (the flag)
     expect(sw.rows.at(-1).inLap).toBe(19);
     expect(undercutSweep('FOC', 'FOC', st, PIT_LOSS, params()).reason).toBe('no-rival');
+  });
+
+  it('D2: ONE fixed horizon, the race end, whatever the table length or the rival\'s stop', () => {
+    const rp = params({ dM: 0.06, dH: 0.06, fresh: -0.3 });
+    const full = undercutSweep('FOC', 'AHD', st, PIT_LOSS, rp);
+    expect(full.horizon).toEqual({ lap: LAPS, source: 'race-end' });
+    for (const sweepLaps of [2, 5, 9, 30]) {
+      const sw = undercutSweep('FOC', 'AHD', st, PIT_LOSS, rp, { sweepLaps });
+      expect(sw.horizonLap).toBe(LAPS);
+      // the rows the shorter table shows are the same rows, with the same gaps
+      for (const r of sw.rows) {
+        const same = full.rows.find((x) => x.inLap === r.inLap);
+        expect(r.gap).toBeCloseTo(same.gap, 12);
+      }
+    }
+    // the rival's stop moves every row by the same amount (no traffic): the best row stays
+    const byRival = [9, 12, 15].map((q) => undercutSweep('FOC', 'AHD', st, PIT_LOSS, rp, { rivalStopLap: q }));
+    for (const sw of byRival) {
+      expect(sw.horizonLap).toBe(LAPS);
+      expect(sw.best.inLap).toBe(byRival[0].best.inLap);
+      const shift = sw.rows[0].gap - byRival[0].rows[0].gap;
+      sw.rows.forEach((r, i) => expect(r.gap - byRival[0].rows[i].gap).toBeCloseTo(shift, 9));
+    }
+    // the best row is the wear balance over the whole remaining race (closed form of the lap
+    // model, linear wear; FOC's MEDIUM age = lap number): stopping one lap later costs
+    // dM x (p + 2) (one more in-lap, and the out-lap at the in-lap's time) and saves dH x (H - p)
+    // (one lap fewer on the new set): the best is the first p with dM (p + 2) >= dH (H - p)
+    let balance = 7;
+    while (0.06 * (balance + 2) < 0.06 * (LAPS - balance)) balance += 1;
+    expect(balance).toBe(9);
+    expect(full.best.inLap).toBe(balance);
+  });
+
+  it('D2 feasibility: a stint longer than the P90 stint length is charged an extra stop (focus and rival alike)', () => {
+    expect(STINT_FEASIBLE_QUANTILE).toBe(0.9);
+    // MEDIUM sets changed at age 9 (60 %) or 10 (40 %): P90 = 10
+    const survival = Array.from({ length: 21 }, (_, t) => (t < 9 ? 1 : t === 9 ? 0.4 : 0));
+    const rp = params({ survival });
+    expect(feasibleStintLength(rp, 'MEDIUM').laps).toBe(10);
+    const sw = undercutSweep('FOC', 'AHD', st, PIT_LOSS, rp);
+    // FOC (MEDIUM, age 6 after lap 6): an in-lap after lap 10 needs an extra stop at lap 10
+    for (const r of sw.rows) {
+      if (r.inLap <= 10) expect(r.extraStops).toEqual([]);
+      else expect(r.extraStops).toEqual([{ lap: 10, compound: 'HARD' }]);
+    }
+    // no wear, equal paces: the extra stop costs exactly one pit loss
+    const ok = sw.rows.find((r) => r.inLap === 10);
+    const late = sw.rows.find((r) => r.inLap === 11);
+    expect(ok.gap - late.gap).toBeCloseTo(PIT_LOSS.median, 9);
+    expect(sw.best.inLap).toBeLessThanOrEqual(10);
+    // the rival's plan is held to the same rule: its likely stop L9 keeps its MEDIUM within P90
+    expect(sw.rivalStop).toMatchObject({ inLap: 9, extraStops: [] });
+    // a new set too long for its compound is split into equal stints
+    const shortHard = {
+      ...rp,
+      stintLength: {
+        ...rp.stintLength,
+        HARD: { ...rp.stintLength.MEDIUM, survival: Array.from({ length: 21 }, (_, t) => (t < 5 ? 1 : 0)) },
+      },
+    };
+    expect(feasibleStintLength(shortHard, 'HARD').laps).toBe(5);
+    const split = undercutSweep('FOC', 'AHD', st, PIT_LOSS, shortHard);
+    const r7 = split.rows.find((r) => r.inLap === 7);
+    // HARD from lap 8 to the flag is 13 laps (P90 5): split evenly (5 laps, in-lap 12); the set
+    // fitted then is the likely change from HARD (MEDIUM, prior), whose 8 laps fit its P90 of 10
+    expect(r7.extraStops).toEqual([{ lap: 12, compound: 'MEDIUM' }]);
+    // the rival's HARD after its likely stop (L9, 11 laps to the flag) too: one extra stop
+    // (in-lap 13), so with no wear and equal paces every row is again the current gap
+    expect(split.rivalStop.extraStops).toEqual([{ lap: 13, compound: 'MEDIUM' }]);
+    expect(r7.gap).toBeCloseTo(-6, 9);
+  });
+
+  it('D4: a chosen rival stop made before a tyre change of the rival is no longer a choice', () => {
+    const rp = params({ dM: 0.05, dH: 0.03, fresh: -0.2 });
+    // chosen while AHD had one stint: still valid while it has one
+    const kept = undercutSweep('FOC', 'AHD', st, PIT_LOSS, rp, { rivalStopLap: 14, rivalStopStints: 1 });
+    expect(kept.rivalStop).toMatchObject({ inLap: 14, source: 'chosen' });
+    expect(kept.rivalTyre.stints).toBe(1);
+    // AHD changes tyres on lap 9 (in-lap 9, HARD from lap 10); at the end of lap 12 the choice of
+    // lap 14 is still in the future but was made on the old set: its likely stop instead
+    const changed = RACE.map((r) => {
+      if (r.Driver !== 'AHD') return r;
+      if (r.LapNumber === 9) return { ...r, PitInTimeSeconds: r.Time - 5 };
+      if (r.LapNumber >= 10) {
+        const o = { ...r, Compound: 'HARD', Stint: 2, TyreLife: r.LapNumber - 9 };
+        if (r.LapNumber === 10) o.PitOutTimeSeconds = r.LapStartTime + 20;
+        return o;
+      }
+      return r;
+    });
+    const now = T0 + 12 * 90 + 20;
+    const s12 = state(now, changed);
+    const sw = undercutSweep('FOC', 'AHD', s12, PIT_LOSS, rp, { rivalStopLap: 14, rivalStopStints: 1 });
+    expect(sw.rivalTyre.stints).toBe(2);
+    expect(sw.rivalStop.source).not.toBe('chosen');
+    expect(sw.rivalStop).toMatchObject({ expiredChoice: 14, expiredReason: 'tyre-change' });
+    const likely = undercutSweep('FOC', 'AHD', s12, PIT_LOSS, rp);
+    expect(sw.rows.map((r) => r.gap)).toEqual(likely.rows.map((r) => r.gap));
+    // a lap in the rival's past: 'past'
+    expect(undercutSweep('FOC', 'AHD', s12, PIT_LOSS, rp, { rivalStopLap: 11, rivalStopStints: 2 }).rivalStop)
+      .toMatchObject({ expiredChoice: 11, expiredReason: 'past' });
+  });
+
+  it('D3 / R3: in the pit lane after the in-lap\'s line crossing, read causally (no later row)', () => {
+    // AHD: in-lap 6 (pit entry 5 s before the line), pit exit 20 s into lap 7, a tyre change
+    const change = RACE.map((r) => {
+      if (r.Driver !== 'AHD') return r;
+      if (r.LapNumber === 6) return { ...r, PitInTimeSeconds: r.Time - 5 };
+      if (r.LapNumber >= 7) {
+        const o = { ...r, Compound: 'HARD', Stint: 2, TyreLife: r.LapNumber - 6 };
+        if (r.LapNumber === 7) o.PitOutTimeSeconds = r.LapStartTime + 20;
+        return o;
+      }
+      return r;
+    });
+    const line = change.find((r) => r.Driver === 'AHD' && r.LapNumber === 6).Time;
+    const now = line + 10; // between the line and the pit exit
+    const real = tyreStates(change, now).get('AHD');
+    const future = tyreStates(perturbFuture(change, now), now).get('AHD');
+    expect(real.inPitLane).toBe(true);
+    expect(future.inPitLane).toBe(true);
+    expect(withoutCurrent(future)).toEqual(withoutCurrent(real));
+    const rp = params({ dM: 0.05, dH: 0.03, fresh: -0.2 });
+    const a = undercutSweep('FOC', 'AHD', state(now, change), PIT_LOSS, rp);
+    const b = undercutSweep('FOC', 'AHD', state(now, perturbFuture(change, now)), PIT_LOSS, rp);
+    expect(withoutCurrent(b)).toEqual(withoutCurrent(a));
+    // "pit in k laps" (C4) of every focus: the same tables on the rows with the future rewritten
+    for (const focus of ['LEAD', 'FOC', 'B5', 'B30']) {
+      for (const rivalsStop of [false, true]) {
+        const pa = pitInLaps(focus, state(now, change), PIT_LOSS, rp, { rivalsStop });
+        const pb = pitInLaps(focus, state(now, perturbFuture(change, now)), PIT_LOSS, rp, { rivalsStop });
+        expect(withoutCurrent(pb)).toEqual(withoutCurrent(pa));
+      }
+    }
+    // still in the pit lane: a new set is modelled (the likely one); past the exit it is the set fitted
+    expect(a.rivalNextCompound).toBe('HARD');
+    const after = tyreStates(change, line + 25).get('AHD');
+    expect(after).toMatchObject({ inPitLane: false, fitted: { compound: 'HARD', tyreLife: 1 } });
   });
 
   it('is causal', () => {

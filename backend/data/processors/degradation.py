@@ -98,13 +98,20 @@ def _has_pit_in(lap):
     return _is_set(lap.get('PitInTimeSeconds')) or _is_set(lap.get('PitInTime'))
 
 
-def _median(values):
+def median(values):
+    """The true median (the mean of the two middle values of an even count),
+    None for no values: the one median definition of the degradation and
+    consistency numbers (decision D10; the frontend's median in
+    utils/degradation.js and the consistency cards use the same rule)."""
     a = sorted(values)
     n = len(a)
     if not n:
         return None
     mid = n // 2
     return a[mid] if n % 2 else (a[mid - 1] + a[mid]) / 2
+
+
+_median = median
 
 
 def is_clean_lap(lap):

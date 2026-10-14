@@ -4,8 +4,71 @@
   "pred_len": 6,
   "hidden1": 64,
   "hidden2": 32,
-  "best_val_loss": 0.5164100855959457,
-  "epochs_trained": 92,
-  "y_time_mean": 88.00652313232422,
-  "y_time_std": 11.615918159484863
+  "features": [
+    "lap_time_delta",
+    "tyre_life",
+    "compound",
+    "laps_before_origin",
+    "lap_number",
+    "position",
+    "gap_ahead",
+    "track_temp",
+    "is_pad",
+    "origin_tyre_life",
+    "origin_compound",
+    "origin_green"
+  ],
+  "target": "lap time minus the last clean lap of the window, s",
+  "y_delta_mean": -0.04566144943237305,
+  "y_delta_std": 1.3016667366027832,
+  "pit_rate_train": 0.13912056386470795,
+  "best_val_loss": 0.7974197913055504,
+  "best_epoch": 3,
+  "epochs_trained": 13,
+  "train_seconds": 17.1,
+  "split_seed": 7,
+  "train_seed": 7,
+  "split": {
+    "train": [
+      "2024-1",
+      "2024-2",
+      "2024-3",
+      "2024-4",
+      "2024-5",
+      "2024-6",
+      "2024-7",
+      "2024-8",
+      "2024-9",
+      "2024-10",
+      "2024-11",
+      "2024-12",
+      "2024-13",
+      "2024-15",
+      "2024-18",
+      "2024-19",
+      "2024-21",
+      "2024-23",
+      "2024-24"
+    ],
+    "val": [
+      "2024-14",
+      "2024-17",
+      "2024-20",
+      "2024-22"
+    ],
+    "test": [
+      "2024-16",
+      "2025-1",
+      "2025-6",
+      "2025-8",
+      "2025-16",
+      "2025-21",
+      "2025-24"
+    ]
+  },
+  "windows": {
+    "train": 20263,
+    "val": 3636,
+    "test": 6599
+  }
 }

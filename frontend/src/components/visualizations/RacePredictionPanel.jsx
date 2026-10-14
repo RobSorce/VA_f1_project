@@ -6,22 +6,33 @@ import {
   causalKey, pitLossDisplay, viewSessionType, isRaceSession,
 } from '../../utils/strategyViews';
 import {
-  battleKey, listedBattles, modePosition, projectionRisks,
+  battleKey, listedBattles, modePosition, positionChange, orderedProjections, projectionRisks,
   BADGE_INTERVAL_PCT, PODIUM_BADGE_PCT, BATTLE_BADGE_PCT, BATTLE_LIST_SIZE,
 } from '../../utils/simulationClient';
+import {
+  focusForecast, forecastPoints, forecastPit, forecastMethodLabel, forecastHeldOutText, forecastHeldOutMae,
+  FORECAST_LAPS,
+} from '../../utils/forecast';
 import Panel from '../ui/Panel';
 
 // Badge rule shown in the tooltips (utils/simulationClient.js projectionBadges)
 const badgeRule = (n) => `The badge turns on only when the ${BADGE_INTERVAL_PCT} % Wilson interval of the share `
   + `of the ${n != null ? `${n.toLocaleString('en-US')} ` : ''}simulations lies entirely at or above the threshold, `
   + 'and off only when it lies entirely below; while the threshold is inside the interval (within the '
-  + 'Monte Carlo error) it keeps its previous state.';
+  + 'Monte Carlo error) it keeps its previous state. The intervals hold for every pair of the projection at once.';
+// Rule of the finishing position shown (utils/simulationClient.js shownPositions)
+const positionRule = `It moves only when the median lies beyond the Monte Carlo error: ${BADGE_INTERVAL_PCT} % Wilson `
+  + 'intervals of the cumulative shares, taken together over every row of the table; inside the error the '
+  + 'previous position is kept.';
 
 export default function RacePredictionPanel() {
   const raceSituationData = useF1Store((s) => s.raceSituationData);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const predictionLoading = useF1Store((s) => s.predictionLoading);
   const lastPredictionTrigger = useF1Store((s) => s.lastPredictionTrigger);
+  const focusDriver = useF1Store((s) => s.focusDriver);
+  // The focus driver's lap-time forecast (double-click a driver), utils/forecast.js
+  const forecast = focusForecast(lstmPredictions, focusDriver);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
@@ -106,10 +117,9 @@ export default function RacePredictionPanel() {
       tabs.push({ id: 'battles', label: `Battles (${battles.length})` });
     if (risks.length > 0)
       tabs.push({ id: 'risks', label: `Risks (${risks.length})` });
-    if (lstmPredictions && typeof lstmPredictions === 'object' && Object.keys(lstmPredictions).length > 0)
-      tabs.push({ id: 'lstm', label: 'LSTM' });
+    if (forecast) tabs.push({ id: 'lstm', label: 'Forecast' });
     return tabs;
-  }, [raceProjection, battles, risks, lstmPredictions]);
+  }, [raceProjection, battles, risks, forecast]);
   // A tab that has gone (no listed battle any more) falls back to the projections
   const shownTab = predTabs.some((t) => t.id === activeTab) ? activeTab : 'projections';
 
@@ -162,13 +172,13 @@ export default function RacePredictionPanel() {
                         : ` (n=${pitLossInfo.n})`}`}
                   </span>
                   <span title={lapNoiseEstimate?.source === 'race'
-                    ? `Pooled residual sigma of ${lapNoiseEstimate.stints} per-stint degradation fits (${lapNoiseEstimate.laps} clean laps) of this race`
-                      + `${lapNoiseEstimate.raceValue != null ? ` (${lapNoiseEstimate.raceValue.toFixed(2)}s alone)` : ''}, combined with the`
-                      + ` ${lapNoiseEstimate.prior?.kind || 'dry'} races of the cache (${lapNoiseEstimate.prior?.value} s, worth`
-                      + ` ${lapNoiseEstimate.prior?.nu0} degrees of freedom against this race's ${lapNoiseEstimate.dof})`
-                    : `No fitted stint in this race yet: the prior of the cached ${lapNoiseEstimate?.prior?.kind || 'dry'} races`}
+                    ? `Pooled residual sigma of the ${lapNoiseEstimate.stints} per-stint degradation fits of this race so far`
+                      + ` (${lapNoiseEstimate.laps} clean laps, ${lapNoiseEstimate.dof} degrees of freedom): the lap-to-lap scatter`
+                      + ' around each stint\'s tyre-age line. Few stints early in the race give a rough value: n is shown next to it.'
+                    : `No fitted stint in this race yet: the value of the cached ${lapNoiseEstimate?.prior?.kind || 'dry'} races`}
                   >
                     Lap noise: {'\u00B1'}{raceParams.lapNoise.toFixed(2)}s{lapNoiseEstimate?.source ? ` ${lapNoiseEstimate.source}` : ''}
+                    {lapNoiseEstimate ? ` (n=${lapNoiseEstimate.laps ?? 0} laps)` : ''}
                   </span>
                   <span title={scEstimate
                     ? `Safety-car / VSC episodes per leader lap: ${scEstimate.episodes} episode${scEstimate.episodes === 1 ? '' : 's'} started in ${scEstimate.laps} laps so far, `
@@ -229,13 +239,15 @@ export default function RacePredictionPanel() {
                     </span>
                   </div>
 
-                  {/* Position probability table */}
+                  {/* Position probability table: rows by the position shown, then the
+                      current race position (never a raw Monte Carlo statistic) */}
                   <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm)' }}>
-                    {raceProjection.projections.map((p) => {
-                const deltaColor = p.delta > 0.5 ? '#00e676' : p.delta < -0.5 ? '#e10600' : 'var(--color-text-muted)';
-                // Most likely position shown: the store's (it changes only when another
-                // position's share is beyond the Monte Carlo error of it); its colour follows it
+                    {orderedProjections(raceProjection).map((p) => {
+                // Finishing position shown: the store's median (it changes only beyond the
+                // Monte Carlo error of the whole column); its colour and the arrow follow it
                 const shownPos = modePosition(raceProjection, p);
+                const change = positionChange(raceProjection, p) ?? 0;
+                const deltaColor = change > 0 ? '#00e676' : change < 0 ? '#e10600' : 'var(--color-text-muted)';
                 const isSelected = selectedDrivers.includes(p.driver);
 
                 // Build probability bar segments
@@ -263,8 +275,9 @@ export default function RacePredictionPanel() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: compactRows ? 0 : 3 }}>
                       {/* Position */}
                       <span
-                        title={`Most likely finishing position (${p.posDistribution?.[shownPos] ?? 0}% of the simulations). `
-                          + `It changes only when another position's share lies beyond the ${BADGE_INTERVAL_PCT} % Wilson interval of it. Gold = a podium place.`}
+                        title={`Median finishing position: half of the simulations finish P${shownPos} or better `
+                          + `(${p.posDistribution?.[shownPos] ?? 0}% exactly P${shownPos}; expected ${p.expectedPos}). ${positionRule} `
+                          + `Gold = a podium place, i.e. a podium in at least ${PODIUM_BADGE_PCT} % of the simulations.`}
                         style={{
                           fontWeight: 900, fontSize: 'var(--font-size-sm)', minWidth: 26,
                           color: shownPos <= 3 ? '#ffd700' : shownPos <= 10 ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
@@ -273,13 +286,16 @@ export default function RacePredictionPanel() {
                         P{shownPos}
                       </span>
 
-                      {/* Delta arrow */}
-                      {Math.abs(p.delta) >= 0.5 ? (
-                        <span style={{
-                          fontSize: '8px', color: deltaColor, fontWeight: 700,
-                          minWidth: 18, textAlign: 'center',
-                        }}>
-                          {p.delta > 0 ? '\u25B2' : '\u25BC'}{Math.abs(Math.round(p.delta))}
+                      {/* Gain / loss arrow: current position against the position shown */}
+                      {change !== 0 ? (
+                        <span
+                          title={`P${p.currentPos} now, P${shownPos} shown: ${change > 0 ? 'gains' : 'loses'} ${Math.abs(change)} place${Math.abs(change) === 1 ? '' : 's'}`}
+                          style={{
+                            fontSize: '8px', color: deltaColor, fontWeight: 700,
+                            minWidth: 18, textAlign: 'center',
+                          }}
+                        >
+                          {change > 0 ? '\u25B2' : '\u25BC'}{Math.abs(change)}
                         </span>
                       ) : (
                         <span style={{ minWidth: 18, textAlign: 'center', fontSize: '8px', color: 'var(--color-text-muted)' }}>
@@ -308,19 +324,20 @@ export default function RacePredictionPanel() {
                         P{p.posRange[0]}{'\u2013'}P{p.posRange[1]}
                       </span>
 
-                      {/* Podium / Points: gold = podium badge (Wilson interval + hysteresis) */}
-                      {p.podiumProb > 0 && (
-                        <span
-                          title={`Podium in ${p.podiumProb}% of the simulations. Gold = at least ${PODIUM_BADGE_PCT} %. ${badgeRule(numSims)}`}
-                          style={{
-                            fontSize: '8px', fontWeight: 700, minWidth: 28, textAlign: 'right',
-                            color: (badges ? badges.podium?.[p.driver] : p.podiumProb >= PODIUM_BADGE_PCT) ? '#ffd700' : 'var(--color-text-muted)',
-                          }}
-                        >
-                          {p.podiumProb}%
-                          <span style={{ fontWeight: 400, fontSize: '7px' }}> pod</span>
-                        </span>
-                      )}
+                      {/* Podium / Points: gold = podium badge (Wilson interval + hysteresis).
+                          On every row, 0 % included: a chip hidden at 0 % appeared and
+                          disappeared on Monte Carlo noise alone (D5) */}
+                      <span
+                        title={`Podium in ${p.podiumProb}% of the simulations. Gold = at least ${PODIUM_BADGE_PCT} %, `
+                          + `the same statement as a gold P label (P1-P3: the median finishing position). ${positionRule}`}
+                        style={{
+                          fontSize: '8px', fontWeight: 700, minWidth: 28, textAlign: 'right',
+                          color: (badges ? badges.podium?.[p.driver] : p.podiumProb >= PODIUM_BADGE_PCT) ? '#ffd700' : 'var(--color-text-muted)',
+                        }}
+                      >
+                        {p.podiumProb}%
+                        <span style={{ fontWeight: 400, fontSize: '7px' }}> pod</span>
+                      </span>
                     </div>
 
                     {/* Row 2: Probability bar (hidden in compact mode) */}
@@ -456,7 +473,7 @@ export default function RacePredictionPanel() {
                 </div>
               )}
 
-              {shownTab === 'lstm' && lstmPredictions && typeof lstmPredictions === 'object' && (
+              {shownTab === 'lstm' && forecast && (
                 <div style={{
                   background: 'linear-gradient(135deg, rgba(168,85,247,0.10) 0%, rgba(168,85,247,0.02) 100%)',
                   borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm) var(--spacing-md)',
@@ -464,63 +481,34 @@ export default function RacePredictionPanel() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      LSTM Predictions
-                      {(() => {
-                        // Detect whether any driver's prediction came from the
-                        // heuristic fallback (H9/V9.1). If so, show an amber
-                        // chip — a strategist must know the model is off.
-                        const preds = Object.values(lstmPredictions || {});
-                        const anyHeuristic = preds.some((p) => p?.is_heuristic || p?.model_used === 'heuristic' || p?.model_used === 'fallback_mean');
-                        const anyLstm = preds.some((p) => p?.model_used === 'lstm');
-                        if (anyHeuristic && !anyLstm) {
-                          return (
-                            <span
-                              title="No trained LSTM loaded — predictions use a heuristic (MAE ~2× higher). See docs/INSIGHTS_BRAZIL_2024.md."
-                              style={{
-                                fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
-                                padding: '1px 6px', borderRadius: 4, color: '#f5a623',
-                                background: 'rgba(245, 166, 35, 0.14)', border: '1px solid rgba(245, 166, 35, 0.45)',
-                                cursor: 'help',
-                              }}>HEURISTIC</span>
-                          );
-                        }
-                        if (anyLstm) {
-                          return (
-                            <span
-                              title="PyTorch LSTM — 64→32→Dense. Typical MAE: 0.4–0.8s dry, up to 2.5s wet."
-                              style={{
-                                fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
-                                padding: '1px 6px', borderRadius: 4, color: '#d5fd51',
-                                background: 'rgba(213, 253, 81, 0.14)', border: '1px solid rgba(213, 253, 81, 0.45)',
-                                cursor: 'help',
-                              }}>LSTM</span>
-                          );
-                        }
-                        return null;
-                      })()}
-                      {(() => {
-                        // Confidence proxy: spread of the 5-lap predicted window
-                        // (H1/V1.2). Narrower spread = more stable prediction.
-                        const preds = Object.values(lstmPredictions || {}).filter((p) => Array.isArray(p?.predicted_times));
-                        if (!preds.length) return null;
-                        const spreads = preds.map((p) => {
-                          const t = p.predicted_times;
-                          return Math.max(...t) - Math.min(...t);
-                        });
-                        const avgSpread = spreads.reduce((a, b) => a + b, 0) / spreads.length;
-                        const tier = avgSpread < 0.6 ? 'tight' : avgSpread < 1.5 ? 'moderate' : 'wide';
-                        const color = tier === 'tight' ? '#4ade80' : tier === 'moderate' ? '#fbbf24' : '#ef4444';
-                        return (
-                          <span
-                            title={`5-lap forecast spread ${avgSpread.toFixed(2)}s — ${tier} (narrower = model expects stable pace).`}
-                            style={{
-                              fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
-                              padding: '1px 6px', borderRadius: 4, color,
-                              background: `${color}22`, border: `1px solid ${color}66`,
-                              cursor: 'help',
-                            }}>±{avgSpread.toFixed(2)}s</span>
-                        );
-                      })()}
+                      Lap-time forecast
+                      {/* The method served (response method_label): chosen on
+                          the validation races; the LSTM is named only when it
+                          made the forecast, and lstm_note says when it loses */}
+                      {forecast.method && (
+                        <span
+                          title={[forecast.lstm_note, forecast.method_note].filter(Boolean).join(' ') || undefined}
+                          style={{
+                            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+                            padding: '1px 6px', borderRadius: 4,
+                            color: forecast.method === 'lstm' ? '#d5fd51' : '#f5a623',
+                            background: forecast.method === 'lstm' ? 'rgba(213, 253, 81, 0.14)' : 'rgba(245, 166, 35, 0.14)',
+                            border: `1px solid ${forecast.method === 'lstm' ? 'rgba(213, 253, 81, 0.45)' : 'rgba(245, 166, 35, 0.45)'}`,
+                            cursor: 'help', textTransform: 'none',
+                          }}>{forecastMethodLabel(forecast)}</span>
+                      )}
+                      {forecastHeldOutMae(forecast) != null && (
+                        <span
+                          title={`${forecast.held_out?.metric || 'MAE over laps +1..+5'}; the method was chosen `
+                            + `on the ${forecast.held_out?.selected_on || 'held-out'} races `
+                            + '(notes/experiments/phase6/evaluate_forecast.txt).'}
+                          style={{
+                            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+                            padding: '1px 6px', borderRadius: 4, color: 'rgba(255,255,255,0.85)',
+                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.25)',
+                            cursor: 'help', textTransform: 'none',
+                          }}>{forecastHeldOutText(forecast)}</span>
+                      )}
                     </span>
                     {predictionLoading && (
                       <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>Loading...</span>
@@ -531,39 +519,7 @@ export default function RacePredictionPanel() {
                       </span>
                     )}
                   </div>
-                  {(() => {
-                    // The store has two paths that write to lstmPredictions:
-                    //   - triggerLSTMPredictions sets the *flat* response
-                    //     (predicted_times / pit_probability / ... at top level).
-                    //   - triggerPrediction sets a per-driver map
-                    //     ({ LEC: {...}, NOR: {...} }).
-                    // Normalise to a list of {driver, pred} regardless of shape.
-                    const isFlatResponse = Array.isArray(lstmPredictions.predicted_times);
-                    const rows = isFlatResponse
-                      ? [{
-                          driver: lastPredictionTrigger?.driver
-                            || Object.keys(lstmPredictions.driver_predictions || {})[0]
-                            || 'Driver',
-                          pred: lstmPredictions,
-                        }]
-                      : Object.entries(lstmPredictions)
-                          .filter(([key, pred]) => (
-                            // Only objects with at least one of the rendered
-                            // fields are real per-driver entries.
-                            pred && typeof pred === 'object' &&
-                            (Array.isArray(pred.predicted_times) ||
-                             typeof pred.pit_probability === 'number' ||
-                             Array.isArray(pred.predicted_stints))
-                          ))
-                          .map(([driver, pred]) => ({ driver, pred }));
-                    return rows.length === 0 ? (
-                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', padding: '4px 0' }}>
-                        No prediction features available yet.
-                      </div>
-                    ) : rows.map(({ driver, pred }) => (
-                      <LSTMDriverRow key={driver} driver={driver} pred={pred} />
-                    ));
-                  })()}
+                  <ForecastRow pred={forecast} />
                 </div>
               )}
             </div>
@@ -618,10 +574,11 @@ export default function RacePredictionPanel() {
 }
 
 /**
- * Pretty-printed driver row for the LSTM block.
- * Replaces the previous `JSON.stringify(...).slice(0, 40)` debug output with
- * a structured human-readable card: predicted lap times, pit probability,
- * optimal pit lap, and predicted stints (compound x length).
+ * The focus driver's lap-time forecast (store.lstmPredictions entry,
+ * utils/forecast.js): each predicted time at its target lap, the pit
+ * probability with the method behind it, the projected pit lap and stints,
+ * and the response's notes (lstm_note says when the LSTM loses; reason when
+ * there is no forecast).
  */
 const COMPOUND_LETTER = {
   SOFT: 'S', MEDIUM: 'M', HARD: 'H', INTERMEDIATE: 'I', WET: 'W', UNKNOWN: '?',
@@ -630,31 +587,17 @@ const COMPOUND_HEX = {
   SOFT: '#FF3333', MEDIUM: '#FFC300', HARD: '#EEEEEE',
   INTERMEDIATE: '#39B54A', WET: '#00AAFF', UNKNOWN: '#888',
 };
-function LSTMDriverRow({ driver, pred }) {
-  // Tolerate either the flat top-level response or a per-driver entry.
-  // Either way, only render sections we actually have data for.
-  const times = Array.isArray(pred.predicted_times)
-    ? pred.predicted_times
-    : (pred.predicted_laps && Array.isArray(pred.predicted_laps[driver])
-        ? pred.predicted_laps[driver]
-        : null);
-  const pit = typeof pred.pit_probability === 'number' ? pred.pit_probability : null;
+function ForecastRow({ pred }) {
+  const driver = pred.driver;
+  const points = forecastPoints(pred);
+  const pit = forecastPit(pred);
   const optimal = typeof pred.optimal_pit_lap === 'number' ? pred.optimal_pit_lap : null;
   const stints = Array.isArray(pred.predicted_stints) ? pred.predicted_stints : [];
-  const isHeuristic = !!pred.is_heuristic;
-  const positionChange = (pred.driver_predictions && pred.driver_predictions[driver]?.predicted_position_change)
-    ?? (pred.positions && pred.positions[driver])
-    ?? null;
   const summary = typeof pred.summary === 'string' ? pred.summary : null;
-
-  // If we genuinely have nothing to show beyond the header, render a
-  // single explanatory line instead of just a driver name with empty
-  // labels below it.
-  const hasAnyData = times || pit != null || optimal != null || stints.length > 0
-    || positionChange != null || summary;
+  const notes = [pred.lstm_note, pred.method_note, pred.pit_note, pred.pit_projection_reason].filter(Boolean);
 
   // Pit-probability colour: green < 30%, amber 30-60%, red ≥ 60%
-  const pitPct = pit != null ? Math.round(pit * 100) : null;
+  const pitPct = pit.probability != null ? Math.round(pit.probability * 100) : null;
   const pitColor = pitPct == null ? 'rgba(255,255,255,0.5)'
     : pitPct >= 60 ? '#ef4444'
     : pitPct >= 30 ? '#f5a623'
@@ -669,34 +612,29 @@ function LSTMDriverRow({ driver, pred }) {
       flexDirection: 'column',
       gap: 4,
     }}>
-      {/* Header: driver + flags */}
+      {/* Header: driver, origin lap, pit probability */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontWeight: 800, color: getDriverColor(driver), letterSpacing: '0.04em' }}>
           {driver}
         </span>
-        {isHeuristic && (
-          <span style={{
-            padding: '0 5px', borderRadius: 3, fontSize: 8.5, fontWeight: 700,
-            color: '#f5a623', background: 'rgba(245,166,35,0.14)',
-            border: '1px solid rgba(245,166,35,0.4)',
-            fontFamily: 'var(--font-mono)', letterSpacing: '0.06em',
-          }}>HEURISTIC</span>
+        {Number.isFinite(pred.lap) && (
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)' }}>from lap {pred.lap}</span>
         )}
         {pitPct != null && (
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.55)' }}>
-            pit: <strong style={{ color: pitColor, fontFamily: 'var(--font-mono)' }}>{pitPct}%</strong>
+          <span
+            title={`Pit stop within ${FORECAST_LAPS} laps${pit.label ? `, by the ${pit.label}` : ''}.`}
+            style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.55)' }}
+          >
+            pit{pit.label ? ` (${pit.label})` : ''}: <strong style={{ color: pitColor, fontFamily: 'var(--font-mono)' }}>{pitPct}%</strong>
           </span>
         )}
       </div>
 
-      {/* Predicted next 5 laps */}
-      {times && times.length > 0 && (
+      {/* Predicted laps, each at its target lap */}
+      {points.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
-            next 5
-          </span>
-          {times.slice(0, 5).map((t, i) => (
-            <span key={i} style={{
+          {points.map(({ lap, time }) => (
+            <span key={lap} style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 10.5,
               padding: '1px 5px',
@@ -705,28 +643,18 @@ function LSTMDriverRow({ driver, pred }) {
               border: '1px solid rgba(255,255,255,0.08)',
               color: 'rgba(255,255,255,0.85)',
             }}>
-              {typeof t === 'number' ? t.toFixed(2) + 's' : '—'}
+              L{lap} {time.toFixed(2)}s
             </span>
           ))}
         </div>
       )}
 
-      {/* Optimal pit lap + predicted stints + position change */}
-      {(optimal != null || stints.length > 0 || positionChange != null) && (
+      {/* Projected pit lap + predicted stints */}
+      {(optimal != null || stints.length > 0) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 10 }}>
           {optimal != null && (
             <span style={{ color: 'rgba(255,255,255,0.55)' }}>
               optimal pit: <strong style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>L{optimal}</strong>
-            </span>
-          )}
-          {positionChange != null && positionChange !== 0 && (
-            <span style={{ color: 'rgba(255,255,255,0.55)' }}>
-              Δ position: <strong style={{
-                color: positionChange > 0 ? '#22c55e' : '#ef4444',
-                fontFamily: 'var(--font-mono)',
-              }}>
-                {positionChange > 0 ? '+' : ''}{positionChange}
-              </strong>
             </span>
           )}
           {stints.length > 0 && (
@@ -751,17 +679,20 @@ function LSTMDriverRow({ driver, pred }) {
         </div>
       )}
 
-      {/* Summary text (e.g. "LSTM prediction (lstm) based on last 10 laps"). */}
+      {/* The response's summary and notes (which method, why, held-out standing) */}
       {summary && (
-        <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.40)', fontStyle: 'italic' }}>
+        <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.6)' }}>
           {summary}
         </div>
       )}
+      {notes.map((n) => (
+        <div key={n} style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.6)' }}>{n}</div>
+      ))}
 
-      {/* Fallback: nothing rendered above — don't show empty labels alone. */}
-      {!hasAnyData && (
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
-          Waiting for prediction features…
+      {/* No forecast (fewer than 3 clean laps at the clock): the reason */}
+      {points.length === 0 && (
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
+          {pred.reason || 'No forecast for this lap.'}
         </div>
       )}
     </div>

@@ -127,13 +127,28 @@ Per compound, from the fits at the clock:
    used, each weighted by 1 / (`withinSd`² + its `slopeStdErr`²). Negative
    fits enter as they are, never clamped.
 
-Lap noise is the race's pooled residual sigma combined with the cached races'
-prior of the same kind (dry / wet), worth `nu0` residual degrees of freedom.
-All of it is printed, with the Monza 2024 table at every projection clock, by
+The spreads and `minFitLaps` behind steps 1-2 are printed by
 `frontend/scripts/degradation_in_race.mjs`
-(`notes/experiments/degradation_in_race.txt`): at the 48 clocks of laps 5-52
-MEDIUM is +0.0140 s/lap or more and HARD +0.0053 or more (the plain mean of
-every fit so far was down to −0.1119 and −0.1750), lap noise 0.304-0.439 s.
+(`notes/experiments/degradation_in_race.txt`, sections A-B).
+
+Lap noise (`lapNoiseFromFits`, lead decision D1) is the race's pooled residual
+sigma of the per-stint fits at the clock, `sqrt(Σ SSE / Σ (n − 2))` over every
+fitted stint of every driver (the consistency sigma below, pooled over the
+field), with no floor and no prior mixed in: early in a race it is the value
+of the few stints fitted so far, and the Race Prediction panel shows it with
+its n (clean laps). Before the race's first fit there is no race value: the
+cached races' value of the same kind (dry / wet) is used, labelled `prior`,
+n = 0.
+
+The Monza 2024 table at every lap-mode clock is printed by
+`frontend/scripts/s2_lap_noise.mjs`
+(`notes/experiments/phase45c/s2_lap_noise_monza.txt`): at the 48 clocks of
+laps 5-52 MEDIUM is +0.0140 s/lap or more and HARD +0.0053 or more (at laps
+11-14, 12 of the 13 MEDIUM fits so far have a negative slope and none is long
+enough to be used). Lap noise is the dry prior 0.408 s (n = 0) at laps 5-9,
+0.163 s at lap 10 (one stint, n = 8 laps) and 0.379-0.439 s from lap 11; at
+the leader's laps 20, 30, 40 and the race end it is 0.436, 0.402, 0.381 and
+0.401 s (n = 255, 463, 598 and 889 clean laps).
 
 ## Consistency sigma — `consistencySigma(lapTimes, driver, { sessionNow, lapStart, lapEnd })`
 
@@ -153,11 +168,76 @@ fit changes.
 
 ## Consumers
 
-Views, the simulator and the backend endpoints take their degradation and
-consistency numbers from this module. Code that still fits on its own
-(`TireDegradation.jsx`, `raceSimulation.js`, the consistency views,
-`backend/api/routers/predictions.py`, `backend/api/routers/analytics.py`)
-does not follow this definition until it is switched over.
+Every degradation and consistency number of the dashboard comes from this
+definition; nothing fits a line or computes a sigma on its own.
+
+Frontend (`frontend/src/utils/degradation.js`):
+
+- **Tyre Degradation chart** (`TireDegradation.jsx`): `tyreDegradationView`
+  in `utils/views/degradationViews.js`, i.e. `cleanStintLaps` and `stintFits`
+  at the replay clock, restricted to the brushed lap range once the driver
+  has 3 completed laps in it (`BRUSH_MIN_LAPS`).
+- **Brushed fit banner** (`TireDegradation.jsx`, store
+  `fetchDegradationRegression`): `POST /api/predict/degradation` (below). The
+  body carries `session_now` (the replay clock in session seconds, `null` at
+  the race end) and the session on screen (`year`, `round`, `session_type`;
+  never the pills of the session menus), so the endpoint uses the laps the
+  chart uses. The store re-asks whenever the fit's inputs change
+  (`brushFitKey`: per stint overlapping the range, its laps so far and its
+  clean laps in the range; a later lap of a stint still growing can change
+  which laps of the range are slow outliers), at most once per
+  `DEGRADATION_REFRESH_MS` (150 ms, a UI rate limit) and with the clock of
+  the moment it is sent, and keeps a fit after a backward seek only while
+  those inputs are the same at the new clock. In live mode no request is sent (no session clock, and a mock
+  replay's cached race would hand the endpoint the laps still to come): the
+  chart's live fits stay. Evidence: `src/__tests__/degradation.endpointClock.test.js`
+  sends the store's bodies to the endpoint and compares its stint rows with
+  `stintFits` at every sampled clock of Monza 2024 and at the race end
+  (`notes/experiments/phase45c/g1_store_endpoint_vs_chart.txt`: 979 clock checks,
+  8 at the race end, 1135 stint rows, max difference 0).
+- **Consistency cards** (`ConsistencyPanel.jsx`): `consistencyView`, the
+  `consistencySigma` of every driver with its fields and rules shared with
+  the backend's `/consistency` (below): `avg_lap` over the laps of the sigma
+  (the clean laps of the fitted stints), Consistent when sigma <= the true
+  median of the listed drivers' sigmas (the mean of the two middle values for
+  an even count), LOW DATA when the driver completed fewer laps than
+  max(3, 75 % of the most laps completed). Evidence:
+  `src/__tests__/degradation.consistencyParity.test.js`
+  (`notes/experiments/phase45c/g5_consistency_parity.txt`: 30 races x 3
+  clocks, 1627 driver rows equal, sigma difference 0).
+- **Driver comparison** (`DriverComparePanel.jsx`): `consistencySigma` of both
+  drivers at the clock.
+- **Race simulation** (`raceSimulation.js`, and through it the Undercut
+  Calculator and the Circle of Doom): `stintFits` / `cleanStintLaps` at the
+  clock, combined into `raceDegradation` as described above.
+- **Race situation features** (`raceSituationFeatures.js`): the lap-time cut
+  `MAX_LAP_TIME_S`.
+- Help texts and the fuel notes (`chartHelp.js`, `App.jsx`,
+  `degradationViews.js` `FUEL_NOTE` / `FIT_NOTE`) quote
+  `FUEL_EFFECT_S_PER_LAP`, `MIN_FIT_LAPS` and `OUTLIER_K` from the module.
+
+Backend (`backend/data/processors/degradation.py`):
+
+- **`POST /api/predict/degradation`** (`api/routers/predictions.py`): for each
+  requested driver, `stint_fits(lap_rows, session_now, driver, lap_start,
+  lap_end)` unchanged, on the rows of the requested session (`session_type`,
+  default the race); `session_now` limits the rows to the laps completed by
+  then (`null` = the whole session). The primary fit is the latest fitted
+  stint of the first driver. The projected pit lap of a stint is
+  `ceil(start_lap + PIT_DEG_THRESHOLD_S / slope)` with
+  `PIT_DEG_THRESHOLD_S = 1.5` s of fitted tyre-only loss (an assumption kept
+  from the earlier endpoint); none, with a reason, when the stint has no fit,
+  when the slope is <= 0 (no loss to pit for), when the lap falls after the
+  race's last lap, or outside a race or sprint. The undercut window is that
+  lap -3 / +2 (`UNDERCUT_WINDOW_LAPS_BEFORE` / `_AFTER`, also assumptions).
+- **`GET /api/analytics/consistency/{year}/{round}`** (`api/routers/analytics.py`):
+  `consistency_sigma` and `clean_stint_laps` / `fit_stint` /
+  `compound_degradation` for the per-compound fields, the true `median` of
+  this module for `is_consistent`, `MIN_RACE_SHARE` for `insufficient_data`;
+  optional `session_now` and `session_type`. The dashboard does not show this
+  payload (the cards compute the same rows at the clock).
+- **PCA race features** (`data/processors/pca_compute.py`): clean laps, the
+  fuel correction, per-stint fits and the consistency sigma at `session_now`.
 
 ## Limits
 

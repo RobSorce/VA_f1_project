@@ -105,7 +105,7 @@ export default function ConsistencyPanel() {
       }}>
         {sessionAvg ? (
           <div className="consistency-panel__session-summary" style={{ margin: 0 }}>
-            <span title="Mean of the clean laps of the drivers listed (lap 1, pit in/out laps, non-green laps and slow outliers left out)">
+            <span title="Mean of the laps behind the σ of the drivers listed: the clean laps of their fitted stints (lap 1, pit in/out laps, non-green laps and slow outliers left out)">
               Session Average: <strong>{formatTime(sessionAvg)}</strong>
             </span>
             <span>{drivers.length} drivers analyzed</span>
@@ -189,7 +189,7 @@ export default function ConsistencyPanel() {
               onMouseEnter={() => setHighlightedDriver(d.driver)}
               onMouseLeave={() => setHighlightedDriver(null)}
               title={d.insufficient_data
-                ? `Low data — σ from only ${d.lap_count} laps, below ${minLapsThreshold} laps (${LOW_DATA_PERCENT} % of the largest sample in the field). σ is not comparable to full-race drivers.`
+                ? `Low data — only ${d.laps_completed} laps completed, below ${minLapsThreshold} (${LOW_DATA_PERCENT} % of the most laps completed in the field); σ from ${d.lap_count} laps is not comparable to full-race drivers.`
                 : undefined}
               style={{
                 opacity: !isSelected ? 0.35 : isDimmed ? 0.5 : (d.insufficient_data ? 0.55 : 1),
@@ -210,7 +210,7 @@ export default function ConsistencyPanel() {
                 {d.insufficient_data && (
                   <span
                     className="consistency-card__low-data-chip"
-                    title={`Only ${d.lap_count} laps (< ${minLapsThreshold}, ${LOW_DATA_PERCENT} % of the largest sample) — σ from a small sample is not comparable.`}
+                    title={`Only ${d.laps_completed} laps completed (< ${minLapsThreshold}, ${LOW_DATA_PERCENT} % of the most laps completed) — σ from a short race is not comparable.`}
                   >
                     LOW DATA
                   </span>

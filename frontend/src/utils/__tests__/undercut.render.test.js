@@ -95,8 +95,9 @@ describe.skipIf(!haveMonza)('Undercut Calculator: the sweep of utils/undercut.js
       // new set the gap is symmetric about the wear balance, so two rows on
       // either side of it can be equal: at least half the rows are distinct
       expect(new Set(sw.rows.map((r) => r.gap.toFixed(6))).size).toBeGreaterThanOrEqual(Math.ceil(sw.rows.length / 2));
-      // one lap for every row, named in the header
-      expect(t).toContain(`gap at the end of L${sw.horizonLap}, both stopped in every row`);
+      // one lap for every row, the race end (D2), named in the header
+      expect(sw.horizon.source).toBe('race-end');
+      expect(t).toContain(`gap at the flag (end of L${sw.horizonLap}), both plans to the finish`);
       // the tyre chips: the set on each car now (driverStateAt, R6)
       const stints = stintsByDriver(lt, { sessionNow: now });
       for (const d of [focus, rival]) {

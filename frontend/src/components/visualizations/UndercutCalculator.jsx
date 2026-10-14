@@ -1,14 +1,16 @@
 /**
  * Undercut Calculator: for each candidate pit lap of the focus driver, the
- * projected gap to a rival at one lap for every row, the first lap by which
- * both have stopped in every row. The maths is
- * utils/undercut.js undercutSweep (the projection the Circle of Doom's "pit in
- * k laps" uses): the Circle of Doom's pit window (each car's last line
- * crossing and recent pace, the race's pit-loss median), then the engine's lap
- * model (raceSimulation.js: degradation by compound and tyre age, fresh-tyre
- * delta on the first flying lap); the rival's stop is scheduled in every row
- * (its likely stop from the stint-life survival, or a lap chosen here). This
- * file only draws it; no model value lives here.
+ * projected gap to a rival at the flag (every row read at the race end, lead
+ * decision D2). The maths is utils/undercut.js undercutSweep (the projection
+ * the Circle of Doom's "pit in k laps" uses): the Circle of Doom's pit window
+ * (each car's last line crossing and recent pace, the race's pit-loss
+ * median), then the engine's lap model (raceSimulation.js: degradation by
+ * compound and tyre age, fresh-tyre delta on the first flying lap); the
+ * rival's stop is scheduled in every row (its likely stop from the stint-life
+ * survival, or a lap chosen here); a stint past the P90 stint length of its
+ * compound is charged an extra stop. A lap chosen here is dropped once it is
+ * in the rival's past or the rival has changed tyres since (D4). This file
+ * only draws it; no model value lives here.
  */
 import React, { useMemo, useEffect, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
@@ -130,9 +132,10 @@ export default function UndercutCalculator() {
     }
   }, [comparisonDriver, defaultRival, setComparisonDriver]);
 
-  // The rival's stop lap: null = its likely stop (stint-life survival)
-  const [rivalStopLap, setRivalStopLap] = useState(null);
-  useEffect(() => { setRivalStopLap(null); }, [rival]);
+  // The rival's stop chosen here: { lap, stints } (the rival's stint count when
+  // chosen, D4) or null = its likely stop (stint-life survival)
+  const [rivalChoice, setRivalChoice] = useState(null);
+  useEffect(() => { setRivalChoice(null); }, [rival]);
 
   // Race params from what is known at sessionNow (completed laps and stints,
   // utils/stints.js), recomputed whenever the causal key changes, i.e. on
@@ -149,13 +152,15 @@ export default function UndercutCalculator() {
     if (!isRace || !effectiveFocus || !rival || effectiveFocus === rival) return null;
     return undercutSweep(effectiveFocus, rival, state, pitLoss, raceParams, {
       totalLaps: totalRaceLaps || maxLap || undefined,
-      rivalStopLap: rivalStopLap ?? undefined,
+      rivalStopLap: rivalChoice?.lap ?? undefined,
+      rivalStopStints: rivalChoice?.stints ?? undefined,
     });
-  }, [isRace, effectiveFocus, rival, state, pitLoss, raceParams, totalRaceLaps, maxLap, rivalStopLap]);
+  }, [isRace, effectiveFocus, rival, state, pitLoss, raceParams, totalRaceLaps, maxLap, rivalChoice]);
   // A chosen rival stop the replay has moved past (the rival completed that
-  // lap, or is stopping now) is no longer a choice: back to its likely stop
-  const choiceGone = rivalStopLap != null && analysis?.rivalStop != null && analysis.rivalStop.source !== 'chosen';
-  useEffect(() => { if (choiceGone) setRivalStopLap(null); }, [choiceGone]);
+  // lap, or is stopping now), or made before the rival changed tyres, is no
+  // longer a choice (D4): back to its likely stop
+  const choiceGone = rivalChoice != null && analysis?.rivalStop != null && analysis.rivalStop.source !== 'chosen';
+  useEffect(() => { if (choiceGone) setRivalChoice(null); }, [choiceGone]);
 
   if (!isRace) {
     return (
@@ -263,8 +268,11 @@ export default function UndercutCalculator() {
   }
 
   const {
-    rows, best, currentGap, rivalStop, freshGain, degradation, freshDeltaInfo,
+    rows, best, currentGap, rivalStop, freshGain, degradation, freshDeltaInfo, horizon, feasibility,
   } = analysis;
+  const atFlag = horizon?.source === 'race-end';
+  const horizonText = atFlag ? `the flag (end of L${best.horizonLap})` : `the end of L${best.horizonLap}`;
+  const stopsText = (list) => list.map((x) => `L${x.lap} (${x.compound})`).join(', ');
   const lapsRemaining = Math.max(0, (totalRaceLaps || maxLap) - currentLap);
   const maxAbsGap = Math.max(...rows.map((r) => Math.abs(r.gap)), 1);
   const ahead = best.gap > 0;
@@ -343,7 +351,8 @@ export default function UndercutCalculator() {
           <b style={{ color: ahead ? '#22c55e' : '#ef4444' }}>
             {ahead ? 'ahead' : 'behind'} by {Math.abs(best.gap).toFixed(2)}s
           </b>
-          {' '}at the end of L{best.horizonLap} ({best.change >= 0 ? 'gains' : 'loses'} {Math.abs(best.change ?? 0).toFixed(2)}s on now).
+          {' '}at {horizonText} ({best.change >= 0 ? 'gains' : 'loses'} {Math.abs(best.change ?? 0).toFixed(2)}s on now)
+          {best.extraStops?.length ? `, with an extra stop at ${stopsText(best.extraStops)}` : ''}.
         </div>
       </div>
 
@@ -351,10 +360,12 @@ export default function UndercutCalculator() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 9, color: 'rgba(255,255,255,0.55)', flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 700, letterSpacing: '0.05em' }}>RIVAL STOPS</span>
         <select
-          value={rivalStopLap ?? ''}
-          onChange={(e) => setRivalStopLap(e.target.value === '' ? null : Number(e.target.value))}
+          value={rivalChoice?.lap ?? ''}
+          onChange={(e) => setRivalChoice(e.target.value === ''
+            ? null
+            : { lap: Number(e.target.value), stints: analysis.rivalTyre?.stints ?? null })}
           disabled={rivalStop.source === 'in progress'}
-          title="The rival's in-lap, in every row: its likely stop (the lap its set reaches the median life of its compound given the age it has reached) or a lap chosen here"
+          title="The rival's in-lap, in every row: its likely stop (the lap its set reaches the median life of its compound given the age it has reached) or a lap chosen here (dropped once the rival has passed that lap or changed tyres)"
           style={{
             background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)',
             borderRadius: 3, fontSize: 9, padding: '0 2px',
@@ -365,6 +376,7 @@ export default function UndercutCalculator() {
         </select>
         <span title={`Source: ${STOP_SOURCE[rivalStop.source] || rivalStop.source}`}>
           {rivalStopText} · {STOP_SOURCE[rivalStop.source] || rivalStop.source}
+          {rivalStop.extraStops?.length ? ` · extra stop ${stopsText(rivalStop.extraStops)} (stint past P${Math.round((feasibility?.quantile ?? 0) * 100)})` : ''}
         </span>
       </div>
 
@@ -374,7 +386,7 @@ export default function UndercutCalculator() {
         gap: 8, marginBottom: 4, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', fontWeight: 700, letterSpacing: '0.05em' }}>
-          PIT-LAP SWEEP · gap at the end of L{best.horizonLap}, both stopped in every row
+          PIT-LAP SWEEP · gap at {horizonText}, both plans to the finish
         </span>
         <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
           <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>
@@ -396,7 +408,8 @@ export default function UndercutCalculator() {
             <div
               key={r.inLap}
               data-inlap={r.inLap}
-              title={`${effectiveFocus} in-lap L${r.inLap}, ${rival} ${rivalStop.inRace ? `in-lap L${rivalStop.inLap}` : 'no stop'}: `
+              title={`${effectiveFocus} in-lap L${r.inLap}${r.extraStops?.length ? ` plus an extra stop at ${stopsText(r.extraStops)} (a stint past its P${Math.round((feasibility?.quantile ?? 0) * 100)} length)` : ''}, `
+                + `${rival} ${rivalStop.inRace ? `in-lap L${rivalStop.inLap}` : 'no stop'}: `
                 + `${effectiveFocus} ${r.gap > 0 ? 'ahead' : 'behind'} by ${Math.abs(r.gap).toFixed(2)} s at the end of L${r.horizonLap}`}
               style={{
                 display: 'grid',
@@ -411,6 +424,7 @@ export default function UndercutCalculator() {
             >
               <span style={{ fontWeight: isBest ? 800 : 600, color: isBest ? '#22c55e' : 'rgba(255,255,255,0.75)', fontSize: 10 }}>
                 {r.k === 0 ? 'NOW' : `L${r.inLap}`}
+                {r.extraStops?.length ? <span style={{ fontSize: 8, fontWeight: 700, color: '#f5a623' }}>{` +${r.extraStops.length}`}</span> : null}
               </span>
               <div style={{ position: 'relative', height: 12 }}>
                 <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.15)' }} />
@@ -443,10 +457,12 @@ export default function UndercutCalculator() {
         Lap model of the race simulation: {analysis.focusTyre.compound} {perLap(degradation.focus.mean)} s/lap
         ({degradation.focus.source === 'race' ? `${degradation.focus.n} stints of this race` : 'prior'}),
         new set {analysis.nextCompound}, fresh-tyre delta {freshText} on the first flying lap; paces and pit
-        loss of the Circle of Doom pit window. Every row is read at the end of L{best.horizonLap}, so the two
-        cars' pace difference counts the same in every row and the rows differ only by the tyres; with no traffic
-        the best lap is the one that balances the wear of the two sets up to that lap. No traffic, no safety car;
-        the rival stops once, as shown.
+        loss of the Circle of Doom pit window. Every row is read at {horizonText}, so the two cars' pace
+        difference counts the same in every row and the rows differ only by the tyres; with no traffic the best
+        lap is the one that balances the wear of the two sets over the rest of the race. A stint longer than the
+        P{Math.round((feasibility?.quantile ?? 0) * 100)} stint length of its compound
+        ({analysis.focusTyre.compound} {feasibility?.focus?.current} laps, {analysis.nextCompound} {feasibility?.focus?.next})
+        is charged an extra stop (+n on the row). No traffic, no safety car; the rival stops as shown.
       </div>
     </div>
   );

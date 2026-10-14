@@ -61,6 +61,9 @@ if (typeof globalThis.localStorage === 'undefined') {
 const api = await import('../utils/apiClient');
 const { simulateRaceFinish } = await import('../utils/raceSimulation');
 const { useF1Store, lastCompletedLap, clampLapRange } = await import('../store/useF1Store.js');
+const { brushFitKey } = await import('../utils/views/degradationViews.js');
+// The store's re-request debounce (useF1Store.js DEGRADATION_REFRESH_MS)
+const DEGRADATION_REFRESH_MS = 150;
 const { isLapCompleted, pitOutSeconds } = await import('../utils/raceTime.js');
 const {
   hasCachedSession, hasCachedFrames, loadCachedSession, loadCachedFrames,
@@ -147,11 +150,12 @@ describe.skipIf(!haveRace)('causal replay analytics in the store (Monza 2024)', 
     vi.useRealTimers();
   });
 
-  it('brush laps 10-25 at lap 18: the fit uses completed laps only, then follows the replay and freezes after lap 25', async () => {
+  it('brush laps 10-25 at lap 18: the fit uses completed laps only and the clock, then follows the replay while its inputs change (D6)', async () => {
     const DRIVER = 'PIA';
     const store = () => useF1Store.getState();
     const lapTimes = session.lap_times;
     const req = { year: YEAR, round: ROUND, drivers: [DRIVER], lap_start: 10, lap_end: 25 };
+    const keyAt = (now) => brushFitKey(lapTimes, [DRIVER], { sessionNow: now, lapStart: 10, lapEnd: 25 });
 
     useF1Store.setState({ brushLapRange: [10, 25] });
     store().setCurrentFrameIndex(store().lapFrameMap[18]);
@@ -165,6 +169,10 @@ describe.skipIf(!haveRace)('causal replay analytics in the store (Monza 2024)', 
     const sent = api.predictDegradation.mock.calls[0][0];
     expect(sent.lap_start).toBe(10);
     expect(sent.lap_end).toBe(doneAt18);
+    // the clock and the session on screen travel with the request (D6, D16)
+    expect(sent.session_now).toBe(now);
+    expect(sent.session_type).toBe('R');
+    expect([sent.year, sent.round]).toEqual([YEAR, ROUND]);
     // every lap the fit can read is completed at now
     for (const r of lapTimes) {
       if (r.Driver === DRIVER && r.LapNumber >= sent.lap_start && r.LapNumber <= sent.lap_end) {
@@ -177,39 +185,79 @@ describe.skipIf(!haveRace)('causal replay analytics in the store (Monza 2024)', 
     expect(store().degradationRegression.lap_end_used).toBe(doneAt18);
     expect(store().getAnalysisLapRange([DRIVER])).toEqual([10, doneAt18]);
 
-    // Play on frame by frame to the end of lap 40: re-requests follow the
-    // completed laps, never ahead of them
+    // Play on frame by frame to the end of lap 40 (each frame held longer
+    // than the re-request debounce): a re-request follows every change of the
+    // fit's inputs (brushFitKey), never ahead of the completed laps, and
+    // every request is answered at its own clock
     const endIdx = store().lapFrameMap[41];
-    const slopes = [];
+    const changes = [];
+    let lastKey = keyAt(now);
     for (let i = store().currentFrameIndex + 1; i <= endIdx; i++) {
       const before = api.predictDegradation.mock.calls.length;
       store().setCurrentFrameIndex(i);
-      if (api.predictDegradation.mock.calls.length > before) {
-        now = store().getSessionNow();
-        const call = api.predictDegradation.mock.calls[before][0];
-        expect(call.lap_end).toBeLessThanOrEqual(25);
+      vi.advanceTimersByTime(DEGRADATION_REFRESH_MS);
+      now = store().getSessionNow();
+      const key = keyAt(now);
+      if (key !== lastKey) changes.push(i);
+      lastKey = key;
+      const calls = api.predictDegradation.mock.calls;
+      if (calls.length > before) {
+        expect(calls.length).toBe(before + 1);
+        const call = calls[before][0];
+        expect(call.session_now).toBe(now);
         expect(call.lap_end).toBe(Math.min(25, driverLastDone(lapTimes, DRIVER, now)));
         await flush();
-        slopes.push({ lapEnd: call.lap_end, slope: store().degradationRegression.slope });
       }
     }
     await flush();
-    const ends = api.predictDegradation.mock.calls.map((c) => c[0].lap_end);
-    expect(ends[ends.length - 1]).toBe(25);
-    for (let k = 1; k < ends.length; k++) expect(ends[k]).toBeGreaterThan(ends[k - 1]);
+    const bodies = api.predictDegradation.mock.calls.map((c) => c[0]);
+    // one request per change of the inputs, none without one
+    expect(bodies.length - 1).toBe(changes.length);
+    expect(bodies[bodies.length - 1].lap_end).toBe(25);
+    // the request the store holds has the inputs of the chart at the clock
+    expect(keyAt(bodies[bodies.length - 1].session_now)).toBe(keyAt(store().getSessionNow()));
 
-    // Once the replay is past lap 25 the fit is final: same request, same slope
-    const finalSlope = fakeDegradation({ ...req }).slope;
-    expect(store().degradationRegression.slope).toBeCloseTo(finalSlope, 12);
-    expect(store().degradationRegression.lap_end_used).toBe(25);
+    // Past lap 40: no new request while the inputs stay the same
     const lastCallIdx = api.predictDegradation.mock.calls.length;
+    const before50 = keyAt(store().getSessionNow());
     store().setCurrentFrameIndex(store().lapFrameMap[50]);
+    vi.advanceTimersByTime(DEGRADATION_REFRESH_MS);
     await flush();
-    expect(api.predictDegradation.mock.calls.length).toBe(lastCallIdx);
-    expect(store().degradationRegression.slope).toBeCloseTo(finalSlope, 12);
-    // the slope while the replay was inside the brush differed from the final one
-    expect(slopes.length).toBeGreaterThan(1);
-    expect(slopes[0].slope).not.toBeCloseTo(finalSlope, 6);
+    const expectNew = keyAt(store().getSessionNow()) !== before50 ? 1 : 0;
+    expect(api.predictDegradation.mock.calls.length).toBe(lastCallIdx + expectNew);
+    console.log(`PIA 10-25, laps 18-41: ${bodies.length} requests, ${changes.length} input changes `
+      + `(${changes.filter((i) => i > store().lapFrameMap[26]).length} after lap 25)`);
+  });
+
+  it('playback / a drag: at most one request per interval, each at the clock it is sent; the last one at the settled clock', async () => {
+    const store = () => useF1Store.getState();
+    useF1Store.setState({ brushLapRange: [10, 25] });
+    store().setCurrentFrameIndex(store().lapFrameMap[12]);
+    await store().fetchDegradationRegression({ drivers: ['PIA'], lap_start: 10, lap_end: 25 });
+    const n0 = api.predictDegradation.mock.calls.length;
+    // frames every 16 ms (a 60 fps drag) from lap 12 to lap 22: 600 ms
+    const from = store().lapFrameMap[12];
+    const to = store().lapFrameMap[22];
+    const steps = 38;
+    for (let k = 1; k <= steps; k++) {
+      store().setCurrentFrameIndex(Math.round(from + ((to - from) * k) / steps));
+      vi.advanceTimersByTime(16);
+      await flush();
+      const calls = api.predictDegradation.mock.calls;
+      // a request just sent carries the clock of that moment
+      if (calls.length > n0) expect(calls[calls.length - 1][0].session_now).toBeLessThanOrEqual(store().getSessionNow());
+    }
+    const during = api.predictDegradation.mock.calls.length - n0;
+    expect(during).toBeGreaterThan(0); // never starved while the clock keeps moving
+    expect(during).toBeLessThanOrEqual(Math.ceil((steps * 16) / DEGRADATION_REFRESH_MS));
+    vi.advanceTimersByTime(DEGRADATION_REFRESH_MS);
+    await flush();
+    // settled: the request held has the inputs of the settled clock (sent at
+    // it, or at an earlier clock with the same inputs)
+    const calls = api.predictDegradation.mock.calls;
+    const held = calls[calls.length - 1][0];
+    const key = (now) => brushFitKey(session.lap_times, ['PIA'], { sessionNow: now, lapStart: 10, lapEnd: 25 });
+    expect(key(held.session_now)).toBe(key(store().getSessionNow()));
   });
 
   it('a backward seek drops a fit that now holds future laps', async () => {
@@ -219,37 +267,45 @@ describe.skipIf(!haveRace)('causal replay analytics in the store (Monza 2024)', 
     await store().fetchDegradationRegression({ year: YEAR, round: ROUND, drivers: ['PIA'], lap_start: 10, lap_end: 25 });
     expect(store().degradationRegression.lap_end_used).toBe(25);
     store().setCurrentFrameIndex(store().lapFrameMap[15]);
+    // dropped in the same update as the seek, re-asked once it settles
+    expect(store().degradationRegression).toBeNull();
+    vi.advanceTimersByTime(DEGRADATION_REFRESH_MS);
     await flush();
     const last = api.predictDegradation.mock.calls[api.predictDegradation.mock.calls.length - 1][0];
     expect(last.lap_end).toBe(driverLastDone(session.lap_times, 'PIA', store().getSessionNow()));
+    expect(last.session_now).toBe(store().getSessionNow());
     expect(store().degradationRegression.lap_end_used).toBe(last.lap_end);
     // Brush entirely in the future: no request, no slope
     store().setCurrentFrameIndex(store().lapFrameMap[5]);
+    vi.advanceTimersByTime(DEGRADATION_REFRESH_MS);
     await flush();
     expect(store().degradationRegression.slope).toBeNull();
     expect(store().degradationRegression.lap_end_used).toBeLessThan(10);
   });
 
-  it('LSTM inputs and rival context use completed laps only', async () => {
+  it('the forecast request carries the clock (completed laps only), and rival context uses completed laps only', async () => {
     const store = () => useF1Store.getState();
     // Mid-way through leader lap 18
     const idx = store().lapFrameMap[18] + Math.floor((store().lapFrameMap[19] - store().lapFrameMap[18]) / 2);
     store().setCurrentFrameIndex(idx);
     const now = store().getSessionNow();
     useF1Store.setState({ focusDriver: 'PIA' });
-
-    await store().triggerLSTMPredictions();
-    expect(api.predictLSTM).toHaveBeenCalledTimes(1);
-    const sentLaps = api.predictLSTM.mock.calls[0][0].last_10_laps.map((l) => l.lap_number);
     const piaDone = driverLastDone(session.lap_times, 'PIA', now);
-    expect(Math.max(...sentLaps)).toBe(piaDone);
     expect(piaDone).toBeLessThan(store().currentLap);
+
+    // No features: the backend reads only the laps completed at session_now
+    await store().triggerPrediction('PIA', store().currentLap);
+    expect(api.predictLSTM).toHaveBeenCalledTimes(1);
+    const sent = api.predictLSTM.mock.calls[0][0];
+    expect(sent.session_now).toBe(now);
+    expect(sent.lap).toBe(store().currentLap);
+    expect(sent.last_10_laps).toBeUndefined();
 
     // A later lap than the replay is clamped to the replay
     await store().triggerPrediction('PIA', 40);
     const sent2 = api.predictLSTM.mock.calls[1][0];
-    expect(sent2.current_lap).toBe(store().currentLap);
-    expect(Math.max(...sent2.last_10_laps.map((l) => l.lap_number))).toBe(piaDone);
+    expect(sent2.lap).toBe(store().currentLap);
+    expect(sent2.session_now).toBe(now);
 
     store().updateRivalContext();
     const rivals = store().rivalContext;
@@ -266,12 +322,13 @@ describe.skipIf(!haveRace)('causal replay analytics in the store (Monza 2024)', 
     const trigger = vi.fn();
     const noop = vi.fn();
     const saved = {
-      triggerLSTMPredictions: store().triggerLSTMPredictions,
       updateRivalContext: store().updateRivalContext,
       computeRaceSituation: store().computeRaceSituation,
     };
+    // the pit-exit recompute (rival context + race situation; the lap-time
+    // forecast is asked by a double-click only)
     useF1Store.setState({
-      focusDriver: 'PIA', triggerLSTMPredictions: trigger, updateRivalContext: noop, computeRaceSituation: noop,
+      focusDriver: 'PIA', updateRivalContext: trigger, computeRaceSituation: noop,
     });
     try {
       // PIA's first stop: the out-lap row carries the pit exit time
@@ -285,14 +342,14 @@ describe.skipIf(!haveRace)('causal replay analytics in the store (Monza 2024)', 
       vi.runOnlyPendingTimers();
       trigger.mockClear();
 
-      // Every frame before the pit exit: no pit trigger (lap changes into an
-      // odd lap do not predict either)
+      // Every frame before the pit exit: no pit trigger (a lap change
+      // recomputes for its own reason)
       for (let i = startIdx + 1; i < exitIdx; i++) {
         const lapBefore = store().currentLap;
         store().setCurrentFrameIndex(i);
         vi.runOnlyPendingTimers();
-        const lapChangedToEven = store().currentLap !== lapBefore && store().currentLap % 2 === 0;
-        if (!lapChangedToEven) expect(trigger).not.toHaveBeenCalled();
+        const lapChanged = store().currentLap !== lapBefore;
+        if (!lapChanged) expect(trigger).not.toHaveBeenCalled();
         trigger.mockClear();
       }
       // The frame that crosses the pit exit time fires it

@@ -299,6 +299,74 @@ def test_endpoint_matches_frontend_stint_fits_on_monza(api_main, tmp_path):
     assert fitted > 0
 
 
+JS_CHART = r"""
+import fs from 'node:fs';
+const { tyreDegradationView } = await import(process.env.VIEW_MODULE);
+const { stintFits } = await import(process.env.DEG_MODULE);
+const req = JSON.parse(fs.readFileSync(process.env.DEG_REQUEST, 'utf8'));
+const raw = fs.readFileSync(req.file, 'utf8');
+const laps = JSON.parse(raw.replace(/([:\[,]\s*)-?NaN\b/g, '$1null')).lap_times || [];
+const out = req.cases.map(([driver, lapStart, lapEnd, now]) => {
+  const sessionNow = now == null ? Infinity : now;
+  const v = tyreDegradationView(laps, driver, { sessionNow, lapRange: [lapStart, lapEnd] });
+  // the chart's fitted stints; where it draws the whole race (fewer than
+  // BRUSH_MIN_LAPS laps of the range complete, a display rule) the range fit
+  const rows = v.rangeApplied
+    ? v.stints.map((s) => ({ stintNumber: s.stintNumber, compound: s.compound, n: s.cleanCount, fit: s.fit }))
+    : stintFits(laps, { sessionNow, driver, lapStart, lapEnd })
+      .map((f) => ({ stintNumber: f.stintNumber, compound: f.compound, n: f.n, fit: f.slope != null ? f : null }));
+  return { rangeApplied: v.rangeApplied, rows };
+});
+fs.writeFileSync(process.env.DEG_OUTPUT, JSON.stringify(out));
+"""
+
+
+@pytest.mark.skipif(not (NODE and VITE_NODE.exists()), reason='node / frontend node_modules not installed')
+def test_endpoint_matches_the_chart_at_replay_clocks(api_main, tmp_path, monkeypatch):
+    """G1 done-when with the D6 clock contract: the Tyre Degradation chart
+    (tyreDegradationView at the replay clock) and POST /degradation with
+    session_now = that clock agree on every Monza stint to 1e-6 (slope,
+    intercept, raw slope, residual sigma; n exactly) at the end of leader
+    laps 10, 15, 20, 30, 40, 50 and at the race end (session_now null), and
+    no stint with a slope <= 0 gets a pit lap
+    (notes/experiments/phase45c/g1_endpoint_vs_chart.txt)."""
+    laps = load_cached_session(2024, 16)['lap_times']
+    lead = leader_lap_times(laps)
+    drivers = sorted({r['Driver'] for r in laps if r.get('Driver')})
+    clocks = [lead[k][1] for k in (10, 15, 20, 30, 40, 50)] + [None]
+    ranges = [(1, 53), (2, 12), (5, 15), (10, 30), (20, 45), (30, 53)]
+    cases = [(d, lo, hi, now) for now in clocks for lo, hi in ranges for d in drivers]
+    monkeypatch.setenv('VIEW_MODULE', str(FRONTEND / 'src' / 'utils' / 'views' / 'degradationViews.js'))
+    js = run_js(JS_CHART, {'file': str(cached_session_path(2024, 16)), 'cases': cases}, tmp_path)
+
+    async def endpoint_all():
+        from api.routers.predictions import predict_degradation
+        return [await predict_degradation(request([d], lo, hi, session_now=now)) for d, lo, hi, now in cases]
+
+    api = asyncio.run(endpoint_all())
+    fitted = 0
+    for (d, lo, hi, now), out, chart in zip(cases, api, js):
+        rows = {s['stint_number']: s for a in out['all_drivers'] for s in a['stints']}
+        if not any(r['fit'] for r in chart['rows']):
+            assert not rows, (d, lo, hi, now)
+            continue
+        assert sorted(rows) == sorted(r['stintNumber'] for r in chart['rows']), (d, lo, hi, now)
+        for r in chart['rows']:
+            g = rows[r['stintNumber']]
+            assert (g['compound'], g['n']) == (r['compound'], r['n']), (d, lo, hi, now)
+            if r['fit'] is None:
+                assert g['slope'] is None
+                continue
+            fitted += 1
+            for py_key, js_key in (('slope', 'slope'), ('intercept', 'intercept'), ('raw_slope', 'rawSlope'),
+                                   ('residual_sigma', 'residualSigma')):
+                assert abs(g[py_key] - r['fit'][js_key]) <= 1e-6, (d, lo, hi, now, py_key)
+        for g in rows.values():
+            assert g['optimal_pit_lap'] is None or g['slope'] > 0
+    print(f'Monza 2024: {len(cases)} requests at 7 clocks, {fitted} fitted stints, endpoint == chart')
+    assert fitted > 500
+
+
 # ---------------------------------------------------------------- G2: session cache, worker thread, latency
 
 def test_routers_load_in_the_app():

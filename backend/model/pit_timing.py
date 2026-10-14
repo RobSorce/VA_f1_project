@@ -17,6 +17,10 @@ k is continuous and strictly decreasing in p on (0, 1): a higher pit
 probability never moves the stop later, and nothing jumps at p = 0.5
 (k(0.5) = H exactly). p <= 0 gives no stop (k = inf); p >= 1 gives the next
 lap. The lap count is ceil(k), at least 1, so it stays non-increasing.
+ln(1 - p) is computed as log1p(-p): math.log(1 - p) is 0.0 for 0 < p below
+about 1.1e-16 (1 - p rounds to 1), which divided by zero (p = 1e-17, a
+sigmoid logit of -38 or lower). A k too large for a float (p a denormal)
+is no stop projected, as p <= 0.
 
 Pure module (math only): no numpy, no torch, so the router can import it
 when PyTorch is missing.
@@ -51,7 +55,12 @@ def laps_until_pit(pit_prob):
         return math.inf
     if p >= 1:
         return 1
-    k = PIT_LABEL_HORIZON_LAPS * math.log(1 - PIT_WAIT_QUANTILE) / math.log(1 - p)
+    log_survival = math.log1p(-p)
+    if not log_survival < 0:
+        return math.inf
+    k = PIT_LABEL_HORIZON_LAPS * math.log1p(-PIT_WAIT_QUANTILE) / log_survival
+    if not math.isfinite(k):
+        return math.inf
     return max(1, math.ceil(k))
 
 

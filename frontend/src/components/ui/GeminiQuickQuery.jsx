@@ -1,7 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { queryGemini } from '../../utils/apiClient';
-import { geminiQuickQueryBody } from '../../utils/strategyViews';
 
 const QUICK_QUERIES = ['Pit window?', 'Strategy?', 'Tyre deg?'];
 
@@ -22,26 +20,13 @@ const titleStyle = {
 
 export default function GeminiQuickQuery() {
   const [input, setInput] = useState('');
-  const [response, setResponse] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // The answer lives in the store (askGeminiQuick): it belongs to the session
+  // on screen, so a late answer of another session or of a later clock never
+  // lands here, and a session switch clears it
+  const { response, loading, error } = useF1Store((s) => s.geminiQuick);
+  const askGeminiQuick = useF1Store((s) => s.askGeminiQuick);
 
-  const sendQuery = useCallback(async (text) => {
-    if (!text.trim()) return;
-    setLoading(true);
-    setError('');
-    setResponse('');
-    try {
-      // The state at the click: the session type on screen (R7) goes with
-      // the request, as in the store's sendGeminiQuery
-      const result = await queryGemini(geminiQuickQueryBody(useF1Store.getState(), text));
-      setResponse(result?.response || result?.answer || JSON.stringify(result));
-    } catch (err) {
-      setError(err?.message || 'Failed to get response');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const sendQuery = useCallback((text) => askGeminiQuick(text), [askGeminiQuick]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

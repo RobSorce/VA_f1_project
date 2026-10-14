@@ -3,10 +3,11 @@ import { persist } from 'zustand/middleware';
 import * as api from '../utils/apiClient';
 import { setHealthReporter } from '../utils/apiClient';
 import { setSessionDriverColors } from '../utils/colors';
-import { computePCA, procrustesAlign2D } from '../utils/livePCA';
+import { computePCA, LIVE_PCA_ALIGN } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
+import { replayReferenceAt } from '../utils/raceSituationReference';
 import {
-  createSimulationClient, planFromStints, projectionBadges, listedBattles, modePosition,
+  createSimulationClient, planFromStints, withBadges, listedBattles, modePosition, whatIfKey, whatIfMarks,
 } from '../utils/simulationClient';
 import { seedFrom } from '../utils/prng';
 import {
@@ -15,9 +16,17 @@ import {
 } from '../utils/raceTime';
 import { deriveStints, pitStops, stintsRunning } from '../utils/stints';
 import { driverStateAt, nonFinisherMap } from '../utils/driverState';
-import { viewSessionType, isRaceSession, causalKey } from '../utils/strategyViews';
+import {
+  viewSessionType, isRaceSession, causalKey, sessionScopeOf, geminiQuickQueryBody,
+} from '../utils/strategyViews';
 import { WINDOW_PRESETS } from '../utils/windowPresets';
 import { SLOT_IDS } from '../utils/slotOptions';
+import { brushFitKey } from '../utils/views/degradationViews';
+import { loadedRaceClock } from '../utils/views/pcaBiplot';
+import { FALLBACK_SEASONS, seasonsFromResponse } from '../utils/seasons';
+import {
+  forecastRequestOf, forecastEntry, focusForecast, forecastHeldOutMae, forecastPit,
+} from '../utils/forecast';
 
 /* ── Race clock helpers (SESSION seconds, see utils/raceTime.js) ── */
 
@@ -162,6 +171,54 @@ export function loadedSessionTypeOf(s) {
   return s?.loadedSessionType || s?.sessionType;
 }
 
+// Identity of the session on screen (utils/strategyViews.js sessionScopeOf,
+// shared with the request bodies built outside the store), re-exported for
+// the views that read it from here
+export { sessionScopeOf };
+
+/**
+ * Suffix of the telemetry cache keys of a session scope (sessionScopeOf):
+ * '-<year>-<round>-<type>', '' without a scope. A key is
+ * `${driver}-${lap}${suffix}` (telemetryCacheKey), so a trace of another
+ * session can never be read under the same key (D7).
+ *
+ * @param {{year: number, round: number, sessionType: string}|null} scope
+ * @returns {string}
+ */
+export function telemetryKeySuffix(scope) {
+  return scope ? `-${scope.year}-${scope.round}-${scope.sessionType}` : '';
+}
+
+/**
+ * Key of one lap's telemetry in store.telemetryCache.
+ *
+ * @param {string} driver
+ * @param {number} lap
+ * @param {{year: number, round: number, sessionType: string}|null} scope - sessionScopeOf
+ * @returns {string}
+ */
+export function telemetryCacheKey(driver, lap, scope) {
+  return `${driver}-${lap}${telemetryKeySuffix(scope)}`;
+}
+
+/**
+ * What the dashboard shows, as a key: replay or live mode and the session on
+ * screen (sessionScopeOf). It changes when loadSession, enterLiveMode,
+ * exitLiveMode or resetSession put another session on screen (their commit),
+ * not when they start, with one exception: loadSession called in live mode
+ * leaves live mode at its start (the live rows stay on screen until the load
+ * lands), and a mock live race and its replay have the same key. Two screens
+ * can therefore share a key (that one, and a reload of the race on screen):
+ * sessionRequestGuard also holds the screen generation (_screenGeneration).
+ *
+ * @param {Object} s - store state
+ * @returns {string}
+ */
+export function screenKeyOf(s) {
+  const scope = sessionScopeOf(s);
+  return `${s?.isLiveMode ? 'live' : 'replay'}:${scope ? `${scope.year}-${scope.round}-${scope.sessionType}` : '-'}`;
+}
+
 /**
  * The store's causal "now" in SESSION seconds for a state object (see
  * utils/raceTime.js resolveSessionNow; hooks/useSessionNow.js is the React
@@ -187,6 +244,102 @@ function sessionNowOf(s) {
     qualifying: s.isQualifyingReplay,
     segmentEnd: activeSegmentWindow(s)?.end,
   });
+}
+
+/**
+ * The cross-race PCA requests (GET /api/pca/embeddings, POST
+ * /api/pca/analyze-selection) for a state: the rows, stints and stops of the
+ * race of the weekend on screen are taken at `params.session_now`, never
+ * after it (decision R6; utils/views/pcaBiplot.js loadedRaceClock).
+ *  - params null: no session on screen, or the race on screen at its end:
+ *    the post-race artefact, every row a whole race;
+ *  - the race on screen while its clock runs: {year, round, session_now} =
+ *    the dashboard's clock (a replay), or in live mode the end of the latest
+ *    lap row received (the clock of the feed's data: a mock replay of a
+ *    cached race, the only live session the backend holds rows of);
+ *  - another session of the weekend on screen (practice, qualifying, sprint):
+ *    session_now 0, a race clock before any lap: the race has not started, so
+ *    none of its rows is used.
+ * `at` is the clock laterClockReset compares the answers with (Infinity =
+ * post-race rows of the race on screen, null = nothing to guard), `key`
+ * changes when the answer would change (the race on screen, the state of its
+ * clock, the lap): PCABiplot reloads the embeddings on it.
+ *
+ * @param {Object} s - store state
+ * @returns {{params: {year: number, round: number, session_now: number}|null,
+ *   at: number|null, key: string, raceClock: string|null}}
+ */
+export function pcaRequestOf(s) {
+  const scope = sessionScopeOf(s);
+  if (!scope) return { params: null, at: null, key: 'post-race', raceClock: null };
+  const year = Number(scope.year);
+  const round = Number(scope.round);
+  const now = sessionNowOf(s);
+  const raceClock = loadedRaceClock({ sessionType: scope.sessionType, sessionNow: now, isLiveMode: s.isLiveMode });
+  if (raceClock === 'ended') return { params: null, at: Infinity, key: `${year}-${round}-ended`, raceClock };
+  if (raceClock === 'not-started') {
+    return {
+      params: { year, round, session_now: 0 }, at: null, key: `${year}-${round}-${scope.sessionType}-before`, raceClock,
+    };
+  }
+  let clock = now;
+  if (s.isLiveMode) {
+    clock = 0;
+    for (const row of s.sessionData?.lap_times || []) {
+      const end = lapEndTime(row);
+      if (Number.isFinite(end) && end > clock) clock = end;
+    }
+  }
+  return { params: { year, round, session_now: clock }, at: clock, key: `${year}-${round}-lap${s.currentLap}`, raceClock };
+}
+
+/**
+ * The cross-race PCA answers to drop when another session replaces the one on
+ * screen (loadSession, enterLiveMode, exitLiveMode, resetSession). Their rows
+ * of the race on screen were taken for the previous screen: a post-race answer
+ * lies in the future of a practice session of the same weekend, of the same
+ * race reloaded at its start and of any other race's replay, and clocks of two
+ * sessions cannot be compared, so none of them stays (R6). The selection stays;
+ * refetchDroppedPCA asks for its analysis (and the embeddings) at the new
+ * screen's clock. The sequences move on, so an answer still on its way for
+ * the previous screen is discarded.
+ *
+ * @param {Object} s - store state before the change
+ * @returns {Object} partial state
+ */
+export function pcaScreenReset(s) {
+  return {
+    pcaEmbeddings: null, _pcaEmbeddingsAt: null, _pcaEmbeddingsSeq: (s._pcaEmbeddingsSeq || 0) + 1,
+    pcaStrategyAnalysis: null, pcaAnalysisIds: null, pcaAnalysisError: null, _pcaAnalysisAt: null,
+    _pcaAnalysisSeq: (s._pcaAnalysisSeq || 0) + 1,
+  };
+}
+
+/**
+ * After a clock or session change has dropped cross-race PCA answers
+ * (`dropped`: the partial state applied, from laterClockReset or
+ * pcaScreenReset), asks for them again at the clock now on screen
+ * (pcaRequestOf), as a seek does (_scheduleClockRecompute), so no view is left
+ * waiting for an answer nobody asked for: the embeddings when they were
+ * loaded before the change (`before`), the analysis when a selection is on
+ * screen without one.
+ *
+ * @param {Function} get - store getter
+ * @param {Object} dropped - partial state the change applied
+ * @param {Object} before - store state before the change
+ */
+function refetchDroppedPCA(get, dropped, before) {
+  const s = get();
+  if ('pcaEmbeddings' in dropped && before.pcaEmbeddings) s.loadPCAEmbeddings();
+  if ('pcaStrategyAnalysis' in dropped && s.selectedPCAPoints?.length && !s.pcaStrategyAnalysis) {
+    s.fetchPCAAnalysis(s.selectedPCAPoints);
+  }
+}
+
+/** Embeddings without the rows of (year, round) (a race clock later than now). */
+function pcaWithoutRace(emb, year, round) {
+  const points = (emb?.points || []).filter((p) => !(Number(p.year) === year && Number(p.round) === round));
+  return { ...emb, points, n_points: points.length, current_race: { ...emb.current_race, n_points: 0 } };
 }
 
 
@@ -332,20 +485,99 @@ export function laterClockReset(s, now) {
   if (later(s.simulatorResult?.computedAtNow)) out.simulatorResult = null;
   if (later(s._rivalContextAt)) Object.assign(out, { rivalContext: [], _rivalContextAt: null });
   if (later(s._lstmAt)) Object.assign(out, { lstmPredictions: null, _lstmAt: null, lastPredictionTrigger: null });
+  if (later(s._pcaEmbeddingsAt)) {
+    // Rows of the race on screen at a later clock: embeddings at a race clock
+    // (axes fitted without that race) keep the other races' rows; the
+    // post-race artefact (axes fitted on its final rows too) goes whole
+    const cr = s.pcaEmbeddings?.current_race;
+    out.pcaEmbeddings = s._pcaEmbeddingsAt !== Infinity && cr?.year != null
+      ? pcaWithoutRace(s.pcaEmbeddings, Number(cr.year), Number(cr.round))
+      : null;
+    out._pcaEmbeddingsAt = null;
+    out._pcaEmbeddingsSeq = (s._pcaEmbeddingsSeq || 0) + 1;
+  }
+  if (later(s._pcaAnalysisAt)) {
+    // the selection stays; its analysis is asked again at the new clock
+    Object.assign(out, {
+      pcaStrategyAnalysis: null, pcaAnalysisIds: null, _pcaAnalysisAt: null,
+      _pcaAnalysisSeq: (s._pcaAnalysisSeq || 0) + 1,
+    });
+  }
   const deg = s.degradationRegression;
   if (later(deg?.computedAtNow)) {
     // A brushed fit stays (re-stamped) only while every lap it used is still
-    // completed at now; anything else is re-derived by
+    // completed at now AND its inputs are the same at now (brushFitKey: the
+    // clean laps of the range, whose outlier status a later lap of a growing
+    // stint can change); anything else is re-derived by
     // refreshDegradationRegression at the new clock
     const req = s._degradationRequest;
     const sameRequest = !!req && deg.lap_start === req.lap_start && deg.lap_end === req.lap_end;
     const keep = sameRequest && deg.slope != null && Number.isFinite(deg.lap_end_used)
-      && deg.lap_end_used <= lastCompletedLap(s.sessionData?.lap_times, now, req.drivers);
+      && deg.lap_end_used <= lastCompletedLap(s.sessionData?.lap_times, now, req.drivers)
+      && deg.fit_key != null && deg.fit_key === brushFitKey(s.sessionData?.lap_times, req.drivers, {
+        sessionNow: now, lapStart: req.lap_start, lapEnd: req.lap_end,
+      });
     out.degradationRegression = keep ? { ...deg, computedAtNow: now } : null;
     // A dropped result of the active request is re-requested at the new clock
-    if (!keep && req) out._degradationRequest = { ...req, lap_end_used: null };
+    if (!keep && req) out._degradationRequest = { ...req, lap_end_used: null, fit_key: null, done_key: null };
   }
   return out;
+}
+
+/**
+ * The laps completed at now by each driver (lastCompletedLap per driver),
+ * as text: a brushed fit's inputs (brushFitKey) can change only when it
+ * changes, so it gates the costlier check.
+ *
+ * @param {Array<Object>} lapTimes
+ * @param {string[]} drivers
+ * @param {number} now - session seconds
+ * @returns {string}
+ */
+function completedLapsKey(lapTimes, drivers, now) {
+  return (drivers || []).map((d) => lastCompletedLap(lapTimes, now, [d])).join(',');
+}
+
+// The last (request, completedLapsKey) degradationRefreshParams found with
+// unchanged inputs: the same pair needs no new check on the next frame
+let _degradationChecked = { request: null, doneKey: null };
+
+/**
+ * Parameters of the re-request of the active brushed degradation fit at the
+ * state's clock (refreshDegradationRegression), or null when none is due: no
+ * request, live mode, another brush active, or the same inputs as the last
+ * request (the same clamped lap end and the same brushFitKey). laterClockReset
+ * clears lap_end_used / fit_key of a result it drops, so that one is re-asked.
+ *
+ * @param {Object} s - store state
+ * @returns {Object|null} fetchDegradationRegression params
+ */
+function degradationRefreshParams(s) {
+  const req = s._degradationRequest;
+  if (!req || s.isLiveMode) return null;
+  const active = s.brushLapRange || s.selectedLapRange;
+  if (!active || active[0] !== req.lap_start || active[1] !== req.lap_end) return null;
+  const lapTimes = s.sessionData?.lap_times;
+  const now = sessionNowOf(s);
+  const doneKey = completedLapsKey(lapTimes, req.drivers, now);
+  if (req.lap_end_used != null && req.fit_key != null) {
+    // Nothing completed since the request, or since the last check found the same inputs
+    if (doneKey === req.done_key) return null;
+    if (_degradationChecked.request === req && _degradationChecked.doneKey === doneKey) return null;
+    const lapEndUsed = Math.min(req.lap_end, lastCompletedLap(lapTimes, now, req.drivers));
+    const fitKey = brushFitKey(lapTimes, req.drivers, {
+      sessionNow: now, lapStart: req.lap_start, lapEnd: req.lap_end,
+    });
+    if (lapEndUsed === req.lap_end_used && fitKey === req.fit_key) {
+      _degradationChecked = { request: req, doneKey };
+      return null;
+    }
+  }
+  const params = { ...req };
+  delete params.lap_end_used;
+  delete params.fit_key;
+  delete params.done_key;
+  return params;
 }
 
 // Full-race pit stops (tyre changes, utils/stints.js pitStops) per lap table:
@@ -929,6 +1161,12 @@ function autoGridLayout(ids) {
 let _schedulePromise = null;
 let _scheduleYear = null;
 
+// Latest request of each selector fetch that is not scoped to a loaded
+// session (schedule, driver preview, championship, seasons): an answer that
+// arrives after a newer request of the same kind was made is dropped, so a
+// slow answer for an earlier pick never replaces the current one (D7)
+const _latestRequest = { schedule: 0, preview: 0, championship: 0, seasons: 0 };
+
 // Module-level generation counter for loadSession to prevent stale async
 // responses. Every switch of what the dashboard shows (a session load, entering
 // or leaving live mode, the reset to the selector) starts a new generation, so
@@ -936,9 +1174,132 @@ let _scheduleYear = null;
 // can never land on the session that replaced it.
 let _sessionLoadGeneration = 0;
 
+// What the dashboard SHOWS, as a counter: it moves on in the same set() as
+// every commit that puts another screen on (loadSession, enterLiveMode,
+// exitLiveMode, resetSession: screenSwitchState) and when loadSession leaves
+// live mode at its start. _sessionLoadGeneration moves when a switch STARTS
+// and screenKeyOf is the same for a reload of the race on screen and for a
+// mock live race and its replay; this counter tells a request sent while a
+// load was in flight (the previous screen still on) from one sent after it
+// landed.
+let _screenGeneration = 0;
+
+/** The Pit Wall quick query's state when nothing is asked (askGeminiQuick). */
+const GEMINI_QUICK_IDLE = Object.freeze({ loading: false, response: '', error: '' });
+
+/**
+ * Partial state of a commit that puts another screen on: moves the screen
+ * generation on (so every answer to a request of the previous screen is
+ * dropped, sessionRequestGuard) and clears what was said about the previous
+ * screen: the assistant's chat and its scenario overlays (StrategyTimeline
+ * draws them), the quick query's answer, and the telemetry spinner of
+ * requests that can no longer land.
+ *
+ * @returns {Object} partial state
+ */
+function screenSwitchState() {
+  _screenGeneration += 1;
+  return {
+    geminiMessages: [], geminiOverlays: [], geminiQuick: GEMINI_QUICK_IDLE, telemetryLoading: false,
+  };
+}
+
+/**
+ * Guard of one async request scoped to the session on screen (D7): taken when
+ * the request is sent, the function it returns is true while the answer still
+ * belongs to what the dashboard shows. The session-load generation alone is
+ * not enough: loadSession and enterLiveMode bump it when they START, and the
+ * previous session stays on screen and interactive (brush, playback, focus)
+ * until they commit, so a request sent in between carries the new generation
+ * with the old session. The guard also holds what was on screen (the screen
+ * generation, and screenKeyOf: replay or live, and the session) and drops the
+ * answer once any of them changed.
+ *
+ * @param {function(): Object} get - the store's get
+ * @returns {function(): boolean}
+ */
+function sessionRequestGuard(get) {
+  const generation = _sessionLoadGeneration;
+  const screenGeneration = _screenGeneration;
+  const screen = screenKeyOf(get());
+  return () => generation === _sessionLoadGeneration && screenGeneration === _screenGeneration
+    && screenKeyOf(get()) === screen;
+}
+
+/**
+ * What becomes of an assistant answer (sendGeminiQuery, askGeminiQuick) when
+ * it arrives: 'show'; 'screen' when its request belonged to another screen
+ * (sessionRequestGuard false); 'clock' when the clock on screen is now
+ * earlier than the clock the question was asked at (a seek back): the answer
+ * describes a later moment of the race than the one on screen (R3 / R6), as
+ * the degradation and LSTM answers' clock checks drop theirs.
+ *
+ * @param {function(): boolean} current - sessionRequestGuard of the request
+ * @param {function(): Object} get - the store's get
+ * @param {number} askedAt - session seconds of the clock the question was asked at
+ * @returns {'show'|'screen'|'clock'}
+ */
+function geminiAnswerFate(current, get, askedAt) {
+  if (!current()) return 'screen';
+  return sessionNowOf(get()) < askedAt ? 'clock' : 'show';
+}
+
+/** The note that stands in for an assistant answer not shown (geminiAnswerFate). */
+const GEMINI_DROPPED_NOTE = Object.freeze({
+  screen: 'Answer not shown: another session was loaded while it was being prepared. Ask again.',
+  clock: 'Answer not shown: the clock moved back while it was being prepared, so it described a later '
+    + 'moment of the race. Ask again.',
+});
+
+// Telemetry requests in flight, as their guards (sessionRequestGuard):
+// telemetryLoading is true while one of them still belongs to the screen on
+// screen, so the answer of a previous session's request never turns off the
+// spinner of the new session's own request
+const _telemetryInFlight = new Set();
+
+function telemetryLoadingNow() {
+  for (const current of _telemetryInFlight) if (current()) return true;
+  return false;
+}
+
 // Generation counter for degradation requests: a replay re-request must not be
 // overwritten by an older response that arrives late.
 let _degradationGeneration = 0;
+
+// Lap-time forecast requests (triggerPrediction, utils/forecast.js): only the
+// latest one may land, and a focus change or a session switch moves the
+// counter on, so an answer for the previous focus driver or session is dropped
+let _forecastSeq = 0;
+
+/**
+ * Partial state that clears the lap-time forecast (store.lstmPredictions,
+ * its clock, the trigger shown and the spinner) and drops every forecast
+ * request still in flight: on a focus change and on every session switch.
+ *
+ * @returns {Object} partial state
+ */
+function forecastReset() {
+  _forecastSeq += 1;
+  return { lstmPredictions: null, _lstmAt: null, lastPredictionTrigger: null, predictionLoading: false };
+}
+
+// Pending re-request of the brushed degradation fit (refreshDegradationRegression):
+// once its inputs (brushFitKey) change, the replay re-asks within
+// DEGRADATION_REFRESH_MS, with the clock of that moment, so playback and a
+// drag on the timeline send at most one request per interval, not one per
+// frame (D6). A UI rate limit, not a model parameter.
+let _degradationRefreshTimer = null;
+const DEGRADATION_REFRESH_MS = 150;
+
+function cancelDegradationRefresh() {
+  if (_degradationRefreshTimer != null) clearTimeout(_degradationRefreshTimer);
+  _degradationRefreshTimer = null;
+}
+
+// Live rebuilds from a snapshot (D14): a session_init of a reconnect, or the
+// snapshot asked after a 'resync'. Each applied rebuild bumps the counter, so
+// a snapshot asked earlier and answered after a newer rebuild is dropped.
+let _liveRebuildSeq = 0;
 
 // Pending recompute of the clock-derived analytics after a clock jump (seek):
 // a drag on the timeline jumps many times, the analytics follow once it settles
@@ -966,6 +1327,77 @@ function cancelClockJump() {
   _clockJumpTimer = null;
 }
 
+/**
+ * store.dnfMap of a results table: the drivers whose ClassifiedPosition is
+ * R (retired), D (disqualified), E (excluded), W (withdrawn) or N (not
+ * classified), as { abbr: { status, lastLap, classifiedPosition } }.
+ *
+ * @param {Array<Object>} results - race_results
+ * @param {number} maxLap - lastLap when the results give no Laps
+ * @returns {Object}
+ */
+function dnfMapFromResults(results, maxLap) {
+  const dnfMap = {};
+  for (const r of results || []) {
+    const abbr = r?.Abbreviation;
+    if (!abbr) continue;
+    const cp = String(r.ClassifiedPosition || '');
+    if (cp === 'R' || cp === 'D' || cp === 'E' || cp === 'W' || cp === 'N') {
+      dnfMap[abbr] = { status: r.Status || 'Retired', lastLap: r.Laps || maxLap, classifiedPosition: cp };
+    }
+  }
+  return dnfMap;
+}
+
+/**
+ * Store fields of a live snapshot (GET /api/live/snapshot, or the `session`
+ * of a session_init message, the same payload) with the live status (GET
+ * /api/live/status, or the session_init `status`): rows, clock offset,
+ * drivers, track status and the flag in force, race-control messages,
+ * radios, lap counters and the retirements the feed reports
+ * (driver_statuses Retired / Stopped / KnockedOut; D8: while the race runs
+ * no retirement is inferred from the rows). Shared by enterLiveMode and the
+ * rebuild after a resync or a reconnect (D14).
+ *
+ * @param {Object} snapshot
+ * @param {Object} [status]
+ * @returns {Object} partial state
+ */
+function liveSnapshotState(snapshot, status = {}) {
+  const lapTimes = snapshot?.lap_times || [];
+  let computedMaxLap = 1;
+  for (const lt of lapTimes) {
+    if (lt.LapNumber && lt.LapNumber > computedMaxLap) computedMaxLap = lt.LapNumber;
+  }
+  // Already-retired drivers show as DNF the moment a viewer connects mid-race
+  const dnfMap = {};
+  for (const ds of snapshot?.driver_statuses || []) {
+    if (!ds?.Driver) continue;
+    if (ds.Retired || ds.Stopped || ds.KnockedOut) {
+      dnfMap[ds.Driver] = {
+        status: ds.Status || (ds.Retired ? 'Retired' : ds.Stopped ? 'Stopped' : 'Out'),
+        lastLap: ds.LastLap ?? status?.current_lap ?? computedMaxLap,
+        classifiedPosition: 'R',
+      };
+    }
+  }
+  const trackStatus = snapshot?.track_status || [];
+  return {
+    sessionData: snapshot,
+    sessionTimeOffset: computeSessionTimeOffset(lapTimes),
+    drivers: snapshot?.driver_info || [],
+    trackStatus,
+    // The feed's latest track status (the flag in force when the snapshot was taken)
+    currentFlagStatus: String(trackStatus[trackStatus.length - 1]?.status || '1'),
+    raceControlMessages: snapshot?.race_control_messages || [],
+    teamRadios: snapshot?.team_radios || [],
+    maxLap: computedMaxLap,
+    currentLap: status?.current_lap || computedMaxLap,
+    totalRaceLaps: status?.total_laps || null,
+    dnfMap,
+  };
+}
+
 /** Leader lap of a replay frame: the highest lap among its drivers (at least 1). */
 function frameLeaderLap(frame) {
   let lap = 1;
@@ -983,7 +1415,18 @@ export const useF1Store = create(persist((set, get) => ({
   // Type of the session in sessionData (set by loadSession). Views gate on
   // this, never on the pill, which changes without loading anything.
   loadedSessionType: null,
+  // Year and round of the session in sessionData (set by loadSession with
+  // loadedSessionType): every request scoped to the session on screen uses
+  // them (sessionScopeOf), never the year / round pills (D7)
+  loadedYear: null,
+  loadedRound: null,
+  // Live mock replay on screen: { year, round } of the replayed race, else null
+  liveMockSession: null,
   schedule: [],
+  scheduleYear: null,    // the season `schedule` lists
+  // Selectable seasons, newest first: GET /api/seasons (fetchSeasons), the
+  // previous hard-coded list until it answers or when it cannot (D15)
+  seasons: [...FALLBACK_SEASONS],
   sessionData: null,
   // Session seconds at replay time 0 (session time = frame.t + offset), see
   // utils/raceTime.js. Recomputed whenever sessionData.lap_times changes.
@@ -1100,17 +1543,23 @@ export const useF1Store = create(persist((set, get) => ({
   fetchSchedule: async (year) => {
     // Return existing promise if already fetching this year
     if (_scheduleYear === year && _schedulePromise) return _schedulePromise;
-    // Skip if schedule already loaded for this year
+    // The latest pick of the season: an answer for an earlier pick still in
+    // flight is dropped from here on, also when this one needs no request
+    const request = ++_latestRequest.schedule;
+    // Skip if the schedule of this year is already loaded (scheduleYear: the
+    // year pill changes before the schedule of the new year is asked)
     const s = get();
-    if (s.schedule.length > 0 && s.year === year) return;
+    if (s.schedule.length > 0 && s.scheduleYear === year) return;
     _scheduleYear = year;
-    _schedulePromise = (async () => {
+    const promise = (async () => {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const data = await api.getSchedule(year);
-          set({ schedule: data.events || [], year });
+          if (request !== _latestRequest.schedule) return;
+          set({ schedule: data.events || [], scheduleYear: year, year });
           return;
         } catch (e) {
+          if (request !== _latestRequest.schedule) return;
           if (attempt < 2) {
             await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
             continue;
@@ -1119,17 +1568,37 @@ export const useF1Store = create(persist((set, get) => ({
         }
       }
     })();
-    _schedulePromise.finally(() => { _schedulePromise = null; _scheduleYear = null; });
-    return _schedulePromise;
+    _schedulePromise = promise;
+    promise.finally(() => {
+      if (_schedulePromise === promise) { _schedulePromise = null; _scheduleYear = null; }
+    });
+    return promise;
+  },
+
+  // Selectable seasons from GET /api/seasons, newest first; on failure the
+  // list stays as it is (FALLBACK_SEASONS until the backend answers once)
+  fetchSeasons: async () => {
+    const request = ++_latestRequest.seasons;
+    try {
+      const data = await api.getSeasons();
+      if (request !== _latestRequest.seasons) return;
+      set({ seasons: seasonsFromResponse(data) });
+    } catch (e) {
+      console.warn('Failed to fetch seasons; using the built-in list', e);
+    }
   },
 
   fetchDriversPreview: async (year, round) => {
     if (!year || !round) return;
+    // An answer for an earlier pick (another race) is dropped
+    const request = ++_latestRequest.preview;
     set({ previewDriversLoading: true, previewDrivers: [], preSelectedDrivers: [] });
     try {
       const data = await api.getDrivers(year, round);
+      if (request !== _latestRequest.preview) return;
       set({ previewDrivers: data.drivers || [], previewDriversLoading: false });
     } catch (e) {
+      if (request !== _latestRequest.preview) return;
       console.warn('Failed to fetch driver preview', e);
       set({ previewDriversLoading: false });
     }
@@ -1155,16 +1624,26 @@ export const useF1Store = create(persist((set, get) => ({
     // so none of them can land on this load or undo its clock reset
     const generation = ++_sessionLoadGeneration;
     cancelClockJump();
+    cancelDegradationRefresh();
 
     // If switching from live mode, disconnect first
     if (get().isLiveMode) {
       // Out of live mode at once, with the replay clock reset (the feed's
       // frames are not this session's). The live rows stay on screen until the
       // new session lands, so the type of the session on screen is the live
-      // one (R7 gates on it), never the pill being loaded.
+      // one (R7 gates on it), never the pill being loaded; likewise its
+      // identity (a mock replay's race, else none: sessionScopeOf). The
+      // screen is no longer the live one: an answer to a live request is
+      // dropped from here on (the screen generation; the replay of the same
+      // race has the same screenKeyOf)
+      const mock = get().liveMockSession;
+      _screenGeneration += 1;
       set({
         isLiveMode: false,
         loadedSessionType: viewSessionType(get()),
+        loadedYear: mock?.year ?? null,
+        loadedRound: mock?.round ?? null,
+        liveMockSession: null,
         liveConnected: false,
         liveSessionInfo: null,
         liveConnectionStatus: 'disconnected',
@@ -1201,20 +1680,7 @@ export const useF1Store = create(persist((set, get) => ({
       }
 
       // Build DNF map from race_results
-      const dnfMap = {};
-      (data.race_results || []).forEach((r) => {
-        const abbr = r.Abbreviation;
-        if (!abbr) return;
-        const cp = String(r.ClassifiedPosition || '');
-        // "R" = retired, "D" = disqualified, "E" = excluded, "W" = withdrawn, "N" = not classified
-        if (cp === 'R' || cp === 'D' || cp === 'E' || cp === 'W' || cp === 'N') {
-          dnfMap[abbr] = {
-            status: r.Status || 'Retired',
-            lastLap: r.Laps || computedMaxLap,
-            classifiedPosition: cp,
-          };
-        }
-      });
+      const dnfMap = dnfMapFromResults(data.race_results, computedMaxLap);
 
       // Apply pre-selected drivers if any
       const preSelected = get().preSelectedDrivers;
@@ -1225,9 +1691,19 @@ export const useF1Store = create(persist((set, get) => ({
       setSessionDriverColors(data.driver_info || []);
 
       const sessionTimeOffset = computeSessionTimeOffset(lapTimes);
+      // The previous screen's cross-race PCA answers go (pcaScreenReset) and
+      // are asked again for this one right after
+      const before = get();
+      const pcaReset = pcaScreenReset(before);
       set({
+        // Another screen: requests of the previous one are dropped, what was
+        // said about it goes (screenSwitchState)
+        ...screenSwitchState(),
         sessionData: data,
         loadedSessionType: sessionType,
+        loadedYear: year,
+        loadedRound: round,
+        liveMockSession: null,
         sessionTimeOffset,
         drivers: data.driver_info || [],
         trackStatus: data.track_status || [],
@@ -1246,6 +1722,10 @@ export const useF1Store = create(persist((set, get) => ({
         sectorRankings: null,
         consistencyData: null,
         speedRankings: null,
+        // The previous session's track and positions: this session's own
+        // arrive below (getCircuit, loadPositions)
+        circuitInfo: null,
+        positionData: null,
         // Reset race situation state from previous session
         raceSituationLap: null,
         raceSituationData: null,
@@ -1253,9 +1733,8 @@ export const useF1Store = create(persist((set, get) => ({
         simulatorStrategy: null, simulatorResult: null, simulatorComparisons: [], simulatorBaseline: null,
         isSimulatorActive: false,
         _prevPcaResult: null,
-        lstmPredictions: null,
-        _lstmAt: null,
-        lastPredictionTrigger: null,
+        // The forecast and its requests in flight go (forecastReset)
+        ...forecastReset(),
         rivalContext: [],
         _rivalContextAt: null,
         degradationRegression: null,
@@ -1263,8 +1742,10 @@ export const useF1Store = create(persist((set, get) => ({
         qualiSegments: null,
         qualiSegment: 'Q3',
         isQualifyingReplay: false,
+        ...pcaReset,
         ...(preSelected.length > 0 ? { selectedDrivers: preSelected } : {}),
       });
+      refetchDroppedPCA(get, pcaReset, before);
 
       // Load circuit, strategy, frames, and analytics in parallel
       // For qualifying: skip strategy (irrelevant), load frames eagerly
@@ -1275,7 +1756,7 @@ export const useF1Store = create(persist((set, get) => ({
 
       if (sessionType !== 'Q') {
         parallelTasks.push(
-          api.getStrategy(year, round)
+          api.getStrategy(year, round, sessionType)
             .then((strategy) => {
               if (!current()) return;
               set((s) => ({
@@ -1352,13 +1833,6 @@ export const useF1Store = create(persist((set, get) => ({
       const snapshot = await api.getLiveSnapshot();
       if (superseded()) return;
 
-      // Compute maxLap
-      const lapTimes = snapshot.lap_times || [];
-      let computedMaxLap = 1;
-      for (const lt of lapTimes) {
-        if (lt.LapNumber && lt.LapNumber > computedMaxLap) computedMaxLap = lt.LapNumber;
-      }
-
       // Load circuit info if available
       let circuitInfo = snapshot.circuit_info || null;
       // If circuit_info exists but has no track_coordinates, it's metadata only
@@ -1369,45 +1843,31 @@ export const useF1Store = create(persist((set, get) => ({
       // Live mode: same dynamic colour-map refresh.
       setSessionDriverColors(snapshot.driver_info || []);
 
-      // Pre-fill dnfMap from snapshot.driver_statuses so already-retired
-      // drivers show as DNF the moment a viewer connects mid-race.
-      const initialDnfMap = {};
-      for (const ds of snapshot.driver_statuses || []) {
-        if (!ds?.Driver) continue;
-        if (ds.Retired || ds.Stopped || ds.KnockedOut) {
-          initialDnfMap[ds.Driver] = {
-            status: ds.Status || (ds.Retired ? 'Retired' : ds.Stopped ? 'Stopped' : 'Out'),
-            lastLap: ds.LastLap ?? status.current_lap ?? computedMaxLap,
-            classifiedPosition: 'R',
-          };
-        }
-      }
-
       cancelClockJump();
-      const snapshotStatus = snapshot.track_status || [];
+      cancelDegradationRefresh();
+      // The previous screen's cross-race PCA answers (pcaScreenReset)
+      const pcaBefore = get();
+      const pcaReset = pcaScreenReset(pcaBefore);
       set({
+        ...screenSwitchState(),
+        ...pcaReset,
         isLiveMode: true,
         liveSessionInfo: status.session_info || null,
-        sessionData: snapshot,
+        // Rows, clock offset, flag, lap counters and the feed's retirements
+        ...liveSnapshotState(snapshot, status),
         loadedSessionType: null, // live: the feed's SessionInfo gives the type
-        sessionTimeOffset: computeSessionTimeOffset(lapTimes),
-        drivers: snapshot.driver_info || [],
-        trackStatus: snapshotStatus,
-        // The feed's latest track status (live times are not on the session clock)
-        currentFlagStatus: String(snapshotStatus[snapshotStatus.length - 1]?.status || '1'),
-        raceControlMessages: snapshot.race_control_messages || [],
-        teamRadios: snapshot.team_radios || [],
-        maxLap: computedMaxLap,
-        currentLap: status.current_lap || computedMaxLap,
-        totalRaceLaps: status.total_laps || null,
+        loadedYear: null,
+        loadedRound: null,
+        liveMockSession: mockYear && mockRound ? { year: Number(mockYear), round: Number(mockRound) } : null,
+        _liveFullSession: false,
+        _degradationRequest: null,
         isPlaying: false,
         ...REPLAY_CLOCK_RESET,
         isLoadingFrames: false,
         circuitInfo,
-        dnfMap: initialDnfMap,
         telemetryCache: {},
-        lstmPredictions: null,
-        _lstmAt: null,
+        positionData: null,
+        ...forecastReset(),
         rivalContext: [],
         _rivalContextAt: null,
         degradationRegression: null,
@@ -1419,6 +1879,7 @@ export const useF1Store = create(persist((set, get) => ({
         qualiSegments: null,
         isQualifyingReplay: false,
       });
+      refetchDroppedPCA(get, pcaReset, pcaBefore);
 
       // If no track coordinates in snapshot, try loading from cached session
       if (!circuitInfo && mockYear && mockRound) {
@@ -1456,6 +1917,11 @@ export const useF1Store = create(persist((set, get) => ({
               maxLap: fullMaxLap,
               currentLap: fullMaxLap,
               circuitInfo: fullCircuitInfo,
+              // The session is over: its classification is explicit
+              // retirement data (D8), added to the feed's retirements
+              dnfMap: { ...get().dnfMap, ...dnfMapFromResults(fullData.race_results, fullMaxLap) },
+              // the feed's snapshot (a session_init) must not replace these rows
+              _liveFullSession: true,
             });
             console.log(`Full session loaded: ${fullLapTimes.length} lap entries, ${fullMaxLap} laps`);
           }
@@ -1505,7 +1971,13 @@ export const useF1Store = create(persist((set, get) => ({
     if (generation !== _sessionLoadGeneration) return;
 
     cancelClockJump();
+    cancelDegradationRefresh();
+    // The live screen's cross-race PCA answers (pcaScreenReset)
+    const pcaBefore = get();
+    const pcaReset = pcaScreenReset(pcaBefore);
     set({
+      ...screenSwitchState(),
+      ...pcaReset,
       isLiveMode: false,
       liveConnected: false,
       liveSessionInfo: null,
@@ -1516,6 +1988,13 @@ export const useF1Store = create(persist((set, get) => ({
       liveTelemetry: {},
       sessionData: null,
       loadedSessionType: null,
+      loadedYear: null,
+      loadedRound: null,
+      liveMockSession: null,
+      _liveFullSession: false,
+      _degradationRequest: null,
+      degradationRegression: null,
+      telemetryCache: {},
       sessionTimeOffset: 0,
       drivers: [],
       ...REPLAY_CLOCK_RESET,
@@ -1532,11 +2011,50 @@ export const useF1Store = create(persist((set, get) => ({
       raceProjection: null,
       simulatorResult: null,
       _prevPcaResult: null,
-      lstmPredictions: null,
-      _lstmAt: null,
+      positionData: null,
+      ...forecastReset(),
       rivalContext: [],
       _rivalContextAt: null,
     });
+    refetchDroppedPCA(get, pcaReset, pcaBefore);
+  },
+
+  // Rebuild the live session from a snapshot (a session_init, or the
+  // snapshot asked on a resync): the feed's rows, flag, lap counters and
+  // retirements replace what the store accumulated (D14). The track map
+  // and its frames, the clock and the computed analytics stay; they follow
+  // the next feed messages.
+  _applyLiveSnapshot: (snapshot, status) => {
+    if (!snapshot || typeof snapshot !== 'object' || !get().isLiveMode) return;
+    _liveRebuildSeq++;
+    const s = get();
+    const st = status || {};
+    setSessionDriverColors(snapshot.driver_info || []);
+    const next = liveSnapshotState(snapshot, st);
+    set({
+      ...next,
+      totalRaceLaps: next.totalRaceLaps ?? s.totalRaceLaps,
+      ...(st.session_info ? { liveSessionInfo: st.session_info } : {}),
+      circuitInfo: snapshot.circuit_info?.track_coordinates ? snapshot.circuit_info : s.circuitInfo,
+    });
+  },
+
+  // After a 'resync' message: ask the snapshot and rebuild from it, unless a
+  // newer rebuild (the reconnect's session_init) or a session switch came first
+  _resyncLive: async () => {
+    const generation = _sessionLoadGeneration;
+    const seq = _liveRebuildSeq;
+    try {
+      const [snapshot, status] = await Promise.all([
+        api.getLiveSnapshot(),
+        api.getLiveStatus().catch(() => null),
+      ]);
+      if (generation !== _sessionLoadGeneration || seq !== _liveRebuildSeq) return;
+      if (get()._liveFullSession) return;
+      get()._applyLiveSnapshot(snapshot, status);
+    } catch (e) {
+      console.warn('Live resync: snapshot not available', e);
+    }
   },
 
   _handleLiveMessage: (msg) => {
@@ -1545,7 +2063,23 @@ export const useF1Store = create(persist((set, get) => ({
 
     switch (type) {
       case 'session_init': {
-        // Full snapshot on connect — already handled by enterLiveMode
+        // The backend sends its full snapshot on every (re)connect: the first
+        // one follows enterLiveMode's own (and holds what changed in between),
+        // a later one follows a reconnect (a 'resync' close, a dropped
+        // socket), after which every message sent while the socket was down
+        // is lost. Rebuild from it (D14). A finished session whose full
+        // FastF1 rows replaced the feed's keeps those rows.
+        if (!data?.session || state._liveFullSession) break;
+        state._applyLiveSnapshot(data.session, data.status);
+        break;
+      }
+
+      case 'resync': {
+        // The backend dropped this client's backlog (its queue was full) and
+        // closes the socket (code 1013); liveWS reconnects, and that
+        // connect's session_init rebuilds. The snapshot is asked at once as
+        // well, so the dashboard is whole again before the reconnect (D14)
+        state._resyncLive();
         break;
       }
 
@@ -1562,10 +2096,9 @@ export const useF1Store = create(persist((set, get) => ({
           maxLap: updatedMaxLap,
         });
 
-        // Trigger LSTM predictions every 2 laps
-        if (updatedMaxLap > 2 && updatedMaxLap % 2 === 0 && state.triggerLSTMPredictions) {
-          state.triggerLSTMPredictions();
-        }
+        // The lap-time forecast is asked by a double-click only
+        // (triggerPrediction): a forecast on screen stays the one asked, with
+        // its origin lap
 
         // Compute race situation (PCA + Monte Carlo) every lap
         if (updatedMaxLap >= 3) {
@@ -1594,6 +2127,25 @@ export const useF1Store = create(persist((set, get) => ({
         break;
       }
 
+      case 'strategy_correction': {
+        // A driver's whole corrected stint list (backend session_manager
+        // _replace_stints: a compound corrected after the stint was sent, a
+        // pit-lane pass that turned out to be a tyre change or the reverse).
+        // It replaces every entry of that driver, at the place of the
+        // driver's first entry; 'strategy_update' stays append-only (D14, B4)
+        const drv = data?.Driver;
+        if (!drv || !Array.isArray(data.stints)) break;
+        const current = state.sessionData?.tyre_strategy || [];
+        const first = current.findIndex((x) => x?.Driver === drv);
+        const others = current.filter((x) => x?.Driver !== drv);
+        const at = first < 0 ? others.length : first;
+        const strategies = [...others.slice(0, at), ...data.stints, ...others.slice(at)];
+        set({
+          sessionData: { ...state.sessionData, tyre_strategy: strategies, strategies },
+        });
+        break;
+      }
+
       case 'weather_update': {
         const weather = [...(state.sessionData?.weather_data || []), data];
         set({ sessionData: { ...state.sessionData, weather_data: weather } });
@@ -1601,15 +2153,26 @@ export const useF1Store = create(persist((set, get) => ({
       }
 
       case 'track_status': {
-        // Live times are wall-clock, not session seconds, and live lap rows
-        // carry no lap windows: the change is stamped with the lap count in
-        // force when it arrives (the feed's LapCount = the leader's lap), and
-        // closes the previous period on that lap (hooks/useReplayEngine.js
-        // buildTrackStatusEvents places live periods with these stamps)
-        const lap = Number(state.currentLap) || 1;
+        // Live track_status: start_time is in SESSION seconds (the replay's
+        // time base, backend data_normalizer.py process_track_status) and
+        // received_at is the wall clock of its arrival (epoch s, what the
+        // race-control lists show, D13); start_lap is the leader's lap at the
+        // change (the feed's LapCount), else the lap count in force here. The
+        // change closes the previous period at its start (end_time on the
+        // session clock, end_lap on that lap): hooks/useReplayEngine.js
+        // buildTrackStatusEvents places live periods with these fields
+        const stamped = Number(data?.start_lap);
+        const lap = data?.start_lap != null && Number.isFinite(stamped) ? stamped : (Number(state.currentLap) || 1);
+        const startTime = Number(data?.start_time);
         const prev = state.trackStatus;
-        const closed = prev.length && prev[prev.length - 1].end_lap == null
-          ? [...prev.slice(0, -1), { ...prev[prev.length - 1], end_lap: lap }]
+        const last = prev[prev.length - 1];
+        const closed = prev.length && last.end_lap == null
+          ? [...prev.slice(0, -1), {
+            ...last,
+            end_lap: lap,
+            ...(last.end_time == null && data?.start_time != null && Number.isFinite(startTime)
+              ? { end_time: startTime } : {}),
+          }]
           : prev;
         const newStatus = [...closed, { ...data, start_lap: lap }];
         set({
@@ -2117,9 +2680,15 @@ export const useF1Store = create(persist((set, get) => ({
     // A load still in flight (frames, circuit, analytics) is discarded
     ++_sessionLoadGeneration;
     cancelClockJump();
+    cancelDegradationRefresh();
     set({
+      ...screenSwitchState(),
       sessionData: null,
       loadedSessionType: null,
+      loadedYear: null,
+      loadedRound: null,
+      liveMockSession: null,
+      _liveFullSession: false,
       sessionTimeOffset: 0,
       currentFlagStatus: '1',
       _degradationRequest: null,
@@ -2144,12 +2713,10 @@ export const useF1Store = create(persist((set, get) => ({
       speedRankings: null,
       telemetryCache: {},
       telemetryCompareLaps: [],
-      lstmPredictions: null,
-      _lstmAt: null,
-      predictionLoading: false,
-      lastPredictionTrigger: null,
+      positionData: null,
+      ...forecastReset(),
       degradationRegression: null,
-      pcaStrategyAnalysis: null,
+      ...pcaScreenReset(get()),
       raceSituationData: null,
       raceSituationLap: null,
       raceProjection: null,
@@ -2157,8 +2724,6 @@ export const useF1Store = create(persist((set, get) => ({
       _prevPcaResult: null,
       rivalContext: [],
       _rivalContextAt: null,
-      geminiMessages: [],
-      geminiOverlays: [],
       selectedDrivers: [],
       highlightedDriver: null,
       focusDriver: null,
@@ -2223,10 +2788,14 @@ export const useF1Store = create(persist((set, get) => ({
   setHighlightedCompound: (c) => set({ highlightedCompound: c }),
 
   setFocusDriver: (abbreviation) => {
+    // The focus changes either way (another driver, or the same one toggled
+    // off): the forecast belongs to the previous focus driver, so it goes,
+    // with any forecast request still in flight (forecastReset)
+    const cleared = forecastReset();
     set((s) => {
       // Toggle: if same driver, clear focus
       if (s.focusDriver === abbreviation) {
-        return { focusDriver: null, focusTeam: null, watchedRivals: [], lapDeltaBaseDriver: null, lstmPredictions: null };
+        return { focusDriver: null, focusTeam: null, watchedRivals: [], lapDeltaBaseDriver: null, ...cleared };
       }
       // Look up the driver's team from the loaded driver_info
       const driverInfo = s.drivers.find((d) => d.Abbreviation === abbreviation);
@@ -2236,11 +2805,12 @@ export const useF1Store = create(persist((set, get) => ({
         focusTeam: team,
         watchedRivals: [],
         lapDeltaBaseDriver: abbreviation,
+        ...cleared,
       };
     });
-    // Trigger LSTM predictions and rival context for the newly focused driver (race only)
+    // Rival context for the newly focused driver (race only). The lap-time
+    // forecast is asked by the double-click that focused it (triggerPrediction)
     if (get().focusDriver && !get().isQualifyingReplay) {
-      get().triggerLSTMPredictions();
       get().updateRivalContext();
     } else if (!get().focusDriver) {
       set({ rivalContext: [] });
@@ -2264,7 +2834,14 @@ export const useF1Store = create(persist((set, get) => ({
     highlightedDriverPosition: abbr ? pos : null,
   }),
   setSelectedLapRange: (range) => set({ selectedLapRange: range }),
-  setSelectedPCAPoints: (ids) => set({ selectedPCAPoints: ids }),
+  // An empty selection drops its analysis, and an answer still on its way
+  // (fetchPCAAnalysis keeps only the newest request's answer)
+  setSelectedPCAPoints: (ids) => set((s) => (ids?.length
+    ? { selectedPCAPoints: ids }
+    : {
+      selectedPCAPoints: [], pcaStrategyAnalysis: null, pcaAnalysisIds: null, pcaAnalysisError: null,
+      _pcaAnalysisSeq: (s._pcaAnalysisSeq || 0) + 1,
+    })),
 
   clearSelection: () =>
     set({
@@ -2374,12 +2951,12 @@ export const useF1Store = create(persist((set, get) => ({
       nextNow = sessionNowOf({ ...state, ...updates });
       jumped = !isLiveMode && (nextNow < prevNow || Math.abs(maxLapInFrame - prevLap) > 1);
 
-      // Re-trigger LSTM predictions every 2 laps during replay (skip for qualifying)
+      // Rival context and race situation follow the replay (skip for
+      // qualifying); the lap-time forecast is asked by a double-click only
       if (!state.isQualifyingReplay && !jumped && maxLapInFrame >= 3) {
         const lapChanged = maxLapInFrame !== prevLap;
-        const shouldPredict = lapChanged && maxLapInFrame % 2 === 0;
 
-        // Also trigger after the focus driver's pit stop: a tyre change
+        // Also recompute after the focus driver's pit stop: a tyre change
         // (utils/stints.js pitStops, R2) whose pit exit (session seconds)
         // happened between the previously shown frame and this one. Causal:
         // a stop counts only once its PitOutTime has been reached; pit-lane
@@ -2392,20 +2969,13 @@ export const useF1Store = create(persist((set, get) => ({
             && stop.pitOutTime != null && stop.pitOutTime > prevSessionTime
             && stop.pitOutTime <= frameSessionTime);
 
-        // Also trigger when flag transitions from SC/VSC back to green
-        // (checked on every frame: the change rarely falls on a lap change)
+        // Also when the flag goes from SC/VSC back to green (checked on
+        // every frame: the change rarely falls on a lap change)
         const prevFlag = state.currentFlagStatus;
         const newFlag = updates.currentFlagStatus ?? prevFlag;
         const flagTrigger = newFlag === '1' && (prevFlag === '4' || prevFlag === '6' || prevFlag === '7');
 
-        if (shouldPredict || pitTrigger || flagTrigger) {
-          setTimeout(() => {
-            get().triggerLSTMPredictions();
-            get().updateRivalContext();
-            get().computeRaceSituation();
-          }, 0);
-        } else if (lapChanged) {
-          // Always update rival context and race situation on lap change
+        if (lapChanged || pitTrigger || flagTrigger) {
           setTimeout(() => {
             get().updateRivalContext();
             get().computeRaceSituation();
@@ -2473,8 +3043,13 @@ export const useF1Store = create(persist((set, get) => ({
       const s = get();
       s.updateRivalContext();
       s.computeRaceSituation({ projection: true });
-      s.triggerLSTMPredictions();
+      // The lap-time forecast is not re-asked: one asked at a later clock was
+      // dropped with the jump (laterClockReset), an earlier one stays
       if (s.isSimulatorActive && s.simulatorStrategy) s.runSimulation();
+      // The cross-race PCA at the new clock: the embeddings once loaded, and
+      // the analysis of a selection whose answer the jump dropped
+      if (s.pcaEmbeddings || s._pcaEmbeddingsAt != null) s.loadPCAEmbeddings();
+      if (s.selectedPCAPoints?.length && !s.pcaStrategyAnalysis) s.fetchPCAAnalysis(s.selectedPCAPoints);
     }, CLOCK_JUMP_SETTLE_MS);
   },
 
@@ -2488,14 +3063,16 @@ export const useF1Store = create(persist((set, get) => ({
   setPlaySpeed: (s) => set({ playSpeed: s }),
 
   loadFrames: async () => {
-    const { year, round, sessionType } = get();
-    if (!year || !round) return;
+    // The frames of the session loadSession put on screen (never the pills)
+    const scope = sessionScopeOf(get());
+    if (!scope || get().isLiveMode) return;
+    const { year, round, sessionType } = scope;
     // A newer loadSession discards these frames (they belong to another session)
-    const generation = _sessionLoadGeneration;
+    const current = sessionRequestGuard(get);
     set({ isLoadingFrames: true });
     try {
       const data = await api.getFrames(year, round, sessionType);
-      if (generation !== _sessionLoadGeneration) return;
+      if (!current()) return;
 
       // ── Qualifying: response has { segments: { Q1: {...}, Q2: {...}, Q3: {...} } }
       if (data.segments) {
@@ -2611,8 +3188,12 @@ export const useF1Store = create(persist((set, get) => ({
           );
         }
       }
-      Object.assign(updates, laterClockReset(state, sessionNowOf({ ...state, ...updates })));
+      const dropped = laterClockReset(state, sessionNowOf({ ...state, ...updates }));
+      Object.assign(updates, dropped);
       set(updates);
+      // What the drop removed is asked again at the replay's clock (as a seek
+      // does): a selection would otherwise wait for an analysis nobody asked for
+      refetchDroppedPCA(get, dropped, state);
       console.log(`Frames loaded: ${totalFrames} frames (${frameDt.toFixed(2)}s/frame), lap map has ${Object.keys(lapFrameMap).length} entries`);
     } catch (e) {
       set({ isLoadingFrames: false });
@@ -2655,13 +3236,15 @@ export const useF1Store = create(persist((set, get) => ({
   },
 
   loadPositions: async () => {
-    const { year, round } = get();
-    if (!year || !round) return;
-    const generation = _sessionLoadGeneration;
+    // The positions of the session on screen (never the pills)
+    const scope = sessionScopeOf(get());
+    if (!scope) return;
+    const { year, round } = scope;
+    const current = sessionRequestGuard(get);
     try {
       const data = await api.getPositions(year, round);
       // Positions of a session the dashboard has since left are discarded
-      if (generation !== _sessionLoadGeneration) return;
+      if (!current()) return;
       set({ positionData: data });
     } catch (e) {
       console.error('Failed to load positions', e);
@@ -2674,16 +3257,18 @@ export const useF1Store = create(persist((set, get) => ({
   speedRankings: null,
 
   fetchAnalytics: async () => {
-    const { year, round } = get();
-    if (!year || !round) return;
+    // The analytics of the session on screen, of its type (D16: session_type)
+    const scope = sessionScopeOf(get());
+    if (!scope) return;
+    const { year, round, sessionType } = scope;
     // Results of a session the dashboard has since left are discarded
-    const generation = _sessionLoadGeneration;
+    const current = sessionRequestGuard(get);
     const [sectors, consistency, speed] = await Promise.allSettled([
-      api.getSectors(year, round),
-      api.getConsistency(year, round),
-      api.getSpeedRankings(year, round),
+      api.getSectors(year, round, sessionType),
+      api.getConsistency(year, round, sessionType),
+      api.getSpeedRankings(year, round, sessionType),
     ]);
-    if (generation !== _sessionLoadGeneration) return;
+    if (!current()) return;
     set({
       sectorRankings: sectors.status === 'fulfilled' ? sectors.value : null,
       consistencyData: consistency.status === 'fulfilled' ? consistency.value : null,
@@ -2692,41 +3277,46 @@ export const useF1Store = create(persist((set, get) => ({
   },
 
   // ── Telemetry Strip ──────────────────────────────────────────────
-  telemetryCache: {},              // { "VER-12": [{Distance, Speed, Throttle, Brake, nGear, ...}] }
+  // { "VER-12-2024-16-R": [{Distance, Speed, Throttle, Brake, nGear, ...}] } (telemetryCacheKey)
+  telemetryCache: {},
   telemetryCompareMode: 'drivers', // 'drivers' | 'laps'
   telemetryCompareLaps: [],        // [12, 23, 36] for laps mode
   telemetryLoading: false,
 
   fetchDriverTelemetry: async (driver, lap) => {
-    const sessionType = get().isQualifyingReplay ? 'Q' : 'R';
-    // The key carries no year / round: every session switch (load, live entry
-    // or exit, reset) empties the cache and starts a new generation, and an
-    // answer of an earlier generation is dropped below, so every entry
-    // belongs to the session on screen
-    const key = `${driver}-${lap}-${sessionType}`;
+    // The lap's trace in the session on screen (sessionScopeOf: the loaded
+    // year, round and type, never the pills; live: the mock replay's race,
+    // none for a real feed). The key carries the same identity (D7), and an
+    // answer that arrives once another session is on screen is dropped below
+    // (sessionRequestGuard)
+    const scope = sessionScopeOf(get());
+    if (!scope) return null;
+    const key = telemetryCacheKey(driver, lap, scope);
     if (get().telemetryCache[key]) return get().telemetryCache[key];
+    const { year, round, sessionType } = scope;
 
-    const { year, round } = get();
-    if (!year || !round) return null;
-
-    const generation = _sessionLoadGeneration;
+    const current = sessionRequestGuard(get);
+    _telemetryInFlight.add(current);
     set({ telemetryLoading: true });
     try {
       const data = await api.getTelemetry(year, round, driver, lap, sessionType);
-      // The dashboard has since switched session: this trace is not its own
-      if (generation !== _sessionLoadGeneration) {
-        set({ telemetryLoading: false });
+      _telemetryInFlight.delete(current);
+      // The dashboard has since switched session: this trace is not its own,
+      // and the spinner is the new session's requests' (telemetryLoadingNow)
+      if (!current()) {
+        set({ telemetryLoading: telemetryLoadingNow() });
         return null;
       }
       const telemetry = data.telemetry || [];
       set((s) => ({
         telemetryCache: { ...s.telemetryCache, [key]: telemetry },
-        telemetryLoading: false,
+        telemetryLoading: telemetryLoadingNow(),
       }));
       return telemetry;
     } catch (e) {
-      console.error(`Telemetry fetch failed for ${key}:`, e);
-      set({ telemetryLoading: false });
+      _telemetryInFlight.delete(current);
+      if (current()) console.error(`Telemetry fetch failed for ${key}:`, e);
+      set({ telemetryLoading: telemetryLoadingNow() });
       return null;
     }
   },
@@ -2737,7 +3327,9 @@ export const useF1Store = create(persist((set, get) => ({
   // ── Race Situation Map ──────────────────────────────────────────
   raceSituationData: null,
   raceSituationLap: null,
-  _prevPcaResult: null, // for sign consistency across recomputes
+  // the previous computation's PCA: its basis is the alignment reference in live
+  // mode (a replay uses raceSituationReference.js replayReferenceAt)
+  _prevPcaResult: null,
 
   // Race situation (live PCA) at the current clock. Debounced per lap; on a
   // clock jump (opts.projection) the Monte Carlo projection is recomputed at
@@ -2770,7 +3362,7 @@ export const useF1Store = create(persist((set, get) => ({
       lapTimes, strategies, dnfMap, currentLap,
       frameDrivers, lstmPredictions, focusDriver,
       sessionNow: now, sessionTimeOffset: get().sessionTimeOffset,
-      isLiveMode: get().isLiveMode,
+      isLiveMode: get().isLiveMode, running: stintsRunningOf(get()),
     });
 
     if (!result) {
@@ -2779,39 +3371,35 @@ export const useF1Store = create(persist((set, get) => ({
       return;
     }
 
-    const pcaResult = computePCA(result.matrix, FEATURE_NAMES, _prevPcaResult);
+    // Refitted at this lap (current means / SDs / eigenvectors), its basis
+    // turned in the PC1-PC2 plane to the previous lap's (livePCA.js
+    // LIVE_PCA_ALIGN, orthogonal Procrustes): the points and the loading
+    // arrows share that basis, so no score-level alignment follows. The
+    // previous lap's axes: in a replay, as a replay from the first lap draws
+    // them (raceSituationReference.js), so a lap reached by a rewind or a
+    // seek is drawn as playing draws it; live (no going back), the previous
+    // computation's
+    const reference = get().isLiveMode
+      ? _prevPcaResult
+      : replayReferenceAt(lapTimes, currentLap, {
+        dnfMap, sessionTimeOffset: get().sessionTimeOffset, sessionNow: now,
+      });
+    const pcaResult = computePCA(result.matrix, FEATURE_NAMES, reference, { align: LIVE_PCA_ALIGN });
     if (!pcaResult) {
       set({ raceSituationData: null, raceSituationLap: currentLap });
       followProjection();
       return;
     }
 
-    // Procrustes alignment: only needed during warmup (before basis is frozen).
-    // Once frozen, axes are stable — Procrustes would just add noise.
-    const isFrozen = pcaResult._frozen?.callCount > 8;
-    const prevData = get().raceSituationData;
-    let alignedScores = pcaResult.scores;
-    if (!isFrozen && prevData?.scores?.length && prevData?.driverAbbrs?.length) {
-      // Build matched point pairs (drivers present in both frames)
-      const prevMap = {};
-      prevData.driverAbbrs.forEach((abbr, i) => { prevMap[abbr] = prevData.scores[i]; });
-      const refPts = [];
-      const newPts = [];
-      result.driverAbbrs.forEach((abbr, i) => {
-        if (prevMap[abbr]) {
-          refPts.push(prevMap[abbr]);
-          newPts.push(pcaResult.scores[i]);
-        }
-      });
-      alignedScores = procrustesAlign2D(refPts, newPts, pcaResult.scores);
-    }
-
     set({
       raceSituationData: {
         driverAbbrs: result.driverAbbrs,
-        scores: alignedScores,
+        scores: pcaResult.scores,
         loadings: pcaResult.loadings,
+        // share of the variance each displayed axis captures at this lap
         explainedVariance: pcaResult.explainedVariance,
+        // false while the pace is left out of the fit (raceSituationFeatures.js)
+        paceInPca: result.paceInPca,
         driverFeatures: result.driverFeatures,
         computedAtLap: currentLap,
         // Session seconds of the clock the features were computed at
@@ -2828,6 +3416,10 @@ export const useF1Store = create(persist((set, get) => ({
   },
 
   // ── Predictions ────────────────────────────────────────────────
+  // Lap-time forecast (utils/forecast.js): null | { [driver]: entry }, the
+  // focus driver's only, tagged {driver, lap (origin), method, computedAtNow}.
+  // One writer: triggerPrediction (a double-click). Cleared on a focus change,
+  // a session switch (forecastReset) and a later-clock reset (laterClockReset)
   lstmPredictions: null,
   degradationRegression: null,
   // Last degradation request as asked by the caller (lap_end = brushed end)
@@ -2836,40 +3428,70 @@ export const useF1Store = create(persist((set, get) => ({
   pcaStrategyAnalysis: null,
   rivalContext: [],
 
-  fetchLSTMPrediction: async (params) => {
-    const reqNow = get().getSessionNow();
-    const generation = _sessionLoadGeneration;
-    try {
-      const data = await api.predictLSTM(params);
-      // Another session is on screen now: not its prediction
-      if (generation !== _sessionLoadGeneration) return;
-      // The clock moved back while the request ran: its inputs are now future
-      if (reqNow > get().getSessionNow()) return;
-      set({ lstmPredictions: data, _lstmAt: reqNow });
-    } catch (e) {
-      if (generation !== _sessionLoadGeneration) return;
-      console.error('LSTM prediction failed', e);
-      set({ lstmPredictions: null, _lstmAt: null });
-    }
-  },
-
   fetchDegradationRegression: async (params) => {
     // Causal brush: the fit never reads a lap the replay has not completed.
-    // lap_end is clamped to the requested drivers' last completed lap; the
-    // response keeps echoing the requested range (lap_start / lap_end, as the
-    // backend echoes its request) and adds the laps actually fitted:
-    // lap_end_used = the last lap fitted, fitted_lap_range = [lap_start,
-    // lap_end_used] (null when no lap of the range is fitted). A view labels
-    // the fit with fitted_lap_range, not with the brushed lap_end.
-    let sent = params;
+    // The request carries the clock (session_now, session seconds; null =
+    // the whole race, D6) and the endpoint uses only the laps completed by
+    // then, as the chart (stintFits at sessionNow); lap_end is clamped to the
+    // requested drivers' last completed lap as well. The response keeps
+    // echoing the requested range (lap_start / lap_end, as the backend echoes
+    // its request) and adds the laps actually fitted: lap_end_used = the last
+    // lap fitted, fitted_lap_range = [lap_start, lap_end_used] (null when no
+    // lap of the range is fitted). A view labels the fit with
+    // fitted_lap_range, not with the brushed lap_end. year / round /
+    // session_type are those of the session on screen (sessionScopeOf).
+    cancelDegradationRefresh(); // this request supersedes a pending re-request
     let data = null;
+    const s0 = get();
     // computedAtNow = the clock the fit belongs to (laterClockReset)
-    const reqNow = get().getSessionNow();
+    const reqNow = s0.getSessionNow();
     const ranged = params && Number.isFinite(params.lap_start) && Number.isFinite(params.lap_end);
+    const scope = sessionScopeOf(s0);
+    if (s0.isLiveMode || !scope) {
+      // The endpoint fits the rows of a cached session at a session clock;
+      // a live feed (clock Infinity, rows still coming) has neither, and a
+      // mock replay's cached race would hand it the laps still to come. The
+      // chart's per-stint fits (stintFits of the live rows) stay.
+      set({
+        _degradationRequest: null,
+        degradationRegression: {
+          slope: null,
+          lap_start: params?.lap_start ?? null,
+          lap_end: params?.lap_end ?? null,
+          lap_end_used: null,
+          fitted_lap_range: null,
+          reason: s0.isLiveMode
+            ? 'Live feed: no backend fit (it reads cached sessions at a replay clock); the chart shows the live per-stint fits.'
+            : 'No session loaded.',
+          computedAtNow: reqNow,
+        },
+      });
+      return;
+    }
+    const lapTimes = s0.sessionData?.lap_times;
+    const drivers = Array.isArray(params?.drivers) ? params.drivers : [];
+    let sent = {
+      ...params,
+      year: scope.year,
+      round: scope.round,
+      session_type: scope.sessionType,
+      session_now: Number.isFinite(reqNow) ? reqNow : null,
+    };
+    // What the fit depends on at reqNow (brushFitKey): laterClockReset keeps
+    // the result only while the same, refreshDegradationRegression re-asks
+    // when it changes
+    let fitKey = null;
     if (ranged) {
-      const lapEndUsed = Math.min(params.lap_end, get().getLastCompletedLap(params.drivers));
-      sent = { ...params, lap_end: lapEndUsed };
-      set({ _degradationRequest: { ...params, lap_end_used: lapEndUsed } });
+      const lapEndUsed = Math.min(params.lap_end, s0.getLastCompletedLap(drivers));
+      fitKey = brushFitKey(lapTimes, drivers, {
+        sessionNow: reqNow, lapStart: params.lap_start, lapEnd: params.lap_end,
+      });
+      sent = { ...sent, lap_end: lapEndUsed };
+      set({
+        _degradationRequest: {
+          ...params, lap_end_used: lapEndUsed, fit_key: fitKey, done_key: completedLapsKey(lapTimes, drivers, reqNow),
+        },
+      });
       if (lapEndUsed < params.lap_start) {
         // Nothing of the brushed range is completed (or ever will be: a
         // driver who retired before it): no request, and the reason says which
@@ -2889,20 +3511,27 @@ export const useF1Store = create(persist((set, get) => ({
       }
     }
     const generation = ++_degradationGeneration;
-    // The session on screen when asked: a fit asked in live mode (clock
-    // Infinity) and answered after a replay landed belongs to another
-    // session and clock, never to the replay
-    const sessionGeneration = _sessionLoadGeneration;
+    // The session on screen when asked (sessionRequestGuard): a fit asked for
+    // a session that another one has since replaced on screen (also one asked
+    // while that load was still in flight) belongs to another session and
+    // clock, never to the one on screen
+    const sameSession = sessionRequestGuard(get);
     try {
       if (!data) {
         data = await api.predictDegradation(sent);
         // A newer request (new brush or replay re-request) superseded this
         // one, or the dashboard has since switched session
-        if (generation !== _degradationGeneration || sessionGeneration !== _sessionLoadGeneration) return;
+        if (generation !== _degradationGeneration || !sameSession()) return;
+        const nowLanded = get().getSessionNow();
+        // The clock moved back while the request ran and the fit's inputs at
+        // the new clock differ: it holds later laps (the re-request follows)
+        if (ranged && reqNow > nowLanded && fitKey !== brushFitKey(get().sessionData?.lap_times, drivers, {
+          sessionNow: nowLanded, lapStart: params.lap_start, lapEnd: params.lap_end,
+        })) return;
         if (data && typeof data === 'object') {
-          // Fitted on laps completed at reqNow; still all completed now when
-          // no newer request was needed, so it belongs to the earlier clock
-          data = { ...data, computedAtNow: Math.min(reqNow, get().getSessionNow()) };
+          // Fitted on laps completed at reqNow, the same inputs as at the
+          // earlier of the two clocks, so it belongs to that one
+          data = { ...data, computedAtNow: Math.min(reqNow, nowLanded), fit_key: fitKey };
         }
         if (ranged && data && typeof data === 'object') {
           data = {
@@ -2941,151 +3570,104 @@ export const useF1Store = create(persist((set, get) => ({
     }
   },
 
-  // Replay moved: re-issue the last brushed degradation fit when the laps it
-  // may use changed (more laps completed, or a backward seek), while the same
-  // brush is still active. Once the replay has passed the brushed end the
-  // clamped end equals it and nothing is re-requested: the fit is final.
+  // Replay moved: re-issue the last brushed degradation fit when its inputs
+  // changed (degradationRefreshParams: the clamped lap end, or the clean laps
+  // of the range, brushFitKey), while the same brush is still active (D6).
+  // At most one re-request per DEGRADATION_REFRESH_MS: the first change
+  // schedules it and it is sent with the clock of the moment it fires (a
+  // frame-by-frame playback or a drag on the timeline would otherwise send
+  // one per frame; a plain debounce would never fire while playing). A stint
+  // still growing after the brushed end can still change which laps of the
+  // range are slow outliers, so the fit is re-asked then too; it is final
+  // once its inputs stop changing.
   refreshDegradationRegression: () => {
-    const s = get();
-    const req = s._degradationRequest;
-    if (!req) return;
-    const active = s.brushLapRange || s.selectedLapRange;
-    if (!active || active[0] !== req.lap_start || active[1] !== req.lap_end) return;
-    const lapEndUsed = Math.min(req.lap_end, s.getLastCompletedLap(req.drivers));
-    // Same laps as the last request: nothing to do (laterClockReset clears
-    // lap_end_used when it drops the result, so that one is re-derived)
-    if (lapEndUsed === req.lap_end_used) return;
-    const params = { ...req };
-    delete params.lap_end_used;
-    s.fetchDegradationRegression(params);
+    if (_degradationRefreshTimer != null) return; // the pending one reads the clock when it fires
+    if (!degradationRefreshParams(get())) return;
+    _degradationRefreshTimer = setTimeout(() => {
+      _degradationRefreshTimer = null;
+      const params = degradationRefreshParams(get());
+      if (params) get().fetchDegradationRegression(params);
+    }, DEGRADATION_REFRESH_MS);
   },
 
+  // The selection pcaStrategyAnalysis answers (the panel shows an analysis
+  // only for the selection on screen), the error of the last request, and the
+  // request sequence: only the newest request's answer is kept
+  pcaAnalysisIds: null,
+  pcaAnalysisError: null,
+  _pcaAnalysisSeq: 0,
+
+  // Session seconds of the clock the analysis's rows of the race on screen
+  // are taken at (pcaRequestOf: Infinity = post-race, null = no race on
+  // screen); laterClockReset drops an analysis from a later clock
+  _pcaAnalysisAt: null,
+
+  // Descriptive analysis of a lasso selection on the PCA biplot (POST
+  // /api/pca/analyze-selection), at the biplot's clock (pcaRequestOf): the
+  // rows, stints and stops of the race on screen stop at the replay clock
+  // (none before the race), so the panel, the Strategy Timeline's pattern
+  // rows, the insights and the Gemini context never show its future.
   fetchPCAAnalysis: async (pointIds) => {
+    const seq = (get()._pcaAnalysisSeq || 0) + 1;
+    const req = pcaRequestOf(get());
+    // the rows of the race on screen when asked (D7: sessionRequestGuard);
+    // the post-race artefact (params null) is the same for every session
+    const current = sessionRequestGuard(get);
+    set({ _pcaAnalysisSeq: seq, pcaStrategyAnalysis: null, pcaAnalysisIds: null, pcaAnalysisError: null });
     try {
-      const data = await api.analyzeTSNESelection(pointIds); // Backend endpoint still named tsne — kept for compatibility
-      set({ pcaStrategyAnalysis: data });
-    } catch (e) {
-      console.error('PCA analysis failed', e);
-    }
-  },
-
-  triggerLSTMPredictions: async () => {
-    const { year, round, currentLap, maxLap, focusDriver, selectedDrivers, sessionData, isQualifyingReplay } = get();
-    if (isQualifyingReplay) return; // LSTM predictions not applicable for qualifying
-    if (!sessionData?.lap_times?.length || currentLap < 2) return;
-
-    const driver = focusDriver || selectedDrivers[0];
-    if (!driver) return;
-
-    // Causal: only laps completed at sessionNow (not the unfinished current lap)
-    const now = get().getSessionNow();
-    const driverLaps = completedLaps(sessionData.lap_times, now)
-      .filter(d => d.Driver === driver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
-      .sort((a, b) => a.LapNumber - b.LapNumber)
-      .slice(-10);
-
-    if (driverLaps.length < 3) return;
-
-    // Track temperature at sessionNow (30 = fallback when no weather row)
-    const trackTemp = weatherAtSessionTime(sessionData.weather_data, now)?.TrackTemp ?? 30;
-
-    const last_10_laps = driverLaps.map(d => ({
-      lap_time: d.LapTimeSeconds,
-      tyre_life: d.TyreLife || 0,
-      compound: d.Compound || 'UNKNOWN',
-      sector1: d.Sector1TimeSeconds || 0,
-      sector2: d.Sector2TimeSeconds || 0,
-      sector3: d.Sector3TimeSeconds || 0,
-      position: d.Position || 10,
-      gap_to_leader: d.GapToLeader || 0,
-      gap_ahead: 0,
-      fuel_estimate: maxLap > 0 ? (maxLap - d.LapNumber + 1) / maxLap : 0.5,
-      track_temp: trackTemp,
-      drs: 0,
-      lap_number: d.LapNumber,
-    }));
-
-    const generation = _sessionLoadGeneration;
-    try {
-      const data = await api.predictLSTM({
-        last_10_laps,
-        driver,
-        year,
-        round,
-        current_lap: currentLap,
-        max_lap: maxLap,
-      });
-      // Another session is on screen now: not its prediction
-      if (generation !== _sessionLoadGeneration) return;
-      // The clock moved back while the request ran: its inputs are now future
-      if (now > get().getSessionNow()) return;
-      set({ lstmPredictions: data, _lstmAt: now });
-    } catch (e) {
-      if (generation !== _sessionLoadGeneration) return;
-      console.error('LSTM prediction failed', e);
-      set({ lstmPredictions: null, _lstmAt: null });
-    }
-  },
-
-  triggerPrediction: async (driver, lap) => {
-    const { year, round, maxLap, sessionData, isQualifyingReplay } = get();
-    if (!year || !round || !driver) return;
-    if (isQualifyingReplay) return;
-
-    // A clicked lap may be earlier than the replay, never later; and only
-    // laps completed at sessionNow are sent (no future lap times).
-    const currentLap = Math.min(lap || get().currentLap, get().currentLap);
-    const now = get().getSessionNow();
-    const lapTimes = sessionData?.lap_times || [];
-    const driverLaps = completedLaps(lapTimes, now)
-      .filter(d => d.Driver === driver && d.LapNumber <= currentLap && d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300)
-      .sort((a, b) => a.LapNumber - b.LapNumber)
-      .slice(-10);
-
-    if (driverLaps.length < 3) return;
-
-    // Track temperature at sessionNow (30 = fallback when no weather row)
-    const trackTemp = weatherAtSessionTime(sessionData?.weather_data, now)?.TrackTemp ?? 30;
-
-    const last_10_laps = driverLaps.map(d => ({
-      lap_time: d.LapTimeSeconds,
-      tyre_life: d.TyreLife || 0,
-      compound: d.Compound || 'UNKNOWN',
-      sector1: d.Sector1TimeSeconds || 0,
-      sector2: d.Sector2TimeSeconds || 0,
-      sector3: d.Sector3TimeSeconds || 0,
-      position: d.Position || 10,
-      gap_to_leader: d.GapToLeader || 0,
-      gap_ahead: 0,
-      fuel_estimate: maxLap > 0 ? (maxLap - d.LapNumber + 1) / maxLap : 0.5,
-      track_temp: trackTemp,
-      drs: 0,
-      lap_number: d.LapNumber,
-    }));
-
-    set({ predictionLoading: true, lastPredictionTrigger: { driver, lap: currentLap } });
-    const generation = _sessionLoadGeneration;
-    try {
-      const result = await api.predictLSTM({
-        last_10_laps,
-        driver,
-        year,
-        round,
-        current_lap: currentLap,
-        max_lap: maxLap,
-      });
-      // The clock moved back while the request ran (its inputs are now
-      // future), or another session is on screen now (not its prediction)
-      if (generation !== _sessionLoadGeneration || now > get().getSessionNow()) {
-        set({ predictionLoading: false });
+      const data = await api.analyzePCASelection(pointIds, req.params || {});
+      if (get()._pcaAnalysisSeq !== seq || (req.params && !current())) return;
+      // The clock moved back while the request ran: its rows are now future,
+      // so the selection is asked again at the clock on screen
+      if (req.at != null && req.at > sessionNowOf(get())) {
+        get().fetchPCAAnalysis(pointIds);
         return;
       }
-      set((s) => ({
-        lstmPredictions: { ...s.lstmPredictions, [driver]: result },
-        _lstmAt: Math.max(now, s._lstmAt ?? -Infinity),
-        predictionLoading: false
-      }));
+      set({ pcaStrategyAnalysis: data, pcaAnalysisIds: [...pointIds], _pcaAnalysisAt: req.at });
     } catch (e) {
+      if (get()._pcaAnalysisSeq !== seq) return;
+      console.error('PCA analysis failed', e);
+      set({ pcaAnalysisError: e?.message || 'Analysis failed' });
+    }
+  },
+
+  // The lap-time forecast of the focus driver (POST /api/predict/lstm), the
+  // only writer of lstmPredictions, asked by a double-click on a driver (the
+  // views focus the driver first). The request carries identifiers only
+  // (utils/forecast.js forecastRequestOf: year, round, session type, driver,
+  // the clock and the lap; a live feed with no cached race sends that
+  // driver's lap rows): the backend builds the model window itself.
+  // A clicked lap may be earlier than the replay, never later. The answer
+  // lands only while it is still the latest request for the focus driver of
+  // the session on screen (_forecastSeq, sessionRequestGuard) and the clock
+  // has not moved back before the clock it was asked at.
+  triggerPrediction: async (driver, lap) => {
+    const s0 = get();
+    if (!driver || !s0.sessionData || s0.isQualifyingReplay) return;
+    // The forecast belongs to the focus driver: a double-click that toggled
+    // the focus off asks nothing
+    if (driver !== s0.focusDriver) return;
+    const askedLap = Math.min(lap || s0.currentLap, s0.currentLap);
+    const now = s0.getSessionNow();
+    const body = forecastRequestOf(s0, { driver, lap: askedLap, sessionNow: now });
+    if (!body) return;
+
+    const seq = ++_forecastSeq;
+    const current = sessionRequestGuard(get);
+    // Still the request on screen: the latest one, for the focus driver of the
+    // session it was asked in (a focus change or a switch moved _forecastSeq on)
+    const latest = () => seq === _forecastSeq && current() && get().focusDriver === driver;
+    set({ predictionLoading: true, lastPredictionTrigger: { driver, lap: askedLap } });
+    try {
+      const result = await api.predictLSTM(body);
+      if (!latest()) return;
+      // The clock moved back while the request ran: its inputs are now future
+      const entry = now > get().getSessionNow() ? null : forecastEntry(result, { driver, askedLap, at: now });
+      set(entry
+        ? { lstmPredictions: { [driver]: entry }, _lstmAt: now, predictionLoading: false }
+        : { predictionLoading: false });
+    } catch (e) {
+      if (!latest()) return;
       console.error('Prediction failed:', e);
       set({ predictionLoading: false });
     }
@@ -3194,11 +3776,15 @@ export const useF1Store = create(persist((set, get) => ({
 
   fetchChampionship: async (year, loadAll = false) => {
     if (!year) year = get().year;
+    // An answer for an earlier pick (another season) is dropped (D7)
+    const request = ++_latestRequest.championship;
     set({ championshipLoading: true, championshipError: null });
     try {
       const data = await api.getChampionship(year, loadAll);
+      if (request !== _latestRequest.championship) return;
       set({ championshipData: data, championshipLoading: false });
     } catch (e) {
+      if (request !== _latestRequest.championship) return;
       console.error('Failed to fetch championship', e);
       set({ championshipLoading: false, championshipError: e.message || 'Failed to load' });
     }
@@ -3209,11 +3795,31 @@ export const useF1Store = create(persist((set, get) => ({
 
   // ── PCA Embeddings ───────────────────────────────────────────
   pcaEmbeddings: null,
+  // Session seconds of the clock the embeddings' rows of the race on screen
+  // are taken at (pcaRequestOf), and the request sequence (the newest wins)
+  _pcaEmbeddingsAt: null,
+  _pcaEmbeddingsSeq: 0,
 
+  // The biplot at the clock on screen (pcaRequestOf): during a replay of a
+  // cached race its rows are those at the replay clock, projected on axes
+  // fitted without it (backend pca_embeddings_at); post-race otherwise
   loadPCAEmbeddings: async () => {
+    const seq = (get()._pcaEmbeddingsSeq || 0) + 1;
+    const req = pcaRequestOf(get());
+    // the race on screen when asked (D7: sessionRequestGuard); the post-race
+    // artefact (params null) is the same for every session
+    const current = sessionRequestGuard(get);
+    set({ _pcaEmbeddingsSeq: seq });
     try {
-      const data = await api.getPCAEmbeddings();
-      set({ pcaEmbeddings: data });
+      const data = await api.getPCAEmbeddings(req.params);
+      if (get()._pcaEmbeddingsSeq !== seq || (req.params && !current())) return;
+      // The clock moved back while the request ran: its rows are now future,
+      // so they are asked again at the clock on screen
+      if (req.at != null && req.at > sessionNowOf(get())) {
+        get().loadPCAEmbeddings();
+        return;
+      }
+      set({ pcaEmbeddings: data, _pcaEmbeddingsAt: req.at });
     } catch (e) {
       console.error('Failed to load PCA embeddings', e);
     }
@@ -3238,11 +3844,9 @@ export const useF1Store = create(persist((set, get) => ({
     // pit-loss context outside race sessions ('R', 'S')
     const sessionType = viewSessionType(get());
     const isRace = isRaceSession(sessionType);
+    const question = { role: 'user', content: query };
     set((s) => ({
-      geminiMessages: [
-        ...s.geminiMessages,
-        { role: 'user', content: query },
-      ],
+      geminiMessages: [...s.geminiMessages, question],
     }));
 
     // Build rich race context from ALL analytical sources
@@ -3257,8 +3861,9 @@ export const useF1Store = create(persist((set, get) => ({
     if (raceProjection) {
       raceContext.monteCarloProjections = (raceProjection.projections || []).slice(0, 10).map((p) => ({
         driver: p.driver, currentPos: p.currentPos, expectedPos: p.expectedPos,
-        // the most likely position the panel shows (stable on Monte Carlo noise)
-        modePos: modePosition(raceProjection, p), posRange: p.posRange,
+        // the finishing position the panel shows: the median simulated
+        // position, moved only beyond the Monte Carlo error (modePosition)
+        medianPos: modePosition(raceProjection, p), posRange: p.posRange,
         podiumProb: p.podiumProb, pointsProb: p.pointsProb,
       }));
       // the battles the panel lists (store list and order)
@@ -3310,15 +3915,22 @@ export const useF1Store = create(persist((set, get) => ({
       raceContext.rivals = rivalContext.slice(0, 4);
     }
 
-    // LSTM predictions for focus driver
+    // Lap-time forecast of the focus driver (utils/forecast.js): the method
+    // that made it (the method chosen on the validation races, not always the
+    // LSTM), its origin and target laps and its held-out error
     const target = focusDriver || (selectedDrivers.length === 1 ? selectedDrivers[0] : null);
-    if (target && lstmPredictions?.[target]) {
-      const pred = lstmPredictions[target];
+    const forecast = focusForecast(lstmPredictions, target);
+    if (forecast) {
       raceContext.lstm = {
         driver: target,
-        predictedTimes: pred.predicted_times,
-        predictedLapTime: pred.predicted_lap_time,
-        pitProbability: pred.pit_probability,
+        method: forecast.method,
+        methodLabel: forecast.method_label || forecast.method,
+        originLap: forecast.lap,
+        targetLaps: forecast.target_laps,
+        predictedTimes: forecast.predicted_times,
+        heldOutMae: forecastHeldOutMae(forecast),
+        pitProbability: forecastPit(forecast).probability,
+        pitMethod: forecastPit(forecast).method,
       };
     }
 
@@ -3363,17 +3975,33 @@ export const useF1Store = create(persist((set, get) => ({
     raceContext.currentLap = currentLap;
     raceContext.maxLap = maxLap;
 
+    // The session on screen (never the pills), and its guard: an answer that
+    // arrives once another screen is on is about another session (D7); one
+    // that arrives after the clock moved back before `now` describes a later
+    // state than the one on screen (R3 / R6: geminiAnswerFate)
+    const scope = sessionScopeOf(get());
+    const current = sessionRequestGuard(get);
+    const fate = () => geminiAnswerFate(current, get, now);
+    // A dropped answer still leaves the question answered: when the question
+    // is still in the chat (a seek back, or a load that has not replaced the
+    // screen), a note says why no answer follows; a screen switch has
+    // cleared the chat, question included (screenSwitchState)
+    const dropped = (reason) => set((s) => (s.geminiMessages.includes(question)
+      ? { geminiMessages: [...s.geminiMessages, { role: 'ai', content: GEMINI_DROPPED_NOTE[reason], dropped: reason }] }
+      : {}));
     try {
       const resp = await api.queryGemini({
         query,
-        year,
-        round,
+        year: scope?.year ?? year,
+        round: scope?.round ?? round,
         session_type: sessionType,
         current_lap: currentLap,
         drivers: selectedDrivers,
-        lstm_predictions: lstmPredictions,
+        // the forecast travels in race_context.lstm (method included)
         race_context: Object.keys(raceContext).length > 0 ? raceContext : undefined,
       });
+      const f = fate();
+      if (f !== 'show') { dropped(f); return; }
       set((s) => ({
         geminiMessages: [
           ...s.geminiMessages,
@@ -3382,6 +4010,8 @@ export const useF1Store = create(persist((set, get) => ({
         geminiOverlays: resp.scenarios || [],
       }));
     } catch (e) {
+      const f = fate();
+      if (f !== 'show') { dropped(f); return; }
       set((s) => ({
         geminiMessages: [
           ...s.geminiMessages,
@@ -3389,6 +4019,35 @@ export const useF1Store = create(persist((set, get) => ({
         ],
       }));
     }
+  },
+
+  // The Pit Wall "AI Strategist" box (components/ui/GeminiQuickQuery.jsx):
+  // one question about the session on screen, its answer kept here
+  // (geminiQuick), not in the chat. The same guards as sendGeminiQuery: the
+  // answer of a request of another screen, or asked at a clock later than the
+  // one on screen now, is dropped, and a newer quick query replaces an older
+  // one still on its way. A screen switch clears it (screenSwitchState).
+  geminiQuick: GEMINI_QUICK_IDLE,
+  askGeminiQuick: async (text) => {
+    if (!String(text ?? '').trim()) return;
+    const s0 = get();
+    const askedAt = sessionNowOf(s0);
+    const current = sessionRequestGuard(get);
+    // This request's state object: a newer quick query or a screen switch
+    // replaces it, and then this answer has nothing to fill
+    const pending = { loading: true, response: '', error: '' };
+    set({ geminiQuick: pending });
+    let next;
+    try {
+      // The state at the click: the session on screen and its type (R7)
+      const result = await api.queryGemini(geminiQuickQueryBody(s0, text));
+      next = { loading: false, response: result?.response || result?.answer || JSON.stringify(result), error: '' };
+    } catch (err) {
+      next = { loading: false, response: '', error: err?.message || 'Failed to get response' };
+    }
+    if (get().geminiQuick !== pending) return;
+    const f = geminiAnswerFate(current, get, askedAt);
+    set({ geminiQuick: f === 'show' ? next : { loading: false, response: '', error: GEMINI_DROPPED_NOTE[f] } });
   },
 
   setGeminiOverlays: (overlays) => set({ geminiOverlays: overlays }),
@@ -3439,18 +4098,15 @@ export const useF1Store = create(persist((set, get) => ({
         dropHeld();
         return;
       }
-      // Badge states (utils/simulationClient.js projectionBadges): a badge,
-      // the most likely position shown, the battle list and the risk rows
-      // change only on evidence beyond the Monte Carlo error; inside it, the
-      // state of the projection held now (an earlier clock) is kept
-      const badges = projectionBadges(result, s.raceProjection?.badges, {
-        driverFeatures: job.params.driverFeatures, currentLap: job.currentLap, maxLap: job.params.maxLap,
-      });
+      // Badge states (utils/simulationClient.js withBadges / projectionBadges):
+      // a badge, the finishing position shown, the row order, the battle list
+      // and the risk rows change only on evidence beyond the Monte Carlo
+      // error; inside it, the state of the projection held now (an earlier
+      // clock) is kept
       request.result = {
-        ...result,
-        badges,
-        // the risk rows every view reads (Risks tab, Strategy Analysis, assistant)
-        risks: badges.risks ?? result.risks,
+        ...withBadges(result, s.raceProjection?.badges, {
+          driverFeatures: job.params.driverFeatures, currentLap: job.currentLap, maxLap: job.params.maxLap,
+        }),
         // Session seconds of the clock it was computed at (laterClockReset)
         computedAtNow: job.now,
         computedAtLap: job.currentLap,
@@ -3521,16 +4177,29 @@ export const useF1Store = create(persist((set, get) => ({
       if (s.raceSituationData !== job.rsd || sessionNowOf(s) < job.now) return;
       if (error) console.error('What-if simulation failed', error);
       if (!result) return;
+      // The Simulator's marks (verdict, the cards' P labels: whatIfMarks)
+      // change only beyond the Monte Carlo error: inside it, the marks of the
+      // result held now (an earlier clock) of the same what-if are kept. The
+      // stop-model baseline is the race projection's row of the driver: its
+      // card shows the panel's P label (the panel's chained labels, same rule)
+      const key = whatIfKey(driver, plan, basePlan);
+      const held = s.simulatorResult?.whatIfKey === key ? s.simulatorResult.marks : null;
+      const markOpts = { stopModel: !basePlan, panelMode: s.raceProjection?.badges?.mode ?? null };
       set({
         simulatorResult: {
           driver,
           plan,
           basePlan,
+          whatIfKey: key,
           baselineLabel: basePlan ? (simulatorBaseline.label || 'saved plan') : null,
           simProjection: result.simProjection,
           baselineProjection: result.baselineProjection,
           // position: baseline expected position - plan's (positive = the plan gains places)
           delta: result.delta,
+          // the run-by-run position / podium / points differences ({mean, sd,
+          // n} each) the marks are judged on (pairedDifferences)
+          paired: result.paired,
+          marks: whatIfMarks(result, held, markOpts),
           fullProjection: result.custom,
           seed: result.seed,
           numSimulations: result.numSimulations,

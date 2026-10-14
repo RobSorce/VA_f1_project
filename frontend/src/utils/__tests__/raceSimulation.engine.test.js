@@ -148,30 +148,45 @@ describe('S2 degradation and lap noise: the shared definition (utils/degradation
     expect(d.mean).toBe(PRIORS.degradation.HARD.raceMean);
   });
 
-  it('lap noise: the race\'s residual sigma combined with the dry prior (conjugate update), the wet prior once a wet lap is run', () => {
+  it('lap noise (D1): the race\'s pooled residual sigma of the stint fits, no prior mixed in, no floor; the cached races\' value only before the first fit', () => {
     const rows = race();
     const now = T0 + 19 * 100;
     const p = extractRaceParams(rows, [], [], 20, { sessionNow: now });
     let sse = 0;
     let dof = 0;
+    let laps = 0;
     for (const f of stintFits(rows, { sessionNow: now })) {
       if (f.slope == null) continue;
       sse += f.residualSigma ** 2 * (f.n - 2);
       dof += f.n - 2;
+      laps += f.n;
     }
-    const { value: s0, nu0 } = PRIORS.lapNoise.dry;
-    expect(p.lapNoise).toBeCloseTo(Math.sqrt((nu0 * s0 * s0 + sse) / (nu0 + dof)), 12);
-    expect(p.estimates.lapNoise).toMatchObject({ source: 'race', dof, prior: { kind: 'dry', value: s0, nu0 } });
-    expect(p.estimates.lapNoise.raceValue).toBeCloseTo(Math.sqrt(sse / dof), 12);
-    // no fit yet: the prior itself
+    // the synthetic laps scatter by +/-0.05 s (and the fresh-tyre lap): far below the prior, kept as it is
+    expect(p.lapNoise).toBeCloseTo(Math.sqrt(sse / dof), 12);
+    expect(p.lapNoise).toBeLessThan(PRIORS.lapNoise.dry.value / 2);
+    expect(p.estimates.lapNoise).toMatchObject({ source: 'race', dof, laps, prior: { kind: 'dry', value: PRIORS.lapNoise.dry.value } });
+    expect(p.estimates.lapNoise.raceValue).toBe(p.lapNoise);
+    // the same pooled sums as the drivers' consistency sigmas (consistencySigma definition)
+    let csse = 0;
+    let cdof = 0;
+    for (const d of DRIVERS) {
+      const c = consistencySigma(rows, d, { sessionNow: now });
+      if (c.sigma == null) continue;
+      csse += c.sigma * c.sigma * (c.n - 2 * c.stints);
+      cdof += c.n - 2 * c.stints;
+    }
+    expect(p.lapNoise).toBeCloseTo(Math.sqrt(csse / cdof), 12);
+    // no fit yet: the cached dry races' value, n = 0
     const early = extractRaceParams(rows, [], [], 4, { sessionNow: T0 + 3 * 100 });
-    expect(early.lapNoise).toBe(s0);
-    expect(early.estimates.lapNoise.source).toBe('prior');
-    // a wet race: the wet prior
+    expect(early.lapNoise).toBe(PRIORS.lapNoise.dry.value);
+    expect(early.estimates.lapNoise).toMatchObject({ source: 'prior', laps: 0, stints: 0, raceValue: null });
+    // a wet race: the race's own value, the wet value only as the pre-fit fallback
     const wet = race({ edit: (r) => { if (r.Stint === 2) r.Compound = 'INTERMEDIATE'; } });
     const w = extractRaceParams(wet, [], [], 20, { sessionNow: now });
     expect(w.dryRace).toBe(false);
     expect(w.estimates.lapNoise.prior).toMatchObject({ kind: 'wet', value: PRIORS.lapNoise.wet.value });
+    expect(w.estimates.lapNoise.source).toBe('race');
+    expect(w.lapNoise).toBe(w.estimates.lapNoise.raceValue);
   });
 
   it('lap 1 and SC laps do not enter the fit, whatever their time', () => {
@@ -473,22 +488,35 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-whe
     expect(p.freshDelta).toBeCloseTo(-0.029, 3);
   });
 
-  it('S2: at every lap-mode projection clock (the leader starts lap 5 .. the last but one) MEDIUM and HARD degradation > 0 after fuel correction, lap noise 0.3-0.6 s', () => {
+  it('S2: at every lap-mode projection clock (the leader starts lap 5 .. the last but one) MEDIUM and HARD degradation > 0 after fuel correction; lap noise 0.3-0.6 s at the leader\'s laps 20, 30, 40 and the race end (D1)', () => {
     let clocks = 0;
     let raceClocks = 0;
+    const noise = {};
     for (let lap = 5; lap < maxLap; lap++) {
       const now = resolveSessionNow({ currentLap: lap, lapTimes });
       const q = extractRaceParams(lapTimes, [], s.track_status, lap, { sessionNow: now, sessionType: 'R' });
       const m = degradationFor(q, 'MEDIUM');
       expect(m.mean).toBeGreaterThan(0);
       expect(degradationFor(q, 'HARD').mean).toBeGreaterThan(0);
-      expect(q.lapNoise).toBeGreaterThanOrEqual(0.3);
-      expect(q.lapNoise).toBeLessThanOrEqual(0.6);
+      noise[lap] = q.estimates.lapNoise;
       clocks += 1;
       if (m.source === 'race') raceClocks += 1;
     }
     expect(clocks).toBe(48);
     expect(raceClocks).toBe(38); // the race's own MEDIUM fits from lap 15 on
+    const atEnd = extractRaceParams(lapTimes, [], s.track_status, maxLap, { sessionNow: Infinity }).estimates.lapNoise;
+    for (const e of [noise[20], noise[30], noise[40], atEnd]) {
+      expect(e.source).toBe('race');
+      expect(e.value).toBeGreaterThanOrEqual(0.3);
+      expect(e.value).toBeLessThanOrEqual(0.6);
+    }
+    // values of notes/experiments/phase45c/s2_lap_noise_monza.txt (scripts/s2_lap_noise.mjs)
+    expect([noise[20], noise[30], noise[40], atEnd].map((e) => +e.value.toFixed(3))).toEqual([0.436, 0.402, 0.381, 0.401]);
+    expect([noise[20], noise[30], noise[40], atEnd].map((e) => e.laps)).toEqual([255, 463, 598, 889]);
+    // earlier clocks: the causal value with its n, no floor (lap 10: one stint of 8 laps)
+    expect(noise[10]).toMatchObject({ source: 'race', laps: 8, stints: 1 });
+    expect(+noise[10].value.toFixed(3)).toBe(0.163);
+    expect(noise[9]).toMatchObject({ source: 'prior', laps: 0, value: PRIORS.lapNoise.dry.value });
     // lap 12 (the clock of the S3 / S7 checks): a set does not get faster with age on the lap model
     const now12 = resolveSessionNow({ currentLap: 12, lapTimes });
     const p12 = extractRaceParams(lapTimes, [], s.track_status, 12, { sessionNow: now12, sessionType: 'R' });
@@ -501,7 +529,7 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-whe
     expect(p.tyreDeg.MEDIUM.allFits).toMatchObject({ n: 18, negativeCount: 9 });
     expect(p.tyreDeg.MEDIUM.mean).toBeGreaterThan(0);
     expect(p.tyreDeg.HARD.allFits).toMatchObject({ n: 29, negativeCount: 11 });
-    // lap noise = the drivers' consistency sums pooled (same per-stint residuals), with the dry prior
+    // lap noise = the drivers' consistency sums pooled (same per-stint residuals), nothing else
     for (const now of [Infinity, resolveSessionNow({ currentLap: 30, lapTimes })]) {
       const q = extractRaceParams(lapTimes, [], s.track_status, 30, { sessionNow: now });
       let sse = 0;
@@ -512,9 +540,8 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-whe
         sse += c.sigma * c.sigma * (c.n - 2 * c.stints);
         dof += c.n - 2 * c.stints;
       }
-      const { value: s0, nu0 } = PRIORS.lapNoise.dry;
-      expect(q.lapNoise).toBeCloseTo(Math.sqrt((nu0 * s0 * s0 + sse) / (nu0 + dof)), 9);
-      expect(q.estimates.lapNoise.raceValue).toBeCloseTo(Math.sqrt(sse / dof), 9);
+      expect(q.lapNoise).toBeCloseTo(Math.sqrt(sse / dof), 9);
+      expect(q.estimates.lapNoise.raceValue).toBe(q.lapNoise);
     }
   });
 

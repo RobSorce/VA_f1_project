@@ -2,7 +2,9 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
 import { generateInsights } from '../../utils/insightsGenerator';
-import { listedBattles, modePosition, projectionRisks } from '../../utils/simulationClient';
+import {
+  listedBattles, modePosition, positionChange, projectionRisks,
+} from '../../utils/simulationClient';
 import Panel from '../ui/Panel';
 
 /* ── Shared tab pill style helper ── */
@@ -27,7 +29,6 @@ export default function StrategyAnalysis() {
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const setComparisonDriver = useF1Store((s) => s.setComparisonDriver);
-  const triggerLSTMPredictions = useF1Store((s) => s.triggerLSTMPredictions);
 
   // Fire-and-forget helper: when an insight names a driver pair (behind, ahead)
   // route it to every cross-panel hook — selection, focus, and the shared
@@ -470,7 +471,7 @@ export default function StrategyAnalysis() {
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                         {fieldOverview.pitSoon.map((d) => (
                           <span key={d.abbr}
-                            onClick={() => { setFocusDriver(d.abbr); triggerLSTMPredictions(); }}
+                            onClick={() => setFocusDriver(d.abbr)}
                             style={{
                             display: 'inline-flex', alignItems: 'center', gap: 4,
                             padding: '3px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
@@ -529,7 +530,7 @@ export default function StrategyAnalysis() {
                       </h6>
                       {mcRisks.map((r, i) => (
                         <div key={i}
-                          onClick={() => { setFocusDriver(r.driver); triggerLSTMPredictions(); }}
+                          onClick={() => setFocusDriver(r.driver)}
                           style={{
                             display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6,
                             fontSize: 'var(--font-size-xs)', cursor: 'pointer', padding: '3px 4px',
@@ -680,9 +681,12 @@ export default function StrategyAnalysis() {
                     const trendStr = d.paceTrend > 0.05 ? `+${d.paceTrend.toFixed(2)}s/lap` : d.paceTrend < -0.05 ? `${d.paceTrend.toFixed(2)}s/lap` : 'stable';
                     const trendColor = d.paceTrend > 0.05 ? '#e10600' : d.paceTrend < -0.05 ? '#00e676' : 'var(--color-text-muted)';
                     const proj = raceProjection?.projections.find((p) => p.driver === d.abbr);
+                    // Places to gain / lose: current position against the finishing position
+                    // shown (the store's median, stable on Monte Carlo noise)
+                    const change = proj ? (positionChange(raceProjection, proj) ?? 0) : 0;
                     return (
                       <div key={d.abbr}
-                        onClick={() => { setFocusDriver(d.abbr); triggerLSTMPredictions(); }}
+                        onClick={() => setFocusDriver(d.abbr)}
                         style={{
                           background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)',
                           padding: '8px 12px', borderLeft: `3px solid ${getDriverColor(d.abbr)}`,
@@ -697,8 +701,8 @@ export default function StrategyAnalysis() {
                           <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>{d.team}</span>
                           <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>
                             P{d.position}
-                            {proj && Math.abs(proj.delta) >= 0.5 && (
-                              <span style={{ fontSize: '9px', marginLeft: 4, color: proj.delta > 0 ? '#00e676' : '#e10600' }}>
+                            {proj && change !== 0 && (
+                              <span style={{ fontSize: '9px', marginLeft: 4, color: change > 0 ? '#00e676' : '#e10600' }}>
                                 {'\u2192'}P{modePosition(raceProjection, proj)}
                                 <span style={{ fontSize: '7px', marginLeft: 2 }}>({proj.podiumProb}% pod)</span>
                               </span>

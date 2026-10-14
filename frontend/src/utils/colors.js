@@ -1,4 +1,7 @@
-// F1 Team Colors - 2024 Official
+// F1 Team Colors - 2024 Official. Every TeamName of the cached sessions
+// (driver_info) has a key: 'Racing Bulls' is RB renamed for 2025 (FastF1's
+// TeamColor #6692FF in 2025 R1, the RB colour); 'Audi' and 'Cadillac' (2026)
+// carry FastF1's TeamColor of the cached 2026 sessions.
 export const TEAM_COLORS = {
   'Red Bull Racing': '#3671C6',
   'Ferrari': '#E8002D',
@@ -8,11 +11,17 @@ export const TEAM_COLORS = {
   'Alpine': '#FF87BC',
   'Williams': '#64C4FF',
   'RB': '#6692FF',
+  'Racing Bulls': '#6692FF',
   'AlphaTauri': '#5E8FAA',
   'Haas F1 Team': '#B6BABD',
   'Kick Sauber': '#52E252',
   'Alfa Romeo': '#C92D4B',
+  'Audi': '#F50537',
+  'Cadillac': '#909090',
 };
+
+// Colour of a team name that matches no key
+export const UNKNOWN_TEAM_COLOR = '#888888';
 
 // Driver abbreviation → team color (static fallback for the 2024 season).
 // The live `_dynamicDriverColors` map below overrides this whenever a
@@ -54,7 +63,7 @@ export function setSessionDriverColors(driverInfoArray) {
     const team = d?.TeamName || d?.teamName;
     if (!abbr) continue;
     const color = getTeamColor(team);
-    if (color && color !== '#888888') next[abbr] = color;
+    if (color && color !== UNKNOWN_TEAM_COLOR) next[abbr] = color;
   }
   _dynamicDriverColors = next;
 }
@@ -78,14 +87,15 @@ export const TYRE_LABELS = {
   WET: 'W',
 };
 
-// Get team color by team name (fuzzy match)
+// Get team color by team name: exact key (case-insensitive) first, then a
+// fuzzy match (one name contains the other, e.g. 'Visa Cash App RB')
 export function getTeamColor(teamName) {
-  if (!teamName) return '#888888';
-  const key = Object.keys(TEAM_COLORS).find(
-    (k) => teamName.toLowerCase().includes(k.toLowerCase()) ||
-           k.toLowerCase().includes(teamName.toLowerCase())
-  );
-  return key ? TEAM_COLORS[key] : '#888888';
+  if (!teamName) return UNKNOWN_TEAM_COLOR;
+  const name = String(teamName).toLowerCase();
+  const keys = Object.keys(TEAM_COLORS);
+  const key = keys.find((k) => k.toLowerCase() === name)
+    || keys.find((k) => name.includes(k.toLowerCase()) || k.toLowerCase().includes(name));
+  return key ? TEAM_COLORS[key] : UNKNOWN_TEAM_COLOR;
 }
 
 // Get driver color by abbreviation. Live session-derived team

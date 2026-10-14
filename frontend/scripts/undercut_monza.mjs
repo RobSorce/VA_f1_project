@@ -3,6 +3,12 @@
  * evidence of S7 and C4. Writes notes/experiments/undercut_monza.txt and
  * prints the same text.
  *
+ * Since lead decision D2 (phase45c) the sweep reads every row at the race
+ * end, whatever the table length, so the "end of the table" / "read at the
+ * flag" comparisons of sections 2 and 5 below now give the same lap; the
+ * evidence of this round is scripts/s7_undercut_monza.mjs (sweep) and
+ * scripts/c4_pit_in_k_monza.mjs ("pit in k laps"), in notes/experiments/phase45c/.
+ *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/undercut_monza.mjs
  *
@@ -88,7 +94,7 @@ for (const d of ['PIA', 'LEC', 'NOR', 'SAI', 'HAM', 'VER', 'RUS']) {
 out('');
 
 // ── 2. Undercut sweep ──
-out('2. Undercut sweep: gap at ONE lap for every row (the end of the latest out-lap of the table: both cars have stopped in every row), + = focus ahead');
+out('2. Undercut sweep: gap at ONE lap for every row (the race end, lead decision D2), + = focus ahead');
 const sweepCases = [['LEC', 'PIA', 11], ['LEC', 'PIA', 12], ['LEC', 'PIA', 13], ['LEC', 'PIA', 14],
   ['NOR', 'LEC', 12], ['NOR', 'LEC', 13], ['PIA', 'LEC', 15]];
 for (const [focus, rival, lap] of sweepCases) {

@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
-
-const YEARS = [2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018];
+import { yearOptions } from '../../utils/seasons';
 const SESSION_TYPES = [
   { value: 'R', label: 'Race' },
   { value: 'Q', label: 'Qualifying' },
@@ -71,6 +70,12 @@ export default function SessionSelectorScreen() {
   const fetchDriversPreview = useF1Store((s) => s.fetchDriversPreview);
   const togglePreSelectedDriver = useF1Store((s) => s.togglePreSelectedDriver);
   const setPreSelectedDrivers = useF1Store((s) => s.setPreSelectedDrivers);
+
+  // Seasons from GET /api/seasons (store.fetchSeasons, D15); the built-in
+  // list until it answers or when the backend is offline
+  const seasons = useF1Store((s) => s.seasons);
+  const fetchSeasons = useF1Store((s) => s.fetchSeasons);
+  useEffect(() => { fetchSeasons(); }, [fetchSeasons]);
 
   const [focusPick, setFocusPick] = useState('');
   const [driverSearch, setDriverSearch] = useState('');
@@ -285,7 +290,7 @@ export default function SessionSelectorScreen() {
                 value={year}
                 onChange={handleYearChange}
               >
-                {YEARS.map((y) => (
+                {yearOptions(seasons, year).map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>

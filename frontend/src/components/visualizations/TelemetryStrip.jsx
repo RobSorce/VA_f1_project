@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
-import { useF1Store } from '../../store/useF1Store';
+import { useF1Store, sessionScopeOf, telemetryKeySuffix } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { stintsByDriver } from '../../utils/stints';
@@ -215,8 +215,9 @@ export default function TelemetryStrip({ embedded = false }) {
   // targetList enters through targetSignature, which changes whenever its content does
   const fetchTargets = useMemo(() => targetList, [targetSignature]);
 
-  // Cache key suffix matches store's fetchDriverTelemetry key format
-  const cacheKeySuffix = isQualifyingReplay ? '-Q' : '-R';
+  // Cache key suffix of the session on screen (store telemetryCacheKey:
+  // year, round and session type, so another session's trace is never read)
+  const cacheKeySuffix = useF1Store((s) => telemetryKeySuffix(sessionScopeOf(s)));
 
   // Debounced telemetry fetching
   useEffect(() => {

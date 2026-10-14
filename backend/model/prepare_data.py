@@ -1,53 +1,67 @@
 """
 LSTM Training Data Preparation
-Builds sliding-window sequences from cached race data across multiple seasons.
-Auto-discovers cached rounds from both processed JSON cache and FastF1 raw cache.
+Builds the forecast windows of every cached race with the ONE window builder
+of model/features.py (build_window), the function the endpoint serves with.
+
+Source: the processed session payloads data/processed_cache/session_{year}_{round}_R.json
+(the rows api/main.py load_session serves), never the raw FastF1 cache, so a
+training row and a served row come from the same payload shape.
+
+One sample per driver and completed lap (the origin): build_window at the
+end of that lap (the serving call at any clock until the driver's next lap
+ends gives the same window). Labels, built from the whole race (the future
+is read for labels only):
+  y[:, :PREDICT_LEN]  lap time of origin + k minus the window's reference
+                      time (last clean lap), k = 1..PREDICT_LEN; NaN when
+                      lap origin + k is not a clean lap (degradation.py
+                      is_clean_lap: green, no pit in-lap / out-lap) of the
+                      origin's stint (a stop or the race end comes first).
+  y[:, PREDICT_LEN]   1 when the origin's stint ends with a stop (a tyre
+                      change, build_tyre_strategy; DECISIONS.md R2) on one
+                      of the next PREDICT_LEN laps, else 0.
+Outputs (model/saved): lstm_X.npy (unscaled windows, features.FEATURES
+order), lstm_y.npy, lstm_meta.json (race, driver, origin lap of each row,
+and x_sha1 of the windows; model/train.py refuses to train without it).
+The scaler and the label statistics are fitted on the training races only,
+in model/train.py.
 """
 import datetime
 import json
-import numpy as np
-import pandas as pd
-from pathlib import Path
-from sklearn.preprocessing import StandardScaler
-import joblib
 import logging
-import sys
 import re
+import sys
+from pathlib import Path
+
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data.extractors.fastf1_extractor import FastF1Extractor
-from data.processors.feature_engineering import FeatureEngineer
+from data.processors.degradation import _lap_end_time, is_clean_lap  # noqa: E402
+from data.processors.stints import _group_by_driver, _number, build_tyre_strategy  # noqa: E402
+from model import features  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-SEQUENCE_LEN = 10
+SEQUENCE_LEN = features.SEQUENCE_LEN
+# Laps of the lap-time targets and of the pit label (literal: read from this
+# source by tests/test_predictions_pit_timing.py; equal to features.PREDICT_LEN)
 PREDICT_LEN = 5
+if PREDICT_LEN != features.PREDICT_LEN:
+    raise ImportError('prepare_data.PREDICT_LEN must equal model/features.py PREDICT_LEN')
+
 # 2018 up to the next season (clock year + 1): a season is used only when its races
-# are cached, which needs a published schedule (see discover_*_cached_rounds)
+# are cached, which needs a published schedule (see discover_processed_cache_rounds)
 YEARS = list(range(2018, datetime.date.today().year + 2))
 
-LAP_FEATURES = [
-    'LapTimeSeconds',
-    'Sector1TimeSeconds', 'Sector2TimeSeconds', 'Sector3TimeSeconds',
-    'compound_encoded', 'TyreLife',
-    'fuel_estimate', 'track_temp',
-    'Position', 'GapToLeader', 'gap_ahead', 'drs_available',
-]
-
-COMPOUND_MAP = {
-    'SOFT': 0, 'MEDIUM': 1, 'HARD': 2,
-    'INTERMEDIATE': 3, 'INTER': 3, 'WET': 4,
-    'HYPERSOFT': 0, 'ULTRASOFT': 0, 'SUPERSOFT': 0,
-    'SUPERHARD': 2,
-}
+CACHE_DIR = Path(__file__).parent.parent / 'data' / 'processed_cache'
+MODEL_DIR = Path(__file__).parent / 'saved'
 
 
-def discover_processed_cache_rounds(cache_dir: Path) -> list:
+def discover_processed_cache_rounds(cache_dir: Path = CACHE_DIR) -> list:
     """
     Discover race sessions from processed JSON cache files.
     Scans for files matching session_{year}_{round}_R.json.
-    Returns list of (year, round_number, 'json') tuples.
+    Returns list of (year, round_number, 'json') tuples, sorted.
     """
     discovered = []
     if not cache_dir.exists():
@@ -62,333 +76,122 @@ def discover_processed_cache_rounds(cache_dir: Path) -> list:
                 discovered.append((year, round_num, 'json'))
                 logger.info(f"Discovered JSON cache: {year} R{round_num}")
 
-    return discovered
+    return sorted(discovered)
 
 
-def discover_fastf1_cached_rounds(cache_dir: Path) -> list:
-    """
-    Auto-discover cached race sessions by scanning the FastF1 cache directory.
-    Returns list of (year, round_number, 'fastf1') tuples.
-    """
-    import fastf1
+def race_id(year: int, round_num: int) -> str:
+    """'2024-16': the race key of lstm_meta.json and of the split."""
+    return f'{int(year)}-{int(round_num)}'
 
-    discovered = []
-    for year in YEARS:
-        year_dir = cache_dir / str(year)
-        if not year_dir.exists():
-            continue
 
-        try:
-            schedule = fastf1.get_event_schedule(year)
-        except Exception as e:
-            logger.warning(f"Could not get schedule for {year}: {e}")
-            continue
+def load_payload(year: int, round_num: int, cache_dir: Path = CACHE_DIR) -> dict:
+    with open(cache_dir / f'session_{year}_{round_num}_R.json', encoding='utf-8') as fh:
+        return json.load(fh)
 
-        for event_dir in sorted(year_dir.iterdir()):
-            if not event_dir.is_dir():
+
+def _labels(by_lap, stint, origin_lap, ref_time, last_stint):
+    """(deltas, times, pit) of one sample (see the module docstring)."""
+    times = []
+    for k in range(1, PREDICT_LEN + 1):
+        n = origin_lap + k
+        r = by_lap.get(n)
+        ok = (r is not None and stint is not None and stint['StartLap'] <= n <= stint['EndLap']
+              and is_clean_lap(r))
+        times.append(_number(r.get('LapTimeSeconds')) if ok else np.nan)
+    pit = 0.0
+    if stint is not None and not last_stint and origin_lap + 1 <= stint['EndLap'] <= origin_lap + PREDICT_LEN:
+        pit = 1.0
+    deltas = [t - ref_time if not np.isnan(t) else np.nan for t in times]
+    return deltas, times, pit
+
+
+def samples_from_payload(payload: dict, race: str = None, keep_context: bool = False) -> list:
+    """Every sample of one race: one per driver and origin lap (see the module
+    docstring). Each sample: {race, driver, origin_lap, x (SEQUENCE_LEN x
+    N_FEATURES), y_delta (PREDICT_LEN, NaN = no target), y_time, pit}, plus
+    ctx (the build_window dict) with keep_context."""
+    rows = [r for r in payload.get('lap_times') or [] if isinstance(r, dict)]
+    weather = payload.get('weather_data') or []
+    stints_by_driver = {}
+    for st in build_tyre_strategy(rows):
+        stints_by_driver.setdefault(st['Driver'], []).append(st)
+    out = []
+    for driver, drows in _group_by_driver(rows).items():
+        by_lap = {int(_number(r.get('LapNumber'))): r for r in drows}
+        d_stints = stints_by_driver.get(driver, [])
+        seen = set()
+        for r in drows:
+            end = _lap_end_time(r)
+            if end is None:
                 continue
-
-            has_race = False
-            for sub in event_dir.iterdir():
-                if sub.is_dir() and 'Race' in sub.name:
-                    has_race = True
-                    break
-
-            if not has_race:
+            ctx = features.build_window(drows, driver, session_now=end, weather_rows=weather)
+            if ctx['features'] is None or ctx['origin_lap'] in seen:
                 continue
-
-            folder_name = event_dir.name
-            event_name = re.sub(r'^\d{4}-\d{2}-\d{2}_', '', folder_name)
-            event_name = event_name.replace('_', ' ')
-
-            for _, row in schedule.iterrows():
-                sched_name = str(row.get('EventName', ''))
-                if sched_name and sched_name.replace(' ', '') == event_name.replace(' ', ''):
-                    round_num = int(row['RoundNumber'])
-                    discovered.append((year, round_num, 'fastf1'))
-                    logger.info(f"Discovered FastF1 cache: {year} R{round_num} ({sched_name})")
-                    break
-
-    return discovered
+            seen.add(ctx['origin_lap'])
+            lap = ctx['origin_lap']
+            idx = next((i for i, s in enumerate(d_stints) if s['StartLap'] <= lap <= s['EndLap']), None)
+            stint = d_stints[idx] if idx is not None else None
+            last_stint = idx is None or idx == len(d_stints) - 1
+            deltas, times, pit = _labels(by_lap, stint, lap, ctx['ref_time'], last_stint)
+            s = {'race': race, 'driver': driver, 'origin_lap': lap, 'x': ctx['features'],
+                 'y_delta': deltas, 'y_time': times, 'pit': pit}
+            if keep_context:
+                s['ctx'] = ctx
+            out.append(s)
+    return out
 
 
-def discover_all_rounds() -> list:
+def prepare_sequences(cache_dir: Path = CACHE_DIR):
     """
-    Discover all available rounds from both JSON cache and FastF1 raw cache.
-    JSON source takes priority (faster to load). Deduplicates by (year, round).
-    Returns list of (year, round_number, source) tuples.
+    Build (X, y, meta) for the LSTM across every cached race payload.
+
+    X:    (n_samples, SEQUENCE_LEN, N_FEATURES) unscaled windows
+    y:    (n_samples, PREDICT_LEN + 1) lap-time deltas to the reference lap
+          (NaN = no target) + the pit label
+    meta: [{race, driver, origin_lap}] per row
     """
-    base_dir = Path(__file__).parent.parent / 'data'
-    json_cache_dir = base_dir / 'processed_cache'
-    # Match the FastF1 cache path used by fastf1_extractor.py (project_root/data/cache)
-    fastf1_cache_dir = Path(__file__).parent.parent.parent / 'data' / 'cache'
-
-    json_rounds = discover_processed_cache_rounds(json_cache_dir)
-    fastf1_rounds = discover_fastf1_cached_rounds(fastf1_cache_dir)
-
-    # JSON takes priority — deduplicate by (year, round)
-    seen = set()
-    merged = []
-    for year, rnd, source in json_rounds:
-        seen.add((year, rnd))
-        merged.append((year, rnd, source))
-
-    for year, rnd, source in fastf1_rounds:
-        if (year, rnd) not in seen:
-            seen.add((year, rnd))
-            merged.append((year, rnd, source))
-
-    merged.sort(key=lambda x: (x[0], x[1]))
-
-    if not merged:
-        logger.warning("No cached races found at all.")
-
-    return merged
-
-
-def load_features_from_json(cache_dir: Path, year: int, round_num: int) -> pd.DataFrame:
-    """
-    Load lap features from a processed JSON cache file.
-    Returns a DataFrame compatible with the sliding window sequence builder.
-    """
-    json_path = cache_dir / f'session_{year}_{round_num}_R.json'
-    with open(json_path) as f:
-        data = json.load(f)
-
-    laps = data.get('lap_times', [])
-    if not laps:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(laps)
-
-    # Filter to laps that have a valid LapTimeSeconds
-    df = df[df['LapTimeSeconds'].notna()].copy()
-    if df.empty:
-        return df
-
-    total_laps = int(df['LapNumber'].max())
-
-    # Encode compound
-    df['compound_encoded'] = df['Compound'].map(COMPOUND_MAP).fillna(1).astype(float)
-
-    # Fuel estimate
-    df['fuel_estimate'] = (total_laps - df['LapNumber'] + 1) / total_laps
-
-    # Track temperature from weather data
-    avg_track_temp = 30.0
-    weather = data.get('weather_data', [])
-    if weather:
-        temps = [w['TrackTemp'] for w in weather if w.get('TrackTemp') is not None]
-        if temps:
-            avg_track_temp = sum(temps) / len(temps)
-    df['track_temp'] = avg_track_temp
-
-    # DRS
-    df['drs_available'] = 0.0
-
-    # GapToLeader — fill NaN with 0
-    if 'GapToLeader' not in df.columns:
-        df['GapToLeader'] = 0.0
-    df['GapToLeader'] = df['GapToLeader'].fillna(0.0)
-
-    # Gap ahead: per-driver diff of GapToLeader
-    df['gap_ahead'] = 0.0
-    for driver in df['Driver'].unique():
-        mask = df['Driver'] == driver
-        df.loc[mask, 'gap_ahead'] = df.loc[mask, 'GapToLeader'].diff().fillna(0)
-
-    # Pit detection
-    if 'PitInTimeSeconds' in df.columns:
-        df['_is_pit'] = df['PitInTimeSeconds'].notna()
-    else:
-        df['_is_pit'] = False
-
-    return df
-
-
-def build_sequences_from_df(features_df: pd.DataFrame, all_X: list, all_y: list):
-    """
-    Build sliding window sequences from a features DataFrame.
-    Appends to all_X and all_y in place.
-    """
-    for driver in features_df['Driver'].unique():
-        df = features_df[features_df['Driver'] == driver].sort_values('LapNumber')
-        df = df.reset_index(drop=True)
-
-        available = [c for c in LAP_FEATURES if c in df.columns]
-        feat_df = df[available].copy()
-
-        feat_df = feat_df.replace([np.inf, -np.inf], np.nan)
-        feat_matrix = feat_df.values.astype(np.float64)
-
-        if len(feat_matrix) < SEQUENCE_LEN + PREDICT_LEN:
-            continue
-
-        for i in range(len(feat_matrix) - SEQUENCE_LEN - PREDICT_LEN):
-            X_seq = feat_matrix[i:i + SEQUENCE_LEN]
-            y_window = feat_matrix[i + SEQUENCE_LEN:i + SEQUENCE_LEN + PREDICT_LEN]
-
-            if np.isnan(X_seq).any() or np.isnan(y_window[:, 0]).any():
-                continue
-
-            window_laps = df.iloc[i:i + SEQUENCE_LEN + PREDICT_LEN]
-            lap_times_in_window = window_laps['LapTimeSeconds'].values if 'LapTimeSeconds' in window_laps.columns else []
-            if len(lap_times_in_window) > 0 and (lap_times_in_window > 150).any():
-                continue
-
-            input_laps = df.iloc[i:i + SEQUENCE_LEN]
-            if '_is_pit' in input_laps.columns and input_laps['_is_pit'].any():
-                continue
-
-            y_times = y_window[:, 0]
-
-            next_laps = df.iloc[i + SEQUENCE_LEN:i + SEQUENCE_LEN + PREDICT_LEN]
-            pit_prob = 0.0
-            if '_is_pit' in next_laps.columns:
-                pit_prob = float(next_laps['_is_pit'].any())
-
-            y_vec = np.append(y_times, pit_prob)
-
-            all_X.append(X_seq)
-            all_y.append(y_vec)
-
-
-def prepare_sequences():
-    """
-    Build (X, y) training data for LSTM across all discovered cached races.
-
-    X: (n_samples, SEQUENCE_LEN, n_features) — past 10 laps
-    y: (n_samples, PREDICT_LEN + 1)          — next 5 lap times + pit probability
-    """
-    base_dir = Path(__file__).parent.parent / 'data'
-    json_cache_dir = base_dir / 'processed_cache'
-
-    rounds = discover_all_rounds()
+    rounds = discover_processed_cache_rounds(cache_dir)
     logger.info(f"Discovered {len(rounds)} race(s) total")
-
-    # Lazy-init FastF1 tools only if needed
-    extractor = None
-    engineer = None
-
-    all_X, all_y = [], []
-
-    for year, round_num, source in rounds:
-        try:
-            logger.info(f"Processing {year} R{round_num} (source: {source})")
-
-            if source == 'json':
-                features_df = load_features_from_json(json_cache_dir, year, round_num)
-                if features_df.empty:
-                    continue
-                build_sequences_from_df(features_df, all_X, all_y)
-
-            else:
-                # FastF1 raw cache path
-                if extractor is None:
-                    extractor = FastF1Extractor()
-                    engineer = FeatureEngineer()
-
-                session = extractor.get_session(year, round_num, "R")
-                lap_times = extractor.extract_lap_times(session)
-                results = extractor.extract_race_results(session)
-                weather = extractor.extract_weather_data(session)
-
-                if lap_times is None or lap_times.empty:
-                    continue
-
-                if 'LapTimeSeconds' not in lap_times.columns and 'LapTime' in lap_times.columns:
-                    lap_times['LapTimeSeconds'] = lap_times['LapTime'].dt.total_seconds()
-
-                total_laps = int(lap_times['LapNumber'].max())
-
-                if results is not None and 'Abbreviation' in results.columns and 'Driver' not in results.columns:
-                    results = results.rename(columns={'Abbreviation': 'Driver'})
-
-                features_df = engineer.prepare_ml_features(lap_times, results, total_laps)
-
-                features_df['compound_encoded'] = features_df['Compound'].apply(engineer.encode_compound)
-                features_df['fuel_estimate'] = (total_laps - features_df['LapNumber'] + 1) / total_laps
-
-                avg_track_temp = 30.0
-                if weather is not None and not weather.empty and 'TrackTemp' in weather.columns:
-                    avg_track_temp = float(weather['TrackTemp'].mean())
-                features_df['track_temp'] = avg_track_temp
-
-                features_df['drs_available'] = 0
-
-                features_df['gap_ahead'] = 0.0
-                for driver in features_df['Driver'].unique():
-                    mask = features_df['Driver'] == driver
-                    features_df.loc[mask, 'gap_ahead'] = features_df.loc[mask, 'GapToLeader'].diff().fillna(0)
-
-                if 'PitInTimeSeconds' not in features_df.columns:
-                    features_df['_is_pit'] = False
-                else:
-                    features_df['_is_pit'] = features_df['PitInTimeSeconds'].notna()
-
-                build_sequences_from_df(features_df, all_X, all_y)
-
-        except Exception as e:
-            logger.warning(f"Failed to process {year} R{round_num}: {e}")
-            import traceback
-            traceback.print_exc()
-            continue
+    all_X, all_y, meta = [], [], []
+    for year, round_num, _ in rounds:
+        rid = race_id(year, round_num)
+        samples = samples_from_payload(load_payload(year, round_num, cache_dir), rid)
+        logger.info(f"{rid}: {len(samples)} windows")
+        for s in samples:
+            all_X.append(s['x'])
+            all_y.append(list(s['y_delta']) + [s['pit']])
+            meta.append({'race': rid, 'driver': s['driver'], 'origin_lap': s['origin_lap']})
 
     if not all_X:
         logger.error("No training sequences generated!")
-        return np.array([]), np.array([]), None
+        return np.zeros((0, SEQUENCE_LEN, features.N_FEATURES), np.float32), np.zeros((0, PREDICT_LEN + 1), np.float32), []
 
-    X = np.array(all_X, dtype=np.float32)
-    y = np.array(all_y, dtype=np.float32)
-
-    logger.info(f"Raw data: X={X.shape}, y={y.shape}")
-
-    # Fit StandardScaler on X features (flatten sequence dim)
-    n_samples, seq_len, n_feat = X.shape
-    X_flat = X.reshape(-1, n_feat)
-    scaler = StandardScaler()
-    X_flat_scaled = scaler.fit_transform(X_flat)
-    X = X_flat_scaled.reshape(n_samples, seq_len, n_feat).astype(np.float32)
-
-    # Compute and store y (lap time) statistics for inverse transform at inference
-    y_time_mean = float(y[:, :PREDICT_LEN].mean())
-    y_time_std = float(y[:, :PREDICT_LEN].std())
-
-    # Normalize y times (first 5 columns), leave pit_prob (last col) as-is
-    y_times_norm = (y[:, :PREDICT_LEN] - y_time_mean) / (y_time_std + 1e-8)
-    y[:, :PREDICT_LEN] = y_times_norm
-
+    X = np.asarray(all_X, dtype=np.float32)
+    y = np.asarray(all_y, dtype=np.float32)
     logger.info(f"Prepared LSTM data: X={X.shape}, y={y.shape}")
-    logger.info(f"y_time_mean={y_time_mean:.3f}, y_time_std={y_time_std:.3f}")
+    return X, y, meta
 
-    return X, y, scaler, y_time_mean, y_time_std
+
+def save_sequences(X, y, meta, output_dir: Path = MODEL_DIR):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    np.save(output_dir / 'lstm_X.npy', X)
+    np.save(output_dir / 'lstm_y.npy', y)
+    # x_sha1 ties the meta rows to these windows (model/train.py race_rows
+    # refuses a meta file saved with other windows)
+    from model.train import windows_fingerprint
+    with open(output_dir / 'lstm_meta.json', 'w', encoding='utf-8') as f:
+        json.dump({'features': features.FEATURES, 'predict_len': PREDICT_LEN,
+                   'x_sha1': windows_fingerprint(X), 'rows': meta}, f)
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    result = prepare_sequences()
-
-    if len(result) == 5:
-        X, y, scaler, y_time_mean, y_time_std = result
-    else:
-        print("No data generated!")
-        sys.exit(1)
-
+    X, y, meta = prepare_sequences()
     if X.size == 0:
         print("No training sequences generated!")
         sys.exit(1)
-
-    output_dir = Path(__file__).parent / 'saved'
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    np.save(output_dir / 'lstm_X.npy', X)
-    np.save(output_dir / 'lstm_y.npy', y)
-    joblib.dump(scaler, output_dir / 'scaler.pkl')
-
-    stats = {'y_time_mean': y_time_mean, 'y_time_std': y_time_std}
-    with open(output_dir / 'data_stats.json', 'w') as f:
-        json.dump(stats, f)
-
-    print(f"Saved: X={X.shape}, y={y.shape}")
-    print(f"Scaler saved to {output_dir / 'scaler.pkl'}")
-    print(f"Stats: y_time_mean={y_time_mean:.3f}, y_time_std={y_time_std:.3f}")
+    save_sequences(X, y, meta)
+    races = sorted({m['race'] for m in meta})
+    print(f"Saved: X={X.shape}, y={y.shape}, {len(races)} races, to {MODEL_DIR}")
+    print(f"Targets present: {np.mean(~np.isnan(y[:, :PREDICT_LEN])):.1%} of lap slots; "
+          f"pit label rate {y[:, PREDICT_LEN].mean():.3f}")

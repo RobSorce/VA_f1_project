@@ -4,6 +4,7 @@ import { activeSegmentWindow } from '../../utils/raceTime';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { focusDriverStatus, qualifyingPositionAt } from '../../utils/views/focusDriverWidget';
+import { focusForecast, forecastPoints, forecastPit, forecastMethodText } from '../../utils/forecast';
 
 function fmtTime(s) {
   if (!s || s <= 0) return '—';
@@ -81,9 +82,10 @@ export default function FocusDriverWidget() {
     );
   }
 
-  const pred = lstmPredictions;
-  const nextLap = pred?.predicted_times?.[0];
-  const pitProb = pred?.pit_probability;
+  // The focus driver's forecast only (double-click a driver), utils/forecast.js
+  const pred = focusForecast(lstmPredictions, focusDriver);
+  const first = forecastPoints(pred)[0] || null;
+  const pitProb = forecastPit(pred).probability;
   const optPit = pred?.optimal_pit_lap;
   const hasPredictions = pred != null;
 
@@ -106,17 +108,17 @@ export default function FocusDriverWidget() {
         </div>
       </div>
 
-      {/* LSTM Predictions */}
+      {/* Lap-time forecast (the served method, named) */}
       <div className="focus-widget__section">
-        <div className="focus-widget__section-title">
+        <div className="focus-widget__section-title" title={hasPredictions ? forecastMethodText(pred) : undefined}>
           Predictions
           {hasPredictions && <span className="focus-widget__pulse" />}
         </div>
         {hasPredictions ? (
           <div className="focus-widget__stats">
-            <div className="focus-widget__stat">
-              <span className="focus-widget__stat-label">Next Lap</span>
-              <span className="focus-widget__stat-value">{fmtTime(nextLap)}</span>
+            <div className="focus-widget__stat" title={hasPredictions ? (pred.lstm_note || pred.reason || '') : undefined}>
+              <span className="focus-widget__stat-label">{first ? `Lap ${first.lap}` : 'Next Lap'}</span>
+              <span className="focus-widget__stat-value">{fmtTime(first?.time)}</span>
             </div>
             <div className="focus-widget__stat">
               <span className="focus-widget__stat-label">Pit Prob</span>
@@ -130,7 +132,7 @@ export default function FocusDriverWidget() {
             )}
           </div>
         ) : (
-          <div className="focus-widget__empty">Waiting for data...</div>
+          <div className="focus-widget__empty">Double-click the driver for a lap-time forecast</div>
         )}
       </div>
 

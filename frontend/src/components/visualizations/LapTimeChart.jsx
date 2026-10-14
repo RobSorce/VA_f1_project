@@ -5,6 +5,10 @@ import { getDriverColor, TYRE_COLORS, countryFlag } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { completedLaps, isLapCompleted, leaderLapEndTime } from '../../utils/raceTime';
 import { TIME_COLORS, qualiSegmentBadges, lapTimingSheet } from '../../utils/views/lapTimeChart';
+import {
+  focusForecast, forecastPoints, forecastMethodLabel, forecastMethodText, forecastPit, forecastHeldOutMae,
+  forecastOriginFeature, FORECAST_LAPS,
+} from '../../utils/forecast';
 import Panel from '../ui/Panel';
 
 
@@ -554,16 +558,21 @@ export default function LapTimeChart() {
           );
         })}
 
-        {/* LSTM predicted rows — show predicted times as table rows */}
-        {focusDriver && lstmPredictions && (() => {
-          const pred = lstmPredictions[focusDriver] || lstmPredictions?.driver_predictions?.[focusDriver];
-          const predTimes = pred?.predicted_times?.filter((t) => t > 0 && t < 300) || [];
-          if (predTimes.length === 0) return null;
+        {/* Lap-time forecast rows of the focus driver (double-click a row):
+            each time at its target lap, named by the method that made it */}
+        {focusDriver && (() => {
+          const pred = focusForecast(lstmPredictions, focusDriver);
+          const points = forecastPoints(pred);
+          if (points.length === 0) return null;
 
           const focusRow = displayRows.find((r) => r.driver === focusDriver);
           if (!focusRow) return null;
 
-          const pitProb = pred?.pit_probability;
+          const { probability: pitProb, label: pitLabel } = forecastPit(pred);
+          // Deltas to the forecast's reference (the window's last clean lap)
+          const refTime = Number.isFinite(pred.window?.ref_time) ? pred.window.ref_time : focusRow.lastLapTime;
+          const originTyreLife = forecastOriginFeature(pred, 'origin_tyre_life');
+          const note = [forecastMethodText(pred), pred.lstm_note, pred.method_note].filter(Boolean).join(' ');
 
           return (
             <>
@@ -575,15 +584,18 @@ export default function LapTimeChart() {
                 borderTop: '1px solid rgba(245, 166, 35, 0.15)',
                 borderBottom: '1px solid rgba(245, 166, 35, 0.08)',
               }}>
-                <span style={{
+                <span title={note} style={{
                   fontSize: '8px', fontWeight: 800, color: '#f5a623',
-                  letterSpacing: '0.08em', textTransform: 'uppercase',
-                }}>LSTM Forecast</span>
+                  letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'help',
+                }}>Forecast · {forecastMethodLabel(pred)}</span>
                 <span style={{
-                  fontSize: '8px', color: 'rgba(255,255,255,0.35)',
-                }}>{focusDriver} — next {predTimes.length} laps</span>
+                  fontSize: '8px', color: 'rgba(255,255,255,0.55)',
+                }}>
+                  {focusDriver} — laps {points[0].lap}-{points[points.length - 1].lap} from lap {pred.lap}
+                  {forecastHeldOutMae(pred) != null && ` · held-out MAE ${forecastHeldOutMae(pred).toFixed(3)} s`}
+                </span>
                 {pitProb != null && (
-                  <span style={{
+                  <span title={pitLabel ? `Pit stop within ${FORECAST_LAPS} laps, by the ${pitLabel}` : undefined} style={{
                     marginLeft: 'auto',
                     fontSize: '8px', fontWeight: 700,
                     padding: '1px 5px', borderRadius: 3,
@@ -595,12 +607,10 @@ export default function LapTimeChart() {
                 )}
               </div>
 
-              {/* Predicted lap rows */}
-              {predTimes.map((time, i) => {
-                const predLap = currentLap + i + 1;
-                // Compute delta vs the last completed lap
-                const lastActualTime = focusRow.lastLapTime;
-                const delta = lastActualTime && lastActualTime > 0 ? time - lastActualTime : null;
+              {/* Predicted lap rows, at their target laps */}
+              {points.map(({ lap: predLap, time }, i) => {
+                // Delta vs the forecast's reference lap (last clean lap)
+                const delta = refTime && refTime > 0 ? time - refTime : null;
 
                 return (
                   <div
@@ -683,7 +693,7 @@ export default function LapTimeChart() {
                       ...cellStyle, justifyContent: 'center',
                       color: 'rgba(255,255,255,0.25)', fontSize: '9px', fontStyle: 'italic',
                     }}>
-                      {focusRow.tyreLife + i + 1}
+                      {originTyreLife != null ? originTyreLife + (predLap - pred.lap) : '—'}
                     </span>
                   </div>
                 );
@@ -692,9 +702,9 @@ export default function LapTimeChart() {
           );
         })()}
 
-        {/* LSTM forecast mini-chart for focused driver */}
+        {/* Forecast mini-chart of the focus driver (the served method) */}
         {focusDriver && (
-          <LSTMForecastChart
+          <ForecastChart
             focusDriver={focusDriver}
             lstmPredictions={lstmPredictions}
             lapTimes={lapTimes}
@@ -835,16 +845,15 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
   );
 }
 
-/* ── LSTM Forecast Mini-Chart: D3 pace trend + prediction overlay ── */
-function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, sessionNow }) {
+/* ── Forecast Mini-Chart: D3 pace trend + the focus driver's forecast ── */
+function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, sessionNow }) {
   const svgRef = useRef(null);
   const tooltipRef = useRef(null);
 
-  const pred = lstmPredictions?.[focusDriver] || lstmPredictions?.driver_predictions?.[focusDriver];
-  const predTimes = useMemo(() => {
-    if (!pred?.predicted_times?.length) return [];
-    return pred.predicted_times.slice(0, 5).filter((t) => t > 0 && t < 300);
-  }, [pred]);
+  // The focus driver's forecast only (utils/forecast.js), at its target laps
+  const pred = focusForecast(lstmPredictions, focusDriver);
+  const predPointsAll = useMemo(() => forecastPoints(pred), [pred]);
+  const predTimes = useMemo(() => predPointsAll.map((p) => p.time), [predPointsAll]);
 
   // Laps of the focused driver completed at sessionNow: the count changes
   // once per lap, so the chart is not redrawn on every replay tick
@@ -885,19 +894,28 @@ function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap,
     const actualPoints = recentLaps.map((d) => ({ lap: d.LapNumber, time: d.LapTimeSeconds, type: 'actual' }));
     const lastActual = actualPoints[actualPoints.length - 1];
 
-    const predPoints = predTimes.map((t, i) => ({ lap: lastActual.lap + i + 1, time: t, type: 'predicted' }));
-    // Connection point for seamless join
-    const connectionPoint = { lap: lastActual.lap, time: lastActual.time, type: 'predicted' };
-    const fullPredLine = [connectionPoint, ...predPoints];
+    // Each forecast at its target lap (origin + 1 ..), joined to the
+    // forecast's reference lap (the window's last clean lap) when it is drawn
+    const predPoints = predPointsAll.map((p) => ({ lap: p.lap, time: p.time, type: 'predicted' }));
+    const refLap = pred?.window?.ref_lap;
+    const anchor = actualPoints.find((d) => d.lap === refLap) || actualPoints.find((d) => d.lap === pred?.lap);
+    const fullPredLine = anchor ? [{ ...anchor, type: 'predicted' }, ...predPoints] : predPoints;
 
     const allPoints = [...actualPoints, ...predPoints];
-    const allTimes = allPoints.map((d) => d.time);
+    // Band = ± the served method's held-out MAE (response held_out; test
+    // races of notes/experiments/phase6/evaluate_forecast.txt); none without it
+    const mae = forecastHeldOutMae(pred);
+    const band = predPoints.flatMap((d) => (mae != null ? [d.time - mae, d.time + mae] : []));
+    const allTimes = [...allPoints.map((d) => d.time), ...band];
     const yMin = d3.min(allTimes);
     const yMax = d3.max(allTimes);
     const yPad = (yMax - yMin) * 0.15 || 0.5;
 
     const xScale = d3.scaleLinear()
-      .domain([actualPoints[0].lap, predPoints.length > 0 ? predPoints[predPoints.length - 1].lap : lastActual.lap])
+      .domain([
+        Math.min(actualPoints[0].lap, predPoints.length > 0 ? predPoints[0].lap : Infinity),
+        Math.max(lastActual.lap, predPoints.length > 0 ? predPoints[predPoints.length - 1].lap : -Infinity),
+      ])
       .range([0, w]);
     const yScale = d3.scaleLinear()
       .domain([yMin - yPad, yMax + yPad])
@@ -909,12 +927,11 @@ function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap,
     ).selectAll('line').attr('stroke', 'rgba(255,255,255,0.04)');
     g.selectAll('.domain').remove();
 
-    // Uncertainty band (±0.3s) around predictions
-    if (predPoints.length > 0) {
+    if (predPoints.length > 0 && mae != null) {
       const uncertainty = d3.area()
         .x((d) => xScale(d.lap))
-        .y0((d) => yScale(d.time + 0.3))
-        .y1((d) => yScale(d.time - 0.3))
+        .y0((d) => yScale(d.time + mae))
+        .y1((d) => yScale(d.time - mae))
         .curve(d3.curveMonotoneX);
       g.append('path')
         .datum(predPoints)
@@ -923,10 +940,10 @@ function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap,
         .attr('opacity', 0.06);
     }
 
-    // Vertical separator at forecast boundary
-    if (predPoints.length > 0) {
+    // Vertical separator at the forecast's origin lap
+    if (predPoints.length > 0 && Number.isFinite(pred?.lap)) {
       g.append('line')
-        .attr('x1', xScale(lastActual.lap)).attr('x2', xScale(lastActual.lap))
+        .attr('x1', xScale(pred.lap)).attr('x2', xScale(pred.lap))
         .attr('y1', 0).attr('y2', h)
         .attr('stroke', 'rgba(255,255,255,0.12)').attr('stroke-dasharray', '2,2');
     }
@@ -976,7 +993,7 @@ function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap,
         if (tooltip) tooltip.style.opacity = '0';
       });
 
-    // "LSTM Forecast" label
+    // The method that made the forecast (method_label of the response)
     if (predPoints.length > 0) {
       g.append('text')
         .attr('x', xScale(predPoints[0].lap))
@@ -984,8 +1001,8 @@ function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap,
         .attr('fill', driverColor)
         .attr('font-size', '7px')
         .attr('font-weight', 700)
-        .attr('opacity', 0.6)
-        .text('LSTM Forecast');
+        .attr('opacity', 0.8)
+        .text(`Forecast: ${forecastMethodLabel(pred)}`);
     }
 
     // Driver label + pit probability
@@ -996,8 +1013,8 @@ function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap,
       .attr('font-weight', 800)
       .text(focusDriver);
 
-    if (pred?.pit_probability != null) {
-      const pitProb = pred.pit_probability;
+    const pitProb = forecastPit(pred).probability;
+    if (pitProb != null) {
       g.append('text')
         .attr('x', w).attr('y', -4)
         .attr('text-anchor', 'end')
@@ -1022,7 +1039,7 @@ function LSTMForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap,
         return m > 0 ? `${m}:${s.padStart(4, '0')}` : s;
       })
     ).selectAll('text').attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px');
-  }, [recentLaps, predTimes, focusDriver, pred, currentLap]);
+  }, [recentLaps, predPointsAll, predTimes, focusDriver, pred, currentLap]);
 
   if (recentLaps.length < 2 && predTimes.length === 0) return null;
 

@@ -25,7 +25,7 @@
 
 **How the system supports this**:
 - The PCA Biplot projects historical driver-race observations into 2D, revealing strategy clusters.
-- Lasso selection on the biplot triggers backend analysis (Cohen's d feature importance, common pit windows, stint patterns).
+- Lasso selection on the biplot triggers backend analysis (descriptive differences per feature: Hedges' g with an interval and a random-selection baseline; common pit windows, stint patterns).
 - The loading vectors on the biplot show which features drive the clustering (e.g., pace-dominant vs tyre-management-dominant strategies).
 - Cross-referencing with the Strategy Analysis panel shows what lap ranges and compound sequences characterize each cluster.
 

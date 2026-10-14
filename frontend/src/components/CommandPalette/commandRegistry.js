@@ -1,4 +1,5 @@
 import { useF1Store } from '../../store/useF1Store';
+import { seasonHasDrs, sessionSeasonOf } from '../../utils/seasons';
 
 /**
  * Simple fuzzy match — checks if all characters in query appear in target in order.
@@ -286,17 +287,20 @@ export function createCommandRegistry() {
     // === ANALYTICS ===
     {
       id: 'predict-pit',
-      label: 'Predict Pit Window (LSTM) + Prediction View',
+      label: 'Lap-Time Forecast of the Focus Driver + Prediction View',
       category: 'Analytics',
       shortcut: '⇧P',
       icon: 'activity',
       action: () => {
+        // The store's one forecast trigger, as a double-click on the driver
+        // (the focus driver, else the first selected one, which becomes the focus)
         const s = getState();
         const driver = s.focusDriver || s.selectedDrivers[0];
         if (driver && s.currentLap >= 2) {
-          s.triggerLSTMPredictions();
+          if (s.focusDriver !== driver) s.setFocusDriver(driver);
+          getState().triggerPrediction(driver, s.currentLap);
         }
-        openOverlayTab(s, 'prediction');
+        openOverlayTab(getState(), 'prediction');
       },
     },
     {
@@ -377,6 +381,8 @@ export function createCommandRegistry() {
         getState().toggleTrackDRS();
         getState().closeCommandPalette();
       },
+      // No DRS from 2026 (utils/seasons.js seasonHasDrs)
+      available: () => seasonHasDrs(sessionSeasonOf(getState())),
     },
     {
       id: 'rotate-track-cw',

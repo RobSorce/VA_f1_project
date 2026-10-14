@@ -9,7 +9,7 @@ import asyncio
 import logging
 import math
 
-from data.processors.degradation import clean_stint_laps, compound_degradation, consistency_sigma, fit_stint
+from data.processors.degradation import clean_stint_laps, compound_degradation, consistency_sigma, fit_stint, median
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,17 @@ MIN_RACE_SHARE = 0.75
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
+# Session type of a request that names none (D16): the race, as every
+# client sent before the parameter existed
+DEFAULT_SESSION_TYPE = "R"
+
+
+def _session_type(session_type) -> str:
+    """The session-type code to load ('R', 'S', 'Q', 'SQ', 'FP1'-'FP3'):
+    upper-cased, DEFAULT_SESSION_TYPE when empty."""
+    code = str(session_type or "").strip().upper()
+    return code or DEFAULT_SESSION_TYPE
+
 
 def _get_load_session():
     """Lazy import to avoid circular dependency."""
@@ -32,10 +43,11 @@ def _get_load_session():
 
 
 @router.get("/sectors/{year}/{round_num}")
-async def get_sector_rankings(year: int, round_num: int):
-    """Rank drivers by best sector time for each sector."""
+async def get_sector_rankings(year: int, round_num: int, session_type: str = DEFAULT_SESSION_TYPE):
+    """Rank drivers by best sector time for each sector, in the session of
+    session_type (D16: the type of the session on screen; default the race)."""
     load_session = _get_load_session()
-    data = await asyncio.to_thread(load_session, year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, _session_type(session_type))
     lap_times = data.get("lap_times", [])
 
     if not lap_times:
@@ -81,25 +93,18 @@ async def get_sector_rankings(year: int, round_num: int):
 
 
 @router.get("/consistency/{year}/{round_num}")
-async def get_consistency(year: int, round_num: int, session_now: Optional[float] = None):
+async def get_consistency(year: int, round_num: int, session_now: Optional[float] = None,
+                          session_type: str = DEFAULT_SESSION_TYPE):
     """Consistency of each driver: the consistency sigma of
     data/processors/degradation.py (consistencySigma in
     frontend/src/utils/degradation.js), laps completed at session_now
-    (session seconds; omitted = the whole race)."""
+    (session seconds; omitted = the whole session), in the session of
+    session_type (D16; default the race)."""
     load_session = _get_load_session()
-    data = await asyncio.to_thread(load_session, year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, _session_type(session_type))
     return await asyncio.to_thread(
         consistency_response, data.get("lap_times", []), data.get("driver_info", []), session_now,
     )
-
-
-def _median(values):
-    a = sorted(values)
-    n = len(a)
-    if not n:
-        return None
-    mid = n // 2
-    return a[mid] if n % 2 else (a[mid - 1] + a[mid]) / 2
 
 
 def _pooled_sigma(fits):
@@ -125,7 +130,9 @@ def consistency_response(lap_times, driver_info_list=None, session_now=None):
       outliers    slow outlier laps of the fitted stints left out
       avg_lap / fastest / slowest / range  over those laps
       cv_percent  sigma / avg_lap x 100
-      is_consistent  sigma <= the median sigma of the drivers listed
+      is_consistent  sigma <= median_sigma, the TRUE median of the listed
+                  drivers' sigmas (D10: degradation.median, the one median
+                  definition; the consistency cards use the same rule)
       insufficient_data  the driver completed fewer race laps than
                   min_laps_threshold (MIN_RACE_SHARE of the race laps so far)
       compounds   per compound of the fitted stints: avg, count,
@@ -188,7 +195,9 @@ def consistency_response(lap_times, driver_info_list=None, session_now=None):
                 "deg_s_per_lap": round(deg, 4),
                 "count": len(ctimes),
                 "fits": len(c_fits),
-                "avg_tyre_life": round(sum(lap["TyreLife"] for lap in c_laps) / len(c_laps), 1),
+                # to 0.1 lap, half up as the cards' Math.round(x * 10) / 10 (round()
+                # is half-even on the binary value: 12.95 gave 12.9 here, 13 there)
+                "avg_tyre_life": math.floor(sum(lap["TyreLife"] for lap in c_laps) / len(c_laps) * 10 + 0.5) / 10,
             }
 
         results.append({
@@ -211,7 +220,7 @@ def consistency_response(lap_times, driver_info_list=None, session_now=None):
             "compounds": compounds,
         })
 
-    median_sigma = _median([r["sigma"] for r in results])
+    median_sigma = median([r["sigma"] for r in results])
     for r in results:
         r["is_consistent"] = r["sigma"] <= median_sigma
 
@@ -230,10 +239,11 @@ def consistency_response(lap_times, driver_info_list=None, session_now=None):
 
 
 @router.get("/speed-rankings/{year}/{round_num}")
-async def get_speed_rankings(year: int, round_num: int):
-    """Rank drivers by speed trap, finish line, and sector speeds."""
+async def get_speed_rankings(year: int, round_num: int, session_type: str = DEFAULT_SESSION_TYPE):
+    """Rank drivers by speed trap, finish line, and sector speeds, in the
+    session of session_type (D16; default the race)."""
     load_session = _get_load_session()
-    data = await asyncio.to_thread(load_session, year, round_num, "R")
+    data = await asyncio.to_thread(load_session, year, round_num, _session_type(session_type))
     lap_times = data.get("lap_times", [])
 
     speed_cols = {

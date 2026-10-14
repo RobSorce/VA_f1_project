@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useF1Store } from '../../store/useF1Store';
+import { yearOptions } from '../../utils/seasons';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 import { CHART_HELP_LIST } from '../../utils/chartHelp';
 
@@ -12,7 +13,6 @@ const SESSION_TYPES = [
   { value: 'FP3', label: 'FP3' },
 ];
 
-const YEARS = [2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018];
 
 const TELEM_CHANNELS = [
   { key: 'speed', label: 'Speed' },
@@ -66,6 +66,11 @@ export default function SettingsTabContent() {
   const fetchSchedule = useF1Store((s) => s.fetchSchedule);
   const loadSession = useF1Store((s) => s.loadSession);
   const isLoading = useF1Store((s) => s.isLoading);
+  // Seasons from GET /api/seasons (store.fetchSeasons, D15); the built-in
+  // list until it answers or when the backend is offline
+  const seasons = useF1Store((s) => s.seasons);
+  const fetchSeasons = useF1Store((s) => s.fetchSeasons);
+  useEffect(() => { fetchSeasons(); }, [fetchSeasons]);
 
   const [loadingDataset, setLoadingDataset] = useState(false);
 
@@ -290,7 +295,7 @@ export default function SettingsTabContent() {
                 value={year}
                 onChange={(e) => handleYearChange(Number(e.target.value))}
               >
-                {YEARS.map((y) => (
+                {yearOptions(seasons, year).map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>

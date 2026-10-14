@@ -48,7 +48,7 @@ const tableStyle = {
 /* -- Memoized Cell component ----------------------------------------------- */
 const PaceCell = React.memo(function PaceCell({
   label, cellStyle, tooltip, dimmed, isHighlighted,
-  onClick, onMouseEnter, onMouseLeave,
+  onClick, onDoubleClick, onMouseEnter, onMouseLeave,
 }) {
   const style = {
     width: CELL_W, minWidth: CELL_W, maxWidth: CELL_W,
@@ -75,6 +75,7 @@ const PaceCell = React.memo(function PaceCell({
       style={style}
       title={tooltip}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -100,7 +101,6 @@ function RacePaceGrid() {
   const toggleDriver = useF1Store((s) => s.toggleDriver);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
-  const triggerLSTMPredictions = useF1Store((s) => s.triggerLSTMPredictions);
   const triggerPrediction = useF1Store((s) => s.triggerPrediction);
 
   // Defensive filter: when we have a real driver_info list, only consider
@@ -182,11 +182,14 @@ function RacePaceGrid() {
   }, [sortedDrivers]);
 
   // -- Handlers --
-  const handleCellClick = useCallback((abbr, lap) => {
-    toggleDriver(abbr);
-    triggerLSTMPredictions();
+  const handleCellClick = useCallback((abbr) => toggleDriver(abbr), [toggleDriver]);
+  // Double-click a cell: that driver becomes the focus and gets the lap-time
+  // forecast from that lap (the store's one trigger; a lap later than the
+  // replay's is clamped to it)
+  const handleCellDoubleClick = useCallback((abbr, lap) => {
+    if (useF1Store.getState().focusDriver !== abbr) setFocusDriver(abbr);
     triggerPrediction(abbr, lap);
-  }, [toggleDriver, triggerLSTMPredictions, triggerPrediction]);
+  }, [setFocusDriver, triggerPrediction]);
 
   const handleHeaderClick = useCallback((abbr) => toggleDriver(abbr), [toggleDriver]);
   const handleHeaderDoubleClick = useCallback((abbr) => setFocusDriver(abbr), [setFocusDriver]);
@@ -347,7 +350,8 @@ function RacePaceGrid() {
                       tooltip={tooltip}
                       isHighlighted={isHighlighted}
                       dimmed={dimmed}
-                      onClick={() => handleCellClick(abbr, lap)}
+                      onClick={() => handleCellClick(abbr)}
+                      onDoubleClick={() => handleCellDoubleClick(abbr, lap)}
                       onMouseEnter={() => handleMouseEnter(abbr)}
                       onMouseLeave={handleMouseLeave}
                     />

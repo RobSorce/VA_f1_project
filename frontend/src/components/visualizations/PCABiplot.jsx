@@ -1,10 +1,22 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as d3 from 'd3';
-import { useF1Store } from '../../store/useF1Store';
-import { getTeamColor } from '../../utils/colors';
+import { useF1Store, sessionScopeOf, pcaRequestOf } from '../../store/useF1Store';
 import { attachLasso } from '../../utils/lasso';
+import {
+  markPath, isLoadedRace, filterPoints, filterOptions, loadedRaceOf, causalPoints,
+  pointFill, teamLegendItems, outcomeLegendItems, shapeLegendItems, tooltipHtml, COLOR_BY,
+} from '../../utils/views/pcaBiplot';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+
+const toggleStyle = (active, disabled = false) => ({
+  padding: '2px 8px', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+  border: '1px solid', borderRadius: 4, cursor: disabled ? 'not-allowed' : 'pointer',
+  background: active ? 'rgba(138,180,248,0.14)' : 'transparent',
+  borderColor: active ? 'rgba(138,180,248,0.40)' : 'rgba(255,255,255,0.14)',
+  color: disabled ? 'rgba(255,255,255,0.35)' : active ? '#8ab4f8' : 'rgba(255,255,255,0.7)',
+  transition: 'all 0.12s',
+});
 
 export default function PCABiplot() {
   const svgRef = useRef(null);
@@ -17,20 +29,57 @@ export default function PCABiplot() {
   const fetchPCAAnalysis = useF1Store((s) => s.fetchPCAAnalysis);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
-  const year = useF1Store((s) => s.year);
-  const round = useF1Store((s) => s.round);
+  // The session on screen (never the pills, D7)
+  const loadedYear = useF1Store((s) => sessionScopeOf(s)?.year ?? null);
+  const loadedRound = useF1Store((s) => sessionScopeOf(s)?.round ?? null);
+  const loadedType = useF1Store((s) => sessionScopeOf(s)?.sessionType ?? null);
+  // Where the weekend's race stands at the clock on screen ('not-started',
+  // 'running', 'ended'; store pcaRequestOf) and the key of the embeddings at
+  // that clock (race, clock state, lap): strings, so the clock ticking within
+  // a lap does not re-render the biplot
+  const raceClock = useF1Store((s) => pcaRequestOf(s).raceClock);
+  const requestKey = useF1Store((s) => pcaRequestOf(s).key);
 
   // Toggle for axis chrome (gridlines + labels + crosshair + loading arrows).
   // Some users want a clean point-cloud; others want the full biplot.
   const [showAxes, setShowAxes] = useState(true);
+  // Which races are drawn ('all' | 'season' | 'race') and what the colour encodes
+  const [filter, setFilter] = useState('all');
+  const [colorBy, setColorBy] = useState('team');
 
-  // Load PCA embeddings on mount
+  const loaded = useMemo(
+    () => loadedRaceOf({ year: loadedYear, round: loadedRound, sessionType: loadedType }),
+    [loadedYear, loadedRound, loadedType],
+  );
+  // Until the race has been run at the clock on screen its result is hidden
+  // and its post-race rows are never drawn (its rows at the clock are)
+  const resultHidden = loaded != null && raceClock !== 'ended';
+  const allPoints = useMemo(() => pcaEmbeddings?.points || [], [pcaEmbeddings]);
+  const points = useMemo(
+    () => causalPoints(allPoints, { loaded, resultHidden }),
+    [allPoints, loaded, resultHidden],
+  );
+  const options = useMemo(() => {
+    // why the race on screen has no row yet at the clock (the answer for that race only)
+    const cr = pcaEmbeddings?.current_race;
+    const reason = cr && loaded && Number(cr.year) === loaded.year && Number(cr.round) === loaded.round
+      ? cr.reason || null
+      : null;
+    return filterOptions(points, loaded, { raceClock: raceClock || 'ended', reason });
+  }, [points, loaded, raceClock, pcaEmbeddings]);
+  // A filter that keeps nothing (no loaded race, or one outside the set) falls back to all
+  const activeFilter = options.find((o) => o.key === filter && !o.disabled) ? filter : 'all';
+  const visible = useMemo(() => filterPoints(points, activeFilter, loaded), [points, activeFilter, loaded]);
+
+  // Load the embeddings on mount and at each new clock key (the race on
+  // screen, the state of its clock, a new lap): during a replay the race's
+  // stars follow the laps completed so far
   useEffect(() => {
     loadPCAEmbeddings();
-  }, [loadPCAEmbeddings]);
+  }, [loadPCAEmbeddings, requestKey]);
 
   useEffect(() => {
-    if (!svgRef.current || !pcaEmbeddings?.points?.length) return;
+    if (!svgRef.current || !points.length) return;
 
     const container = svgRef.current.parentElement;
     const rect = container.getBoundingClientRect();
@@ -46,13 +95,13 @@ export default function PCABiplot() {
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-    const points = pcaEmbeddings.points;
     const loadings = pcaEmbeddings.loadings || [];
     const explained = pcaEmbeddings.explained_variance || [];
     const pc1Label = pcaEmbeddings.pc1_label || 'PC1';
     const pc2Label = pcaEmbeddings.pc2_label || 'PC2';
+    const ctx = { loaded, resultHidden };
 
-    // Scales
+    // Scales over every point, so a filter never moves the points it keeps
     const xExtent = d3.extent(points, (d) => d.x);
     const yExtent = d3.extent(points, (d) => d.y);
     const xPad = (xExtent[1] - xExtent[0]) * 0.12;
@@ -180,60 +229,65 @@ export default function PCABiplot() {
       });
     }
 
-    // Draw points
-    const isCurrentRace = (d) => d.year === year && d.round === round;
+    const selectPoints = (ids) => {
+      setSelectedPCAPoints(ids);
+      if (ids.length > 0) {
+        fetchPCAAnalysis(ids);
+        const uniqueDrivers = [...new Set(ids.map((id) => points.find((p) => p.id === id)?.driver).filter(Boolean))];
+        setSelectedDrivers(uniqueDrivers);
+      } else {
+        setSelectedDrivers([]);
+      }
+    };
+
+    // Draw the points the filter keeps: star = a row of the race on screen,
+    // fill = team or outcome class ('none' = result not shown: outline only)
+    const isLoaded = (d) => isLoadedRace(d, loaded);
 
     g.selectAll('.pca-point')
-      .data(points)
+      .data(visible, (d) => d.id)
       .join('path')
       .attr('class', (d) => {
         let cls = 'pca-point'; // reuse same CSS class
-        if (isCurrentRace(d)) cls += ' pca-point--current';
+        if (isLoaded(d)) cls += ' pca-point--current';
         if (selectedPCAPoints.includes(d.id)) cls += ' selected';
         else if (selectedPCAPoints.length > 0) cls += ' dimmed';
         return cls;
       })
       .attr('transform', (d) => `translate(${x(d.x)},${y(d.y)})`)
-      .attr('d', (d) =>
-        isCurrentRace(d)
-          ? d3.symbol().type(d3.symbolStar).size(120)()
-          : d3.symbol().type(d3.symbolCircle).size(50)()
-      )
-      .attr('fill', (d) => getTeamColor(d.team))
+      .attr('d', (d) => markPath(isLoaded(d)))
+      .attr('fill', (d) => pointFill(d, colorBy, ctx))
+      // hit on the whole mark, outline-only marks included
+      .attr('pointer-events', 'visible')
+      .each(function outline(d) {
+        // an outline-only circle gets a visible stroke (stars have the CSS one)
+        if (pointFill(d, colorBy, ctx) === 'none' && !isLoaded(d)) {
+          d3.select(this).style('stroke', 'var(--color-text-secondary)').style('stroke-width', 1.5);
+        }
+      })
       .on('mouseenter', function (event, d) {
-        d3.select(this).attr('d', d3.symbol().type(isCurrentRace(d) ? d3.symbolStar : d3.symbolCircle).size(150)());
+        d3.select(this).attr('d', markPath(isLoaded(d), true));
         const tooltip = d3.select('body').selectAll('.pca-tooltip').data([0]).join('div')
           .attr('class', 'tooltip pca-tooltip');
-        tooltip.html(
-          `<div class="tooltip-title" style="color:${getTeamColor(d.team)}">${d.driver} — ${d.race_name || 'R' + d.round}</div>` +
-          `<div class="tooltip-row"><span class="tooltip-label">Team</span><span class="tooltip-value">${d.team}</span></div>` +
-          `<div class="tooltip-row"><span class="tooltip-label">Season</span><span class="tooltip-value">${d.year} R${d.round}</span></div>` +
-          `<div style="margin-top:4px;font-size:8px;color:rgba(255,255,255,0.3)">Click to select | Shift+drag to lasso</div>`
-        ).style('left', event.pageX + 12 + 'px').style('top', event.pageY - 10 + 'px')
+        tooltip.html(tooltipHtml(d, ctx))
+          .style('left', event.pageX + 12 + 'px').style('top', event.pageY - 10 + 'px')
           .classed('visible', true).style('opacity', 1);
       })
       .on('mouseleave', function (event, d) {
-        d3.select(this).attr('d', d3.symbol().type(isCurrentRace(d) ? d3.symbolStar : d3.symbolCircle).size(isCurrentRace(d) ? 120 : 50)());
+        d3.select(this).attr('d', markPath(isLoaded(d)));
         d3.select('.pca-tooltip').classed('visible', false).style('opacity', 0);
       })
       .on('click', (event, d) => {
         const ids = selectedPCAPoints.includes(d.id)
           ? selectedPCAPoints.filter((id) => id !== d.id)
           : [...selectedPCAPoints, d.id];
-        setSelectedPCAPoints(ids);
-        if (ids.length > 0) {
-          fetchPCAAnalysis(ids);
-          const uniqueDrivers = [...new Set(ids.map((id) => points.find((p) => p.id === id)?.driver).filter(Boolean))];
-          setSelectedDrivers(uniqueDrivers);
-        } else {
-          setSelectedDrivers([]);
-        }
+        selectPoints(ids);
       });
 
     // Driver highlight rings (Leaderboard coordination)
     if (selectedDrivers.length > 0) {
       g.selectAll('.pca-driver-ring')
-        .data(points.filter((d) => selectedDrivers.includes(d.driver)))
+        .data(visible.filter((d) => selectedDrivers.includes(d.driver)))
         .join('circle')
         .attr('class', 'pca-driver-ring')
         .attr('cx', (d) => x(d.x))
@@ -247,21 +301,12 @@ export default function PCABiplot() {
         .attr('pointer-events', 'none');
     }
 
-    // Lasso selection (shift+drag)
+    // Lasso selection (shift+drag) over the points drawn
     if (cleanupRef.current) cleanupRef.current();
     cleanupRef.current = attachLasso(g, {
       getPoints: () =>
-        points.map((d) => ({ x: x(d.x), y: y(d.y), id: d.id })),
-      onSelect: (ids) => {
-        setSelectedPCAPoints(ids);
-        if (ids.length > 0) {
-          fetchPCAAnalysis(ids);
-          const uniqueDrivers = [...new Set(ids.map((id) => points.find((p) => p.id === id)?.driver).filter(Boolean))];
-          setSelectedDrivers(uniqueDrivers);
-        } else {
-          setSelectedDrivers([]);
-        }
-      },
+        visible.map((d) => ({ x: x(d.x), y: y(d.y), id: d.id })),
+      onSelect: selectPoints,
     });
 
     // Info text
@@ -283,46 +328,68 @@ export default function PCABiplot() {
         .text(`${selectedPCAPoints.length} selected`);
     }
 
-  }, [pcaEmbeddings, selectedPCAPoints, selectedDrivers, year, round, setSelectedPCAPoints, setSelectedDrivers, fetchPCAAnalysis, showAxes]);
+  }, [pcaEmbeddings, points, visible, loaded, resultHidden, colorBy, selectedPCAPoints, selectedDrivers,
+    setSelectedPCAPoints, setSelectedDrivers, fetchPCAAnalysis, showAxes]);
 
   // Cleanup lasso on unmount
   useEffect(() => () => { if (cleanupRef.current) cleanupRef.current(); }, []);
 
-  // Build legend
-  const teamLegend = React.useMemo(() => {
-    if (!pcaEmbeddings?.points) return [];
-    const teams = [...new Set(pcaEmbeddings.points.map((p) => p.team))];
-    const items = teams.slice(0, 10).map((t) => ({
-      label: t,
-      color: getTeamColor(t),
-      shape: 'circle',
-    }));
-    items.push({ label: 'Current Race', color: '#ffd700', shape: 'star' });
-    return items;
-  }, [pcaEmbeddings]);
+  // Legends of the two encodings: colour (team or outcome) and shape
+  const colorLegend = useMemo(
+    () => (colorBy === 'finish'
+      ? outcomeLegendItems(visible, { loaded, resultHidden })
+      : teamLegendItems(visible)),
+    [colorBy, visible, loaded, resultHidden],
+  );
+  const shapeLegend = useMemo(() => shapeLegendItems(visible, loaded), [visible, loaded]);
 
   const clearSelection = () => {
     setSelectedPCAPoints([]);
     setSelectedDrivers([]);
   };
 
-  const axesToggleStyle = {
-    padding: '2px 8px', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
-    border: '1px solid', borderRadius: 4, cursor: 'pointer',
-    background: showAxes ? 'rgba(138,180,248,0.14)' : 'transparent',
-    borderColor: showAxes ? 'rgba(138,180,248,0.40)' : 'rgba(255,255,255,0.14)',
-    color: showAxes ? '#8ab4f8' : 'rgba(255,255,255,0.55)',
-    transition: 'all 0.12s',
-  };
-
   return (
     <Panel
       title="PCA Biplot"
       controls={(
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span role="radiogroup" aria-label="Races drawn" style={{ display: 'inline-flex', gap: 2 }}>
+            {options.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                role="radio"
+                aria-checked={activeFilter === o.key}
+                disabled={o.disabled}
+                style={toggleStyle(activeFilter === o.key, o.disabled)}
+                onClick={() => setFilter(o.key)}
+                title={o.title}
+              >
+                {o.label}
+              </button>
+            ))}
+          </span>
+          <span role="radiogroup" aria-label="Colour encodes" style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+            <span style={{ fontSize: 9, color: 'var(--color-text-secondary)', marginRight: 2 }}>Colour</span>
+            {COLOR_BY.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                role="radio"
+                aria-checked={colorBy === c.key}
+                style={toggleStyle(colorBy === c.key)}
+                onClick={() => setColorBy(c.key)}
+                title={c.key === 'finish'
+                  ? 'Colour = finishing position (podium, points, no points)'
+                  : 'Colour = team'}
+              >
+                {c.label}
+              </button>
+            ))}
+          </span>
           <button
             type="button"
-            style={axesToggleStyle}
+            style={toggleStyle(showAxes)}
             onClick={() => setShowAxes((v) => !v)}
             title={showAxes
               ? 'Hide PCA axes, gridlines, and feature-loading arrows'
@@ -330,12 +397,21 @@ export default function PCABiplot() {
           >
             {showAxes ? 'AXES ON' : 'AXES OFF'}
           </button>
-          <Legend items={teamLegend} shape="circle" />
         </span>
       )}
     >
+      {points.length > 0 && (
+        <div className="pca-legends" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, flexShrink: 0 }}>
+          <Legend
+            title={colorBy === 'finish' ? 'Colour: finish' : 'Colour: team'}
+            items={colorLegend}
+            shape="symbol"
+          />
+          {shapeLegend.length > 0 && <Legend title="Shape" items={shapeLegend} shape="symbol" />}
+        </div>
+      )}
       <div className="viz-container" style={{ position: 'relative' }}>
-        {pcaEmbeddings?.points?.length ? (
+        {points.length ? (
           <>
             <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
             {selectedPCAPoints.length > 0 && (

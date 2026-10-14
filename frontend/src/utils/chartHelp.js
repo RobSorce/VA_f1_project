@@ -18,15 +18,20 @@
  * number is the constant of the module that uses it (imported below), or a
  * prior those modules measured over the cached races
  * (notes/experiments/mc_benchmark.txt, degradation_definition_monza.txt).
+ * The lap-time forecast's accuracy numbers are those of its held-out
+ * evaluation (notes/experiments/phase6/evaluate_forecast.txt, copied in
+ * utils/forecast.js FORECAST_EVALUATION).
  */
 import { FALLBACK_PIT_LOSS } from './pitLoss';
 import { FUEL_EFFECT_S_PER_LAP, MIN_FIT_LAPS, OUTLIER_K } from './degradation';
 import {
   DEFAULT_NUM_SIMULATIONS, PACE_REF_LAPS, OPTIONAL_STOP_MIN_LAPS_LEFT, PRIORS,
 } from './raceSimulation';
-import { PIT_IN_LAPS_MAX, UNDERCUT_SWEEP_LAPS } from './undercut';
+import { PIT_IN_LAPS_MAX, UNDERCUT_SWEEP_LAPS, STINT_FEASIBLE_QUANTILE } from './undercut';
+import { WHATIF_MARKS, BADGE_INTERVAL_PCT } from './simulationClient';
 import { PACE_WINDOW_LAPS } from './circleOfDoom';
 import { LOW_DATA_FRACTION } from './views/degradationViews';
+import { FORECAST_LAPS, FORECAST_EVALUATION as EVAL } from './forecast';
 
 const PIT_LOSS_METHOD = 'Pit loss is measured from this race\'s green-flag stops: '
   + 'in-lap + out-lap minus twice the driver\'s green-flag median lap; the median over stops is used.';
@@ -47,6 +52,8 @@ const LAP_MODEL = 'Lap model of the race simulation: each lap after the pit wind
   + 'a new set starts from the pace without the wear the old set had; the fresh-tyre delta (this race\'s, else the prior) '
   + 'falls on the first flying lap; the out-lap counts at the in-lap\'s normal time (the pit loss covers the rest).';
 const NUMBER = (v) => v.toLocaleString('en-US');
+// A held-out MAE of the forecast evaluation (utils/forecast.js FORECAST_EVALUATION), seconds
+const S3 = (v) => `${v.toFixed(3)} s`;
 
 export const CHART_HELP = {
   trackmap: {
@@ -76,6 +83,7 @@ export const CHART_HELP = {
       'Purple dot = session best, green = personal best — F1 TV convention.',
       'Drag to brush a lap range; the Tyre Degradation panel auto-fits a regression on the brushed range for the focus driver.',
       'Click a driver\'s line to set focus (highlights across all panels).',
+      `Double-click a driver's row: that driver becomes the focus and gets the forecast of the next ${FORECAST_LAPS} laps (amber rows at their target laps, named by the method that made it; see Race Prediction).`,
     ],
     limitations: [
       'SC / VSC / yellow-flag laps are visually dimmed but not removed — the numbers are real lap times under caution.',
@@ -243,16 +251,18 @@ export const CHART_HELP = {
 
   analytics: {
     title: 'Analytics',
-    summary: 'PCA biplot of per-(driver, race) feature vectors — lasso a cluster to run a Cohen\'s-d analysis.',
+    summary: 'PCA biplot of per-(driver, race) feature vectors — lasso a group to compare it with the other rows.',
     howToRead: [
-      'Each point is a (driver, year, round) pair; axes are the top 2 principal components of 17 features.',
-      'Axis labels show % variance captured by each component.',
-      'Arrows are feature loading vectors — length shows how much a feature drives the projection.',
-      'Lasso-select a cluster → Strategy Analysis panel fills with Cohen\'s-d features separating the cluster.',
+      'Each point is one driver in one cached race; the axes are the first two principal components of standardized pace, sector, consistency, degradation, stint and grid features (pace and sectors relative to the same race\'s field).',
+      'Axis labels show the share of the variance each component captures.',
+      'Arrows are feature loadings — the direction a point moves when that feature rises.',
+      'Filters: all races, the season, or the race of the session on screen (stars). Colour: team, or the finishing class (podium, points, no points).',
+      'During a replay of a cached race its stars are its rows at the replay clock (only the laps completed so far, projected on axes fitted without that race), labelled "at lap N" in the shape legend; its result shows once the race has ended. While another session of the weekend is on screen the race has not started and has no stars.',
+      'Lasso-select (Shift+drag) a group → the Strategy Analysis panel compares it with the other rows (Hedges\' g, its normal-approximation interval, a random baseline with the same mix of rows).',
     ],
     limitations: [
-      'Scaled on 499 rows from 24 cached sessions — new races don\'t reshape the basis in real time (frozen after 8 warmup laps with Procrustes alignment).',
-      'PCA assumes linear feature relationships; non-linear patterns (e.g. wet/dry split) are split across components instead of separated.',
+      'The other races\' points use their whole race; the finishing position is metadata for the colour and the tooltip, never a feature.',
+      'PCA assumes linear feature relationships; non-linear patterns (e.g. wet/dry split) are spread across components instead of separated.',
     ],
     seeAlso: [
       { tabId: 'analysis', label: 'Strategy Analysis' },
@@ -263,18 +273,22 @@ export const CHART_HELP = {
 
   prediction: {
     title: 'Race Prediction',
-    summary: 'LSTM-based lap-time forecast (next 5 laps) + pit-stop probability + Monte Carlo position projections.',
+    summary: `Focus driver's lap-time forecast (next ${FORECAST_LAPS} laps; double-click a driver) + pit-stop probability + Monte Carlo position projections.`,
     howToRead: [
-      'LSTM block: 5-lap forecast with a colour-coded spread pill (tight = high confidence).',
-      'Chip reads "LSTM" (trained model) or "HEURISTIC" (fallback, MAE ~2-3× worse).',
-      'Optimal pit-lap suggestion + predicted stints.',
-      `Monte Carlo panel (below): ${NUMBER(DEFAULT_NUM_SIMULATIONS)} race-to-flag runs (seeded: the same race state always gives the same result), showing expected position and podium / points probabilities; a badge, the most likely position shown, the battles listed and the risk rows change only when the interval of the share behind them clears the threshold (rule in the badge tooltip), never on Monte Carlo noise alone; the battles listed are those surely among the most likely (fewer rows while pairs are too close to call), green, gold, then the others, each in race order.`,
-      `Monte Carlo inputs, all from the race so far: pace = each driver's last ${PACE_REF_LAPS} clean laps; tyre wear by compound = ${DEGRADATION_RULE}; lap noise = the scatter around those fits, combined with the cached races of the same kind (dry ${PRIORS.lapNoise.dry.value} s, worth ${PRIORS.lapNoise.dry.nu0} degrees of freedom; wet ${PRIORS.lapNoise.wet.value} s), the prior alone before the first fit; stops = when sets of that compound were changed so far this race (sets still running count as still running), one stop forced in a dry race until two dry compounds are used, no optional stop with fewer than ${OPTIONAL_STOP_MIN_LAPS_LEFT} laps left; safety car = episodes so far per lap, pulled toward the average of the ${PRIORS.races} cached races (${PRIORS.safetyCar.episodesPerRace} episode per ${PRIORS.safetyCar.lapsPerRace} laps), shown as "prior" until one happens.`,
+      `Forecast tab: double-click a driver (Leaderboard, Lap Times, Race Pace Grid) to ask for that driver's next ${FORECAST_LAPS} lap times from the laps completed at the replay clock; each time is drawn at its target lap. The chip names the method that made it: the method with the lowest MAE on the ${EVAL.valRaces} validation races is served, and the MAE beside it is that method's on the ${EVAL.testRaces} held-out test races.`,
+      `Held-out test MAE over laps +1..+${FORECAST_LAPS} (${EVAL.source}): LSTM ${S3(EVAL.testMae.lstm)}, last clean lap + compound mean degradation ${S3(EVAL.testMae.compound_mean)}, persistence (next laps = last clean lap) ${S3(EVAL.testMae.persistence)}, per-stint linear extrapolation ${S3(EVAL.testMae.stint_linear)}; the LSTM's error grows from ${S3(EVAL.lstmTestMaeByLap[0])} at lap +1 to ${S3(EVAL.lstmTestMaeByLap[FORECAST_LAPS - 1])} at lap +${FORECAST_LAPS}. Validation MAE, on which the method is chosen: LSTM ${S3(EVAL.valMae.lstm)}, persistence ${S3(EVAL.valMae.persistence)}, compound mean ${S3(EVAL.valMae.compound_mean)}, per-stint linear ${S3(EVAL.valMae.stint_linear)}.`,
+      'The LSTM is served only while it has the best validation MAE. When it does not, the chip names the method served instead and the forecast says the LSTM loses (and by how much); it also says so when the LSTM chosen on validation loses on the test races.',
+      `Pit probability: a stop within ${FORECAST_LAPS} laps, by the method named beside it. Held-out Brier score: LSTM ${EVAL.pitBrier.lstm}, tyre-age logistic regression ${EVAL.pitBrier.tyre_age_logistic}, base rate ${EVAL.pitBrier.base_rate} (LSTM PR-AUC ${EVAL.lstmPitPrAuc}).`,
+      'Optimal pit-lap suggestion + predicted stints (no pit lap without the race distance).',
+      `Monte Carlo panel (below): ${NUMBER(DEFAULT_NUM_SIMULATIONS)} race-to-flag runs (seeded: the same race state always gives the same result), run in a background worker. Each row shows the median finishing position (P label: half of the runs finish there or better; gold = P1-P3, i.e. a podium in at least half of the runs, the same statement as the gold "pod" figure), the places gained (▲, green) or lost (▼, red) from the current position to that one, and the podium probability; rows are listed by the position shown, then the current race position.`,
+      'Every mark drawn from the runs (P label, its gold, the arrow, the row order, the battle colours, the battles listed, the risk rows) changes only on evidence beyond the Monte Carlo error, never on noise alone: a mark moves when the interval of the share behind it clears its threshold, otherwise it keeps its previous state. The marks drawn once per driver or per pair are judged with intervals that hold for the whole table at once (95 % together, not row by row). The battles listed are those surely among the most likely (fewer rows while pairs are too close to call), green, gold, then the others, each in race order.',
+      `Monte Carlo inputs, all from the race so far: pace = each driver's last ${PACE_REF_LAPS} clean laps; tyre wear by compound = ${DEGRADATION_RULE}; lap noise = the scatter of the laps around those per-stint fits, pooled over every stint fitted so far (no prior mixed in; few stints early in the race give a rough value, so the header shows n, the clean laps behind it; before the first fit, the cached races' value: dry ${PRIORS.lapNoise.dry.value} s, wet ${PRIORS.lapNoise.wet.value} s); stops = when sets of that compound were changed so far this race (sets still running count as still running), one stop forced in a dry race until two dry compounds are used, no optional stop with fewer than ${OPTIONAL_STOP_MIN_LAPS_LEFT} laps left; safety car = episodes so far per lap, pulled toward the average of the ${PRIORS.races} cached races (${PRIORS.safetyCar.episodesPerRace} episode per ${PRIORS.safetyCar.lapsPerRace} laps), shown as "prior" until one happens.`,
       FUEL_ASSUMPTION,
     ],
     limitations: [
-      'Model accuracy varies with conditions: ~0.4 s MAE dry, up to 2.5 s wet. Wet laps push confidence outside the useful range.',
-      'Freshly pitted drivers (first 3-5 laps on new tyres) are the worst-case — see docs/INSIGHTS_HUNGARY_2024.md.',
+      `Accuracy varies with conditions (${EVAL.source}): the LSTM's test MAE per race runs from ${S3(EVAL.lstmRaceMae.low)} to ${S3(EVAL.lstmRaceMae.high)} (${EVAL.lstmRaceMae.highRace}); from a stint on INTERMEDIATE tyres it is ${S3(EVAL.intermediateMae.lstm)}, where compound mean degradation does better (${S3(EVAL.intermediateMae.compound_mean)}).`,
+      `Pit probabilities above 50 % are over-confident on the test races: predicted ${EVAL.lstmPitAbove50.predictedLow}-${EVAL.lstmPitAbove50.predictedHigh}, observed ${EVAL.lstmPitAbove50.observedLow}-${EVAL.lstmPitAbove50.observedHigh}.`,
+      'Too few clean laps of the driver at the clock (green, not lap 1, no pit in-lap or out-lap) give no forecast: at the start, right after a stop or under a long safety car the panel shows the reason instead.',
       'Monte Carlo: no traffic or overtaking difficulty (places come from projected race time), weather not forecast (wet compounds stay), a safety car compresses the gaps by the ratio measured on the cached races; each stop is charged a pit loss drawn around this race\'s median (the labelled fallback before the first measured stop).',
     ],
     seeAlso: [
@@ -292,7 +306,8 @@ export const CHART_HELP = {
       `Both runs (${NUMBER(DEFAULT_NUM_SIMULATIONS)} simulations each) use the same random numbers, so an identical plan differs by exactly 0 and every difference comes from the plan.`,
       'Each planned stop from the lap in progress on is made at the end of its in-lap and charged a pit loss drawn around the race\'s median; stops before it are the race\'s own history.',
       'Distribution bar: expected finish with P10 / P90 confidence band.',
-      'Delta card: Δ position (baseline expected position minus the plan\'s: positive = the plan finishes higher), Δ podium and Δ points probability. The baseline is the model\'s own stops, or a plan picked with "vs".',
+      'Delta card: Δ position (baseline expected position minus the plan\'s: positive = the plan finishes higher; the mean of the run-by-run differences, ± its Monte Carlo error), Δ podium and Δ points probability. The baseline is the model\'s own stops, or a plan picked with "vs".',
+      `Every mark of the result changes only on evidence beyond the Monte Carlo error, never on noise alone: PLACES GAINED / LOST (and the green / red of each difference) only when the interval of the run-by-run difference excludes 0, otherwise NO CLEAR CHANGE (or the previous verdict of the same plan while the difference stays on its side); each card's P label is the median finishing position, moved only beyond the same error; with the model's stops as the baseline, the baseline card shows the Race Prediction panel's P label of the driver (the same run). A mark kept only within the error yields to one beyond it: the plan's card takes the position within its error nearest the baseline's, and a verdict kept only by the previous one becomes NO CLEAR CHANGE. The intervals hold for the ${WHATIF_MARKS} marks of a result together (${BADGE_INTERVAL_PCT} % together, not mark by mark).`,
     ],
     limitations: [
       'The other drivers follow the model\'s stops (when their sets are due by this race\'s stint-life estimate); no reactive pit calls.',
@@ -327,15 +342,19 @@ export const CHART_HELP = {
 
   analysis: {
     title: 'Strategy Analysis',
-    summary: 'Cohen\'s d feature ranking — which metrics separate your PCA/t-SNE lasso selection from the rest.',
+    summary: 'Descriptive differences between a lasso selection on the PCA biplot and the other rows — not a significance test.',
     howToRead: [
-      'Ranked list of features by |Cohen\'s d| — 0.2 small, 0.5 medium, 0.8 large effect.',
-      'Bar length + sign indicates magnitude and direction.',
+      'One row per feature: Hedges\' g (selection mean minus the other rows\' mean, in pooled standard deviations, with the small-sample correction), its normal-approximation interval (g plus or minus the normal quantile times the large-sample standard error of g; Method gives the formula), and N of both groups.',
+      'Shaded band = the |g| a random selection of the same size and the same mix of rows reaches on average; dashed lines = the threshold a feature must pass to be marked "above random" (after a race: a high percentile of the largest |g| over all features in those random selections, one threshold for all; during a replay each feature has its own, the same high percentile of its own random |g|, set so that random selections pass some threshold as rarely as with one threshold for all, because pit stops and stint lengths reach far larger |g| by the mix of rows alone; Method gives it).',
+      'During a replay the rows of the race on screen are taken at the replay clock and the other races are whole races: each random selection holds as many rows of each kind as the selection, and the line under N states the mix and the lap.',
+      'A row marked "progress-dependent" (pit stops, stint lengths, tyre degradation) compares rows of the race on screen, which count only the laps completed so far, with whole races: the two kinds differ in it whatever the drivers did, so read it against the random baseline, which draws the same mix.',
+      'Patterns and Details: the selection\'s tyre strategies, stints and pit windows (in-laps of tyre changes); click a pit window to highlight its laps in the other views.',
+      'Rows of the race on screen during its replay are taken at the replay clock: a note says so, and their stints and stops end there.',
       'Triggered by a lasso selection on the Analytics biplot.',
     ],
     limitations: [
-      'Cohen\'s d assumes roughly normal distributions — heavily skewed features (e.g. pit-loss gaps) can overstate the effect.',
-      'fuel_corrected_pace is always NaN from the disk cache and is skipped.',
+      'The selection was drawn on a projection of these same features, so large |g| values are expected by construction: read each value against the random baseline, not against fixed small / medium / large cut-offs.',
+      'Small selections give wide intervals and a high threshold. A single selected row (a clicked point) gets no interval: one row has no spread of its own, so its rows say "no interval" and show only g, N and the random baseline. A feature with missing values shows its own N.',
     ],
     seeAlso: [
       { tabId: 'analytics', label: 'Analytics (PCA)' },
@@ -344,14 +363,17 @@ export const CHART_HELP = {
 
   racesituation: {
     title: 'Race Situation',
-    summary: 'Live race-state map with exponentially-smoothed features per driver — lasso-select to filter other panels.',
+    summary: 'Live PCA of each driver\'s race state, refitted every lap — lasso-select to filter other panels.',
     howToRead: [
-      'Each driver is a dot positioned by its dominant state features.',
-      'Team colours; focus driver enlarged.',
-      'Lasso selects a subset — a "Clear N selected" action appears when the selection is non-empty.',
+      'Each dot is a driver at this lap, from position, gap to the leader, recent pace, pace trend, tyre age, stint number and position change (completed laps only), standardized with this lap\'s field.',
+      'The two axes span the plane of this lap\'s first two principal components; inside that plane they turn only as much as needed to follow the previous lap (orthogonal Procrustes), so the map does not jump when the two components swap or rotate. During a replay the previous lap\'s axes are those of a replay played from the start, so the same moment of the race looks the same whether it is reached by playing, a seek or a step back. Each axis title gives the share of the variance that axis captures; the line under the lap number gives the plane\'s total.',
+      'Arrows are feature loadings drawn from the field average (the crosshair), one per input in the fit: each dot sits at the crosshair plus its standardized features times the arrows (all arrows share one length scale), so the arrows read the dots exactly.',
+      'Trails show the dots of the last laps; a dot moves to its new place with a short animation.',
+      'Driver colours; focus driver ringed. Lasso selects a subset — a "Clear N selected" action appears when the selection is non-empty.',
     ],
     limitations: [
-      'Exponential smoothing has a ~5-lap half-life; recent jumps (pit stops, SC restarts) take a few laps to fully register.',
+      'Refitted every lap: an axis can change meaning from lap to lap (read its title and the arrows), and a past trail point was drawn on its own lap\'s axes.',
+      'Until every driver has enough clean laps the pace is left out of the fit (a note on the map says so).',
     ],
     seeAlso: [
       { tabId: 'analytics', label: 'Analytics (PCA)' },
@@ -366,6 +388,7 @@ export const CHART_HELP = {
       'Rows = drivers, columns = laps.',
       'Cell colour: green = below median (fast), red = above median (slow), empty = no clean lap.',
       'Use to spot stint-long trends — solid blocks of one colour reveal pace deficits or surges.',
+      `Double-click a cell: that driver becomes the focus and gets the lap-time forecast of the ${FORECAST_LAPS} laps after that lap (a lap later than the replay's counts as the replay's).`,
     ],
     limitations: [
       'Normalisation is whole-race median; cold laps at the start look artificially slow.',
@@ -512,10 +535,11 @@ export const CHART_HELP = {
 
   undercut: {
     title: 'Undercut Calculator',
-    summary: 'Undercut / overcut: for each lap the focus driver could pit on, the gap to a rival at one lap after both have stopped.',
+    summary: 'Undercut / overcut: for each lap the focus driver could pit on, the projected gap to a rival at the flag, both cars on their plans to the finish.',
     howToRead: [
-      `Pit-lap sweep: each row is a candidate in-lap for the focus driver (the lap in progress, "NOW", and the next ${UNDERCUT_SWEEP_LAPS}); the bar is the projected gap to the rival at the end of one lap for every row, the first lap by which both cars have stopped in every row (the latest out-lap of the table). Signed: + (green, right) = focus ahead, − (red, left) = behind. The best row is the largest gap. Reading every row at the same lap keeps the two cars' pace difference the same in every row, so the rows differ only by the tyres: with no traffic, the best row is the stop that balances the wear of the old and the new set up to that lap.`,
-      'The rival stops in every row, before or after the focus: on its likely lap (the lap its set reaches the median life of its compound in this race, given the age it has reached: stint-life survival; the prior of the cached races before this race has data), on a lap picked under RIVAL STOPS, or on its stop in progress.',
+      `Pit-lap sweep: each row is a candidate in-lap for the focus driver (the lap in progress, "NOW", and the next ${UNDERCUT_SWEEP_LAPS}: how many rows are shown, nothing else); the bar is the projected gap to the rival at the flag (the end of the last lap both cars complete), the same lap for every row whatever the table length. Signed: + (green, right) = focus ahead, − (red, left) = behind. The best row is the largest gap. Reading every row at the same lap keeps the two cars' pace difference the same in every row, so the rows differ only by the tyres: with no traffic, the best row is the stop that balances the wear of the old and the new set over the rest of the race.`,
+      'The rival stops in every row, before or after the focus: on its likely lap (the lap its set reaches the median life of its compound in this race, given the age it has reached: stint-life survival; the prior of the cached races before this race has data), on a lap picked under RIVAL STOPS, or on its stop in progress. A lap picked there is dropped (back to the likely lap) once the rival has passed it or has changed tyres since it was picked.',
+      `A plan must be one the tyres can run: every stint up to the flag is held to the tyre age by which ${Math.round(STINT_FEASIBLE_QUANTILE * 100)} % of the sets of its compound are changed (this race's stint-life survival, the cached races' past its data; a modelling choice). A longer stint is charged an extra stop (the pit loss and a new set), for the focus (+n next to the row's lap) and for the rival alike.`,
       `Both cars start from the Circle of Doom pit window: the gap on the latest lap both completed (GAP NOW, + = focus ahead), each car's pace (median of its last ${PACE_WINDOW_LAPS} clean laps) and the pit loss (PIT LOSS cell).`,
       LAP_MODEL,
       'NEW-TYRE GAIN: the focus driver\'s first flying lap on a new set (pitting now) against the same lap on the current set: + = the new set is faster, the per-lap undercut of the model.',
@@ -525,8 +549,9 @@ export const CHART_HELP = {
     ],
     limitations: [
       'No traffic: no time lost behind the rival or other cars, no DRS; the gap is decided by lap times alone, so a faster car behind is projected through.',
-      'The rival stops once, on the lap shown; no other reaction, no safety car.',
-      'The best row depends on the lap the rows are read at (the end of the table): reading them later moves the wear balance, and with it the best lap, later.',
+      'The rival stops on the lap shown (plus any extra stop its stints need); no other reaction, no safety car.',
+      'The paces are held constant to the flag: the pace difference of the two cars over every remaining lap is in the gap (the same in every row), so early in the race the gaps are large and only their differences between rows say which lap is best.',
+      'Linear tyre wear: the best lap is where one more lap on the old set costs as much as one lap fewer on the new set saves. It follows the degradation estimates (the cached races\' until this race has a fit long enough), not the track position an undercut fights for (no traffic).',
       'Early in a stint this race\'s degradation fits can be negative (the track improves faster than the assumed fuel effect). The lap model uses only fits long enough and combines them with the cached races (see Race Prediction); if the estimate is still negative the model makes a new set slower; the panel says so when it happens.',
       'The pit loss is a green-flag value; the time lost to the field by a stop under SC / VSC differs and is not modelled.',
       'Race and sprint sessions only: there is no race pit loss in qualifying or practice.',

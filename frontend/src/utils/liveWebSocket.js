@@ -3,6 +3,13 @@
  *
  * Manages WebSocket connection to /api/live/ws for receiving real-time
  * F1 session data. Includes auto-reconnect with exponential backoff.
+ *
+ * The backend sends its full snapshot as 'session_init' on every connect,
+ * and closes a client that fell behind with code 1013 after a 'resync'
+ * message: the reconnect below then delivers a fresh session_init, from
+ * which the store rebuilds (useF1Store _handleLiveMessage, D14). A socket the
+ * client replaces or closes itself is detached first, so its close event
+ * never schedules a reconnect of its own nor reports a status.
  */
 
 const WS_PATH = '/api/live/ws';
@@ -28,13 +35,31 @@ export class LiveWebSocket {
     this._onStatusChange = onStatusChange;
     this._shouldReconnect = true;
     this._reconnectDelay = 1000;
+    this._clearReconnect();
     this._doConnect();
   }
 
-  _doConnect() {
-    if (this._ws) {
-      try { this._ws.close(); } catch (_) { /* ignore */ }
+  _clearReconnect() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
     }
+  }
+
+  /** Close a socket of ours with its handlers detached (no reconnect, no status). */
+  _closeQuietly(ws) {
+    if (!ws) return;
+    ws.onopen = null;
+    ws.onmessage = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    try { ws.close(); } catch (_) { /* ignore */ }
+  }
+
+  _doConnect() {
+    this._reconnectTimer = null;
+    this._closeQuietly(this._ws);
+    this._ws = null;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = `${protocol}//${window.location.host}${WS_PATH}`;
@@ -91,14 +116,9 @@ export class LiveWebSocket {
    */
   disconnect() {
     this._shouldReconnect = false;
-    if (this._reconnectTimer) {
-      clearTimeout(this._reconnectTimer);
-      this._reconnectTimer = null;
-    }
-    if (this._ws) {
-      this._ws.close();
-      this._ws = null;
-    }
+    this._clearReconnect();
+    this._closeQuietly(this._ws);
+    this._ws = null;
     this._onStatusChange?.('disconnected');
   }
 

@@ -12,7 +12,10 @@ pit entry / exit, stints with TotalLaps / StartLaps. Each lap's events are
 sent in session-time order (lap completions at their Time, pit entries and
 exits, the new stint after the in-lap) with the manager's session clock
 pinned to the event's own session time, so the live rows carry the replay's
-session times (Time, PitInTime, PitOutTime, TrackStatus).
+session times (Time, PitInTime, PitOutTime, TrackStatus); a weather reading
+is sent at the leader's lap start it is in force at, on the same clock
+(D13). When the replay stops or ends the clock is un-pinned: it runs on from
+the last replayed time instead of stamping every later live message with it.
 """
 import asyncio
 import bisect
@@ -189,7 +192,10 @@ class MockReplay:
         )
 
     async def stop(self):
-        """Stop the mock replay."""
+        """Stop the mock replay and un-pin the manager's session clock (it
+        stayed pinned at the last replayed time: after a stopped mock of 2024
+        R16, two live laps fed 0.4 s apart both ended at 6654.29,
+        notes/experiments/phase8/verify_live/r3_pinned_clock_after_mock.txt)."""
         self._running = False
         if self._task:
             self._task.cancel()
@@ -197,7 +203,15 @@ class MockReplay:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        self._unpin()
         logger.info("Mock replay stopped")
+
+    def _unpin(self):
+        """Un-pin the manager's session clock (it then runs on from the last
+        pinned time); a manager without a clock is left alone."""
+        pin = getattr(self.manager, "set_session_time", None)
+        if pin is not None:
+            pin(None)
 
     async def _send(self, topic: str, data: dict, session_time: Optional[float] = None):
         """Send one message, first pinning the manager's session clock to the
@@ -264,10 +278,11 @@ class MockReplay:
                                      race_start)
             await self._send("SessionStatus", {"Status": "Started"}, race_start)
 
-            # 4. Send weather: the reading in force at the race start
+            # 4. Send weather: the reading in force at the race start, on the
+            # session clock (its live Time is that session time)
             w = _weather_at(weather_list, race_start)
             if w is not None:
-                await self.manager.on_message("WeatherData", _weather_message(w))
+                await self._send("WeatherData", _weather_message(w), race_start)
             await asyncio.sleep(0.1)
 
             # 5. Group lap times by lap number and replay them
@@ -474,7 +489,7 @@ class MockReplay:
                 if lap_num % 5 == 0 and lap_window and lap_window[0] is not None:
                     w = _weather_at(weather_list, lap_window[0])
                     if w is not None:
-                        await self.manager.on_message("WeatherData", _weather_message(w))
+                        await self._send("WeatherData", _weather_message(w), lap_window[0])
 
                 # Delay to simulate real-time. The lap's events go out in
                 # session-time order: each track status change at its fraction
@@ -521,6 +536,7 @@ class MockReplay:
             logger.error(f"Mock replay error: {e}", exc_info=True)
         finally:
             self._running = False
+            self._unpin()
 
     @property
     def is_running(self) -> bool:

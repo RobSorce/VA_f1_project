@@ -9,6 +9,7 @@
  */
 
 import { listedBattles, projectionRisks } from './simulationClient';
+import { focusForecast, forecastPoints, forecastMethodLabel, forecastHeldOutMae } from './forecast';
 
 export function generateInsights({
   raceProjection,
@@ -86,18 +87,24 @@ export function generateInsights({
     }
   }
 
-  // Category 4: LSTM forecast insights (pace trajectory)
-  if (focusDriver && lstmPredictions?.[focusDriver]?.predicted_times?.length >= 3) {
-    const times = lstmPredictions[focusDriver].predicted_times;
-    const delta = times[times.length - 1] - times[0];
-    if (Math.abs(delta) >= 0.3) {
+  // Category 4: forecast insights (pace trajectory) of the focus driver's
+  // forecast, named by the method that made it; only a change larger than
+  // that method's held-out MAE (the response's held_out) is reported
+  const forecast = focusForecast(lstmPredictions, focusDriver);
+  const points = forecastPoints(forecast);
+  const mae = forecastHeldOutMae(forecast);
+  if (points.length >= 3 && mae != null) {
+    const delta = points[points.length - 1].time - points[0].time;
+    const label = forecastMethodLabel(forecast);
+    const span = `laps ${points[0].lap}-${points[points.length - 1].lap}`;
+    if (Math.abs(delta) > mae) {
       insights.push({
         id: `lstm-${focusDriver}`,
         category: 'forecast',
         severity: 'info',
         text: delta < 0
-          ? `LSTM forecast: ${focusDriver} is projected to improve pace by ${Math.abs(delta).toFixed(2)}s over the next ${times.length} laps.`
-          : `LSTM forecast: ${focusDriver} is projected to slow by ${delta.toFixed(2)}s over the next ${times.length} laps \u2014 possible degradation onset.`,
+          ? `${label} forecast: ${focusDriver} is projected to improve pace by ${Math.abs(delta).toFixed(2)}s over ${span} (held-out MAE ${mae.toFixed(3)} s).`
+          : `${label} forecast: ${focusDriver} is projected to slow by ${delta.toFixed(2)}s over ${span} (held-out MAE ${mae.toFixed(3)} s) \u2014 possible degradation onset.`,
         actions: [{ label: 'Open Prediction', tab: 'prediction' }],
         confidence: Math.min(1, currentLap / 15),
       });

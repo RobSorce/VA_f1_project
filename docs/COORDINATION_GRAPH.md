@@ -52,6 +52,6 @@ All coordination flows through the Zustand store (`useF1Store.js`). Views emit s
 
 ## Analytics Triggered by Visual Interaction
 
-1. **Lasso on PCA biplot** -> backend `POST /api/tsne/analyze-selection` -> feature importance (Cohen's d), pit windows, stint patterns -> displayed in `PCAAnalysisPanel`
+1. **Lasso on PCA biplot** -> backend `POST /api/pca/analyze-selection` (alias `/api/tsne/analyze-selection`) -> per-feature Hedges' g with interval and random baseline, pit windows, stint patterns -> displayed in `PCAAnalysisPanel`
 2. **Brush on LapTimeChart** -> backend `POST /api/predict/degradation` -> linear regression on brushed range -> displayed in `TireDegradation`
 3. **Click driver in Leaderboard** -> PCA focus highlighting + `raceSituationData.driverFeatures` recomputed with updated driver context

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useF1Store } from '../../store/useF1Store';
+import { yearOptions } from '../../utils/seasons';
 
 export default function SessionSelector() {
   const year = useF1Store((s) => s.year);
@@ -11,6 +12,11 @@ export default function SessionSelector() {
   const setSessionType = useF1Store((s) => s.setSessionType);
   const fetchSchedule = useF1Store((s) => s.fetchSchedule);
   const loadSession = useF1Store((s) => s.loadSession);
+  // Seasons from GET /api/seasons (store.fetchSeasons, D15); the built-in
+  // list until it answers or when the backend is offline
+  const seasons = useF1Store((s) => s.seasons);
+  const fetchSeasons = useF1Store((s) => s.fetchSeasons);
+  useEffect(() => { fetchSeasons(); }, [fetchSeasons]);
 
   useEffect(() => {
     fetchSchedule(year);
@@ -37,7 +43,7 @@ export default function SessionSelector() {
   return (
     <div className="session-selector">
       <select className="select-control" value={year} onChange={handleYearChange}>
-        {[2024, 2023, 2022, 2021, 2020, 2019, 2018].map((y) => (
+        {yearOptions(seasons, year).map((y) => (
           <option key={y} value={y}>{y}</option>
         ))}
       </select>

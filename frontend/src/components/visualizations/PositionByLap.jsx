@@ -81,7 +81,6 @@ export default function PositionByLap() {
   const selectedDrivers = useF1Store(s => s.selectedDrivers);
   const currentLap      = useF1Store(s => s.currentLap);
   const maxLap          = useF1Store(s => s.maxLap);
-  const lstmPredictions = useF1Store(s => s.lstmPredictions);
   const replayActive    = useF1Store(s => s.totalFrames > 0);
   const brushLapRange   = useF1Store(s => s.brushLapRange);
   const setBrushLapRange = useF1Store(s => s.setBrushLapRange);
@@ -328,7 +327,8 @@ export default function PositionByLap() {
       }
     }
 
-    /* ── Layer 5: LSTM projected position ──────────────────────── */
+    /* ── Layer 5: position-trend projection (no model: the focus
+       driver's position change over the last 5 completed laps, extrapolated) */
     if (showProjection && focusDriver && currentLap > 5) {
       const focusLaps = driverLapMap[focusDriver];
       if (focusLaps?.length) {
@@ -479,7 +479,7 @@ export default function PositionByLap() {
     }
 
   }, [lapTimes, dims, focusDriver, selectedDrivers, currentLap, maxLap, effectiveMaxLap,
-      numDrivers, showProjection, showUndercut, replayActive, lstmPredictions, driverLapMap,
+      numDrivers, showProjection, showUndercut, replayActive, driverLapMap,
       allDrivers, brushLapRange, setBrushLapRange, setFocusDriver, pitMarkers]);
 
   /* ── Legend items ─────────────────────────────────────────────── */
@@ -487,7 +487,7 @@ export default function PositionByLap() {
     const items = compoundsUsed
       .filter(c => TYRE_COLORS[c])
       .map(c => ({ type: 'dot', color: TYRE_COLORS[c], label: c }));
-    if (showProjection) items.push({ type: 'dash', color: getDriverColor(focusDriver) || '#888', label: 'PROJECTED' });
+    if (showProjection) items.push({ type: 'dash', color: getDriverColor(focusDriver) || '#888', label: 'POSITION TREND' });
     if (showUndercut) items.push({ type: 'band', color: '#22c55e', label: 'PIT WINDOW' });
     return items;
   }, [compoundsUsed, showProjection, showUndercut, focusDriver]);
@@ -508,7 +508,7 @@ export default function PositionByLap() {
       <button
         className={`pos-chart-toggle${showProjection ? ' pos-chart-toggle--active' : ''}`}
         onClick={() => setShowProjection(p => !p)}
-        title="Toggle position projection"
+        title="Toggle the position-trend projection (the focus driver's recent position change, extrapolated; not a model forecast)"
       >
         PROJECTION
       </button>

@@ -395,10 +395,34 @@ export function viewSessionType(s) {
 }
 
 /**
+ * Identity of the session on screen, for every request and cache key scoped
+ * to one session (D7): { year, round, sessionType } of the replay loadSession
+ * put on screen (store.loadedYear / loadedRound / loadedSessionType, never the
+ * pills, which the session menus change without loading); in live mode the
+ * mock replay's race (store.liveMockSession), the only live session the
+ * backend's /api routes hold cached rows of. null when nothing is loaded and
+ * for a live feed that is not a mock replay (its session has no cached rows).
+ * The store re-exports it (store/useF1Store.js).
+ *
+ * @param {Object} s - store state
+ * @returns {{year: number, round: number, sessionType: string}|null}
+ */
+export function sessionScopeOf(s) {
+  if (s?.isLiveMode) {
+    const mock = s.liveMockSession;
+    return mock?.year && mock?.round ? { year: mock.year, round: mock.round, sessionType: 'R' } : null;
+  }
+  if (!s?.loadedYear || !s?.loadedRound) return null;
+  return { year: s.loadedYear, round: s.loadedRound, sessionType: s.loadedSessionType || 'R' };
+}
+
+/**
  * Request body of a free-text / quick Gemini query (the Pit Wall "AI
  * Strategist" box), for the same /gemini/strategy endpoint as the store's
  * sendGeminiQuery: the same year / round fields (GeminiRequest in
- * backend/api/routers/gemini.py), the type of the session on screen
+ * backend/api/routers/gemini.py) for the session on screen (sessionScopeOf,
+ * never the pills; the pills only when nothing with cached rows is on
+ * screen, as sendGeminiQuery), the type of the session on screen
  * (viewSessionType, R7) so the backend quotes no pit loss outside race
  * sessions, and the focus driver as `drivers` (the request has no `driver`
  * field).
@@ -410,10 +434,11 @@ export function viewSessionType(s) {
  */
 export function geminiQuickQueryBody(s, text) {
   const driver = s?.focusDriver || s?.selectedDrivers?.[0] || null;
+  const scope = sessionScopeOf(s);
   return {
     query: String(text ?? '').trim(),
-    year: s?.year ?? null,
-    round: s?.round ?? null,
+    year: scope?.year ?? s?.year ?? null,
+    round: scope?.round ?? s?.round ?? null,
     session_type: viewSessionType(s),
     drivers: driver ? [driver] : [],
     current_lap: s?.currentLap ?? null,

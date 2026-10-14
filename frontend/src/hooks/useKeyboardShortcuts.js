@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useF1Store } from '../store/useF1Store';
+import { seasonHasDrs, sessionSeasonOf } from '../utils/seasons';
 
 /**
  * One lap step of the arrow keys on the store state. In lap mode (no frames)
@@ -259,10 +260,11 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // D — toggle bottom bar visibility (Shift+D toggles DRS)
+      // D — toggle bottom bar visibility (Shift+D toggles DRS; no DRS from
+      // 2026, utils/seasons.js seasonHasDrs: nothing to toggle then)
       if (e.key === 'D' && e.shiftKey) {
         e.preventDefault();
-        state.toggleTrackDRS();
+        if (seasonHasDrs(sessionSeasonOf(state))) state.toggleTrackDRS();
         return;
       }
       if (e.key === 'd') {
@@ -325,12 +327,14 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Shift+P — trigger LSTM prediction + open prediction view
+      // Shift+P — the lap-time forecast of the focus driver (the store's one
+      // trigger, as a double-click on the driver) + open prediction view
       if (e.key === 'P' && e.shiftKey) {
         e.preventDefault();
         const driver = state.focusDriver || state.selectedDrivers[0];
         if (driver && state.currentLap >= 2) {
-          state.triggerLSTMPredictions();
+          if (state.focusDriver !== driver) state.setFocusDriver(driver);
+          useF1Store.getState().triggerPrediction(driver, state.currentLap);
         }
         state.setActiveTab('prediction');
         return;

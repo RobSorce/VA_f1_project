@@ -6,7 +6,7 @@ import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { stintsByDriver } from '../../utils/stints';
 import { causalKey, simulatorStints } from '../../utils/strategyViews';
 import { DEFAULT_NUM_SIMULATIONS } from '../../utils/raceSimulation';
-import { planFromStints } from '../../utils/simulationClient';
+import { planFromStints, whatIfMarksOf, pairedInterval } from '../../utils/simulationClient';
 import Panel from '../ui/Panel';
 
 const COMPOUNDS = ['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'];
@@ -448,7 +448,7 @@ export default function StrategySimulator() {
                 <ResultCard
                   label="Custom Strategy"
                   pos={simulatorResult.simProjection.expectedPos}
-                  modePos={simulatorResult.simProjection.modePos}
+                  modePos={whatIfMarksOf(simulatorResult).shown.custom}
                   range={simulatorResult.simProjection.posRange}
                   podium={simulatorResult.simProjection.podiumProb}
                   points={simulatorResult.simProjection.pointsProb}
@@ -457,7 +457,7 @@ export default function StrategySimulator() {
                 <ResultCard
                   label={simulatorResult.baselineLabel ? `Baseline: ${simulatorResult.baselineLabel}` : 'Baseline: model stops'}
                   pos={simulatorResult.baselineProjection.expectedPos}
-                  modePos={simulatorResult.baselineProjection.modePos}
+                  modePos={whatIfMarksOf(simulatorResult).shown.baseline}
                   range={simulatorResult.baselineProjection.posRange}
                   podium={simulatorResult.baselineProjection.podiumProb}
                   points={simulatorResult.baselineProjection.pointsProb}
@@ -466,7 +466,11 @@ export default function StrategySimulator() {
               </div>
 
               {/* Delta summary */}
-              <DeltaSummary delta={simulatorResult.delta} />
+              <DeltaSummary
+                delta={simulatorResult.delta}
+                marks={whatIfMarksOf(simulatorResult)}
+                paired={simulatorResult.paired}
+              />
               <div style={{ fontSize: '8px', color: 'var(--color-text-muted)', marginTop: 6, lineHeight: 1.5 }}>
                 {simulatorResult.numSimulations?.toLocaleString('en-US')} sims at L{simulatorResult.computedAtLap},
                 {' '}both runs on the same random numbers: an identical plan differs by exactly 0.
@@ -512,10 +516,10 @@ export default function StrategySimulator() {
                   {comp.result && (
                     <span style={{
                       fontWeight: 700, fontSize: '9px',
-                      color: comp.result.delta.position > 0 ? '#00e676' : comp.result.delta.position < 0 ? '#e10600' : 'var(--color-text-muted)',
+                      color: verdictColor(whatIfMarksOf(comp.result).verdict),
                     }}>
-                      P{comp.result.simProjection.modePos}
-                      {` (${signedPlaces(comp.result.delta.position)})`}
+                      P{whatIfMarksOf(comp.result).shown.custom ?? '—'}
+                      {` (${signedPlaces(shownDifference(comp.result.delta, comp.result.paired))})`}
                     </span>
                   )}
                   <button
@@ -569,40 +573,81 @@ function ResultCard({ label, pos, modePos, range, podium, points, color }) {
       <div style={{ fontSize: '8px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 4, textTransform: 'uppercase' }}>
         {label}
       </div>
-      <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 900, color }}>
+      <div
+        title="Median finishing position: half of the simulations finish there or better (the same rule as the Race Prediction table)"
+        style={{ fontSize: 'var(--font-size-lg)', fontWeight: 900, color }}
+      >
         P{safeMode}
       </div>
       <div style={{ fontSize: '8px', color: 'var(--color-text-muted)' }}>
         avg P{safePos.toFixed(1)} · range P{r0}–P{r1}
       </div>
+      {/* Always shown (a chip hidden at 0 % appeared and disappeared on Monte
+          Carlo noise); gold = the P label is a podium, as in the Race Prediction panel */}
       <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: '8px', flexWrap: 'wrap' }}>
-        {podium > 0 && (
-          <span style={{ color: '#ffd700', fontWeight: 700 }}>
-            {podium}% podium
-          </span>
-        )}
-        {points > 0 && (
-          <span style={{ color: 'var(--color-text-secondary)' }}>
-            {points}% points
-          </span>
-        )}
+        <span style={{ color: modePos <= 3 ? '#ffd700' : 'var(--color-text-secondary)', fontWeight: 700 }}>
+          {podium ?? 0}% podium
+        </span>
+        <span style={{ color: 'var(--color-text-secondary)' }}>
+          {points ?? 0}% points
+        </span>
       </div>
     </div>
   );
 }
 
-/** Signed expected-position difference: "+1.8", "-1.6", "0.0" (positive = places gained). */
+/**
+ * Signed difference in places: "+1.8", "\u22121.6", "0.0" (positive = places
+ * gained); two decimals below 0.1, so a difference beyond the Monte Carlo
+ * error never reads 0.0.
+ */
 function signedPlaces(v) {
   if (!v) return '0.0';
-  return `${v > 0 ? '+' : '\u2212'}${Math.abs(v).toFixed(1)}`;
+  return `${v > 0 ? '+' : '\u2212'}${Math.abs(v).toFixed(Math.abs(v) < 0.095 ? 2 : 1)}`;
 }
 
-function DeltaSummary({ delta }) {
-  // delta.position = baseline expected position - plan's, both from the same
-  // random numbers: exactly 0 for an identical plan, so its sign is the plan's
-  const posColor = delta.position > 0 ? '#00e676' : delta.position < 0 ? '#e10600' : 'var(--color-text-muted)';
-  const posArrow = delta.position > 0 ? '\u25B2' : delta.position < 0 ? '\u25BC' : '\u2022';
-  const posLabel = delta.position > 0 ? 'PLACES GAINED' : delta.position < 0 ? 'PLACES LOST' : 'NO CHANGE';
+/**
+ * The position difference shown: the mean of the run-by-run differences
+ * (paired.position: the baseline's expected position minus the plan's,
+ * unrounded) when known, else delta.position.
+ */
+function shownDifference(delta, paired) {
+  const m = paired?.position?.mean;
+  return Number.isFinite(m) ? m : delta?.position;
+}
+
+/**
+ * Colour of a what-if sign mark (whatIfMarks): green = the plan does better
+ * beyond the Monte Carlo error, red = worse, muted = no difference beyond it.
+ */
+function verdictColor(sign) {
+  return sign > 0 ? '#00e676' : sign < 0 ? '#e10600' : 'var(--color-text-muted)';
+}
+
+/** Half-width of a paired interval (pairedInterval), or null. */
+function pairedHalfWidth(stats) {
+  const iv = pairedInterval(stats);
+  return iv ? (iv[1] - iv[0]) / 2 : null;
+}
+
+function DeltaSummary({ delta, marks, paired }) {
+  // The verdict, its arrow and colour (whatIfMarks): a gain or a loss only
+  // beyond the Monte Carlo error of the run-by-run differences (both runs
+  // share their random numbers), never on noise alone
+  const posColor = verdictColor(marks.verdict);
+  const posArrow = marks.verdict > 0 ? '\u25B2' : marks.verdict < 0 ? '\u25BC' : '\u2022';
+  const posLabel = marks.verdict > 0 ? 'PLACES GAINED' : marks.verdict < 0 ? 'PLACES LOST' : 'NO CLEAR CHANGE';
+  const posHalf = pairedHalfWidth(paired?.position);
+  const share = (k) => {
+    const m = paired?.[k]?.mean;
+    return Number.isFinite(m) ? 100 * m : delta[k];
+  };
+  const pct = (v) => {
+    const r = Math.round(v);
+    return `${r > 0 ? '+' : r < 0 ? '\u2212' : ''}${Math.abs(r)}%`;
+  };
+  const rows = [['Podium', 'podium'], ['Points', 'points']]
+    .filter(([, k]) => paired || delta[k] !== 0);
 
   return (
     <div style={{
@@ -611,30 +656,31 @@ function DeltaSummary({ delta }) {
     }}>
       <div
         style={{ textAlign: 'center' }}
-        title="Expected finishing position of the baseline minus that of the custom strategy (positive = the custom strategy finishes higher)"
+        title={'Expected finishing position of the baseline minus that of the custom strategy (positive = the custom strategy finishes higher), '
+          + 'the mean of the run-by-run differences. Gained or lost only when its Monte Carlo interval (\u00B1) excludes 0; '
+          + 'inside it, NO CLEAR CHANGE (or the previous verdict of this plan while the difference stays on its side).'}
       >
         <div style={{ fontSize: 'var(--font-size-md)', fontWeight: 900, color: posColor }}>
-          {posArrow} {signedPlaces(delta.position)}
+          {posArrow} {signedPlaces(shownDifference(delta, paired))}
         </div>
+        {posHalf != null && (
+          <div style={{ fontSize: '8px', color: 'var(--color-text-muted)' }}>
+            {'\u00B1'}{posHalf.toFixed(2)}
+          </div>
+        )}
         <div style={{ fontSize: '7px', fontWeight: 700, color: posColor, textTransform: 'uppercase' }}>
           {posLabel}
         </div>
       </div>
-      <div style={{ flex: 1, fontSize: '9px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-        {delta.podium !== 0 && (
-          <div>
-            Podium: <span style={{ color: delta.podium > 0 ? '#00e676' : '#e10600', fontWeight: 700 }}>
-              {delta.podium > 0 ? '+' : ''}{delta.podium.toFixed(0)}%
-            </span>
+      <div
+        style={{ flex: 1, fontSize: '9px', color: 'var(--color-text-muted)', lineHeight: 1.6 }}
+        title="Change of the podium / points probability (custom minus baseline), coloured only when beyond the Monte Carlo error"
+      >
+        {rows.map(([label, k]) => (
+          <div key={k}>
+            {label}: <span style={{ color: verdictColor(marks[k]), fontWeight: 700 }}>{pct(share(k))}</span>
           </div>
-        )}
-        {delta.points !== 0 && (
-          <div>
-            Points: <span style={{ color: delta.points > 0 ? '#00e676' : '#e10600', fontWeight: 700 }}>
-              {delta.points > 0 ? '+' : ''}{delta.points.toFixed(0)}%
-            </span>
-          </div>
-        )}
+        ))}
       </div>
     </div>
   );

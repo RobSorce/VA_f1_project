@@ -63,17 +63,21 @@ export default function RaceControlFeed() {
     // have happened at the replay's now (start_time <= sessionNow, session
     // seconds; race over: by the chequered flag), timed on the replay clock
     // (start_time - sessionTimeOffset, the clock of the elapsed-time
-    // capsule). Live: wall-clock times.
+    // capsule). Live: start_time is on the session clock too; the time shown
+    // and the order among the race-control messages (whose timestamps are
+    // wall clock) come from received_at, the wall clock of the change (epoch
+    // s, D13). Without it (an older backend) no wall-clock time is known.
     const statusMsgs = [];
     for (const entry of trackStatus || []) {
       const info = STATUS_MAP[entry.status] || STATUS_MAP['1'];
       const start = Number(entry.start_time);
       if (isLiveMode) {
+        const wall = entry.received_at != null ? liveMs(entry.received_at) : 0;
         statusMsgs.push({
-          time: formatWallClock(liveMs(entry.start_time)),
+          time: formatWallClock(wall),
           message: entry.message || info.label,
           color: info.color,
-          sortKey: liveMs(entry.start_time),
+          sortKey: wall,
         });
         continue;
       }

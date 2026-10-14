@@ -32,15 +32,23 @@ import { driverCompletedLaps } from '../strategyViews';
 export const BRUSH_MIN_LAPS = 3;
 
 /**
- * LOW DATA cut of the consistency cards: a driver whose sigma rests on fewer
- * laps than this fraction of the largest sample in the field is flagged.
- * ASSUMPTION kept from the previous rule (H1/V1.4: a driver who retires early
- * gets an artificially narrow sigma from a small sample, HUL at Sao Paulo
- * 2024). The reference is the field's largest sample, not the leader's lap
- * count, because clean laps leave out lap 1, the pit laps and every non-green
- * lap for every driver alike.
+ * LOW DATA cut of the consistency cards: a driver who completed fewer race
+ * laps than this share of the most laps completed in the field so far is
+ * flagged. ASSUMPTION kept from the previous rule (H1/V1.4: a driver who
+ * retires early gets an artificially narrow sigma from a small sample, HUL at
+ * Sao Paulo 2024), and the same rule as the backend's /consistency
+ * (backend/api/routers/analytics.py MIN_RACE_SHARE): it counts completed
+ * laps, not the clean laps of the sigma, because SC, VSC and wet races leave
+ * full-distance drivers with few clean laps and the flag is for DNFs.
  */
 export const LOW_DATA_FRACTION = 0.75;
+
+/**
+ * Floor of the LOW DATA cut, laps: the backend's max(3, ...) in
+ * analytics.py consistency_response, so both flag the same drivers.
+ * ASSUMPTION kept from that rule, not measured.
+ */
+export const LOW_DATA_MIN_LAPS = 3;
 
 /** The fuel-correction note shown with every fuel-corrected slope. */
 export const FUEL_NOTE = `fuel-corr. = raw + ${FUEL_EFFECT_S_PER_LAP.toFixed(3)} s/lap`
@@ -189,34 +197,62 @@ export function tyreDegradationView(lapTimes, driver, { sessionNow = Infinity, l
   return { stints, yExtent, rangeApplied };
 }
 
+/** Median of a list of numbers (the mean of the two middle values for an even count); null when empty. */
+function trueMedian(values) {
+  const a = [...values].sort((x, y) => x - y);
+  const n = a.length;
+  if (!n) return null;
+  const mid = Math.floor(n / 2);
+  return n % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+}
+
 /**
- * Consistency cards (ConsistencyPanel) at sessionNow, same fields as before:
- * per driver with a consistency sigma (at least one stint fitted)
+ * Consistency cards (ConsistencyPanel) at sessionNow, the fields and rules of
+ * the backend's /consistency (backend/api/routers/analytics.py
+ * consistency_response; frontend == backend per driver, every cached race,
+ * src/__tests__/degradation.consistencyParity.test.js): per driver with a
+ * consistency sigma (at least one stint fitted)
  *  std_dev       consistencySigma: pooled residual sigma of the per-stint
  *                fits, seconds (tyre wear, fuel burn and stops do not count)
  *  sample_size / lap_count  its n (laps of the fitted stints)
  *  outliers      slow outliers left out of the fitted stints
- *  avg_lap, fastest, slowest, range  over the driver's clean laps (every stint)
+ *  avg_lap, fastest, slowest, range  over the laps of the sigma (the clean
+ *                laps of the driver's fitted stints)
  *  cv_percent    std_dev / avg_lap x 100
- *  compounds     per compound: avg (clean laps), count, avg_tyre_life,
- *                deg_slope = compoundDegradation mean of the driver's fitted
- *                stints on it (fuel-corrected s/lap, null when none) and
- *                deg_fits = their number
- *  is_consistent std_dev <= the field's median std_dev (upper median)
- *  insufficient_data  sample_size < minLapsThreshold
- * sorted by avg_lap. minLapsThreshold = floor(LOW_DATA_FRACTION x the largest
- * sample_size); sessionAvg = mean of the listed drivers' clean laps.
+ *  compounds     per compound of the fitted stints: avg, count,
+ *                avg_tyre_life (of those laps), deg_slope =
+ *                compoundDegradation mean of those stints' slopes
+ *                (fuel-corrected s/lap) and deg_fits = their number
+ *  laps_completed  the driver's last completed lap
+ *  is_consistent std_dev <= the median std_dev of the drivers listed (the
+ *                true median: the mean of the two middle values for an even
+ *                count, D10)
+ *  insufficient_data  laps_completed < minLapsThreshold
+ * sorted by avg_lap. minLapsThreshold = max(LOW_DATA_MIN_LAPS,
+ * floor(LOW_DATA_FRACTION x the most laps completed by any driver));
+ * sessionAvg = mean of the laps of every listed sigma.
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
  * @param {number} [sessionNow=Infinity] - session seconds
- * @returns {{drivers: Array<Object>, sessionAvg: number|null, minLapsThreshold: number}}
+ * @returns {{drivers: Array<Object>, sessionAvg: number|null, minLapsThreshold: number,
+ *   medianSigma: number|null}}
  */
 export function consistencyView(lapTimes, sessionNow = Infinity) {
-  const none = { drivers: [], sessionAvg: null, minLapsThreshold: 0 };
+  const none = { drivers: [], sessionAvg: null, minLapsThreshold: 0, medianSigma: null };
   if (!Array.isArray(lapTimes) || lapTimes.length === 0) return none;
   const stints = cleanStintLaps(lapTimes, { sessionNow });
   const fits = stintFits(lapTimes, { sessionNow });
   const drivers = [...new Set(stints.map((s) => s.driver))];
+  // Laps completed per driver (the last lap of its stints at sessionNow), and
+  // the most laps completed in the field: the reference of the LOW DATA cut
+  const lapsCompleted = {};
+  for (const st of stints) lapsCompleted[st.driver] = Math.max(lapsCompleted[st.driver] || 0, st.endLap);
+  let raceLength = 0;
+  for (const n of Object.values(lapsCompleted)) raceLength = Math.max(raceLength, n);
+  const minLapsThreshold = raceLength
+    ? Math.max(LOW_DATA_MIN_LAPS, Math.floor(raceLength * LOW_DATA_FRACTION)) : LOW_DATA_MIN_LAPS;
+  // Stints with a fit (whole-stint fit, as consistencySigma): the laps of the sigma
+  const fitted = new Set(fits.filter((f) => f.slope != null).map((f) => `${f.driver}|${f.stintNumber}`));
 
   const results = [];
   const allClean = [];
@@ -225,7 +261,7 @@ export function consistencyView(lapTimes, sessionNow = Infinity) {
     if (c.sigma == null) continue;
     const laps = [];
     for (const st of stints) {
-      if (st.driver !== drv) continue;
+      if (st.driver !== drv || !fitted.has(`${drv}|${st.stintNumber}`)) continue;
       for (const lt of st.laps) {
         laps.push({ time: Number(lt.LapTimeSeconds), compound: st.compound, tyreLife: Number(lt.TyreLife) });
       }
@@ -270,19 +306,16 @@ export function consistencyView(lapTimes, sessionNow = Infinity) {
       cv_percent: avg > 0 ? (c.sigma / avg) * 100 : 0,
       sample_size: c.n,
       lap_count: c.n,
+      laps_completed: lapsCompleted[drv],
       fitted_stints: c.stints,
       outliers: c.outliers,
       compounds,
     });
   }
 
-  let largest = 0;
-  for (const r of results) largest = Math.max(largest, r.sample_size);
-  const minLapsThreshold = Math.floor(largest * LOW_DATA_FRACTION);
-  const sigmas = results.map((r) => r.std_dev).sort((a, b) => a - b);
-  const medianSigma = sigmas.length ? sigmas[Math.floor(sigmas.length / 2)] : null;
+  const medianSigma = trueMedian(results.map((r) => r.std_dev));
   for (const r of results) {
-    r.insufficient_data = r.sample_size < minLapsThreshold;
+    r.insufficient_data = r.laps_completed < minLapsThreshold;
     r.is_consistent = r.std_dev <= medianSigma;
   }
   results.sort((a, b) => a.avg_lap - b.avg_lap);
@@ -293,5 +326,38 @@ export function consistencyView(lapTimes, sessionNow = Infinity) {
     drivers: results,
     sessionAvg: allClean.length ? total / allClean.length : null,
     minLapsThreshold,
+    medianSigma,
   };
+}
+
+/**
+ * What a brushed degradation fit (POST /api/predict/degradation, the store's
+ * fetchDegradationRegression) depends on at sessionNow: per requested driver,
+ * every stint that overlaps [lapStart, lapEnd] with its number, compound,
+ * first and last completed lap, and its clean laps (cleanStintLaps, slow
+ * outliers removed) inside the range. Two clocks with the same key give the
+ * same stintFits rows, every field (the fit uses exactly these laps; the row
+ * also names the stint's laps so far), so the store re-requests the fit
+ * whenever the key changes (D6): a new lap in the range, a later lap of a
+ * stint still growing (which can change which laps of the range are
+ * outliers), a new stint in the range.
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
+ * @param {string[]} drivers
+ * @param {Object} opts - { sessionNow, lapStart, lapEnd } (session seconds; laps inclusive)
+ * @returns {string}
+ */
+export function brushFitKey(lapTimes, drivers, { sessionNow = Infinity, lapStart, lapEnd } = {}) {
+  if (!Array.isArray(lapTimes) || !Array.isArray(drivers)) return '';
+  const lo = finite(lapStart) ?? -Infinity;
+  const hi = finite(lapEnd) ?? Infinity;
+  return drivers.map((drv) => {
+    const parts = [];
+    for (const st of cleanStintLaps(lapTimes, { sessionNow, driver: drv })) {
+      if (st.endLap < lo || st.startLap > hi) continue;
+      const laps = st.laps.map((lt) => Number(lt.LapNumber)).filter((n) => n >= lo && n <= hi);
+      parts.push(`${st.stintNumber}:${st.compound}:${st.startLap}-${st.endLap}:${laps.join('.')}`);
+    }
+    return `${drv}=${parts.join('/')}`;
+  }).join(';');
 }

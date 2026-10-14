@@ -22,8 +22,8 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from data.extractors.fastf1_extractor import FastF1Extractor, get_sample_session_data
-from data.processors.feature_engineering import FeatureEngineer, create_race_features
-from data.processors.tsne_compute import load_embeddings, load_pca_embeddings, analyze_selection
+from data.processors.feature_engineering import FeatureEngineer
+from data.processors.pca_compute import load_embeddings, load_pca_embeddings, pca_embeddings_at, analyze_selection
 from data.processors.stints import build_tyre_strategy
 from utils.json_helpers import clean_dataframe_for_json
 
@@ -459,9 +459,10 @@ async def get_session_data(year: int, round_num: int, session_type: str = "R"):
 
 
 @app.get("/api/laptimes/{year}/{round_num}")
-async def get_lap_times(year: int, round_num: int, driver: Optional[str] = None):
-    """Get lap times for a session, optionally filtered by driver."""
-    data = await asyncio.to_thread(load_session, year, round_num, "R")
+async def get_lap_times(year: int, round_num: int, driver: Optional[str] = None, session_type: str = "R"):
+    """Get lap times for a session (session_type, default the race; D16),
+    optionally filtered by driver."""
+    data = await asyncio.to_thread(load_session, year, round_num, session_type)
     lap_times = data['lap_times']
 
     if driver:
@@ -511,41 +512,45 @@ async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[in
 
 
 @app.get("/api/circuit/{year}/{round_num}")
-async def get_circuit_info(year: int, round_num: int):
-    """Get circuit information including track coordinates."""
-    data = await asyncio.to_thread(load_session, year, round_num, "R")
+async def get_circuit_info(year: int, round_num: int, session_type: str = "R"):
+    """Get circuit information including track coordinates (session_type,
+    default the race; D16)."""
+    data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return data['circuit_info']
 
 
 @app.get("/api/strategy/{year}/{round_num}")
-async def get_tyre_strategy(year: int, round_num: int):
-    """Get tyre strategy data for all drivers (one stint per tyre set)."""
-    data = await asyncio.to_thread(load_session, year, round_num, "R")
+async def get_tyre_strategy(year: int, round_num: int, session_type: str = "R"):
+    """Get tyre strategy data for all drivers (one stint per tyre set) of the
+    session of session_type (default the race; D16: the frontend sends the
+    session on screen)."""
+    data = await asyncio.to_thread(load_session, year, round_num, session_type)
     # load_session rebuilt tyre_strategy from the lap rows' Stint column
     return {"strategies": data['tyre_strategy']}
 
 
 @app.get("/api/drivers/{year}/{round_num}")
-async def get_drivers(year: int, round_num: int):
-    """Get driver information for a session."""
-    data = await asyncio.to_thread(load_session, year, round_num, "R")
+async def get_drivers(year: int, round_num: int, session_type: str = "R"):
+    """Get driver information for a session (session_type, default the race)."""
+    data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return {"drivers": data['driver_info']}
 
 
 @app.get("/api/results/{year}/{round_num}")
-async def get_results(year: int, round_num: int):
-    """Get race results."""
-    data = await asyncio.to_thread(load_session, year, round_num, "R")
+async def get_results(year: int, round_num: int, session_type: str = "R"):
+    """Get the results of a session (session_type, default the race)."""
+    data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return {"results": data['race_results']}
 
 
 @app.get("/api/positions/{year}/{round_num}")
-async def get_positions(year: int, round_num: int):
-    """Get position telemetry data for all drivers throughout the race."""
+async def get_positions(year: int, round_num: int, session_type: str = "R"):
+    """Get position telemetry data for all drivers throughout the session
+    (session_type, default the race)."""
     try:
         def _fetch():
             with _fastf1_lock:
-                session = get_raw_session(year, round_num, "R")
+                session = get_raw_session(year, round_num, session_type)
                 return extractor.extract_position_data(session)
 
         return await asyncio.to_thread(_fetch)
@@ -583,9 +588,9 @@ async def get_race_frames(year: int, round_num: int, session_type: str = "R"):
 
 
 @app.get("/api/weather/{year}/{round_num}")
-async def get_weather(year: int, round_num: int):
-    """Get weather data for a session."""
-    data = await asyncio.to_thread(load_session, year, round_num, "R")
+async def get_weather(year: int, round_num: int, session_type: str = "R"):
+    """Get weather data for a session (session_type, default the race)."""
+    data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return {"weather": data['weather_data']}
 
 
@@ -937,7 +942,7 @@ async def get_championship(year: int, load_all: bool = False):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============= t-SNE Endpoints =============
+# ============= PCA / t-SNE Endpoints =============
 
 @app.get("/api/tsne/embeddings")
 async def get_tsne_embeddings():
@@ -955,9 +960,21 @@ async def get_tsne_embeddings():
 
 
 @app.get("/api/pca/embeddings")
-async def get_pca_embeddings():
-    """Return pre-computed PCA embeddings with loadings, auto-building if needed."""
-    embeddings = await asyncio.to_thread(load_pca_embeddings)
+async def get_pca_embeddings(year: Optional[int] = None, round: Optional[int] = None,
+                             session_now: Optional[float] = None):
+    """Return PCA embeddings with loadings, auto-building if needed.
+
+    Without parameters: the pre-computed biplot, every point a post-race row
+    (as_of 'post-race'). With year and round (the race being replayed): the
+    basis is fitted without that race and its points are its rows at
+    session_now (session seconds; laps completed by then only, as_of
+    'session_now'); omit session_now for its post-race rows. See
+    data/processors/pca_compute.py pca_embeddings_at.
+    """
+    if year is not None and round is not None:
+        embeddings = await asyncio.to_thread(pca_embeddings_at, year, round, session_now)
+    else:
+        embeddings = await asyncio.to_thread(load_pca_embeddings)
     if embeddings is None:
         return {
             'points': [],
@@ -972,35 +989,39 @@ async def get_pca_embeddings():
     return embeddings
 
 
-class TSNEProjectRequest(BaseModel):
-    features: Dict[str, float]
-
-@app.post("/api/tsne/project")
-async def project_tsne(request: TSNEProjectRequest):
-    """Project current qualifying data into t-SNE space."""
-    # Simplified: return nearest existing point
-    embeddings = load_embeddings()
-    if not embeddings:
-        raise HTTPException(status_code=404, detail="No embeddings available")
-    return {"projected": embeddings['points'][0] if embeddings['points'] else {}}
-
-
-class TSNEAnalyzeRequest(BaseModel):
+class PCAAnalyzeRequest(BaseModel):
     point_ids: List[str]
+    # The race being replayed and its clock: its rows, stints and stops are
+    # taken at session_now (None = post-race)
+    year: Optional[int] = None
+    round: Optional[int] = None
+    session_now: Optional[float] = None
 
+@app.post("/api/pca/analyze-selection")
+async def analyze_pca_selection(request: PCAAnalyzeRequest):
+    """Descriptive analysis of a lasso selection on the PCA biplot: Hedges' g
+    with its 95% interval (none for a group of one row), N and a random-selection baseline per
+    feature, plus the stints and pit windows of the selected rows (see
+    data/processors/pca_compute.py analyze_selection). With year / round /
+    session_now the rows, stints and stops of that race are taken at the
+    clock, and the answer's current_race says so."""
+    return await asyncio.to_thread(analyze_selection, request.point_ids, None,
+                                   request.year, request.round, request.session_now)
+
+
+# Former name of /api/pca/analyze-selection, kept as an alias
 @app.post("/api/tsne/analyze-selection")
-async def analyze_tsne_selection(request: TSNEAnalyzeRequest):
-    """Analyze strategy patterns for selected t-SNE points."""
-    import asyncio
-    result = await asyncio.to_thread(analyze_selection, request.point_ids)
-    return result
+async def analyze_tsne_selection(request: PCAAnalyzeRequest):
+    """Alias of /api/pca/analyze-selection."""
+    return await analyze_pca_selection(request)
 
 
 @app.get("/api/tsne/point-features/{point_id}")
 async def get_point_features(point_id: str):
-    """Get raw feature values for a specific t-SNE point."""
+    """Get the feature values of one biplot point (post-race row)."""
     import pandas as pd
-    csv_path = Path(__file__).parent.parent / 'data' / 'processed' / 'tsne_feature_matrix.csv'
+    from data.processors.pca_compute import FEATURE_COLS, MATRIX_FILE, PROCESSED_DIR
+    csv_path = PROCESSED_DIR / MATRIX_FILE
     if not csv_path.exists():
         raise HTTPException(status_code=404, detail="Feature matrix not found")
 
@@ -1014,7 +1035,6 @@ async def get_point_features(point_id: str):
     if match.empty:
         raise HTTPException(status_code=404, detail="Point not found")
 
-    from data.processors.tsne_compute import FEATURE_COLS
     row = match.iloc[0]
     features = {}
     for col in FEATURE_COLS:

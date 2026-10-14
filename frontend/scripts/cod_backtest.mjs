@@ -3,8 +3,9 @@
  * on every cached race, against backend/scripts/validate_pit_loss_and_rejoin.py.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
- *     npx vite-node scripts/cod_backtest.mjs
- * Writes notes/experiments/cod_backtest.txt and prints the same text.
+ *     npx vite-node scripts/cod_backtest.mjs [--out <file>]
+ * Writes notes/experiments/cod_backtest.txt (or the --out file, relative to
+ * frontend/) and prints the same text.
  *
  * Stops: every green stop as defined by the validation script (green_stops):
  * in-lap n with a pit entry, out-lap n + 1 with a pit exit, laps n - 1, n,
@@ -65,7 +66,10 @@ import { hasPitIn, hasPitOut } from '../src/utils/raceTime.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.resolve(HERE, '../../backend/data/processed_cache');
-const OUT_FILE = path.resolve(HERE, '../../notes/experiments/cod_backtest.txt');
+const OUT_ARG = process.argv.indexOf('--out');
+const OUT_FILE = OUT_ARG > 0
+  ? path.resolve(process.argv[OUT_ARG + 1])
+  : path.resolve(HERE, '../../notes/experiments/cod_backtest.txt');
 const FALLBACK = 22.0; // the script's FALLBACK
 
 const pct = (k, n) => (n ? `${((100 * k) / n).toFixed(1)}%` : 'n/a');

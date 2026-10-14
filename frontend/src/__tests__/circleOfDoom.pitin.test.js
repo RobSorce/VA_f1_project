@@ -53,7 +53,7 @@ const { useF1Store } = await import('../store/useF1Store.js');
 const { default: CircleOfDoom } = await import('../components/visualizations/CircleOfDoom.jsx');
 const { pitInLapsKeyStep, isTypingTarget } = await import('../hooks/useKeyboardShortcuts.js');
 const { circleState, pitWindow } = await import('../utils/circleOfDoom.js');
-const { pitInLaps, PIT_IN_LAPS_MAX } = await import('../utils/undercut.js');
+const { pitInLaps, PIT_IN_LAPS_MAX, STINT_FEASIBLE_QUANTILE } = await import('../utils/undercut.js');
 const { extractRaceParams } = await import('../utils/raceSimulation.js');
 const { estimatePitLoss } = await import('../utils/pitLoss.js');
 const { computeSessionTimeOffset } = await import('../utils/raceTime.js');
@@ -317,9 +317,14 @@ describe('help texts of this round (chartHelp.js, App.jsx)', () => {
     expect(circle).toMatch(/no stops by the other cars unless "rivals stop" is on/);
     expect(circle).toMatch(/fresh-tyre delta/);
     const undercut = all(CHART_HELP.undercut);
-    // every row read at one lap, the first by which both cars have stopped in every row
-    expect(undercut).toMatch(/the first lap by which both cars have stopped in every row/);
+    // every row read at one lap, the flag, whatever the table length (D2); stints held to their P90 length
+    expect(undercut).toMatch(/the projected gap to the rival at the flag/);
+    expect(undercut).toMatch(/the same lap for every row whatever the table length/);
     expect(undercut).toMatch(/pace difference the same in every row/);
+    expect(undercut).toContain(`${Math.round(STINT_FEASIBLE_QUANTILE * 100)} % of the sets of its compound`);
+    expect(undercut).toMatch(/charged an extra stop/);
+    expect(undercut).toMatch(/dropped \(back to the likely lap\) once the rival has passed it or has changed tyres/);
+    expect(undercut).not.toMatch(/the end of the table/);
     expect(undercut).toContain(`${PRIORS.degradation.MEDIUM.minFitLaps} MEDIUM`);
     expect(undercut).toMatch(/The rival stops in every row, before or after the focus/);
     expect(undercut).toMatch(/No traffic/);

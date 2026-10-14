@@ -76,6 +76,39 @@ def test_edges():
     assert optimal_pit_lap(0.3, 59, 60) == 60     # race end: the next lap
 
 
+EXTREME_P = [0.0, 5e-324, 1e-300, 1e-17, 1e-16, 1.1e-16, 2e-16, 1e-12,
+             0.49, 0.5, 0.51, 1 - 1e-12, 1 - 1e-16, 1 - 1e-17, 1.0]
+
+
+def test_extreme_probabilities_never_raise():
+    """D10 / G3: p tiny (log(1 - p) == 0.0 for p < ~1.1e-16 divided by zero),
+    p a denormal (k overflows a float), p 1 - 1e-17 (rounds to 1) and the
+    exact edges 0 and 1: a lap count or inf, never an exception, and the
+    mapping stays non-increasing on a grid that mixes them with the dense one."""
+    for p in EXTREME_P:
+        k = laps_until_pit(p)
+        assert k == math.inf or (isinstance(k, int) and k >= 1), (p, k)
+        lap = optimal_pit_lap(p, 20, 60)
+        assert isinstance(lap, int) and 21 <= lap <= 58, (p, lap)
+    grid = sorted(set(GRID) | set(EXTREME_P))
+    assert non_increasing([laps_until_pit(p) for p in grid])
+    assert non_increasing([optimal_pit_lap(p, 20, 60) for p in grid])
+    # a tiny but positive p projects a finite stop far away (no stop in the race)
+    assert laps_until_pit(1e-17) > 10 ** 16 and optimal_pit_lap(1e-17, 20, 60) == 58
+    assert laps_until_pit(5e-324) == math.inf
+    assert laps_until_pit(1 - 1e-17) == 1 and laps_until_pit(1 - 1e-12) == 1
+    print('extreme p:', {p: laps_until_pit(p) for p in EXTREME_P})
+
+
+def test_router_and_model_never_raise_on_extreme_probabilities():
+    """The two callers of the one mapping (the router's heuristic path and
+    model/predict.py) on the extreme probabilities."""
+    import model.predict as predict
+
+    for p in EXTREME_P:
+        assert predict._compute_optimal_pit_lap(p, 20, 60, 10) == optimal_pit_lap(p, 20, 60)
+
+
 def test_label_horizon_is_the_training_label():
     """PIT_LABEL_HORIZON_LAPS is model/prepare_data.py PREDICT_LEN (read from
     the source: importing prepare_data pulls in FastF1)."""

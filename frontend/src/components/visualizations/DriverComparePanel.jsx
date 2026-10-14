@@ -6,6 +6,7 @@ import { exportAsPng } from '../../utils/exportChart';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { stintsByDriver, pitStops } from '../../utils/stints';
 import { consistencySigma } from '../../utils/degradation';
+import { focusForecast, forecastPoints } from '../../utils/forecast';
 import {
   causalKey, pitCountsByDriver, driverCompletedLaps, stintLapsText,
 } from '../../utils/strategyViews';
@@ -460,18 +461,17 @@ export default function DriverComparePanel() {
         .attr('r', 3).attr('fill', colorB).attr('stroke', '#fff').attr('stroke-width', 1);
     });
 
-    // LSTM prediction overlay (dashed lines for next 3 laps)
+    // Forecast overlay of a driver who has one (the focus driver's, asked by
+    // a double-click): dashed line over its first 3 target laps, from the
+    // forecast's origin lap (target_laps, never the last racing lap + i)
     [{ drv: driverA, color: colorA, laps: racingA },
      { drv: driverB, color: colorB, laps: racingB }].forEach(({ drv, color, laps }) => {
-      const pred = lstmPredictions?.[drv] || lstmPredictions?.driver_predictions?.[drv];
-      if (!pred?.predicted_times?.length || laps.length === 0) return;
-      const lastLap = laps[laps.length - 1];
-      const predPoints = [{ LapNumber: lastLap.LapNumber, LapTimeSeconds: lastLap.LapTimeSeconds }];
-      pred.predicted_times.slice(0, 3).forEach((t, i) => {
-        if (t > 0 && t < 300) {
-          predPoints.push({ LapNumber: lastLap.LapNumber + i + 1, LapTimeSeconds: t });
-        }
-      });
+      const pred = focusForecast(lstmPredictions, drv);
+      const points = forecastPoints(pred).slice(0, 3);
+      if (!points.length || laps.length === 0) return;
+      const origin = laps.find((l) => l.LapNumber === pred.lap);
+      const predPoints = origin ? [{ LapNumber: origin.LapNumber, LapTimeSeconds: origin.LapTimeSeconds }] : [];
+      points.forEach((p) => predPoints.push({ LapNumber: p.lap, LapTimeSeconds: p.time }));
       if (predPoints.length > 1) {
         const predLine = d3.line().x((d) => x(d.LapNumber)).y((d) => y(d.LapTimeSeconds)).curve(d3.curveMonotoneX);
         g.append('path').datum(predPoints).attr('d', predLine)

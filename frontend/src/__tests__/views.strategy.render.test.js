@@ -208,6 +208,18 @@ describe.skipIf(!haveMonza)('Race Prediction render (D5 #1, #2)', () => {
     expect(t).toContain(`n=${est30.n}`);
   });
 
+  it('every row carries its podium chip, 0 % included (a chip hidden at 0 % came and went on noise, D5)', () => {
+    monzaAtLap(30);
+    const proj = useF1Store.getState().raceProjection;
+    expect(proj?.projections?.length).toBeGreaterThan(0);
+    expect(proj.projections.some((p) => p.podiumProb === 0)).toBe(true);
+    const t = text(RacePredictionPanel);
+    const rows = (t.match(/now P\d+/g) || []).length;
+    expect(rows).toBeGreaterThan(0);
+    expect((t.match(/\d+% pod(?![a-z])/g) || []).length).toBe(rows);
+    expect(t).toMatch(/(^|[^0-9])0% pod(?![a-z])/);
+  });
+
   it('outside race sessions: no Monte Carlo, an explicit message', () => {
     monzaAtLap(30, { sessionType: 'FP2' });
     const t = text(RacePredictionPanel);

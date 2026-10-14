@@ -5,7 +5,8 @@
  * later, and which stint fit each new clock adds (its driver, the place the
  * driver crossed the line in, its residual sigma). The data for the decision
  * on the 0.3-0.6 s band: does it hold at sub-lap replay clocks or only at the
- * lap-mode clocks and at race level?
+ * lap-mode clocks and at race level? (Decided: D1, phase45c; the done-when
+ * check is scripts/s2_lap_noise.mjs.)
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/lap_noise_subclock.mjs
@@ -29,7 +30,7 @@ const lines = [];
 const out = (x = '') => { lines.push(x); console.log(x); };
 
 out('Lap noise between lap-mode clocks, Monza 2024 (utils/raceSimulation.js lapNoiseFromFits)');
-out(`dry prior ${PRIORS.lapNoise.dry.value} s worth ${PRIORS.lapNoise.dry.nu0} degrees of freedom`);
+out(`lap noise = the race's pooled residual sigma (lead decision D1, no prior mixed in); before the first fit the cached dry races' ${PRIORS.lapNoise.dry.value} s`);
 const t10 = resolveSessionNow({ currentLap: 10, lapTimes: lt });
 out(`leader starts lap 10 at t = ${t10.toFixed(3)} s (the lap-mode clock of lap 10)`);
 out('  t (s)      noise  race   dof  stints  fit added (driver, place on its lap 9, residual sigma s, clean laps)');

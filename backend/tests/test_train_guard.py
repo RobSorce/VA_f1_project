@@ -23,8 +23,15 @@ NO_TORCH = textwrap.dedent("""
     out = Path(sys.argv[2])
     train.MODEL_DIR = out
     rng = np.random.default_rng(0)
-    np.save(out / 'lstm_X.npy', rng.normal(size=(20, 10, 12)))
+    X = rng.normal(size=(20, 10, 12))
+    np.save(out / 'lstm_X.npy', X)
     np.save(out / 'lstm_y.npy', rng.normal(size=(20, 6)))
+    # the race of each window (train.py refuses to train without it)
+    from model.features import FEATURES
+    races = ['2024-1', '2024-2', '2024-3', '2024-4', '2024-5', '2024-6', '2024-7', '2025-1']
+    (out / 'lstm_meta.json').write_text(json.dumps({
+        'features': FEATURES, 'predict_len': 5, 'x_sha1': train.windows_fingerprint(X),
+        'rows': [{'race': races[i % len(races)], 'driver': 'AAA', 'origin_lap': i} for i in range(20)]}))
     (out / 'data_stats.json').write_text(json.dumps({'y_time_mean': 90.0, 'y_time_std': 5.0}))
     print(json.dumps({'torch': train.TORCH_AVAILABLE, 'cls': train.F1LapPredictor is None,
                       'ret': train.train_model() is None,

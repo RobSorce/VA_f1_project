@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import * as api from '../../utils/apiClient';
+import { yearOptions } from '../../utils/seasons';
 
 const SESSION_TYPES = [
   { value: 'FP1', label: 'FP1' },
@@ -11,7 +12,6 @@ const SESSION_TYPES = [
   { value: 'R', label: 'Race' },
 ];
 
-const YEARS = [2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018];
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -49,6 +49,11 @@ export default function SessionMenu({ isOpen, onClose }) {
   const setSessionType = useF1Store((s) => s.setSessionType);
   const fetchSchedule = useF1Store((s) => s.fetchSchedule);
   const loadSession = useF1Store((s) => s.loadSession);
+  // Seasons from GET /api/seasons (store.fetchSeasons, D15); the built-in
+  // list until it answers or when the backend is offline
+  const seasons = useF1Store((s) => s.seasons);
+  const fetchSeasons = useF1Store((s) => s.fetchSeasons);
+  useEffect(() => { fetchSeasons(); }, [fetchSeasons]);
 
   // Live timing state
   const [liveStatus, setLiveStatus] = useState(null);
@@ -323,7 +328,7 @@ export default function SessionMenu({ isOpen, onClose }) {
             value={year}
             onChange={handleYearChange}
           >
-            {YEARS.map((y) => (
+            {yearOptions(seasons, year).map((y) => (
               <option key={y} value={y}>
                 {y} Season
               </option>

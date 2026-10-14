@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   projectionBadges, listedBattles, modePosition, projectionRisks, battleKey, wilsonInterval, BATTLE_LIST_SIZE,
+  shownPositions, positionChange, orderedProjections, withBadges, familyZ, battleLevel, BADGE_Z,
 } from '../utils/simulationClient.js';
 import { evaluateRisks, identifyRisks, RISK_LIST_SIZE } from '../utils/raceSimulation.js';
 import { generateInsights } from '../utils/insightsGenerator.js';
@@ -95,22 +96,88 @@ describe('listedBattles order: badge level, then race order (never the point est
   });
 });
 
-describe('the most likely position shown: hysteresis on the shares', () => {
-  const row = (dist, modePos) => ({ driver: 'DRV', modePos, posDistribution: dist });
-  it('keeps the previous position while its share is within the error of the most frequent one', () => {
-    const r1 = result([], { projections: [row({ 3: 30, 4: 28, 5: 20 }, 3)] });
+describe('the finishing position shown: the median, judged beyond the error of the whole column', () => {
+  // counts per position over N runs
+  const row = (driver, currentPos, posCount) => ({ driver, currentPos, posCount, modePos: null, posDistribution: {} });
+  const res = (rows) => ({ numSimulations: N, projections: rows, battles: [] });
+  // 20 rows, so the interval is the simultaneous one of the table (familyZ(20) = 3.02)
+  const filler = Array.from({ length: 19 }, (_, i) => row(`F${i + 2}`, i + 2, { [i + 2]: N }));
+
+  it('familyZ: Bonferroni over the rows (95 % together); one row is the plain 95 % interval', () => {
+    expect(familyZ(1)).toBeCloseTo(BADGE_Z, 3);
+    expect(familyZ(20)).toBeCloseTo(3.023, 3);
+    expect(familyZ(70)).toBeGreaterThan(familyZ(20));
+  });
+
+  it('first projection: the median; later the previous position stays while the median is within the error', () => {
+    // F(3) = 52 %: median P3
+    const r1 = res([row('DRV', 5, { 1: 100, 2: 200, 3: 220, 4: 300, 5: 180 }), ...filler]);
     const b1 = projectionBadges(r1);
+    expect(b1.mode.DRV).toBe(3);
     expect(modePosition({ ...r1, badges: b1 }, r1.projections[0])).toBe(3);
-    // P4 now most frequent by a share within the error: still P3 (and its gold mark)
-    const r2 = result([], { projections: [row({ 3: 28, 4: 30, 5: 20 }, 4)] });
+    // F(3) = 47 %: within the simultaneous error of 50 %, still P3 (and gold, and the podium badge)
+    const r2 = res([row('DRV', 5, { 1: 100, 2: 170, 3: 200, 4: 330, 5: 200 }), ...filler]);
     const b2 = projectionBadges(r2, b1);
-    expect(modePosition({ ...r2, badges: b2 }, r2.projections[0])).toBe(3);
-    // P4 beyond the error: P4
-    const r3 = result([], { projections: [row({ 3: 20, 4: 38, 5: 20 }, 4)] });
+    expect(b2.mode.DRV).toBe(3);
+    expect(b2.podium.DRV).toBe(true);
+    // no previous state: the point (P4)
+    expect(projectionBadges(r2).mode.DRV).toBe(4);
+    // F(3) = 40 %: beyond the error, P4; the podium badge goes with it
+    const r3 = res([row('DRV', 5, { 1: 100, 2: 150, 3: 150, 4: 400, 5: 200 }), ...filler]);
     const b3 = projectionBadges(r3, b2);
-    expect(modePosition({ ...r3, badges: b3 }, r3.projections[0])).toBe(4);
-    // no badges (a projection built outside the store): modePos
-    expect(modePosition(r2, r2.projections[0])).toBe(4);
+    expect(b3.mode.DRV).toBe(4);
+    expect(b3.podium.DRV).toBe(false);
+    // a 95 % interval per row would have moved already at 47 %: the column's interval is wider
+    const [lo, hi] = wilsonInterval(0.47, N, familyZ(20));
+    expect(lo < 0.5 && hi >= 0.5).toBe(true);
+    expect(wilsonInterval(0.455, N)[1]).toBeLessThan(0.5);
+  });
+
+  it('a flat distribution never shows a gold place with a podium chance under 50 % (the most frequent position would)', () => {
+    // most frequent P2 (9 %), podium 18 %: the old label was a gold P2
+    const flat = { 1: 40, 2: 90, 3: 50, 4: 60, 5: 60, 6: 60, 7: 60, 8: 70, 9: 70, 10: 70, 11: 70, 12: 70, 13: 70, 14: 60, 15: 50, 16: 50 };
+    const r = res([row('HUL', 20, flat), ...filler]);
+    const b = projectionBadges(r);
+    expect(b.mode.HUL).toBeGreaterThan(3);
+    expect(b.podium.HUL).toBe(false);
+    // the median: F(8) = 49 %, F(9) = 56 %
+    expect(b.mode.HUL).toBe(9);
+  });
+
+  it('gold P label = podium badge, arrow = current - shown, rows by position shown then current place', () => {
+    const r = res([
+      row('AAA', 1, { 1: 600, 2: 400 }),
+      row('BBB', 2, { 1: 400, 2: 600 }),
+      row('CCC', 3, { 2: 100, 3: 300, 4: 600 }),
+      row('DDD', 4, { 3: 700, 4: 300 }),
+    ]);
+    const p = withBadges(r, null);
+    expect(p.badges.mode).toEqual({ AAA: 1, BBB: 2, CCC: 4, DDD: 3 });
+    for (const d of ['AAA', 'BBB', 'CCC', 'DDD']) expect(p.badges.podium[d]).toBe(p.badges.mode[d] <= 3);
+    expect(p.projections.map((x) => x.driver)).toEqual(['AAA', 'BBB', 'DDD', 'CCC']);
+    expect(orderedProjections(p).map((x) => x.driver)).toEqual(['AAA', 'BBB', 'DDD', 'CCC']);
+    const ch = Object.fromEntries(p.projections.map((x) => [x.driver, positionChange(p, x)]));
+    expect(ch).toEqual({ AAA: 0, BBB: 0, CCC: -1, DDD: 1 });
+    // no badges (a projection built outside the store): the same rule with no previous state
+    expect(modePosition(r, r.projections[2])).toBe(4);
+    expect(orderedProjections(r).map((x) => x.driver)).toEqual(['AAA', 'BBB', 'DDD', 'CCC']);
+  });
+
+  it('shownPositions reads posDistribution (percent) when the raw counts are absent', () => {
+    const r = { numSimulations: N, projections: [{ driver: 'X', posDistribution: { 4: 30, 5: 30, 6: 40 } }] };
+    expect(shownPositions(r).X).toBe(5);
+  });
+
+  it('battle colours: intervals simultaneous over the pairs of the projection', () => {
+    const many = Array.from({ length: 40 }, (_, i) => battle(i + 1, 10));
+    // 34 % is beyond the 30 % threshold for one pair (95 %), not for 41 pairs read together
+    const one = projectionBadges(result([battle(1, 34)]));
+    expect(one.battles['B1>A1'].level).toBe(1);
+    const first = projectionBadges(result([battle(1, 25), ...many.slice(1)]));
+    expect(first.battles['B1>A1'].level).toBe(0);
+    const next = projectionBadges(result([battle(1, 34), ...many.slice(1)]), first);
+    expect(next.battles['B1>A1'].level).toBe(0);
+    expect(battleLevel(result([battle(1, 34), ...many.slice(1)]), battle(1, 34))).toBe(1); // no state: the point
   });
 });
 

@@ -103,3 +103,43 @@ def test_mock_snapshot_is_valid_json(monza):
     snap = m.get_snapshot()
     text = json.dumps({k: snap[k] for k in ("lap_times", "tyre_strategy", "track_status")}, allow_nan=False)
     assert json.loads(text)["lap_times"][0]["Driver"]
+
+
+def test_stopping_the_mock_unpins_the_session_clock():
+    """B5 (D13): MockReplay.stop left the manager's clock pinned at the last
+    replayed time, so after a stopped mock of 2024 R16 two live laps fed
+    0.4 s apart both ended at 6654.29 (lap 40 started and ended there). The
+    clock is un-pinned on stop and runs on from the last replayed time."""
+    import asyncio
+    import time
+
+    from live.mock_replay import MockReplay
+    from live.session_manager import LiveSessionManager
+
+    load_cached_session(2024, 16)  # skip without the cache
+
+    async def scenario():
+        m = LiveSessionManager()
+
+        async def _no_fetch(*_a, **_k):
+            return {"status": "skipped", "added": 0}
+        m.fetch_static_team_radios = _no_fetch
+        mock = MockReplay(m)
+        await mock.start(2024, 16, speed=5000)
+        await asyncio.sleep(0.5)
+        await mock.stop()
+        pinned_last = m.normalizer.session_time()
+        assert m.normalizer._pinned_time is None
+        num = next(d["DriverNumber"] for d in m.driver_info if d["Abbreviation"] == "LEC")
+        done = m.normalizer.driver_state["LEC"]["current_lap"]
+        await m.on_message("TimingData", {"Lines": {num: {"NumberOfLaps": done + 1,
+                                                          "LastLapTime": {"Value": "1:22.000"}}}})
+        time.sleep(0.4)
+        await m.on_message("TimingData", {"Lines": {num: {"NumberOfLaps": done + 2,
+                                                          "LastLapTime": {"Value": "1:22.000"}}}})
+        return pinned_last, m.lap_times[-2:]
+
+    pinned_last, (a, b) = asyncio.run(scenario())
+    assert pinned_last > 1000  # the replay's session time, not a fresh clock
+    assert pinned_last <= a["Time"] < b["Time"]
+    assert 0.3 < b["Time"] - a["Time"] < 2.0
