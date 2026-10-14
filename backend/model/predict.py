@@ -9,6 +9,8 @@ import math
 from pathlib import Path
 import logging
 
+from model.pit_timing import optimal_pit_lap as _pit_lap_from_probability
+
 logger = logging.getLogger(__name__)
 
 MODEL_DIR = Path(__file__).parent / 'saved'
@@ -206,19 +208,12 @@ def predict_laps(last_10_laps: list, tsne_context: list = None,
     return result
 
 
-def _compute_optimal_pit_lap(pit_prob, current_lap, max_lap, tyre_life):
-    """Estimate optimal pit lap from pit probability and tyre life."""
-    if pit_prob > 0.5:
-        # High pit probability — pit soon
-        laps_until_pit = max(1, math.ceil(-math.log(1 - min(pit_prob, 0.99)) * 5))
-    else:
-        # Low pit probability — estimate from tyre life
-        # Typical stint lengths: SOFT ~18, MEDIUM ~25, HARD ~35
-        remaining_tyre = max(1, 25 - tyre_life)
-        laps_until_pit = remaining_tyre
-
-    optimal = current_lap + laps_until_pit
-    return max(current_lap + 1, min(optimal, max_lap - 2))  # Clamp to valid range
+def _compute_optimal_pit_lap(pit_prob, current_lap, max_lap, tyre_life=None):
+    """Projected pit lap from the pit probability: model/pit_timing.py
+    optimal_pit_lap, the one mapping shared with api/routers/predictions.py
+    (non-increasing in pit_prob, no jump at 0.5). tyre_life is not used: the
+    probability already comes from the tyre-life features."""
+    return _pit_lap_from_probability(pit_prob, current_lap, max_lap)
 
 
 def _compute_predicted_stints(driver, current_compound, current_lap, optimal_pit_lap, max_lap):

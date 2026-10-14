@@ -5,6 +5,7 @@ import { getDriverColor, TYRE_COLORS, TYRE_LABELS, getTyreTextColor } from '../.
 import { exportAsPng } from '../../utils/exportChart';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { stintsByDriver, pitStops } from '../../utils/stints';
+import { consistencySigma } from '../../utils/degradation';
 import {
   causalKey, pitCountsByDriver, driverCompletedLaps, stintLapsText,
 } from '../../utils/strategyViews';
@@ -175,6 +176,18 @@ export default function DriverComparePanel() {
   const racingA = useMemo(() => lapsA.filter((l) => !l.PitInTime && !l.PitOutTime), [lapsA]);
   const racingB = useMemo(() => lapsB.filter((l) => !l.PitInTime && !l.PitOutTime), [lapsB]);
 
+  // Consistency on the shared degradation definition (utils/degradation.js
+  // consistencySigma): pooled residual sigma of each driver's per-stint fits
+  // at sessionNow, so lap 1, pit laps, non-green laps, tyre wear, fuel burn
+  // and stops do not count as inconsistency; null before a stint is fitted
+  const { sigmaA, sigmaB } = useMemo(() => {
+    if (!driverA || !driverB) return { sigmaA: null, sigmaB: null };
+    return {
+      sigmaA: consistencySigma(lapTimes, driverA, { sessionNow }).sigma,
+      sigmaB: consistencySigma(lapTimes, driverB, { sessionNow }).sigma,
+    };
+  }, [lapTimes, driverA, driverB, causal]);
+
   // Gap evolution: cumulative time difference
   const gapData = useMemo(() => {
     if (lapsA.length === 0 || lapsB.length === 0) return [];
@@ -253,17 +266,15 @@ export default function DriverComparePanel() {
 
   // Summary stats
   const summaryStats = useMemo(() => {
-    const compute = (racing) => {
+    const compute = (racing, sigma) => {
       if (racing.length === 0) return {};
       const times = racing.map((l) => l.LapTimeSeconds);
       const avg = times.reduce((a, b) => a + b, 0) / times.length;
       const fastest = Math.min(...times);
-      const variance = times.reduce((a, t) => a + (t - avg) ** 2, 0) / times.length;
-      const stdDev = Math.sqrt(variance);
-      return { avg, fastest, stdDev, laps: times.length };
+      return { avg, fastest, stdDev: sigma, laps: times.length };
     };
-    const statsA = compute(racingA);
-    const statsB = compute(racingB);
+    const statsA = compute(racingA, sigmaA);
+    const statsB = compute(racingB, sigmaB);
     const pitsA = pitCounts[driverA] || 0;
     const pitsB = pitCounts[driverB] || 0;
 
@@ -307,7 +318,7 @@ export default function DriverComparePanel() {
       });
     }
     return rows;
-  }, [racingA, racingB, pitCounts, driverA, driverB]);
+  }, [racingA, racingB, sigmaA, sigmaB, pitCounts, driverA, driverB]);
 
   // Score: count wins across all metric rows
   const score = useMemo(() => {

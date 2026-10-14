@@ -43,6 +43,10 @@ const {
   useF1Store, flagAtSessionTime, weatherAtSessionTime, laterClockReset, formatReplayClock,
   degradationGapReason, qualiSegmentOffsets, loadedSessionTypeOf, flagAtClock,
 } = await import('../store/useF1Store.js');
+const { activeSegmentWindow } = await import('../utils/raceTime.js');
+const { timingTowerEntries } = await import('../utils/views/timingTower.js');
+const { qualifyingPositionAt } = await import('../utils/views/focusDriverWidget.js');
+const { qualifyingOrder } = await import('../utils/driverState.js');
 const {
   buildTrackStatusEvents, fastestLapEvent, positionChangeEvents, useReplayEngine,
 } = await import('../hooks/useReplayEngine.js');
@@ -104,6 +108,15 @@ function covered(events, type) {
     for (let l = e.startLap; l <= e.endLap; l++) laps.add(l);
   }
   return [...laps].sort((a, b) => a - b);
+}
+
+/** qualifyingOrder of the active segment at the store's clock (Leaderboard inputs). */
+function qualifyingOrderAtStore() {
+  const s = store();
+  const segDrivers = s.frameData?.driver_colors ? Object.keys(s.frameData.driver_colors) : [];
+  return qualifyingOrder(s.sessionData.lap_times, s.getSessionNow(), {
+    drivers: segDrivers, after: activeSegmentWindow(s)?.start,
+  });
 }
 
 /** First frame whose session time is >= target. */
@@ -547,9 +560,13 @@ describe.skipIf(!have(2024, 8, 'Q'))('R8: qualifying replay, one origin per segm
       shown.add(s.currentFlagStatus);
     }
     expect(shown.has('2')).toBe(true);
-    // The segment's last frame is not the end of the session
+    // The segment's last frame is not the end of the session: it stands for
+    // the segment's end (the end of its last lap), within one frame step of it
+    const lastQ1 = q1 + segments.Q1.frames[segments.Q1.frames.length - 1].t;
     expect(Number.isFinite(store().getSessionNow())).toBe(true);
-    expect(store().getSessionNow()).toBeCloseTo(q1 + segments.Q1.frames[segments.Q1.frames.length - 1].t, 6);
+    expect(store().getSessionNow()).toBe(store().qualiSegmentWindows.Q1.end);
+    expect(store().getSessionNow()).toBeGreaterThanOrEqual(lastQ1);
+    expect(store().getSessionNow() - lastQ1).toBeLessThan(segments.Q1.frames[1].t - segments.Q1.frames[0].t);
 
     store().setQualiSegment('Q2');
     expect(store().sessionTimeOffset).toBe(store().qualiSegmentOffsets.Q2);
@@ -583,6 +600,50 @@ describe.skipIf(!have(2024, 8, 'Q'))('R8: qualifying replay, one origin per segm
     }
   });
 
+  it('P3f: at the last frame of every segment the Leaderboard shows the official segment order (segment laps only, the segment end as clock)', () => {
+    vi.useFakeTimers();
+    const results = session.race_results;
+    const official = (seg) => results
+      .filter((r) => r[seg] != null && Number(r[seg]) > 0)
+      .sort((a, b) => Number(a[seg]) - Number(b[seg]))
+      .map((r) => r.Abbreviation);
+    const shownOrders = {};
+    for (const seg of ['Q1', 'Q2', 'Q3']) {
+      store().setQualiSegment(seg);
+      const frames = segments[seg].frames;
+      store().setCurrentFrameIndex(frames.length - 1);
+      const html = renderWithStore(createElement(Leaderboard, { collapsed: false }));
+      const shown = html.split('tower-row__pos-group').slice(1)
+        .map((chunk) => /\b([A-Z]{3})\b/.exec(chunk.replace(/<[^>]+>/g, ' '))?.[1]);
+      shownOrders[seg] = shown;
+      // the segment's drivers (those of its frames; 2024 R8 Q3 has 9, ALB's
+      // Q3 lap has no frames) with a time in the segment, in the official order
+      const segDrivers = Object.keys(segments[seg].driver_colors);
+      const want = official(seg).filter((d) => segDrivers.includes(d));
+      expect(shown.slice(0, want.length), seg).toEqual(want);
+      // the timing tower and the focus widget rank the same laps
+      const s = store();
+      const tower = timingTowerEntries(s.sessionData.lap_times, s.getSessionNow(), {
+        qualifying: true, replayActive: true, segmentStart: activeSegmentWindow(s)?.start,
+      }).filter((e) => segDrivers.includes(e.abbr ?? e.driver));
+      expect(tower.slice(0, want.length).map((e) => e.abbr ?? e.driver), `${seg} timing tower`).toEqual(want);
+      // the focus widget's position: the official one (every driver with a
+      // segment time, ALB's Q3 lap included)
+      for (const d of want) {
+        expect(qualifyingPositionAt(s.sessionData.lap_times, d, s.getSessionNow(), { after: activeSegmentWindow(s)?.start }), `${seg} ${d}`)
+          .toBe(official(seg).indexOf(d) + 1);
+      }
+      // every lap ranked is one of this segment (started after the previous
+      // segment's end), completed by the segment's end
+      const win = store().qualiSegmentWindows[seg];
+      for (const r of qualifyingOrderAtStore().filter((x) => x.best)) {
+        expect(lapStartTime(r.best), `${seg} ${r.driver}`).toBeGreaterThan(win.start);
+        expect(r.best.Time, `${seg} ${r.driver}`).toBeLessThanOrEqual(win.end);
+      }
+    }
+    console.log(`[P3f] last-frame orders: ${JSON.stringify(shownOrders)}`);
+  });
+
   it('TrackMap: the last frame of a segment is not the end of the session, and nobody "wins" (round 2, D2 problem 1)', () => {
     vi.useFakeTimers();
     const plain = (html) => html.replace(/<!-- -->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
@@ -591,8 +652,10 @@ describe.skipIf(!have(2024, 8, 'Q'))('R8: qualifying replay, one origin per segm
       const frames = segments[seg].frames;
       store().setCurrentFrameIndex(frames.length - 1);
       const s = store();
-      // the store's clock at the segment's last frame: finite (origin + frame.t)
-      expect(s.getSessionNow()).toBeCloseTo(s.qualiSegmentOffsets[seg] + frames[frames.length - 1].t, 6);
+      // the store's clock at the segment's last frame: finite, the segment's
+      // end (its last lap's end), not Infinity
+      expect(s.getSessionNow()).toBe(s.qualiSegmentWindows[seg].end);
+      expect(s.getSessionNow()).toBeGreaterThanOrEqual(s.qualiSegmentOffsets[seg] + frames[frames.length - 1].t);
       // the map uses the same clock: no chequered flag, no winner
       const map = plain(renderWithStore(createElement(TrackMap)));
       expect(map, seg).not.toContain('CHEQUERED FLAG');

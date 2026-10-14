@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
 import { generateInsights } from '../../utils/insightsGenerator';
+import { listedBattles, modePosition, projectionRisks } from '../../utils/simulationClient';
 import Panel from '../ui/Panel';
 
 /* ── Shared tab pill style helper ── */
@@ -18,6 +19,11 @@ export default function StrategyAnalysis() {
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const driversInfo = useF1Store((s) => s.drivers);
   const raceProjection = useF1Store((s) => s.raceProjection);
+  // Projected overtakes: the battles the Race Prediction panel lists (the
+  // store's list and badge levels, Wilson interval + hysteresis)
+  const mcBattles = useMemo(() => listedBattles(raceProjection), [raceProjection]);
+  // Risk rows: the store's (judged beyond the Monte Carlo error, chained)
+  const mcRisks = useMemo(() => projectionRisks(raceProjection), [raceProjection]);
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const setComparisonDriver = useF1Store((s) => s.setComparisonDriver);
@@ -305,12 +311,12 @@ export default function StrategyAnalysis() {
   const fieldTabs = useMemo(() => {
     if (!fieldOverview) return [];
     const tabs = [{ id: 'overview', label: 'Overview' }];
-    if (fieldOverview.battles.length > 0 || raceProjection?.battles?.length > 0)
+    if (fieldOverview.battles.length > 0 || mcBattles.length > 0)
       tabs.push({ id: 'battles', label: `Battles (${fieldOverview.battles.length})` });
-    if (fieldOverview.pitSoon.length > 0 || fieldOverview.degrading.length > 0 || fieldOverview.gainers.length > 0 || raceProjection?.risks?.length > 0)
+    if (fieldOverview.pitSoon.length > 0 || fieldOverview.degrading.length > 0 || fieldOverview.gainers.length > 0 || mcRisks.length > 0)
       tabs.push({ id: 'alerts', label: 'Alerts' });
     return tabs;
-  }, [fieldOverview, raceProjection]);
+  }, [fieldOverview, raceProjection, mcBattles, mcRisks]);
 
   /* ── Build cluster-mode tab definitions ── */
   const clusterTabs = useMemo(() => {
@@ -420,13 +426,13 @@ export default function StrategyAnalysis() {
                     </div>
                   )}
 
-                  {raceProjection?.battles?.length > 0 && (
+                  {mcBattles.length > 0 && (
                     <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
                       <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
                         Projected Overtakes (Monte Carlo)
                       </h6>
-                      {raceProjection.battles.slice(0, 8).map((b, i) => (
-                        <div key={i}
+                      {mcBattles.slice(0, 8).map((b) => (
+                        <div key={`${b.behind}>${b.ahead}`}
                           onClick={() => selectPair(b.behind, b.ahead)}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4,
@@ -437,7 +443,8 @@ export default function StrategyAnalysis() {
                           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                         >
                           <span style={{
-                            fontSize: '9px', fontWeight: 800, color: b.prob >= 50 ? '#00e676' : b.prob >= 25 ? '#ffd700' : 'var(--color-text-muted)',
+                            // the Race Prediction battle colours (store badge rule)
+                            fontSize: '9px', fontWeight: 800, color: b.level >= 2 ? '#00e676' : b.level === 1 ? '#ffd700' : 'var(--color-text-muted)',
                             minWidth: 28,
                           }}>
                             {b.prob}%
@@ -515,12 +522,12 @@ export default function StrategyAnalysis() {
                   )}
 
                   {/* Monte Carlo risks */}
-                  {raceProjection?.risks?.length > 0 && (
+                  {mcRisks.length > 0 && (
                     <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
                       <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
                         Risk Alerts
                       </h6>
-                      {raceProjection.risks.map((r, i) => (
+                      {mcRisks.map((r, i) => (
                         <div key={i}
                           onClick={() => { setFocusDriver(r.driver); triggerLSTMPredictions(); }}
                           style={{
@@ -692,7 +699,7 @@ export default function StrategyAnalysis() {
                             P{d.position}
                             {proj && Math.abs(proj.delta) >= 0.5 && (
                               <span style={{ fontSize: '9px', marginLeft: 4, color: proj.delta > 0 ? '#00e676' : '#e10600' }}>
-                                {'\u2192'}P{proj.modePos}
+                                {'\u2192'}P{modePosition(raceProjection, proj)}
                                 <span style={{ fontSize: '7px', marginLeft: 2 }}>({proj.podiumProb}% pod)</span>
                               </span>
                             )}

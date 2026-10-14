@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useF1Store } from '../store/useF1Store';
-import { resolveSessionNow } from '../utils/raceTime';
+import { resolveSessionNow, activeSegmentWindow } from '../utils/raceTime';
 import { stintsRunning } from '../utils/stints';
 
 /**
@@ -14,7 +14,7 @@ import { stintsRunning } from '../utils/stints';
  * Same inputs as the store's getSessionNow (sessionNowOf in
  * store/useF1Store.js): during a qualifying replay sessionTimeOffset is the
  * active segment's origin, and the segment's last frame is not the end of the
- * session, so the "last frame = Infinity" rule is not applied there.
+ * session: it stands for the segment's end (qualiSegmentWindows), not Infinity.
  *
  * @returns {number} session seconds, or Infinity
  */
@@ -26,17 +26,19 @@ export function useSessionNow() {
   const maxLap = useF1Store((s) => s.maxLap);
   const lapTimes = useF1Store((s) => s.sessionData?.lap_times);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
-  const maxTime = useF1Store((s) => (s.isQualifyingReplay ? undefined : s.maxTime));
+  const maxTime = useF1Store((s) => s.maxTime);
   const frameDt = useF1Store((s) => s.frameDt);
   const raceOver = useF1Store((s) => !!s.lapModeRaceOver);
+  const qualifying = useF1Store((s) => !!s.isQualifyingReplay);
+  const segmentEnd = useF1Store((s) => activeSegmentWindow(s)?.end);
 
   return useMemo(
     () => resolveSessionNow({
       currentTime, sessionTimeOffset, replayActive, currentLap, maxLap, lapTimes, isLiveMode,
-      maxTime, frameDt, raceOver,
+      maxTime, frameDt, raceOver, qualifying, segmentEnd,
     }),
     [currentTime, sessionTimeOffset, replayActive, currentLap, maxLap, lapTimes, isLiveMode,
-      maxTime, frameDt, raceOver],
+      maxTime, frameDt, raceOver, qualifying, segmentEnd],
   );
 }
 

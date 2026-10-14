@@ -34,14 +34,18 @@ export function focusDriverStatus(lapTimes, driver, sessionNow) {
 /**
  * Qualifying position of a driver at sessionNow, causal: the rank by best lap
  * completed so far (utils/driverState.js qualifyingOrder), null before the
- * driver's first timed lap. Never the final classification.
+ * driver's first timed lap. Never the final classification. In a segment
+ * replay only the segment's laps rank (opts.after, as the Leaderboard).
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
  * @param {string} driver
  * @param {number} sessionNow - session seconds
+ * @param {Object} [opts]
+ * @param {number} [opts.after] - the active segment's laps start after it
+ *   (store qualiSegmentWindows[segment].start)
  * @returns {number|null}
  */
-export function qualifyingPositionAt(lapTimes, driver, sessionNow) {
+export function qualifyingPositionAt(lapTimes, driver, sessionNow, { after } = {}) {
   if (!driver) return null;
-  return qualifyingOrder(lapTimes, sessionNow).find((r) => r.driver === driver)?.position ?? null;
+  return qualifyingOrder(lapTimes, sessionNow, { after }).find((r) => r.driver === driver)?.position ?? null;
 }

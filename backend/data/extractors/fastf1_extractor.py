@@ -24,6 +24,41 @@ CACHE_DIR = Path(__file__).parent.parent.parent.parent / "data" / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 fastf1.Cache.enable_cache(str(CACHE_DIR))
 
+# Version of the replay frames payloads, written into them as 'frames_format'.
+# 2: retired cars leave the race frames after their last sample in motion
+# ('retired_at'); lap/gear/DRS/compound/tyre life (race) and gear/DRS (qualifying)
+# held from the previous sample (gear: the previous one within 0..MAX_GEAR).
+FRAMES_FORMAT = 2
+
+# A car whose last sample in motion comes this long (s) before the first car completes
+# the final lap did not reach the flag: it is masked after that sample
+RETIRED_MARGIN_S = 1.0
+
+
+# Gears a car can report; the live feed also sends nGear readings such as 11..72 while
+# a car stands in the pit lane (2024 R6 MAG lap 28, 2025 R1: 277 samples)
+MAX_GEAR = 8
+
+
+def hold_previous(timeline: np.ndarray, t_sorted: np.ndarray, values_sorted: np.ndarray,
+                  valid: Optional[np.ndarray] = None) -> np.ndarray:
+    """Step resampling of a categorical channel (lap, gear, DRS code, compound, tyre
+    life): the value of the last real sample at or before each timeline instant (the
+    first sample's value before it). Linear interpolation invents values between
+    two codes: DRS 13 between 12 and 14, DRS 4 between 0 and 8, a MEDIUM between a
+    SOFT and a HARD stint. Samples outside the boolean mask `valid` are skipped (the
+    previous valid one holds); with no valid sample the channel is 0."""
+    if valid is not None:
+        if not valid.any():
+            return np.zeros(len(timeline))
+        t_sorted, values_sorted = t_sorted[valid], values_sorted[valid]
+    idx = np.searchsorted(t_sorted, timeline, side='right') - 1
+    return values_sorted[np.clip(idx, 0, len(t_sorted) - 1)]
+
+
+def valid_gear(gear: np.ndarray) -> np.ndarray:
+    return (gear >= 0) & (gear <= MAX_GEAR)
+
 
 class FastF1Extractor:
     """Extract F1 data using the FastF1 library."""
@@ -49,7 +84,16 @@ class FastF1Extractor:
         session = fastf1.get_session(year, round_num, session_type)
         session.load(laps=laps, telemetry=telemetry, weather=weather, messages=messages)
         return session
-    
+
+    def get_session_results(self, year: int, round_num: int, session_type: str = "S") -> pd.DataFrame:
+        """Classification of a session (Abbreviation, TeamName, Status, Points, ...)
+        loaded without laps, telemetry, weather or messages: what the championship
+        standings need from a sprint ("S"). The points come from the Ergast
+        classification FastF1 merges into session.results."""
+        session = self.get_session(year, round_num, session_type,
+                                   laps=False, telemetry=False, weather=False, messages=False)
+        return self.extract_race_results(session)
+
     def get_event_schedule(self, year: int) -> pd.DataFrame:
         """Get the event schedule for a season."""
         schedule = fastf1.get_event_schedule(year)
@@ -572,8 +616,9 @@ class FastF1Extractor:
                 tyre_compound_all = np.concatenate(tyre_compound_all)
                 tyre_life_all = np.concatenate(tyre_life_all)
                 
-                # Sort by time
-                order = np.argsort(t_all)
+                # Sort by time (stable: the interpolated end sample of lap n and the
+                # first sample of lap n+1 share a timestamp and keep that order)
+                order = np.argsort(t_all, kind='stable')
                 t_all = t_all[order]
                 x_all = x_all[order]
                 y_all = y_all[order]
@@ -609,36 +654,59 @@ class FastF1Extractor:
         
         # Create common timeline and resample all drivers
         timeline = np.arange(global_t_min, global_t_max, dt) - global_t_min
-        
+
+        # The flag: the first car to complete the final lap (session seconds)
+        finish_t = None
+        if 'Time' in laps.columns:
+            final_lap_ends = laps.loc[laps['LapNumber'] == max_lap_number, 'Time'].dropna()
+            if not final_lap_ends.empty:
+                finish_t = float(final_lap_ends.min().total_seconds())
+
         resampled_data = {}
+        retired_at = {}  # code → replay time (s) of the last sample of a car that did not finish
         for code, data in driver_data.items():
             t = data['t'] - global_t_min
-            order = np.argsort(t)
+            order = np.argsort(t, kind='stable')
             t_sorted = t[order]
-            
+
+            # A car whose last real sample in motion comes before the flag retired:
+            # np.interp would hold it frozen at its last position to the end of the
+            # replay, so it is masked after that sample instead. A car parked on track
+            # keeps streaming position samples at speed 0 (2024 R3: RUS in the barrier
+            # from lap 57 to the end, HAM for 52 s after his engine failure), which
+            # only show a stopped car out of the race; a car never in motion (2025 R1
+            # HAD, out on the formation lap) leaves after its first sample. Finishers
+            # keep their place past the line (their telemetry ends there, in motion).
+            moving = np.flatnonzero(data['speed'][order] > 0)
+            t_last = float(t_sorted[moving[-1]] if len(moving) else t_sorted[0])
+            if finish_t is not None and t_last + global_t_min < finish_t - RETIRED_MARGIN_S:
+                retired_at[code] = t_last
+
             resampled_data[code] = {
                 'x': np.interp(timeline, t_sorted, data['x'][order]),
                 'y': np.interp(timeline, t_sorted, data['y'][order]),
-                'lap': np.interp(timeline, t_sorted, data['lap'][order]),
+                'lap': hold_previous(timeline, t_sorted, data['lap'][order]),
                 'speed': np.interp(timeline, t_sorted, data['speed'][order]),
-                'gear': np.interp(timeline, t_sorted, data['gear'][order]),
-                'drs': np.interp(timeline, t_sorted, data['drs'][order]),
+                'gear': hold_previous(timeline, t_sorted, data['gear'][order], valid_gear(data['gear'][order])),
+                'drs': hold_previous(timeline, t_sorted, data['drs'][order]),
                 'throttle': np.interp(timeline, t_sorted, data['throttle'][order]),
                 'brake': np.interp(timeline, t_sorted, data['brake'][order]),
-                'tyre': np.interp(timeline, t_sorted, data['tyre'][order]),
-                'tyre_life': np.interp(timeline, t_sorted, data['tyre_life'][order]),
+                'tyre': hold_previous(timeline, t_sorted, data['tyre'][order]),
+                'tyre_life': hold_previous(timeline, t_sorted, data['tyre_life'][order]),
             }
-        
+
         # Build frames - downsample to reduce payload size (every 10th frame = 2.5 FPS is enough for web)
         frame_step = 10
         frames = []
         driver_codes = list(resampled_data.keys())
-        
+
         for i in range(0, len(timeline), frame_step):
             t = float(timeline[i])
             frame_drivers = {}
-            
+
             for code in driver_codes:
+                if code in retired_at and t > retired_at[code]:
+                    continue
                 d = resampled_data[code]
                 frame_drivers[code] = {
                     'x': float(d['x'][i]),
@@ -658,13 +726,16 @@ class FastF1Extractor:
                 'drivers': frame_drivers
             })
         
-        logger.info(f"Built {len(frames)} frames for {len(driver_codes)} drivers")
-        
+        logger.info(f"Built {len(frames)} frames for {len(driver_codes)} drivers"
+                    f" ({len(retired_at)} retired: {sorted(retired_at)})")
+
         return {
             'frames': frames,
             'driver_colors': driver_colors,
             'total_laps': int(max_lap_number),
-            'max_time': round(float(global_t_max - global_t_min), 2)
+            'max_time': round(float(global_t_max - global_t_min), 2),
+            'retired_at': {code: round(t_ret, 2) for code, t_ret in retired_at.items()},
+            'frames_format': FRAMES_FORMAT,
         }
     
     def extract_qualifying_frames(self, session: fastf1.core.Session,
@@ -799,8 +870,9 @@ class FastF1Extractor:
                     'x': np.interp(timeline, t_sorted, data['x'][order]),
                     'y': np.interp(timeline, t_sorted, data['y'][order]),
                     'speed': np.interp(timeline, t_sorted, data['speed'][order]),
-                    'gear': np.interp(timeline, t_sorted, data['gear'][order]),
-                    'drs': np.interp(timeline, t_sorted, data['drs'][order]),
+                    # categorical: held from the previous sample, as in the race frames
+                    'gear': hold_previous(timeline, t_sorted, data['gear'][order], valid_gear(data['gear'][order])),
+                    'drs': hold_previous(timeline, t_sorted, data['drs'][order]),
                     'throttle': np.interp(timeline, t_sorted, data['throttle'][order]),
                     'brake': np.interp(timeline, t_sorted, data['brake'][order]),
                     'tyre': data['tyre'],
@@ -843,7 +915,7 @@ class FastF1Extractor:
 
         total_elapsed = _time.monotonic() - extraction_start
         logger.info(f"Qualifying frames complete: {list(result.keys())} segments in {total_elapsed:.1f}s")
-        return {'segments': result}
+        return {'segments': result, 'frames_format': FRAMES_FORMAT}
 
     def extract_weather_data(self, session: fastf1.core.Session) -> pd.DataFrame:
         """

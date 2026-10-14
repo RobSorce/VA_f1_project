@@ -61,15 +61,30 @@
  * The shared Legend component draws flat colour swatches only; the legend
  * here draws each mark as it appears on the circle (ring, hatch, inner arc)
  * with the same legend classes.
+ *
+ * Pit in k laps (Task 4). A stepper in the panel header (k = 0..10, also the
+ * [ and ] keys, ignored while typing; useKeyboardShortcuts uses neither) and a
+ * "rivals stop" toggle (off by default). utils/undercut.js pitInLaps projects
+ * every car from the pit window with the race simulation's lap model
+ * (degradation by compound and tyre age, fresh-tyre delta on the first flying
+ * lap; raceParams from extractRaceParams at sessionNow) for every k at once,
+ * memoised on the circle's memo key, the pit loss and the toggle; the stepper
+ * only picks a row. k = 0 is the pit window itself; for k > 0 a dashed ghost
+ * diamond marks the projected rejoin and the centre line reads "pits in k:
+ * P2 → P8 (−1 vs now)" (places better (+) or worse (−) at the end of that
+ * out-lap than when pitting now). k stops at the laps the focus car has left.
  */
 import React, {
-  useCallback, useEffect, useId, useMemo, useState,
+  useCallback, useEffect, useId, useMemo, useRef, useState,
 } from 'react';
 import * as d3 from 'd3';
 import { useF1Store, flagAtClock } from '../../store/useF1Store';
 import { getDriverColor } from '../../utils/colors';
-import { useSessionNow } from '../../hooks/useSessionNow';
+import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
+import { pitInLapsKeyStep } from '../../hooks/useKeyboardShortcuts';
 import { estimatePitLoss, FALLBACK_PIT_LOSS } from '../../utils/pitLoss';
+import { extractRaceParams } from '../../utils/raceSimulation';
+import { pitInLaps, PIT_IN_LAPS_MAX } from '../../utils/undercut';
 import {
   viewSessionType, isRaceSession, pitLossDisplay,
 } from '../../utils/strategyViews';
@@ -84,6 +99,10 @@ import Panel from '../ui/Panel';
 
 /** Pit-window purple: the palette's session-best purple (docs/COLOR_ENCODING.md). */
 const PIT_WINDOW_COLOR = '#A855F7';
+// Ghost of the rejoin for "pit in k laps": the rejoin diamond, hollow and dashed
+const GHOST_MARK = {
+  fill: 'rgba(168, 85, 247, 0.12)', stroke: PIT_WINDOW_COLOR, strokeWidth: 1.4, strokeDasharray: '2.5 1.5',
+};
 const TWO_PI = 2 * Math.PI;
 const MINUS = '−';
 // Size of the first render, before the slot is measured (and in server rendering)
@@ -206,6 +225,15 @@ function trafficSeconds(s) {
   return `${fmt1(s)} s`;
 }
 
+/**
+ * Places of "pit in k laps" against pitting now (pitInLaps positionsVsNow:
+ * + = better at the end of that out-lap): '+1 vs now', '−2 vs now', '= now'.
+ */
+function placesVsNow(n) {
+  if (!n) return '= now';
+  return `${n > 0 ? '+' : MINUS}${Math.abs(n)} vs now`;
+}
+
 /** Lap tag: 1 -> '1L' (one lap down), -1 -> '−1L' (one lap up). */
 function lapTag(k) {
   return k > 0 ? `${k}L` : `${MINUS}${-k}L`;
@@ -296,6 +324,21 @@ function rejoinLineSets(entries, traffic, compact = null) {
   return sets;
 }
 
+/**
+ * Line sets of the ghost's label ("pit in k laps", k > 0), preferred first:
+ * 'pit in 3: P8 (−1 vs now)' on one line, on two, then 'in 3: P8' alone (the
+ * comparison stays in the centre and the tooltip).
+ */
+function ghostLineSets(k, r) {
+  const head = `pit in ${k}: P${r.predictedPosition}`;
+  const vs = `(${placesVsNow(r.positionsVsNow)})`;
+  return [
+    [{ text: `${head} ${vs}`, traffic: false }],
+    [{ text: head, traffic: false }, { text: vs, traffic: false }],
+    [{ text: `in ${k}: P${r.predictedPosition}`, traffic: false }],
+  ];
+}
+
 /** Note under the reference lap: which laps its median covers. */
 function referenceNote(ref) {
   if (ref?.source === 'fallback') return 'median of completed laps (fallback)';
@@ -314,7 +357,7 @@ function referenceNote(ref) {
  * below MIN_CENTRE_FONT.
  */
 function centreItems(R, {
-  currentLap, lapTotal, trackFlag, refLap, pitLoss, focusDriver, win,
+  currentLap, lapTotal, trackFlag, refLap, pitLoss, focusDriver, win, pitIn = null,
 }) {
   const big = clamp(R * 0.12, 10, 18);
   const small = clamp(R * 0.075, MIN_CENTRE_FONT, 11);
@@ -370,9 +413,14 @@ function centreItems(R, {
   }
   if (focusDriver && win) {
     if (win.available) {
-      const [a, b] = win.ongoingStop
+      let [a, b] = win.ongoingStop
         ? [`${focusDriver} stopping`, `→ P${win.predictedPosition}`]
         : [`${focusDriver} pits now:`, `P${win.currentPosition} → P${win.predictedPosition}`];
+      // Pit in k laps (k > 0): the projected place and the places vs pitting now
+      if (pitIn?.row && pitIn.k > 0) {
+        a = `${focusDriver} pits in ${pitIn.k}:`;
+        b = `P${win.currentPosition} → P${pitIn.row.predictedPosition} (${placesVsNow(pitIn.row.positionsVsNow)})`;
+      }
       items.push({
         key: 'focus',
         lines: [line('focus', `${a} ${b}`, 'cod-centre__focus', small)],
@@ -541,10 +589,12 @@ function innerRoom(geo, R) {
  * `height` px column beside the plot needs (full labels). Sizes as laid out
  * by .cod-legend.
  */
-function legendGrid(measure, { side, width, height }) {
-  const n = LEGEND_ITEMS.length;
+function legendGrid(measure, {
+  side, width, height, items = LEGEND_ITEMS,
+}) {
+  const n = items.length;
   const grid = (short) => {
-    const colW = Math.max(...LEGEND_ITEMS.map((it) => textWidth(measure, short ? it.short : it.label, LEGEND_FONT,
+    const colW = Math.max(...items.map((it) => textWidth(measure, short ? it.short : it.label, LEGEND_FONT,
       { weight: LEGEND_WEIGHT }))) + LEGEND_ITEM_EXTRA;
     let cols;
     if (side) {
@@ -624,7 +674,7 @@ function statusLines(chunks, width, measure) {
  *   centre: {lines: Array<Object>, reach: number}, status: Array<Array<Object>>}}
  */
 function panelLayout({
-  cell, fixed, measure, buildItems,
+  cell, fixed, measure, buildItems, legendItems = LEGEND_ITEMS,
 }) {
   const sides = fixed ? [fixed.width > SIDE_LEGEND_ASPECT * fixed.height] : [false, true];
   let best = null;
@@ -637,9 +687,13 @@ function panelLayout({
       let legend;
       if (fixed) {
         ({ width: plotW, height: plotH } = fixed);
-        legend = legendGrid(measure, { side, width: plotW, height: plotH });
+        legend = legendGrid(measure, {
+          side, width: plotW, height: plotH, items: legendItems,
+        });
       } else {
-        legend = legendGrid(measure, { side, width: cell.width, height: cell.height });
+        legend = legendGrid(measure, {
+          side, width: cell.width, height: cell.height, items: legendItems,
+        });
         plotW = side ? cell.width - legend.w - BLOCK_GAP : cell.width;
         plotH = side ? cell.height : cell.height - legend.h - BLOCK_GAP;
       }
@@ -822,6 +876,12 @@ function Swatch({ kind, hatchId }) {
       )}
       {kind === 'band' && <rect x="1" y="2" width="18" height="8" className="cod-pit-window" />}
       {kind === 'rejoin' && <path d="M10,0.8 L15.2,6 L10,11.2 L4.8,6 Z" className="cod-rejoin-marker" />}
+      {kind === 'rejoin-ghost' && (
+        <>
+          <path d="M5.6,1.6 L10,6 L5.6,10.4 L1.2,6 Z" className="cod-rejoin-marker" />
+          <path d="M14.4,2.2 L18.2,6 L14.4,9.8 L10.6,6 Z" {...GHOST_MARK} />
+        </>
+      )}
       {kind === 'uncertainty' && (
         <rect x="1" y="3" width="18" height="6" className="cod-uncertainty" fill={`url(#${hatchId})`} />
       )}
@@ -848,16 +908,21 @@ const LEGEND_ITEMS = [
   { kind: 'pit', label: 'cars in pit lane', short: 'pit lane' },
   { kind: 'lapped', label: 'lapped (1L)', short: 'lapped (1L)' },
 ];
+// While the stepper is past 0 the ghost is drawn: the rejoin entry shows both
+// diamonds (same number of entries, so the legend keeps its size)
+const LEGEND_ITEMS_GHOST = LEGEND_ITEMS.map((it) => (it.kind === 'rejoin'
+  ? { kind: 'rejoin-ghost', label: 'rejoin: now · in k laps', short: 'rejoin · k' }
+  : it));
 
 function CircleLegend({
-  hatchId, side, cols, short,
+  hatchId, side, cols, short, items = LEGEND_ITEMS,
 }) {
   return (
     <div
       className={`chart-legend cod-legend${side ? ' cod-legend--side' : ''}`}
       style={{ gridTemplateColumns: `repeat(${cols}, max-content)` }}
     >
-      {LEGEND_ITEMS.map((item) => (
+      {items.map((item) => (
         <div key={item.kind} className="legend-item cod-legend__item" title={item.label}>
           <Swatch kind={item.kind} hatchId={hatchId} />
           <span className="legend-label">{short ? item.short : item.label}</span>
@@ -885,11 +950,15 @@ function HatchPattern({ id }) {
  * @param {function(string, number, number=, boolean=): number} [props.measureText] -
  *   text width in px (text, font size, weight, italic) instead of the canvas
  *   measurement (tests with the real font metrics)
+ * @param {number} [props.pitInK=0] - initial k of the "pit in k laps" stepper (tests, exports)
  */
-export default function CircleOfDoom({ size = null, slotSize = null, measureText = null } = {}) {
+export default function CircleOfDoom({
+  size = null, slotSize = null, measureText = null, pitInK: initialPitInK = 0,
+} = {}) {
   const sessionData = useF1Store((s) => s.sessionData);
   const storeTrackStatus = useF1Store((s) => s.trackStatus);
   const dnfMap = useF1Store((s) => s.dnfMap);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
   const driversInfo = useF1Store((s) => s.drivers);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
@@ -903,6 +972,13 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
   const sessionType = useF1Store(viewSessionType);
   const isRace = isRaceSession(sessionType);
   const sessionNow = useSessionNow();
+  const sessionTimeOffset = useF1Store((s) => s.sessionTimeOffset);
+  // Live mode: the stints still being run (stint-life estimate of "rivals stop")
+  const running = useStintsRunning();
+
+  // Pit in k laps: the stepper (k) and the "rivals stop" toggle
+  const [pitInK, setPitInK] = useState(initialPitInK);
+  const [rivalsStop, setRivalsStop] = useState(false);
 
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const hatchId = `cod-hatch-${uid}`;
@@ -942,8 +1018,8 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
     [lapTimes, stateKey, sessionType],
   );
   const state = useMemo(
-    () => circleState(lapTimes, { sessionNow, dnfMap, gridPositions }),
-    [lapTimes, stateKey, dnfMap, gridPositions],
+    () => circleState(lapTimes, { sessionNow, dnfMap, gridPositions, isLiveMode }),
+    [lapTimes, stateKey, dnfMap, gridPositions, isLiveMode],
   );
   /* eslint-enable react-hooks/exhaustive-deps */
 
@@ -968,6 +1044,54 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
     return { win, dist };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memoKey, state, pitLoss, isRace, totalRaceLaps]);
+
+  // Race simulation estimates at sessionNow (degradation by compound,
+  // fresh-tyre delta, stint-life survival, tyre changes) for "pit in k laps":
+  // only with a focus, recomputed on the circle's events
+  /* eslint-disable react-hooks/exhaustive-deps -- `stateKey` stands for sessionNow */
+  const raceParams = useMemo(() => {
+    if (!focusDriver || !isRace) return null;
+    return extractRaceParams(lapTimes, [], trackStatus, currentLap, {
+      sessionNow, sessionTimeOffset, sessionType, running, dnfMap,
+    });
+  }, [focusDriver, isRace, lapTimes, trackStatus, currentLap, stateKey, sessionTimeOffset, sessionType,
+    running, dnfMap]);
+  /* eslint-enable react-hooks/exhaustive-deps */
+
+  // Pit in k laps, every k at once (utils/undercut.js): recomputed on the
+  // focus, a lap / pit / track-status event, the pit loss or the toggle; the
+  // stepper only picks a row
+  const pitInTable = useMemo(() => {
+    if (!analytics?.win?.available || !raceParams) return null;
+    const ring = { ...state, sessionNow, cars };
+    return pitInLaps(focusDriver, ring, pitLoss, raceParams, {
+      totalLaps: totalRaceLaps || undefined, trackFlag, rivalsStop,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analytics, raceParams, rivalsStop]);
+  const kMax = pitInTable?.available ? pitInTable.kMax : PIT_IN_LAPS_MAX;
+  const kShown = Math.min(pitInK, kMax);
+  const pitIn = pitInTable?.available && kShown > 0
+    ? { k: kShown, row: pitInTable.rows[kShown], table: pitInTable }
+    : null;
+
+  // [ and ] step k (pitInLapsKeyStep: not while typing, not with modifiers)
+  const kMaxRef = useRef(kMax);
+  kMaxRef.current = kMax;
+  const stepK = useCallback((d) => {
+    setPitInK((k) => clamp(Math.min(k, kMaxRef.current) + d, 0, kMaxRef.current));
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onKey = (e) => {
+      const d = pitInLapsKeyStep(e, useF1Store.getState(), document.activeElement);
+      if (!d) return;
+      e.preventDefault();
+      stepK(d);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [stepK]);
 
   // Per frame: the band of the memoised window and the lapped traffic inside
   // it, read off the ring as drawn now; the rank, the traffic flag and the
@@ -1003,16 +1127,25 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
   const cell = slotSize || (size ? null : wrapSize);
   const fixed = size || (cell && cell.width > 40 && cell.height > 40 ? null : FALLBACK_SIZE);
   const focusWin = analytics?.win || null;
+  const pitInRow = pitIn?.row || null;
   /* eslint-disable react-hooks/exhaustive-deps -- the slot sizes stand for the size objects */
   const panel = useMemo(() => panelLayout({
     cell,
     fixed,
     measure,
+    legendItems: pitInRow ? LEGEND_ITEMS_GHOST : LEGEND_ITEMS,
     buildItems: (R) => centreItems(R, {
-      currentLap, lapTotal, trackFlag, refLap: state.refLap, pitLoss, focusDriver, win: focusWin,
+      currentLap,
+      lapTotal,
+      trackFlag,
+      refLap: state.refLap,
+      pitLoss,
+      focusDriver,
+      win: focusWin,
+      pitIn: pitInRow ? { k: kShown, row: pitInRow } : null,
     }),
   }), [cell?.width, cell?.height, fixed?.width, fixed?.height, measure, currentLap, lapTotal, trackFlag,
-    state.refLap, pitLoss, focusDriver, focusWin]);
+    state.refLap, pitLoss, focusDriver, focusWin, pitInRow, kShown]);
   /* eslint-enable react-hooks/exhaustive-deps */
   const { plotW: width, plotH: height } = panel;
 
@@ -1063,7 +1196,15 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
       : null;
     let rejoin = null;
     let lineSets = null;
-    if (windowOn) {
+    if (windowOn && pitInRow) {
+      // Pit in k laps: the ring's label goes to the ghost (the pit-now
+      // probabilities stay in the rejoin marker's tooltip)
+      lineSets = ghostLineSets(kShown, pitInRow);
+      rejoin = {
+        angle: focusCar.angle - TWO_PI * pitInRow.ghostOffset,
+        variants: lineSets.map((set) => set.map((l) => l.text)),
+      };
+    } else if (windowOn) {
       const entries = probabilityEntries(dist?.positions);
       lineSets = rejoinLineSets(entries.length ? entries : [`P${win.predictedPosition}`],
         win.traffic?.flag ? win.traffic : null, entries.length > 2 ? compactEntries(dist?.positions) : null);
@@ -1157,7 +1298,18 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
         marker: { x: mx, y: my, s: carR * 1.35, angle: aRejoin },
         traffic: !!win.traffic?.flag,
         lines: set || [],
+        // the label belongs to the ghost while k > 0
+        labelOf: pitInRow ? 'ghost' : 'rejoin',
       };
+      // Pit in k laps: the ghost of the rejoin, moved back by the time the k
+      // laps take the focus beyond k reference laps (pitInLaps ghostOffset)
+      if (pitInRow) {
+        const aGhost = af - TWO_PI * pitInRow.ghostOffset;
+        const [gx, gy] = polar(cx, cy, R, aGhost);
+        windowMarks.ghost = {
+          x: gx, y: gy, s: carR * 1.35, angle: aGhost, k: kShown, row: pitInRow,
+        };
+      }
     }
 
     // Labels at their final angles; leaders from the car (or the rejoin marker)
@@ -1252,7 +1404,31 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
       layoutOk: layout.ok,
     };
   }, [cars, live, panel, width, height, focusDriver, highlightedDriver, selectedDrivers, focusTags,
-    secondCars, state, measure]);
+    secondCars, state, measure, pitInRow, kShown]);
+
+  // Tooltip rows of "pit in k laps" (k > 0): the projected place, against
+  // pitting now at the same lap, and the inputs of the lap model
+  const pitInRows = useCallback(() => {
+    if (!pitIn) return '';
+    const { k, row: r, table } = pitIn;
+    const dCur = table.degradation?.current;
+    const dNext = table.degradation?.next;
+    const fresh = table.freshDeltaInfo;
+    const degText = (d) => (d
+      ? `${d.compound} ${d.mean >= 0 ? '+' : MINUS}${Math.abs(d.mean).toFixed(3)} s/lap (${d.source === 'race' ? `${d.n} stints` : 'prior'})`
+      : '—');
+    let html = row(`Pit in ${k}`, `in-lap L${r.inLap}, rejoin P${r.predictedPosition} at the end of L${r.targetLap}`)
+      + row('Pitting now instead', `P${r.positionIfPitNow} at the end of L${r.targetLap} (${placesVsNow(r.positionsVsNow)}; `
+        + `waiting ${r.secondsVsNow >= 0 ? 'costs' : 'gains'} ${fmt1(Math.abs(r.secondsVsNow))} s)`)
+      + row('Lap model', `${degText(dCur)} → ${degText(dNext)}`)
+      + row('Fresh-tyre delta', fresh
+        ? `${fresh.value >= 0 ? '+' : MINUS}${Math.abs(fresh.value).toFixed(3)} s on the first flying lap (${fresh.source === 'race' ? `${fresh.n} stints` : 'prior'})`
+        : '—');
+    html += row('Other cars', table.rivalsStop
+      ? `stop when their sets are due${r.rivalStops.length ? `: ${r.rivalStops.join(', ')}` : ' (none by then)'}`
+      : 'no stops (toggle "rivals stop")');
+    return html;
+  }, [pitIn]);
 
   // Tooltip content
   const distributionRows = useCallback(() => {
@@ -1282,8 +1458,9 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
       + row('Lapped traffic', win.trafficOnly.length
         ? win.trafficOnly.map((x) => `${x.driver} ${x.label}`).join(', ') : 'none');
     if (win.neutralised) html += row('Track', 'neutralised: green-flag figures');
+    html += pitInRows();
     return html;
-  }, [live, pitLoss]);
+  }, [live, pitLoss, pitInRows]);
 
   const carTooltip = useCallback((c) => {
     // A car on lap 1 whose place the data leave open has no position
@@ -1336,6 +1513,54 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
     event,
     `<div class="tooltip-title" style="color:${PIT_WINDOW_COLOR}">${focusDriver} pit now</div>${distributionRows()}`,
   );
+  const ghostTooltip = (event) => showTooltip(
+    event,
+    `<div class="tooltip-title" style="color:${PIT_WINDOW_COLOR}">${focusDriver} pits in ${kShown}</div>${pitInRows()}`,
+  );
+
+  // Header: the "pit in k laps" stepper ([ and ]) and the "rivals stop" toggle
+  const stepBtn = {
+    width: 16, height: 16, padding: 0, borderRadius: 3, lineHeight: '14px',
+    border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)',
+    color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+  };
+  const pitInTitle = focusDriver
+    ? `Pit in k laps ([ and ] keys): ${focusDriver} stays out k more laps, then stops; dashed diamond = its projected rejoin. `
+      + 'Lap model of the race simulation (degradation by compound and tyre age, fresh-tyre delta), no traffic.'
+    : 'Pit in k laps ([ and ] keys): click a car first';
+  const headerControls = isRace ? (
+    <div className="cod-pitin" title={pitInTitle} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10 }}>
+      <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 600, whiteSpace: 'nowrap' }}>pit in</span>
+      <button type="button" aria-label="Pit one lap earlier ([)" disabled={kShown <= 0} onClick={() => stepK(-1)} style={stepBtn}>
+        {MINUS}
+      </button>
+      <span className="cod-pitin__k" data-k={kShown} style={{ minWidth: 14, textAlign: 'center', fontWeight: 800, color: '#fff' }}>
+        {kShown}
+      </span>
+      <button type="button" aria-label="Pit one lap later (])" disabled={kShown >= kMax} onClick={() => stepK(1)} style={stepBtn}>
+        +
+      </button>
+      <button
+        type="button"
+        className="cod-pitin__rivals"
+        aria-pressed={rivalsStop}
+        title="Other cars stop when their sets are due: the lap a set reaches the median life of its compound in this race, given the age it has reached (stint-life survival). Off: the other cars do not stop."
+        onClick={() => setRivalsStop((v) => !v)}
+        style={{
+          ...stepBtn,
+          width: 'auto',
+          padding: '0 4px',
+          fontSize: 9,
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          background: rivalsStop ? 'rgba(168, 85, 247, 0.25)' : stepBtn.background,
+          borderColor: rivalsStop ? PIT_WINDOW_COLOR : 'rgba(255,255,255,0.18)',
+        }}
+      >
+        rivals
+      </button>
+    </div>
+  ) : null;
 
   let body = null;
   if (!sessionData) {
@@ -1366,7 +1591,7 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
   const plotStyle = fixed ? undefined : { flex: 'none', width, height };
 
   return (
-    <Panel title="Circle of Doom">
+    <Panel title="Circle of Doom" controls={headerControls}>
       <div ref={setWrapEl} className={`cod${panel.side ? ' cod--side' : ''}`}>
         <div className="cod__main">
           <div ref={setPlotEl} className="cod__plot" style={plotStyle}>
@@ -1462,6 +1687,24 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
                 ))}
               </g>
 
+              {windowMarks?.ghost && (
+                <g
+                  className="cod-ghost"
+                  data-k={windowMarks.ghost.k}
+                  data-position={windowMarks.ghost.row.predictedPosition}
+                  transform={`translate(${windowMarks.ghost.x},${windowMarks.ghost.y})`}
+                  onMouseEnter={ghostTooltip}
+                  onMouseMove={ghostTooltip}
+                  onMouseLeave={hideTooltip}
+                >
+                  <path
+                    className="cod-ghost-marker"
+                    d={`M0,${-windowMarks.ghost.s} L${windowMarks.ghost.s},0 L0,${windowMarks.ghost.s} L${-windowMarks.ghost.s},0 Z`}
+                    {...GHOST_MARK}
+                  />
+                </g>
+              )}
+
               {windowMarks && (
                 <g
                   className="cod-rejoin"
@@ -1492,6 +1735,7 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
                         y={y0 + lineH / 2}
                         fontSize={fs}
                         data-box={l.box.map((v) => v.toFixed(1)).join(',')}
+                        data-of={windowMarks.labelOf}
                       >
                         {windowMarks.lines.map((line, i) => (
                           <tspan
@@ -1564,7 +1808,13 @@ export default function CircleOfDoom({ size = null, slotSize = null, measureText
         <svg width="0" height="0" className="cod-defs" aria-hidden="true">
           <defs><HatchPattern id={legendHatchId} /></defs>
         </svg>
-        <CircleLegend hatchId={legendHatchId} side={panel.side} cols={panel.legend.cols} short={panel.legend.short} />
+        <CircleLegend
+          hatchId={legendHatchId}
+          side={panel.side}
+          cols={panel.legend.cols}
+          short={panel.legend.short}
+          items={pitInRow ? LEGEND_ITEMS_GHOST : LEGEND_ITEMS}
+        />
       </div>
     </Panel>
   );

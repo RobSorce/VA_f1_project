@@ -21,10 +21,11 @@ import { driverStateAt, nonFinisherMap } from '../driverState';
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
  * @param {string} driver
  * @param {number} sessionNow - session seconds, Infinity = whole session
- * @param {Object} [opts] - { replayActive, dnfMap }
+ * @param {Object} [opts] - { replayActive, dnfMap, isLiveMode (live feed rows:
+ *   driverState.js nonFinisherMap) }
  * @returns {Object|null}
  */
-export function pitWallSectorData(lapTimes, driver, sessionNow, { replayActive = false, dnfMap = {} } = {}) {
+export function pitWallSectorData(lapTimes, driver, sessionNow, { replayActive = false, dnfMap = {}, isLiveMode = false } = {}) {
   if (!driver || !Array.isArray(lapTimes) || !lapTimes.length) return null;
   const now = sessionNow == null || Number.isNaN(sessionNow) ? Infinity : sessionNow;
   const driverLaps = lapTimes
@@ -32,7 +33,7 @@ export function pitWallSectorData(lapTimes, driver, sessionNow, { replayActive =
     .sort((a, b) => a.LapNumber - b.LapNumber);
   if (driverLaps.length === 0) return null;
   // Results DNFs plus classified drivers who stopped before the flag
-  const nonFinishers = nonFinisherMap(lapTimes, dnfMap);
+  const nonFinishers = nonFinisherMap(lapTimes, dnfMap, { live: isLiveMode });
   const st = driverStateAt(driverLaps, driver, now, { dnf: !!nonFinishers[driver] });
 
   // Laps completed at sessionNow: the unfinished current lap is not history yet

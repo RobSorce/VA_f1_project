@@ -1,12 +1,21 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
-import { simulateRaceFinish } from '../../utils/raceSimulation';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import {
-  causalKey, completedStints, pitLossDisplay, viewSessionType, isRaceSession,
+  causalKey, pitLossDisplay, viewSessionType, isRaceSession,
 } from '../../utils/strategyViews';
+import {
+  battleKey, listedBattles, modePosition, projectionRisks,
+  BADGE_INTERVAL_PCT, PODIUM_BADGE_PCT, BATTLE_BADGE_PCT, BATTLE_LIST_SIZE,
+} from '../../utils/simulationClient';
 import Panel from '../ui/Panel';
+
+// Badge rule shown in the tooltips (utils/simulationClient.js projectionBadges)
+const badgeRule = (n) => `The badge turns on only when the ${BADGE_INTERVAL_PCT} % Wilson interval of the share `
+  + `of the ${n != null ? `${n.toLocaleString('en-US')} ` : ''}simulations lies entirely at or above the threshold, `
+  + 'and off only when it lies entirely below; while the threshold is inside the interval (within the '
+  + 'Monte Carlo error) it keeps its previous state.';
 
 export default function RacePredictionPanel() {
   const raceSituationData = useF1Store((s) => s.raceSituationData);
@@ -19,8 +28,11 @@ export default function RacePredictionPanel() {
   const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
   const sessionData = useF1Store((s) => s.sessionData);
   const trackStatus = useF1Store((s) => s.trackStatus);
-  const setRaceProjection = useF1Store((s) => s.setRaceProjection);
   const sessionTimeOffset = useF1Store((s) => s.sessionTimeOffset);
+  // The projection is the store's (computeRaceProjection, its only writer):
+  // the panel reads it, as every other view does
+  const raceProjection = useF1Store((s) => s.raceProjection);
+  const computeRaceProjection = useF1Store((s) => s.computeRaceProjection);
   // The Monte Carlo race projection exists for race sessions ('R', 'S') only
   const sessionType = useF1Store(viewSessionType);
   const isRace = isRaceSession(sessionType);
@@ -29,8 +41,7 @@ export default function RacePredictionPanel() {
   const running = useStintsRunning();
   const lapTimesAll = sessionData?.lap_times;
   // Changes when a lap, a pit event or a track-status event completes, and
-  // on any seek (backward included): the projection is recomputed at that
-  // clock, so it never keeps values from a later one
+  // on any seek (backward included)
   const causal = useMemo(
     () => causalKey(lapTimesAll, sessionNow, trackStatus),
     [lapTimesAll, sessionNow, trackStatus],
@@ -42,35 +53,27 @@ export default function RacePredictionPanel() {
   const effectiveMaxLap = totalRaceLaps || maxLap;
 
   // ── Monte Carlo race projection (all drivers, real data) ──
-  // Causal: only what is known at sessionNow (completed laps and stints,
-  // session seconds). Keyed on the causal key, not on every replay frame:
-  // the 100 simulations re-run when something new is known or the clock
-  // jumps, never with values from a later clock after a backward seek.
-  const raceProjection = useMemo(() => {
-    if (!isRace || !raceSituationData?.driverFeatures) return null;
-    const lapTimes = sessionData?.lap_times;
-    return simulateRaceFinish({
-      driverFeatures: raceSituationData.driverFeatures,
-      currentLap,
-      maxLap: effectiveMaxLap,
-      lapTimes,
-      strategies: completedStints(lapTimes, sessionNow, { running }),
-      trackStatus,
-      sessionNow,
-      sessionTimeOffset,
-      sessionType,
-      running,
-    });
+  // The store recomputes it on every new lap of the race situation and after
+  // a clock jump; while the panel is open it also asks for it when something
+  // new is known within a lap (a stop, a track-status change). Same inputs ->
+  // same seed -> the store does not run it again.
+  useEffect(() => {
+    if (isRace) computeRaceProjection();
   }, [raceSituationData, currentLap, effectiveMaxLap, sessionData, trackStatus, sessionTimeOffset,
     causal, isRace, sessionType, running]);
 
   // Pit loss shown in the header: the estimator's median, labelled when it is the fallback
   const pitLossInfo = pitLossDisplay(raceProjection?.raceParams?.pitLoss);
-
-  // Sync to store so Gemini can access it
-  useEffect(() => {
-    setRaceProjection(raceProjection);
-  }, [raceProjection, setRaceProjection]);
+  const raceParams = raceProjection?.raceParams;
+  const scEstimate = raceParams?.estimates?.safetyCar;
+  const lapNoiseEstimate = raceParams?.estimates?.lapNoise;
+  const numSims = raceProjection?.numSimulations;
+  const badges = raceProjection?.badges;
+  // Battles listed: the store's list (it changes only on evidence beyond the
+  // Monte Carlo error, utils/simulationClient.js listedBattles)
+  const battles = useMemo(() => listedBattles(raceProjection), [raceProjection]);
+  // Risk rows: the store's (judged beyond the Monte Carlo error, chained)
+  const risks = useMemo(() => projectionRisks(raceProjection), [raceProjection]);
 
   // Measure tab content area for dynamic row sizing
   useEffect(() => {
@@ -99,14 +102,16 @@ export default function RacePredictionPanel() {
   const predTabs = useMemo(() => {
     if (!raceProjection) return [];
     const tabs = [{ id: 'projections', label: 'Projections' }];
-    if (raceProjection.battles?.length > 0)
-      tabs.push({ id: 'battles', label: `Battles (${raceProjection.battles.length})` });
-    if (raceProjection.risks?.length > 0)
-      tabs.push({ id: 'risks', label: `Risks (${raceProjection.risks.length})` });
+    if (battles.length > 0)
+      tabs.push({ id: 'battles', label: `Battles (${battles.length})` });
+    if (risks.length > 0)
+      tabs.push({ id: 'risks', label: `Risks (${risks.length})` });
     if (lstmPredictions && typeof lstmPredictions === 'object' && Object.keys(lstmPredictions).length > 0)
       tabs.push({ id: 'lstm', label: 'LSTM' });
     return tabs;
-  }, [raceProjection, lstmPredictions]);
+  }, [raceProjection, battles, risks, lstmPredictions]);
+  // A tab that has gone (no listed battle any more) falls back to the projections
+  const shownTab = predTabs.some((t) => t.id === activeTab) ? activeTab : 'projections';
 
   const tabPillStyle = (active) => ({
     padding: '3px 8px', fontSize: '9px', fontWeight: 600,
@@ -121,7 +126,7 @@ export default function RacePredictionPanel() {
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
         {/* ── MONTE CARLO PROJECTED FINISH (all drivers) ── */}
-        {raceProjection && (
+        {isRace && raceProjection && (
           <>
             {/* Race progress header — always visible */}
             <div style={{
@@ -143,22 +148,42 @@ export default function RacePredictionPanel() {
                   width: `${Math.min(100, raceProgress * 100)}%`, transition: 'width 0.5s ease',
                 }} />
               </div>
-              {raceProjection.raceParams && (
+              {raceParams && (
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '8px', color: 'var(--color-text-muted)' }}>
                   <span title={pitLossInfo.isFallback
                     ? 'No valid green-flag stop yet: fallback value (an assumption, not data)'
-                    : `Median of ${pitLossInfo.n} green-flag stops in this race (in-lap + out-lap - 2 x the driver's green-flag median lap)`}
+                    : `Median of ${pitLossInfo.n} green-flag stops in this race (in-lap + out-lap - 2 x the driver's green-flag median lap). Each simulated stop draws its loss around this median.`}
                   >
                     Pit loss: {pitLossInfo.value.toFixed(1)}s
                     {pitLossInfo.isFallback
                       ? ' fallback'
-                      : pitLossInfo.p10 != null && pitLossInfo.p90 != null
+                      : ` median, race${pitLossInfo.p10 != null && pitLossInfo.p90 != null
                         ? ` (P10\u2013P90 ${pitLossInfo.p10.toFixed(1)}\u2013${pitLossInfo.p90.toFixed(1)}s, n=${pitLossInfo.n})`
-                        : ` (n=${pitLossInfo.n})`}
+                        : ` (n=${pitLossInfo.n})`}`}
                   </span>
-                  <span>Lap noise: {'\u00B1'}{raceProjection.raceParams.lapNoise.toFixed(2)}s</span>
-                  <span>SC rate: {(raceProjection.raceParams.scRate * 100).toFixed(1)}%/lap</span>
-                  <span>100 sims</span>
+                  <span title={lapNoiseEstimate?.source === 'race'
+                    ? `Pooled residual sigma of ${lapNoiseEstimate.stints} per-stint degradation fits (${lapNoiseEstimate.laps} clean laps) of this race`
+                      + `${lapNoiseEstimate.raceValue != null ? ` (${lapNoiseEstimate.raceValue.toFixed(2)}s alone)` : ''}, combined with the`
+                      + ` ${lapNoiseEstimate.prior?.kind || 'dry'} races of the cache (${lapNoiseEstimate.prior?.value} s, worth`
+                      + ` ${lapNoiseEstimate.prior?.nu0} degrees of freedom against this race's ${lapNoiseEstimate.dof})`
+                    : `No fitted stint in this race yet: the prior of the cached ${lapNoiseEstimate?.prior?.kind || 'dry'} races`}
+                  >
+                    Lap noise: {'\u00B1'}{raceParams.lapNoise.toFixed(2)}s{lapNoiseEstimate?.source ? ` ${lapNoiseEstimate.source}` : ''}
+                  </span>
+                  <span title={scEstimate
+                    ? `Safety-car / VSC episodes per leader lap: ${scEstimate.episodes} episode${scEstimate.episodes === 1 ? '' : 's'} started in ${scEstimate.laps} laps so far, `
+                      + `shrunk toward the prior of the cached races (${scEstimate.prior?.episodesPerRace} per ${scEstimate.prior?.lapsPerRace} laps, `
+                      + `weight ${scEstimate.prior?.weightRaces} race). ${scEstimate.source === 'prior' ? 'No episode in this race yet: the prior.' : ''}`
+                    : undefined}
+                  >
+                    SC rate: {(raceParams.scRate * 100).toFixed(1)}%/lap{scEstimate?.source ? ` ${scEstimate.source}` : ''}
+                    {scEstimate?.source === 'race' ? ` (${scEstimate.episodes} ep.)` : ''}
+                  </span>
+                  {numSims != null && (
+                    <span title={`Seed ${raceProjection.seed}: from the session and what is known at the clock, so the same state always gives the same projection`}>
+                      {numSims.toLocaleString('en-US')} sims
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -170,7 +195,7 @@ export default function RacePredictionPanel() {
                 borderBottom: '1px solid rgba(255,255,255,0.06)',
               }}>
                 {predTabs.map(t => (
-                  <button key={t.id} onClick={() => setActiveTab(t.id)} style={tabPillStyle(activeTab === t.id)}>
+                  <button key={t.id} onClick={() => setActiveTab(t.id)} style={tabPillStyle(shownTab === t.id)}>
                     {t.label}
                   </button>
                 ))}
@@ -180,7 +205,7 @@ export default function RacePredictionPanel() {
             {/* Tab content */}
             <div ref={tabContentRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: 'var(--spacing-sm)' }}>
 
-              {activeTab === 'projections' && (
+              {shownTab === 'projections' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
                   {/* Compact Legend */}
                   <div style={{
@@ -208,6 +233,9 @@ export default function RacePredictionPanel() {
                   <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm)' }}>
                     {raceProjection.projections.map((p) => {
                 const deltaColor = p.delta > 0.5 ? '#00e676' : p.delta < -0.5 ? '#e10600' : 'var(--color-text-muted)';
+                // Most likely position shown: the store's (it changes only when another
+                // position's share is beyond the Monte Carlo error of it); its colour follows it
+                const shownPos = modePosition(raceProjection, p);
                 const isSelected = selectedDrivers.includes(p.driver);
 
                 // Build probability bar segments
@@ -234,11 +262,15 @@ export default function RacePredictionPanel() {
                     {/* Row 1: Position, driver, delta, podium/pts */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: compactRows ? 0 : 3 }}>
                       {/* Position */}
-                      <span style={{
-                        fontWeight: 900, fontSize: 'var(--font-size-sm)', minWidth: 26,
-                        color: p.modePos <= 3 ? '#ffd700' : p.modePos <= 10 ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                      }}>
-                        P{p.modePos}
+                      <span
+                        title={`Most likely finishing position (${p.posDistribution?.[shownPos] ?? 0}% of the simulations). `
+                          + `It changes only when another position's share lies beyond the ${BADGE_INTERVAL_PCT} % Wilson interval of it. Gold = a podium place.`}
+                        style={{
+                          fontWeight: 900, fontSize: 'var(--font-size-sm)', minWidth: 26,
+                          color: shownPos <= 3 ? '#ffd700' : shownPos <= 10 ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                        }}
+                      >
+                        P{shownPos}
                       </span>
 
                       {/* Delta arrow */}
@@ -276,12 +308,15 @@ export default function RacePredictionPanel() {
                         P{p.posRange[0]}{'\u2013'}P{p.posRange[1]}
                       </span>
 
-                      {/* Podium / Points */}
+                      {/* Podium / Points: gold = podium badge (Wilson interval + hysteresis) */}
                       {p.podiumProb > 0 && (
-                        <span style={{
-                          fontSize: '8px', fontWeight: 700, minWidth: 28, textAlign: 'right',
-                          color: p.podiumProb >= 50 ? '#ffd700' : 'var(--color-text-muted)',
-                        }}>
+                        <span
+                          title={`Podium in ${p.podiumProb}% of the simulations. Gold = at least ${PODIUM_BADGE_PCT} %. ${badgeRule(numSims)}`}
+                          style={{
+                            fontSize: '8px', fontWeight: 700, minWidth: 28, textAlign: 'right',
+                            color: (badges ? badges.podium?.[p.driver] : p.podiumProb >= PODIUM_BADGE_PCT) ? '#ffd700' : 'var(--color-text-muted)',
+                          }}
+                        >
                           {p.podiumProb}%
                           <span style={{ fontWeight: 400, fontSize: '7px' }}> pod</span>
                         </span>
@@ -340,22 +375,35 @@ export default function RacePredictionPanel() {
                 </div>
               )}
 
-              {activeTab === 'battles' && raceProjection.battles.length > 0 && (
+              {shownTab === 'battles' && battles.length > 0 && (
                 <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
                   <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
                     Overtake Probabilities
                   </h6>
-                  {raceProjection.battles.map((b, i) => {
-                    const probColor = b.prob >= 60 ? '#00e676' : b.prob >= 30 ? '#ffd700' : '#64C4FF';
+                  {battles.map((b) => {
+                    // Colour = battle badge level (Wilson interval + hysteresis, store)
+                    const { level } = b;
+                    const probColor = level >= 2 ? '#00e676' : level === 1 ? '#ffd700' : '#64C4FF';
                     return (
-                      <div key={i} style={{
+                      <div key={battleKey(b)} style={{
                         display: 'flex', alignItems: 'center', gap: 6, marginBottom: compactRows ? 2 : 8,
                         fontSize: 'var(--font-size-xs)',
                       }}>
-                        <span style={{
-                          flexShrink: 0, minWidth: 36, textAlign: 'center',
-                          fontWeight: 900, fontSize: compactRows ? 'var(--font-size-xs)' : 'var(--font-size-sm)', color: probColor,
-                        }}>{b.prob}%</span>
+                        <span
+                          title={`${b.behind} finishes ahead of ${b.ahead} in ${b.prob}% of the simulations. `
+                            + `Gold = at least ${BATTLE_BADGE_PCT[0]} %, green = at least ${BATTLE_BADGE_PCT[1]} %. `
+                            + `Listed: the pairs within 4 positions that are, beyond the Monte Carlo error, among the ${BATTLE_LIST_SIZE} `
+                            + `most likely: a pair enters when fewer than ${BATTLE_LIST_SIZE} other pairs could be as likely (their `
+                            + `intervals reach its interval) and stays until ${BATTLE_LIST_SIZE} other pairs are surely more likely; `
+                            + 'while pairs are too close to call the list holds fewer rows. '
+                            + `Order: green, gold, then the others, each in race order. ${badgeRule(numSims)}`}
+                          style={{
+                            flexShrink: 0, minWidth: 36, textAlign: 'center',
+                            fontWeight: 900, fontSize: compactRows ? 'var(--font-size-xs)' : 'var(--font-size-sm)', color: probColor,
+                          }}
+                        >
+                          {b.prob}%
+                        </span>
                         <div style={{ flex: 1, lineHeight: 1.4 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <strong style={{ color: getDriverColor(b.behind) }}>{b.behind}</strong>
@@ -377,12 +425,12 @@ export default function RacePredictionPanel() {
                 </div>
               )}
 
-              {activeTab === 'risks' && raceProjection.risks.length > 0 && (
+              {shownTab === 'risks' && risks.length > 0 && (
                 <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
                   <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
                     Risk Factors
                   </h6>
-                  {raceProjection.risks.map((r, i) => {
+                  {risks.map((r, i) => {
                     const sevColor = r.severity === 'high' ? '#e10600' : r.severity === 'medium' ? '#ffd700' : '#64C4FF';
                     return (
                       <div key={i} style={{
@@ -408,7 +456,7 @@ export default function RacePredictionPanel() {
                 </div>
               )}
 
-              {activeTab === 'lstm' && lstmPredictions && typeof lstmPredictions === 'object' && (
+              {shownTab === 'lstm' && lstmPredictions && typeof lstmPredictions === 'object' && (
                 <div style={{
                   background: 'linear-gradient(135deg, rgba(168,85,247,0.10) 0%, rgba(168,85,247,0.02) 100%)',
                   borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm) var(--spacing-md)',
@@ -522,16 +570,24 @@ export default function RacePredictionPanel() {
           </>
         )}
 
-        {/* ── Early-race state: collecting data ── */}
+        {/* ── Early-race state: collecting data (or the first run still in the worker) ── */}
         {isRace && !raceProjection && raceSituationData && currentLap >= 3 && (
           <div style={{
             background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)',
             padding: 'var(--spacing-md)', textAlign: 'center',
           }}>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-              Monte Carlo simulation available after <strong style={{ color: '#00e676' }}>lap 5</strong>.
-              <br />
-              Collecting real pace data, pit stops, and tyre degradation to calibrate...
+              {currentLap < 5 ? (
+                <>
+                  Monte Carlo simulation available after <strong style={{ color: '#00e676' }}>lap 5</strong>.
+                  <br />
+                  Collecting real pace data, pit stops, and tyre degradation to calibrate...
+                </>
+              ) : effectiveMaxLap > currentLap ? (
+                'Running the Monte Carlo simulations...'
+              ) : (
+                'No lap left to project.'
+              )}
             </div>
           </div>
         )}

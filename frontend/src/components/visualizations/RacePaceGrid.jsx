@@ -168,9 +168,9 @@ function RacePaceGrid() {
   // (causalKey), not on every replay tick; the chrono reads sessionNow directly.
   const gridKey = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
   const gridData = useMemo(
-    () => paceGridData(lapTimes, sessionNow, { dnfMap }),
+    () => paceGridData(lapTimes, sessionNow, { dnfMap, isLiveMode }),
     // sessionNow enters through gridKey, which changes whenever the result does
-    [lapTimes, gridKey, dnfMap],
+    [lapTimes, gridKey, dnfMap, isLiveMode],
   );
   const pitCountByDriver = gridData.pitCounts;
 

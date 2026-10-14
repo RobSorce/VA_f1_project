@@ -14,14 +14,39 @@
  *
  * No pit-loss value is hard-coded here: pit loss is measured per race
  * (utils/pitLoss.js); the only number quoted is FALLBACK_PIT_LOSS, the
- * labelled fallback used before the first valid green-flag stop.
+ * labelled fallback used before the first valid green-flag stop. Every other
+ * number is the constant of the module that uses it (imported below), or a
+ * prior those modules measured over the cached races
+ * (notes/experiments/mc_benchmark.txt, degradation_definition_monza.txt).
  */
 import { FALLBACK_PIT_LOSS } from './pitLoss';
+import { FUEL_EFFECT_S_PER_LAP, MIN_FIT_LAPS, OUTLIER_K } from './degradation';
+import {
+  DEFAULT_NUM_SIMULATIONS, PACE_REF_LAPS, OPTIONAL_STOP_MIN_LAPS_LEFT, PRIORS,
+} from './raceSimulation';
+import { PIT_IN_LAPS_MAX, UNDERCUT_SWEEP_LAPS } from './undercut';
+import { PACE_WINDOW_LAPS } from './circleOfDoom';
+import { LOW_DATA_FRACTION } from './views/degradationViews';
 
 const PIT_LOSS_METHOD = 'Pit loss is measured from this race\'s green-flag stops: '
   + 'in-lap + out-lap minus twice the driver\'s green-flag median lap; the median over stops is used.';
 const PIT_LOSS_FALLBACK = `Before the first valid green-flag stop a ${FALLBACK_PIT_LOSS.median} s fallback `
   + '(an assumption, not data) is used, shown as "fallback".';
+// Fuel effect of the degradation fits (utils/degradation.js), an assumption
+const FUEL_ASSUMPTION = `Degradation is fuel-corrected with an assumed fuel effect of ${FUEL_EFFECT_S_PER_LAP.toFixed(3)} s/lap `
+  + '(not measured: within a stint fuel burn and tyre age grow together, so the data cannot separate them).';
+// The lap model the race simulation, the undercut and "pit in k laps" share (utils/raceSimulation.js)
+// How the lap model's degradation per compound is estimated (raceSimulation.js raceDegradation)
+const DEGRADATION_RULE = 'this race\'s per-stint fits once they span enough clean laps '
+  + `(${PRIORS.degradation.SOFT.minFitLaps} SOFT, ${PRIORS.degradation.MEDIUM.minFitLaps} MEDIUM, ${PRIORS.degradation.HARD.minFitLaps} HARD: `
+  + 'a shorter fit strays further from its whole stint than the stints of one race differ), combined with the average '
+  + `of the ${PRIORS.races} cached races and weighted by how much races and stints differ; the prior alone before that; `
+  + 'negative fits are kept';
+const LAP_MODEL = 'Lap model of the race simulation: each lap after the pit window\'s horizon costs the degradation of its '
+  + `compound per lap of tyre age (${DEGRADATION_RULE}); `
+  + 'a new set starts from the pace without the wear the old set had; the fresh-tyre delta (this race\'s, else the prior) '
+  + 'falls on the first flying lap; the out-lap counts at the in-lap\'s normal time (the pit loss covers the rest).';
+const NUMBER = (v) => v.toLocaleString('en-US');
 
 export const CHART_HELP = {
   trackmap: {
@@ -54,7 +79,7 @@ export const CHART_HELP = {
     ],
     limitations: [
       'SC / VSC / yellow-flag laps are visually dimmed but not removed — the numbers are real lap times under caution.',
-      'Pit in / out laps are kept for context but excluded from brushed regressions.',
+      'Lap 1, pit in / out laps and non-green laps are kept for context but left out of the brushed degradation fit.',
     ],
     seeAlso: [
       { tabId: 'tiredeg', label: 'Tyre Degradation' },
@@ -119,17 +144,18 @@ export const CHART_HELP = {
 
   tiredeg: {
     title: 'Tyre Degradation',
-    summary: 'Per-stint linear regression of lap time vs tyre life — quantifies degradation in ms/lap.',
+    summary: 'Per-stint linear fit of lap time on tyre life — degradation in s/lap, with the definition every view shares.',
     howToRead: [
-      'X-axis = tyre life (laps on current compound); Y-axis = clean lap time (SC/pit filtered).',
-      'Each stint gets its own scatter + regression line.',
-      'Two slopes annotated per stint: **raw** (includes fuel burn) and **tyre only** (raw + 30 ms/lap fuel correction).',
-      'Negative raw slope is common at low-deg tracks — read the fuel-corrected number for true tyre wear.',
+      'X-axis = tyre life (laps on the set); Y-axis = lap time. One scatter and one fit line per stint: a stint is one tyre set, so a stop onto the same compound starts a new stint.',
+      `The fit uses the clean laps only: lap 1, pit in / out laps, laps not fully green and slow outliers (more than ${OUTLIER_K} robust sigmas above the stint's fit) are drawn as hollow circles and left out. A stint needs ${MIN_FIT_LAPS} clean laps for a fit.`,
+      'Two slopes per stint: **fuel-corr.** (the degradation every view uses: raw slope + the fuel effect) and **raw** (the lap-time trend, fuel burn included, often negative on low-degradation tracks).',
+      FUEL_ASSUMPTION,
+      'Drag on Lap Times to fit a lap range only; the replay draws only the laps completed so far.',
     ],
     limitations: [
-      'Fuel correction is a fixed 30 ms/lap; actual car-specific burn rate varies ±5 ms/lap.',
-      'Regression assumes linear degradation; thermal-cliff behaviour (late-stint collapse) is flattened.',
-      'See docs/INSIGHTS_MONZA_2024.md for a worked example (Monza = low deg, Hungary = high deg).',
+      `The fuel effect is one assumed constant (${FUEL_EFFECT_S_PER_LAP.toFixed(3)} s/lap) for every car and track; a different value shifts every fuel-corrected slope by the difference.`,
+      'The fit is linear in tyre life; a late-stint drop-off is averaged into the slope.',
+      'Early in a stint (few laps, track still evolving) a fit can be negative: it is kept and shown, not set to 0.',
     ],
     seeAlso: [
       { tabId: 'laptimes', label: 'Lap Times (for brushing)' },
@@ -177,16 +203,18 @@ export const CHART_HELP = {
 
   consistency: {
     title: 'Consistency',
-    summary: 'Population σ of lap times per driver — cards collapse for overview, expand for detail.',
+    summary: 'Lap-to-lap consistency per driver: the scatter of the clean laps around each stint\'s tyre-wear line — cards collapse for overview, expand for detail.',
     howToRead: [
-      'Ranked by average lap time; σ (standard deviation) quantifies how tightly packed a driver\'s lap distribution is.',
-      'Consistent / Inconsistent chip is relative to the field\'s median CV%.',
+      'σ = residual sigma: each stint gets the same fit as Tyre Degradation (fuel-corrected lap time on tyre life), and σ pools the scatter of the clean laps around those lines. Tyre wear, fuel burn and stops are in the lines, so they do not count as inconsistency.',
+      `Clean laps only: lap 1, pit in / out laps, laps not fully green and slow outliers (more than ${OUTLIER_K} robust sigmas above the stint's fit) are left out; a stint needs ${MIN_FIT_LAPS} clean laps.`,
+      'Ranked by average clean lap; the Consistent / Inconsistent chip compares σ with the field\'s median σ. Deg = the mean fuel-corrected slope of the driver\'s fitted stints on that compound.',
       'Click the chevron to expand; click the header body to set focus driver.',
-      'Drivers with < 75 % of race laps get a "LOW DATA" chip and are de-saturated.',
+      `Drivers whose σ rests on fewer than ${Math.round(LOW_DATA_FRACTION * 100)} % of the largest sample in the field get a "LOW DATA" chip and are de-saturated.`,
+      FUEL_ASSUMPTION,
     ],
     limitations: [
-      'Pit in/out laps are excluded; everything else (including SC laps) counts.',
-      'In wet races σ jumps from ~1 s to ~9 s — absolute values are not comparable across conditions. See docs/INSIGHTS_BRAZIL_2024.md for a worked case.',
+      'No σ before a stint has enough clean laps for a fit.',
+      'Wet and dry stints are fitted separately, but a changing track within a stint (drying, rain) still widens σ.',
     ],
     seeAlso: [
       { tabId: 'laptimes', label: 'Lap Times' },
@@ -240,12 +268,14 @@ export const CHART_HELP = {
       'LSTM block: 5-lap forecast with a colour-coded spread pill (tight = high confidence).',
       'Chip reads "LSTM" (trained model) or "HEURISTIC" (fallback, MAE ~2-3× worse).',
       'Optimal pit-lap suggestion + predicted stints.',
-      'Monte Carlo panel (below): 100 iterations of race-to-flag simulation, showing expected-position and podium / points probabilities.',
+      `Monte Carlo panel (below): ${NUMBER(DEFAULT_NUM_SIMULATIONS)} race-to-flag runs (seeded: the same race state always gives the same result), showing expected position and podium / points probabilities; a badge, the most likely position shown, the battles listed and the risk rows change only when the interval of the share behind them clears the threshold (rule in the badge tooltip), never on Monte Carlo noise alone; the battles listed are those surely among the most likely (fewer rows while pairs are too close to call), green, gold, then the others, each in race order.`,
+      `Monte Carlo inputs, all from the race so far: pace = each driver's last ${PACE_REF_LAPS} clean laps; tyre wear by compound = ${DEGRADATION_RULE}; lap noise = the scatter around those fits, combined with the cached races of the same kind (dry ${PRIORS.lapNoise.dry.value} s, worth ${PRIORS.lapNoise.dry.nu0} degrees of freedom; wet ${PRIORS.lapNoise.wet.value} s), the prior alone before the first fit; stops = when sets of that compound were changed so far this race (sets still running count as still running), one stop forced in a dry race until two dry compounds are used, no optional stop with fewer than ${OPTIONAL_STOP_MIN_LAPS_LEFT} laps left; safety car = episodes so far per lap, pulled toward the average of the ${PRIORS.races} cached races (${PRIORS.safetyCar.episodesPerRace} episode per ${PRIORS.safetyCar.lapsPerRace} laps), shown as "prior" until one happens.`,
+      FUEL_ASSUMPTION,
     ],
     limitations: [
       'Model accuracy varies with conditions: ~0.4 s MAE dry, up to 2.5 s wet. Wet laps push confidence outside the useful range.',
       'Freshly pitted drivers (first 3-5 laps on new tyres) are the worst-case — see docs/INSIGHTS_HUNGARY_2024.md.',
-      'Monte Carlo uses N=100 iterations; re-computes on every currentLap change.',
+      'Monte Carlo: no traffic or overtaking difficulty (places come from projected race time), weather not forecast (wet compounds stay), a safety car compresses the gaps by the ratio measured on the cached races; each stop is charged a pit loss drawn around this race\'s median (the labelled fallback before the first measured stop).',
     ],
     seeAlso: [
       { tabId: 'strategy', label: 'Strategy Timeline' },
@@ -259,12 +289,14 @@ export const CHART_HELP = {
     summary: 'Monte Carlo race-to-flag simulator — changes a hypothetical strategy and shows the resulting position distribution.',
     howToRead: [
       'Edit the pit-strategy input (add / remove / move a pit stop) and see the result vs baseline.',
+      `Both runs (${NUMBER(DEFAULT_NUM_SIMULATIONS)} simulations each) use the same random numbers, so an identical plan differs by exactly 0 and every difference comes from the plan.`,
+      'Each planned stop from the lap in progress on is made at the end of its in-lap and charged a pit loss drawn around the race\'s median; stops before it are the race\'s own history.',
       'Distribution bar: expected finish with P10 / P90 confidence band.',
-      'Delta card: Δ position, Δ podium probability, Δ points probability vs the actual strategy.',
+      'Delta card: Δ position (baseline expected position minus the plan\'s: positive = the plan finishes higher), Δ podium and Δ points probability. The baseline is the model\'s own stops, or a plan picked with "vs".',
     ],
     limitations: [
-      'N=100 iterations — median is stable, but probability tails have ~±5 % noise. Use 500+ for post-race analysis.',
-      'Rival cars are assumed to continue their actual strategy; does not model reactive pit calls from competitors.',
+      'The other drivers follow the model\'s stops (when their sets are due by this race\'s stint-life estimate); no reactive pit calls.',
+      'Same lap model, safety-car model and limits as the Race Prediction Monte Carlo (no traffic, weather not forecast).',
     ],
     seeAlso: [
       { tabId: 'strategy', label: 'Strategy Timeline' },
@@ -398,7 +430,7 @@ export const CHART_HELP = {
     summary: 'Head-to-head comparison of two drivers — lap-time delta, sectors, consistency side-by-side.',
     howToRead: [
       'Pick two drivers from the selectors (or use Shift+G after selecting two on the Leaderboard).',
-      'Panel splits into two columns with matched metrics.',
+      'Panel splits into two columns with matched metrics. Consistency (σ) is the residual sigma of each driver\'s per-stint fits, as in the Consistency panel.',
       'Delta numbers are colour-coded: green = Driver A better, red = Driver B better.',
     ],
     limitations: [
@@ -460,8 +492,12 @@ export const CHART_HELP = {
       'A "traffic" mark on the rejoin means the rejoin point is less than 1.0 s behind another car on the ring as drawn, on any lap (dirty air, DRS range). It is read again at every frame, so it follows the drawing, including a car held just before the line.',
       'Click a car to focus it in the other views too (Track Map, Leaderboard, Timing Tower, Position Tracker, PCA panel). Hover a car to highlight it in the views that follow the highlight (Track Map, Leaderboard, Timing Tower, Lap Times, Strategy Timeline and others; the Position Tracker and the PCA views follow focus and selection only). With a focus set, hovering another car shows the time gap between the two. Centre: lap, track status, reference lap, the loss used and the focus car\'s projected place.',
       'On lap 1, until a car crosses the line, its place comes from the last lap-1 timing point it has passed (end of sector 2), then from its grid slot; a car whose place the data leave open shows none.',
+      `Pit in k laps: the stepper in the header (k = 0 to ${PIT_IN_LAPS_MAX}, also the [ and ] keys, with AltGr or Option where the keyboard layout needs it, not while typing) keeps the focus car out k more laps before it stops. The dashed diamond (ghost) marks its projected rejoin, its label gives the projected place, and the centre reads "pits in k: (place now) → (projected place) (±n vs now)": the n places better (+) or worse (−) than pitting now, counted at the end of that same out-lap (pitting now, the car would by then have k laps on the new set). k = 0 is the pit window above; k stops at the laps the car has left.`,
+      `Pit in k laps projects every car from the pit window: each car's pace and line crossing as above, then lap by lap the ${LAP_MODEL.charAt(0).toLowerCase()}${LAP_MODEL.slice(1)}`,
+      'The ghost sits back from the focus car by the rejoin\'s distance plus the time the k laps take the focus beyond k reference laps (the ring turns once per reference lap). "Rivals stop" (header toggle, off by default): the other cars change their sets on the lap the set reaches the median life of its compound in this race, given the age it has reached (stint-life survival), each charged the pit loss.',
     ],
     limitations: [
+      'Pit in k laps assumes no traffic (no time lost behind another car), no safety car, the paces measured now, linear tyre wear by compound and no stops by the other cars unless "rivals stop" is on. With this race\'s degradation fits still negative (early in a stint the track can improve faster than the assumed fuel effect) the model makes a new set slower, so waiting looks better.',
       'Under Safety Car or VSC the pit loss, the paces and the reference lap stay green-flag figures (no validated SC / VSC estimator yet); a car whose lap runs longer than the reference lap stops just before the line.',
       'The other cars are assumed not to stop before the focus car completes its out-lap; the probabilities carry the pit-loss uncertainty only, not unseen rival stops or pace changes.',
       'No pit window before the car has crossed the line for the first time (the projected place starts from its own line time), while a car still on lap 1 has not reached the end of sector 2 (a car on lap 1 is projected to the line from there, with the median last sector of the cars already across), once the leader has taken the chequered flag, nor when the out-lap would end after the car\'s own last lap (a lapped car finishes a lap or more early).',
@@ -476,16 +512,22 @@ export const CHART_HELP = {
 
   undercut: {
     title: 'Undercut Calculator',
-    summary: 'Undercut / overcut viability calculator — projects gain or loss from pitting now vs staying out.',
+    summary: 'Undercut / overcut: for each lap the focus driver could pit on, the gap to a rival at one lap after both have stopped.',
     howToRead: [
-      'Inputs from the race so far: gap to the rival, tyre age and degradation of both cars, fresh-tyre delta and pit loss (PIT LOSS cell).',
+      `Pit-lap sweep: each row is a candidate in-lap for the focus driver (the lap in progress, "NOW", and the next ${UNDERCUT_SWEEP_LAPS}); the bar is the projected gap to the rival at the end of one lap for every row, the first lap by which both cars have stopped in every row (the latest out-lap of the table). Signed: + (green, right) = focus ahead, − (red, left) = behind. The best row is the largest gap. Reading every row at the same lap keeps the two cars' pace difference the same in every row, so the rows differ only by the tyres: with no traffic, the best row is the stop that balances the wear of the old and the new set up to that lap.`,
+      'The rival stops in every row, before or after the focus: on its likely lap (the lap its set reaches the median life of its compound in this race, given the age it has reached: stint-life survival; the prior of the cached races before this race has data), on a lap picked under RIVAL STOPS, or on its stop in progress.',
+      `Both cars start from the Circle of Doom pit window: the gap on the latest lap both completed (GAP NOW, + = focus ahead), each car's pace (median of its last ${PACE_WINDOW_LAPS} clean laps) and the pit loss (PIT LOSS cell).`,
+      LAP_MODEL,
+      'NEW-TYRE GAIN: the focus driver\'s first flying lap on a new set (pitting now) against the same lap on the current set: + = the new set is faster, the per-lap undercut of the model.',
       PIT_LOSS_METHOD,
       PIT_LOSS_FALLBACK,
-      'Pit-lap sweep: each row is a candidate pit lap for the focus driver, the bar is the projected gap at the flag.',
-      'Green = focus driver finishes ahead (undercut works); red = finishes behind.',
+      FUEL_ASSUMPTION,
     ],
     limitations: [
-      'Ignores traffic and dirty air between the two cars.',
+      'No traffic: no time lost behind the rival or other cars, no DRS; the gap is decided by lap times alone, so a faster car behind is projected through.',
+      'The rival stops once, on the lap shown; no other reaction, no safety car.',
+      'The best row depends on the lap the rows are read at (the end of the table): reading them later moves the wear balance, and with it the best lap, later.',
+      'Early in a stint this race\'s degradation fits can be negative (the track improves faster than the assumed fuel effect). The lap model uses only fits long enough and combines them with the cached races (see Race Prediction); if the estimate is still negative the model makes a new set slower; the panel says so when it happens.',
       'The pit loss is a green-flag value; the time lost to the field by a stop under SC / VSC differs and is not modelled.',
       'Race and sprint sessions only: there is no race pit loss in qualifying or practice.',
     ],

@@ -45,7 +45,7 @@ if (typeof globalThis.localStorage === 'undefined') {
   };
 }
 
-const { useF1Store } = await import('../store/useF1Store.js');
+const { useF1Store, simulationJob } = await import('../store/useF1Store.js');
 const { default: StrategyTimeline } = await import('../components/visualizations/StrategyTimeline.jsx');
 const { default: UndercutCalculator } = await import('../components/visualizations/UndercutCalculator.jsx');
 const { default: RacePredictionPanel } = await import('../components/visualizations/RacePredictionPanel.jsx');
@@ -215,11 +215,26 @@ describe.skipIf(!haveMonza)('Race Prediction render (D5 #1, #2)', () => {
     expect(t).not.toContain('Pit loss:');
   });
 
-  it('the projection memo is keyed on the causal key (recomputed on any seek) and passes sessionType', () => {
+  it('the projection request is keyed on the causal key (recomputed on any seek); every run gets sessionType and running', () => {
     const src = fs.readFileSync(path.join(VIZ, 'RacePredictionPanel.jsx'), 'utf8');
     expect(src).toMatch(/causalKey\(lapTimesAll, sessionNow, trackStatus\)/);
     expect(src).toMatch(/sessionTimeOffset,\s*causal, isRace, sessionType, running\]\);/);
-    expect(src).toMatch(/sessionType,\s*running,\s*\}\);/);
+    // S5: the panel no longer runs the simulation; the store's job does, for
+    // every reader, with the session type (R7) and the running stints
+    expect(src).not.toMatch(/simulateRaceFinish/);
+    monzaAtLap(30, { sessionType: 'S' });
+    const job = simulationJob(useF1Store.getState());
+    expect(job.params.sessionType).toBe('S');
+    expect(job.params).toHaveProperty('running', false);
+    expect(simulationJob({ ...useF1Store.getState(), sessionType: 'FP2' })).toBeNull();
+    // live, mid-race (the feed's rows up to lap 30): stints still being run
+    useF1Store.setState({
+      isLiveMode: true, liveSessionInfo: { session_type: 'Race', session_name: 'Race' },
+      sessionData: { ...monza, lap_times: monza.lap_times.filter((r) => r.LapNumber <= 30) },
+    });
+    const live = simulationJob(useF1Store.getState());
+    expect(live.params.sessionType).toBe('R');
+    expect(live.params.running).toEqual([...new Set(useF1Store.getState().sessionData.lap_times.map((r) => r.Driver))].sort());
   });
 });
 

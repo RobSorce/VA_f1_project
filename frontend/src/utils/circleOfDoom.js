@@ -102,6 +102,9 @@
  * lap n + 1 times: on the 406 stops where no such unseen stop (or later
  * retirement) puts a rival on the other side, 76.4 % / 92.4 % (script 78.3 % /
  * 93.8 %).
+ * "Pit in k laps" (utils/undercut.js pitInLaps) builds on this window
+ * (pitWindowContext): the window's constant paces up to its target lap, the
+ * engine's lap model after it; k = 0 is this window exactly.
  *
  * Neutralised track (SC, VSC, red; opts.trackFlag): pit loss, paces and the
  * reference lap stay green-flag figures (a validated SC / VSC pit-loss
@@ -131,9 +134,9 @@
  * A car on one side of the race order whose gap says the other side (it
  * changed place on track since that lap) counts 0 s. The rule assumes equal
  * paces, so it can disagree with predictedPosition, which projects each car
- * at its own recent pace. The calculator's fresh-tyre gain over 3 laps
- * (|freshDelta| + rival deg x tyre life) needs the degradation model, so it
- * belongs to the "pit in k laps" projection, not here.
+ * at its own recent pace. The fresh-tyre gain needs the degradation model, so
+ * it belongs to the "pit in k laps" projection and the undercut sweep
+ * (utils/undercut.js), not here.
  *
  * Traffic at the predicted rejoin. The rejoin point carried on to the line is
  * predictedCrossing, so the traffic flag is read there, on the same
@@ -451,21 +454,24 @@ function compareLapOne(a, b) {
  * @param {Object} [opts.gridPositions] - { driver: grid slot } (race_results GridPosition,
  *   0 = pit-lane start): orders the cars not yet across the line once their lap-1 timing points tie
  * @param {boolean} [opts.includeRetired=false] - keep retired cars (after the running ones, position null)
+ * @param {boolean} [opts.isLiveMode=false] - live feed rows: retirements from the feed's dnfMap
+ *   only (driverState.js nonFinisherMap), and no chequered flag (the rows' latest lap is
+ *   not the race's last one), so no car is `finished`
  * @returns {Array<{driver: string, position: number|null, lapsCompleted: number,
  *   lastCrossingTime: number, elapsed: number, phase: number|null, angle: number|null,
  *   saturated: boolean, inPitLane: boolean, retired: boolean, finished: boolean,
  *   lapOffsetToLeader: number}>} times in session seconds, elapsed in seconds, angle in radians
  */
 export function phases(lapTimes, {
-  sessionNow = Infinity, refLap, dnfMap, gridPositions, includeRetired = false,
+  sessionNow = Infinity, refLap, dnfMap, gridPositions, includeRetired = false, isLiveMode = false,
 } = {}) {
   const now = normaliseNow(sessionNow);
   const idx = driverIndex(lapTimes);
   if (!idx.size) return [];
   const ref = refLap != null ? refSecondsOf(refLap) : referenceLap(lapTimes, { sessionNow: now }).seconds;
-  const nonFinishers = nonFinisherMap(lapTimes, dnfMap);
+  const nonFinishers = nonFinisherMap(lapTimes, dnfMap, { live: isLiveMode });
   const stints = stintsByDriver(lapTimes, { sessionNow: now });
-  const lastLap = lastLapOf(lapTimes);
+  const lastLap = isLiveMode ? 0 : lastLapOf(lapTimes);
   const flagAt = lastLap > 0 ? leaderLapEndTime(lapTimes, lastLap) : null;
   const flag = flagAt != null && flagAt <= now ? flagAt : null;
 
@@ -530,10 +536,11 @@ export function phases(lapTimes, {
  * @param {Object} [opts.dnfMap] - store.dnfMap
  * @param {Object} [opts.gridPositions] - { driver: grid slot } (phases)
  * @param {number|Object} [opts.refLap] - seconds or a referenceLap result; computed when omitted
+ * @param {boolean} [opts.isLiveMode=false] - live feed rows (phases)
  * @returns {{sessionNow: number, refLap: Object, cars: Array<Object>, lapTimes: Array<Object>}}
  */
 export function circleState(lapTimes, {
-  sessionNow = Infinity, dnfMap, gridPositions, refLap,
+  sessionNow = Infinity, dnfMap, gridPositions, refLap, isLiveMode = false,
 } = {}) {
   const now = normaliseNow(sessionNow);
   let ref;
@@ -541,7 +548,7 @@ export function circleState(lapTimes, {
   else if (refSecondsOf(refLap) != null) ref = { seconds: refLap, nSamples: 0, laps: null, source: 'given' };
   else ref = referenceLap(lapTimes, { sessionNow: now });
   const cars = phases(lapTimes, {
-    sessionNow: now, refLap: ref, dnfMap, gridPositions,
+    sessionNow: now, refLap: ref, dnfMap, gridPositions, isLiveMode,
   });
   return { sessionNow: now, refLap: ref, cars, lapTimes: Array.isArray(lapTimes) ? lapTimes : [] };
 }
@@ -842,9 +849,30 @@ function windowContext(focus, state, pitLoss, opts = {}) {
   }
   const sortedTimes = others.map((o) => o.t).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   return {
-    st, est, now, ref, car, f, ongoingStop, targetLap, raceLaps, lossMedian,
+    st, est, now, ref, car, f, ongoingStop, targetLap, raceLaps, finalLap, lossMedian,
     focusPending, predictedAt, others, sortedTimes,
   };
+}
+
+/**
+ * The projections pitWindow ranks with, for the projections built on it
+ * (utils/undercut.js: "pit in k laps", the undercut sweep): the same object
+ * pitWindow and rejoinDistribution use, so a projection that adds nothing to
+ * it reproduces the window exactly.
+ *
+ * @param {string} focus - driver code
+ * @param {Object} state - circleState result
+ * @param {Object} [pitLoss] - estimatePitLoss result at the same sessionNow
+ * @param {Object} [opts] - pitWindow options
+ * @returns {Object} { error } (a pitWindow "unavailable" result) or { st, est, now, ref, car, f,
+ *   ongoingStop, targetLap, raceLaps, finalLap, lossMedian, focusPending(loss), predictedAt(loss),
+ *   others: [{ driver, p, pending, lastLap, t }], sortedTimes }: f and others[].p are
+ *   projections { car, pace, paceSource, stage, inLapTime, crossing(lap, pending) }, t the
+ *   crossing of targetLap the rank compares (Infinity past the car's last lap), finalLap the
+ *   focus car's last lap (null when the race distance is unknown)
+ */
+export function pitWindowContext(focus, state, pitLoss, opts = {}) {
+  return windowContext(focus, state, pitLoss, opts);
 }
 
 // Laps of a car's crossings listed for the traffic reading, at most (its next

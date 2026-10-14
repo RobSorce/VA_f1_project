@@ -5,14 +5,17 @@ import { setHealthReporter } from '../utils/apiClient';
 import { setSessionDriverColors } from '../utils/colors';
 import { computePCA, procrustesAlign2D } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
-import { simulateRaceFinish } from '../utils/raceSimulation';
+import {
+  createSimulationClient, planFromStints, projectionBadges, listedBattles, modePosition,
+} from '../utils/simulationClient';
+import { seedFrom } from '../utils/prng';
 import {
   computeSessionTimeOffset, resolveSessionNow, completedLaps, lapStartTime, lapEndTime,
-  raceClockLimit,
+  raceClockLimit, activeSegmentWindow,
 } from '../utils/raceTime';
 import { deriveStints, pitStops, stintsRunning } from '../utils/stints';
-import { driverStateAt } from '../utils/driverState';
-import { viewSessionType } from '../utils/strategyViews';
+import { driverStateAt, nonFinisherMap } from '../utils/driverState';
+import { viewSessionType, isRaceSession, causalKey } from '../utils/strategyViews';
 import { WINDOW_PRESETS } from '../utils/windowPresets';
 import { SLOT_IDS } from '../utils/slotOptions';
 
@@ -163,8 +166,8 @@ export function loadedSessionTypeOf(s) {
  * The store's causal "now" in SESSION seconds for a state object (see
  * utils/raceTime.js resolveSessionNow; hooks/useSessionNow.js is the React
  * twin). A qualifying segment's last frame is not the end of the session (the
- * next segments follow), so the "last frame = Infinity" rule is not applied
- * during a qualifying replay.
+ * next segments follow): it stands for the segment's end (the end of its last
+ * lap, qualiSegmentWindows), never Infinity.
  *
  * @param {Object} s - store state (or a prospective one)
  * @returns {number} session seconds, or Infinity
@@ -178,11 +181,14 @@ function sessionNowOf(s) {
     maxLap: s.maxLap,
     lapTimes: s.sessionData?.lap_times,
     isLiveMode: s.isLiveMode,
-    maxTime: s.isQualifyingReplay ? undefined : s.maxTime,
+    maxTime: s.maxTime,
     frameDt: s.frameDt,
     raceOver: s.lapModeRaceOver,
+    qualifying: s.isQualifyingReplay,
+    segmentEnd: activeSegmentWindow(s)?.end,
   });
 }
+
 
 /**
  * The deriveStints `running` option for a state object (utils/stints.js
@@ -200,6 +206,106 @@ function stintsRunningOf(s) {
     lapTimes: s.sessionData?.lap_times,
     dnfMap: s.dnfMap,
   });
+}
+
+/* ── Monte Carlo simulation (utils/raceSimulation.js) ─────────────── */
+
+// The jobs run in a module Web Worker (Vite bundles the worker file on its
+// own); where Worker does not exist (vitest, server rendering) the client runs
+// each job synchronously, so its result is set before the action returns.
+const simulation = createSimulationClient({
+  createWorker: typeof Worker === 'undefined'
+    ? null
+    : () => new Worker(new URL('../workers/raceSimulation.worker.js', import.meta.url), { type: 'module' }),
+});
+// Dev server: a hot update of this module starts a new client; end the old worker
+if (import.meta.hot) import.meta.hot.dispose(() => simulation.dispose());
+
+// The projection request behind store.raceProjection, or in flight:
+// { key, inputs, pending, result, ... } (simulationJob)
+let _projectionRequest = null;
+
+/**
+ * Race length the projection runs to: the race's lap count when the feed
+ * gives it (live: totalRaceLaps; maxLap there is the furthest lap seen so
+ * far), else maxLap (replay: the session's last lap).
+ */
+function projectionMaxLap(s) {
+  return s.totalRaceLaps || s.maxLap;
+}
+
+/** Which session is on screen, for the Monte Carlo seed. */
+function sessionIdentity(s) {
+  if (s.isLiveMode) {
+    const info = s.liveSessionInfo || {};
+    return `live|${info.event_name || ''}|${info.session_name || info.session_type || ''}`;
+  }
+  return `${s.year}|${s.round}|${viewSessionType(s)}`;
+}
+
+/** The stintsRunningOf option as plain data for the worker: a list of driver codes, or false. */
+function runningDrivers(running, lapTimes) {
+  if (typeof running !== 'function') return !!running;
+  const out = new Set();
+  for (const lt of lapTimes || []) if (lt?.Driver && running(lt.Driver)) out.add(lt.Driver);
+  return [...out].sort();
+}
+
+/**
+ * Inputs of a Monte Carlo run at the store's clock, shared by the race
+ * projection and the what-if (so the what-if baseline, the stop model, is the
+ * projection's row of that driver). null when no race projection can run:
+ * not a race session (R7: no race pit-loss logic outside 'R' / 'S'), a
+ * qualifying replay, before lap 5, no lap left, no race situation or lap rows.
+ *
+ * Seed: from the session on screen and the clock, i.e. the lap in progress,
+ * the race length and causalKey (what is known at sessionNow: completed laps,
+ * pit entries and exits, track-status changes). The same state always gives
+ * the same result, and replay frames that add nothing new never change it.
+ *
+ * @param {Object} s - store state
+ * @returns {{params: Object, rsd: Object, now: number, currentLap: number, seed: number,
+ *   key: string, inputs: Array}|null} params: plain data for simulateRaceFinish
+ */
+export function simulationJob(s) {
+  const sessionType = viewSessionType(s);
+  if (s.isQualifyingReplay || !isRaceSession(sessionType)) return null;
+  const rsd = s.raceSituationData;
+  const lapTimes = s.sessionData?.lap_times;
+  const { currentLap } = s;
+  const maxLap = projectionMaxLap(s);
+  if (!rsd?.driverFeatures || !lapTimes?.length || !(currentLap >= 5) || !(maxLap > currentLap)) return null;
+  const now = sessionNowOf(s);
+  // Live mode updates trackStatus from the feed; a replay sets both alike
+  const trackStatus = s.trackStatus?.length ? s.trackStatus : (s.sessionData?.track_status || []);
+  const running = runningDrivers(stintsRunningOf(s), lapTimes);
+  const known = causalKey(lapTimes, now, trackStatus);
+  const seed = seedFrom('race-simulation', sessionIdentity(s), currentLap, maxLap, known);
+  return {
+    rsd,
+    now,
+    currentLap,
+    seed,
+    key: `${seed}|${known}|${Array.isArray(running) ? running.join(',') : running}`,
+    inputs: [rsd, lapTimes, trackStatus, s.dnfMap, s.sessionTimeOffset],
+    params: {
+      driverFeatures: rsd.driverFeatures,
+      currentLap,
+      maxLap,
+      lapTimes,
+      trackStatus,
+      sessionNow: now,
+      sessionTimeOffset: s.sessionTimeOffset,
+      sessionType,
+      running,
+      dnfMap: s.dnfMap,
+      seed,
+    },
+  };
+}
+
+function sameSimulationJob(a, b) {
+  return !!a && !!b && a.key === b.key && a.inputs.every((v, i) => v === b.inputs[i]);
 }
 
 /* ── Clock-derived analytics ───────────────────────────────────── */
@@ -264,10 +370,15 @@ function fullRaceStops(lapTimes) {
  * @param {number} now - session seconds
  * @param {number} lapStart - first brushed lap
  * @param {Object} [dnfMap] - store.dnfMap
+ * @param {Object} [opts]
+ * @param {boolean} [opts.isLiveMode] - live feed rows: retirements from the feed's
+ *   dnfMap only (utils/driverState.js nonFinisherMap)
  * @returns {string}
  */
-export function degradationGapReason(lapTimes, drivers, now, lapStart, dnfMap = {}) {
+export function degradationGapReason(lapTimes, drivers, now, lapStart, dnfMap = {}, { isLiveMode = false } = {}) {
   const notes = [];
+  // Results DNFs plus classified drivers who stopped before the flag
+  const nonFinishers = nonFinisherMap(lapTimes, dnfMap, { live: isLiveMode });
   for (const drv of Array.isArray(drivers) ? drivers : []) {
     const rows = (lapTimes || []).filter((r) => r?.Driver === drv && Number.isFinite(Number(r.LapNumber)));
     if (!rows.length) {
@@ -276,7 +387,7 @@ export function degradationGapReason(lapTimes, drivers, now, lapStart, dnfMap = 
     }
     const lastLap = Math.max(...rows.map((r) => Number(r.LapNumber)));
     if (lastLap >= lapStart) continue;
-    const state = driverStateAt(lapTimes, drv, now, dnfMap[drv] ? { dnf: dnfMap[drv] } : {});
+    const state = driverStateAt(lapTimes, drv, now, { dnf: !!nonFinishers[drv] });
     if (state.retired) notes.push(`${drv} retired on lap ${lastLap}`);
     else if (state.lapsCompleted === lastLap) notes.push(`${drv}'s last lap is ${lastLap}`);
   }
@@ -388,23 +499,53 @@ export function qualiSegmentOrigin(lapTimes, segment, { after = -Infinity } = {}
 const QUALI_ORIGIN_TOLERANCE_S = 1;
 
 /**
+ * Session-time window of every qualifying segment, in segment order (Q1, Q2,
+ * Q3), see qualiSegmentOrigin:
+ *  - start:  the segment's laps start after it (the previous segment's last
+ *            lap end; -Infinity for the first segment): a lap belongs to the
+ *            segment it started in, so a segment's standings rank only them;
+ *  - origin: replay time 0 of the segment's frames;
+ *  - end:    the end of the segment's last lap, the moment its last frame
+ *            stands for (resolveSessionNow `segmentEnd`): the frames are
+ *            sampled every frameDt, so a lap may end in the tail after the
+ *            last frame (2024 R8 Q3: NOR's 70.542 ends 0.013 s after it).
+ * null for a segment whose laps cannot be matched within
+ * QUALI_ORIGIN_TOLERANCE_S.
+ *
+ * @param {Array<Object>} lapTimes
+ * @param {Object} segments - /api/frames `segments` ({Q1: {...}, Q2: {...}, Q3: {...}})
+ * @returns {Object<string, {start: number, origin: number, end: number}|null>}
+ */
+export function qualiSegmentWindows(lapTimes, segments) {
+  const out = {};
+  let after = -Infinity;
+  for (const seg of ['Q1', 'Q2', 'Q3']) {
+    if (!segments?.[seg]) continue;
+    const found = qualiSegmentOrigin(lapTimes, segments[seg], { after });
+    out[seg] = found && found.error <= QUALI_ORIGIN_TOLERANCE_S
+      ? { start: after, origin: found.origin, end: found.end } : null;
+    if (out[seg]) after = found.end;
+  }
+  return out;
+}
+
+/**
  * Replay-time origin (session seconds) of every qualifying segment, in
- * segment order (Q1, Q2, Q3), see qualiSegmentOrigin. null for a segment
- * whose laps cannot be matched within QUALI_ORIGIN_TOLERANCE_S.
+ * segment order (Q1, Q2, Q3): qualiSegmentWindows' origins. null for a
+ * segment whose laps cannot be matched within QUALI_ORIGIN_TOLERANCE_S.
  *
  * @param {Array<Object>} lapTimes
  * @param {Object} segments - /api/frames `segments` ({Q1: {...}, Q2: {...}, Q3: {...}})
  * @returns {Object<string, number|null>}
  */
 export function qualiSegmentOffsets(lapTimes, segments) {
+  return offsetsOf(qualiSegmentWindows(lapTimes, segments));
+}
+
+/** { seg: origin | null } of a qualiSegmentWindows result. */
+function offsetsOf(windows) {
   const out = {};
-  let after = -Infinity;
-  for (const seg of ['Q1', 'Q2', 'Q3']) {
-    if (!segments?.[seg]) continue;
-    const found = qualiSegmentOrigin(lapTimes, segments[seg], { after });
-    out[seg] = found && found.error <= QUALI_ORIGIN_TOLERANCE_S ? found.origin : null;
-    if (found && out[seg] != null) after = found.end;
-  }
+  for (const [seg, w] of Object.entries(windows || {})) out[seg] = w ? w.origin : null;
   return out;
 }
 
@@ -816,6 +957,7 @@ const REPLAY_CLOCK_RESET = Object.freeze({
   frameData: null,
   lapFrameMap: null,
   qualiSegmentOffsets: null,
+  qualiSegmentWindows: null,
   lapModeRaceOver: false,
 });
 
@@ -1007,15 +1149,22 @@ export const useF1Store = create(persist((set, get) => ({
     const { year, round, sessionType } = get();
     if (!year || !round) return;
 
+    // Increment generation counter to invalidate any in-flight loads, before
+    // anything is awaited: a live entry still in flight (its snapshot, full
+    // session, feed connection) or a live message is discarded from here on,
+    // so none of them can land on this load or undo its clock reset
+    const generation = ++_sessionLoadGeneration;
+    cancelClockJump();
+
     // If switching from live mode, disconnect first
     if (get().isLiveMode) {
-      try {
-        const { liveWS } = await import('../utils/liveWebSocket');
-        liveWS.disconnect();
-        await api.stopMockReplay().catch(() => {});
-      } catch (_) { /* ignore */ }
+      // Out of live mode at once, with the replay clock reset (the feed's
+      // frames are not this session's). The live rows stay on screen until the
+      // new session lands, so the type of the session on screen is the live
+      // one (R7 gates on it), never the pill being loaded.
       set({
         isLiveMode: false,
+        loadedSessionType: viewSessionType(get()),
         liveConnected: false,
         liveSessionInfo: null,
         liveConnectionStatus: 'disconnected',
@@ -1024,12 +1173,16 @@ export const useF1Store = create(persist((set, get) => ({
         teamRadios: [],
         totalRaceLaps: null,
         liveTelemetry: {},
+        isPlaying: false,
+        ...REPLAY_CLOCK_RESET,
       });
+      try {
+        const { liveWS } = await import('../utils/liveWebSocket');
+        liveWS.disconnect();
+        await api.stopMockReplay().catch(() => {});
+      } catch (_) { /* ignore */ }
+      if (generation !== _sessionLoadGeneration) return;
     }
-
-    // Increment generation counter to invalidate any in-flight loads
-    const generation = ++_sessionLoadGeneration;
-    cancelClockJump();
 
     set({ isLoading: true, error: null });
     try {
@@ -1097,7 +1250,8 @@ export const useF1Store = create(persist((set, get) => ({
         raceSituationLap: null,
         raceSituationData: null,
         raceProjection: null,
-        simulatorStrategy: null, simulatorResult: null, simulatorComparisons: [], isSimulatorActive: false,
+        simulatorStrategy: null, simulatorResult: null, simulatorComparisons: [], simulatorBaseline: null,
+        isSimulatorActive: false,
         _prevPcaResult: null,
         lstmPredictions: null,
         _lstmAt: null,
@@ -1310,14 +1464,20 @@ export const useF1Store = create(persist((set, get) => ({
         }
       }
 
-      // Connect WebSocket for incremental updates
+      // Connect WebSocket for incremental updates. Its messages belong to this
+      // live entry only: once a load / reset / live switch has replaced it
+      // (new generation), a message still delivered is dropped, never applied
+      // to the session on screen (its frames, lap count, flag)
       if (superseded()) return;
       liveWS.connect(
-        (msg) => get()._handleLiveMessage(msg),
-        (statusVal) => set({
-          liveConnected: statusVal === 'connected',
-          liveConnectionStatus: statusVal,
-        }),
+        (msg) => { if (!superseded()) get()._handleLiveMessage(msg); },
+        (statusVal) => {
+          if (superseded()) return;
+          set({
+            liveConnected: statusVal === 'connected',
+            liveConnectionStatus: statusVal,
+          });
+        },
       );
 
       set({ isLoading: false });
@@ -1331,12 +1491,18 @@ export const useF1Store = create(persist((set, get) => ({
   exitLiveMode: async () => {
     // Nothing still in flight (a live entry, an older historical load) may
     // land after the exit
-    ++_sessionLoadGeneration;
+    const generation = ++_sessionLoadGeneration;
     const { liveWS } = await import('../utils/liveWebSocket');
+    // a newer load / live entry handles the feed itself from here on
+    if (generation !== _sessionLoadGeneration) return;
     liveWS.disconnect();
 
     // Stop mock replay if running
     try { await api.stopMockReplay(); } catch (_) { /* ignore */ }
+
+    // A load / live entry started while the stop request was pending owns the
+    // session now: this exit's reset must not wipe what it put on screen
+    if (generation !== _sessionLoadGeneration) return;
 
     cancelClockJump();
     set({
@@ -2141,6 +2307,10 @@ export const useF1Store = create(persist((set, get) => ({
   // ({Q1, Q2, Q3}, see qualiSegmentOffsets); sessionTimeOffset is the active
   // segment's origin while a qualifying replay is loaded
   qualiSegmentOffsets: null,
+  // ({Q1, Q2, Q3}: { start, origin, end } session seconds, see
+  // qualiSegmentWindows): the active segment's end is the clock of its last
+  // frame, its start bounds the laps its standings rank
+  qualiSegmentWindows: null,
 
   setCurrentFlagStatus: (status) => set({ currentFlagStatus: status }),
 
@@ -2333,12 +2503,13 @@ export const useF1Store = create(persist((set, get) => ({
         const defaultSeg = segments.Q3 ? 'Q3' : segments.Q2 ? 'Q2' : 'Q1';
         const activeData = segments[defaultSeg];
         // Each segment's frames have their own replay origin (session seconds)
-        const offsets = qualiSegmentOffsets(get().sessionData?.lap_times, segments);
+        const windows = qualiSegmentWindows(get().sessionData?.lap_times, segments);
+        const offsets = offsetsOf(windows);
 
         if (!activeData?.frames?.length) {
           set({
             isLoadingFrames: false, qualiSegments: segments, isQualifyingReplay: true,
-            qualiSegmentOffsets: offsets, lapModeRaceOver: false,
+            qualiSegmentOffsets: offsets, qualiSegmentWindows: windows, lapModeRaceOver: false,
           });
           console.warn('Qualifying frames: no frames in default segment');
           return;
@@ -2355,6 +2526,7 @@ export const useF1Store = create(persist((set, get) => ({
           qualiSegment: defaultSeg,
           isQualifyingReplay: true,
           qualiSegmentOffsets: offsets,
+          qualiSegmentWindows: windows,
           lapModeRaceOver: false,
           frameData: activeData,
           maxTime: activeData.max_time || 0,
@@ -2428,6 +2600,7 @@ export const useF1Store = create(persist((set, get) => ({
         qualiSegments: null,
         isQualifyingReplay: false,
         qualiSegmentOffsets: null,
+        qualiSegmentWindows: null,
         lapModeRaceOver: false,
       };
       if (startFrame) {
@@ -2484,8 +2657,11 @@ export const useF1Store = create(persist((set, get) => ({
   loadPositions: async () => {
     const { year, round } = get();
     if (!year || !round) return;
+    const generation = _sessionLoadGeneration;
     try {
       const data = await api.getPositions(year, round);
+      // Positions of a session the dashboard has since left are discarded
+      if (generation !== _sessionLoadGeneration) return;
       set({ positionData: data });
     } catch (e) {
       console.error('Failed to load positions', e);
@@ -2523,15 +2699,25 @@ export const useF1Store = create(persist((set, get) => ({
 
   fetchDriverTelemetry: async (driver, lap) => {
     const sessionType = get().isQualifyingReplay ? 'Q' : 'R';
+    // The key carries no year / round: every session switch (load, live entry
+    // or exit, reset) empties the cache and starts a new generation, and an
+    // answer of an earlier generation is dropped below, so every entry
+    // belongs to the session on screen
     const key = `${driver}-${lap}-${sessionType}`;
     if (get().telemetryCache[key]) return get().telemetryCache[key];
 
     const { year, round } = get();
     if (!year || !round) return null;
 
+    const generation = _sessionLoadGeneration;
     set({ telemetryLoading: true });
     try {
       const data = await api.getTelemetry(year, round, driver, lap, sessionType);
+      // The dashboard has since switched session: this trace is not its own
+      if (generation !== _sessionLoadGeneration) {
+        set({ telemetryLoading: false });
+        return null;
+      }
       const telemetry = data.telemetry || [];
       set((s) => ({
         telemetryCache: { ...s.telemetryCache, [key]: telemetry },
@@ -2584,6 +2770,7 @@ export const useF1Store = create(persist((set, get) => ({
       lapTimes, strategies, dnfMap, currentLap,
       frameDrivers, lstmPredictions, focusDriver,
       sessionNow: now, sessionTimeOffset: get().sessionTimeOffset,
+      isLiveMode: get().isLiveMode,
     });
 
     if (!result) {
@@ -2634,13 +2821,10 @@ export const useF1Store = create(persist((set, get) => ({
       _prevPcaResult: pcaResult,
     });
 
-    // Monte Carlo projection: at once after a clock jump, otherwise every 3
-    // laps (after lap 5)
-    if (projection) {
-      get().computeRaceProjection({ replace: true });
-    } else if (currentLap >= 5 && currentLap % 3 === 0) {
-      setTimeout(() => get().computeRaceProjection(), 0);
-    }
+    // Monte Carlo projection: the new race situation has already requested it
+    // (the store subscription at the end of this file, every lap); after a
+    // clock jump a projection that cannot be computed here is dropped too
+    if (projection) get().computeRaceProjection({ replace: true });
   },
 
   // ── Predictions ────────────────────────────────────────────────
@@ -2654,12 +2838,16 @@ export const useF1Store = create(persist((set, get) => ({
 
   fetchLSTMPrediction: async (params) => {
     const reqNow = get().getSessionNow();
+    const generation = _sessionLoadGeneration;
     try {
       const data = await api.predictLSTM(params);
+      // Another session is on screen now: not its prediction
+      if (generation !== _sessionLoadGeneration) return;
       // The clock moved back while the request ran: its inputs are now future
       if (reqNow > get().getSessionNow()) return;
       set({ lstmPredictions: data, _lstmAt: reqNow });
     } catch (e) {
+      if (generation !== _sessionLoadGeneration) return;
       console.error('LSTM prediction failed', e);
       set({ lstmPredictions: null, _lstmAt: null });
     }
@@ -2694,17 +2882,23 @@ export const useF1Store = create(persist((set, get) => ({
           fitted_lap_range: null,
           reason: degradationGapReason(
             s.sessionData?.lap_times, params.drivers, reqNow, params.lap_start, s.dnfMap,
+            { isLiveMode: s.isLiveMode },
           ),
           computedAtNow: reqNow,
         };
       }
     }
     const generation = ++_degradationGeneration;
+    // The session on screen when asked: a fit asked in live mode (clock
+    // Infinity) and answered after a replay landed belongs to another
+    // session and clock, never to the replay
+    const sessionGeneration = _sessionLoadGeneration;
     try {
       if (!data) {
         data = await api.predictDegradation(sent);
-        // A newer request (new brush or replay re-request) superseded this one
-        if (generation !== _degradationGeneration) return;
+        // A newer request (new brush or replay re-request) superseded this
+        // one, or the dashboard has since switched session
+        if (generation !== _degradationGeneration || sessionGeneration !== _sessionLoadGeneration) return;
         if (data && typeof data === 'object') {
           // Fitted on laps completed at reqNow; still all completed now when
           // no newer request was needed, so it belongs to the earlier clock
@@ -2811,6 +3005,7 @@ export const useF1Store = create(persist((set, get) => ({
       lap_number: d.LapNumber,
     }));
 
+    const generation = _sessionLoadGeneration;
     try {
       const data = await api.predictLSTM({
         last_10_laps,
@@ -2820,10 +3015,13 @@ export const useF1Store = create(persist((set, get) => ({
         current_lap: currentLap,
         max_lap: maxLap,
       });
+      // Another session is on screen now: not its prediction
+      if (generation !== _sessionLoadGeneration) return;
       // The clock moved back while the request ran: its inputs are now future
       if (now > get().getSessionNow()) return;
       set({ lstmPredictions: data, _lstmAt: now });
     } catch (e) {
+      if (generation !== _sessionLoadGeneration) return;
       console.error('LSTM prediction failed', e);
       set({ lstmPredictions: null, _lstmAt: null });
     }
@@ -2866,6 +3064,7 @@ export const useF1Store = create(persist((set, get) => ({
     }));
 
     set({ predictionLoading: true, lastPredictionTrigger: { driver, lap: currentLap } });
+    const generation = _sessionLoadGeneration;
     try {
       const result = await api.predictLSTM({
         last_10_laps,
@@ -2875,8 +3074,9 @@ export const useF1Store = create(persist((set, get) => ({
         current_lap: currentLap,
         max_lap: maxLap,
       });
-      // The clock moved back while the request ran: its inputs are now future
-      if (now > get().getSessionNow()) {
+      // The clock moved back while the request ran (its inputs are now
+      // future), or another session is on screen now (not its prediction)
+      if (generation !== _sessionLoadGeneration || now > get().getSessionNow()) {
         set({ predictionLoading: false });
         return;
       }
@@ -3034,6 +3234,10 @@ export const useF1Store = create(persist((set, get) => ({
             lstmPredictions, raceProjection, raceSituationData,
             degradationRegression, simulatorResult, pcaStrategyAnalysis,
             rivalContext, sessionData } = get();
+    // The type of the session on screen (R7): sent with the request, and no
+    // pit-loss context outside race sessions ('R', 'S')
+    const sessionType = viewSessionType(get());
+    const isRace = isRaceSession(sessionType);
     set((s) => ({
       geminiMessages: [
         ...s.geminiMessages,
@@ -3053,17 +3257,20 @@ export const useF1Store = create(persist((set, get) => ({
     if (raceProjection) {
       raceContext.monteCarloProjections = (raceProjection.projections || []).slice(0, 10).map((p) => ({
         driver: p.driver, currentPos: p.currentPos, expectedPos: p.expectedPos,
-        modePos: p.modePos, posRange: p.posRange,
+        // the most likely position the panel shows (stable on Monte Carlo noise)
+        modePos: modePosition(raceProjection, p), posRange: p.posRange,
         podiumProb: p.podiumProb, pointsProb: p.pointsProb,
       }));
-      raceContext.battles = (raceProjection.battles || []).slice(0, 5).map((b) => ({
+      // the battles the panel lists (store list and order)
+      raceContext.monteCarloSimulations = raceProjection.numSimulations;
+      raceContext.battles = listedBattles(raceProjection).slice(0, 5).map((b) => ({
         driver1: b.ahead, driver2: b.behind,
         overtakeProb: b.prob, type: b.behindCompound + ' vs ' + b.aheadCompound,
       }));
       raceContext.risks = (raceProjection.risks || []).slice(0, 5);
       if (raceProjection.raceParams) {
         raceContext.raceParams = {
-          pitLoss: raceProjection.raceParams.pitLoss,
+          ...(isRace ? { pitLoss: raceProjection.raceParams.pitLoss } : {}),
           scRate: raceProjection.raceParams.scRate,
           lapNoise: raceProjection.raceParams.lapNoise,
         };
@@ -3161,6 +3368,7 @@ export const useF1Store = create(persist((set, get) => ({
         query,
         year,
         round,
+        session_type: sessionType,
         current_lap: currentLap,
         drivers: selectedDrivers,
         lstm_predictions: lstmPredictions,
@@ -3184,69 +3392,91 @@ export const useF1Store = create(persist((set, get) => ({
   },
 
   setGeminiOverlays: (overlays) => set({ geminiOverlays: overlays }),
-  // A projection computed by a view (RacePredictionPanel) at the current clock:
-  // stamped like computeRaceProjection's, so laterClockReset can drop it
-  setRaceProjection: (data) => set({
-    raceProjection: data
-      ? {
-        ...data,
-        computedAtNow: data.computedAtNow ?? get().getSessionNow(),
-        computedAtLap: data.computedAtLap ?? get().currentLap,
-      }
-      : data,
-  }),
 
   // ── Monte Carlo Race Projection ──────────────────────────────────
+  // The only writer of a computed raceProjection (S5): every view reads it
+  // from here. It runs when the race situation changes (store subscription
+  // below), after a clock jump, and when a view asks (RacePredictionPanel, on
+  // something new known at the clock). The job (simulationJob) runs in the
+  // simulation worker; requests with the same inputs and seed as the
+  // projection held (or in flight) are not run again.
   // opts.replace (clock jump): when no projection can be computed at the new
   // clock, the held one is dropped instead of kept from another clock.
+  raceProjection: null, // simulateRaceFinish result + { badges, computedAtNow, computedAtLap }
   computeRaceProjection: ({ replace = false } = {}) => {
-    const {
-      sessionData, currentLap, maxLap, raceSituationData, isQualifyingReplay,
-    } = get();
-
-    if (isQualifyingReplay) return;
-    const drop = () => {
+    const job = simulationJob(get());
+    const dropHeld = () => {
       if (replace && get().raceProjection) set({ raceProjection: null });
     };
-    if (!raceSituationData?.driverFeatures || currentLap < 5 || maxLap <= currentLap) { drop(); return; }
-
-    const lapTimes = sessionData?.lap_times;
-    const strategies = sessionData?.tyre_strategy || sessionData?.strategies || [];
-    const trackStatus = sessionData?.track_status || [];
-    if (!lapTimes?.length) { drop(); return; }
-
-    // Causal: race parameters from what happened up to sessionNow
-    const now = get().getSessionNow();
-    const result = simulateRaceFinish({
-      driverFeatures: raceSituationData.driverFeatures,
-      currentLap,
-      maxLap,
-      lapTimes,
-      strategies,
-      trackStatus,
-      sessionNow: now,
-      sessionTimeOffset: get().sessionTimeOffset,
-      // R7: the race pit loss exists for race sessions only (null projection
-      // in qualifying / practice, so neither the panels nor Gemini get one)
-      sessionType: viewSessionType(get()),
-      running: stintsRunningOf(get()),
+    if (!job) {
+      // Nothing to project at this clock: a result still on its way is dropped
+      _projectionRequest = null;
+      simulation.cancel('projection');
+      dropHeld();
+      return;
+    }
+    const last = _projectionRequest;
+    if (sameSimulationJob(last, job)) {
+      if (last.pending) return;
+      if (last.result === null) { dropHeld(); return; }
+      if (get().raceProjection === last.result) return;
+    }
+    const request = { ...job, pending: true, result: undefined };
+    _projectionRequest = request;
+    simulation.request('projection', 'project', job.params, (result, error) => {
+      request.pending = false;
+      if (_projectionRequest !== request) return;
+      const s = get();
+      // The state it was computed for is gone (another session, a seek back):
+      // a newer request follows, or nothing is projected there
+      if (s.raceSituationData !== job.rsd || sessionNowOf(s) < job.now) {
+        _projectionRequest = null;
+        return;
+      }
+      if (error) console.error('Monte Carlo projection failed', error);
+      if (!result) {
+        request.result = null;
+        dropHeld();
+        return;
+      }
+      // Badge states (utils/simulationClient.js projectionBadges): a badge,
+      // the most likely position shown, the battle list and the risk rows
+      // change only on evidence beyond the Monte Carlo error; inside it, the
+      // state of the projection held now (an earlier clock) is kept
+      const badges = projectionBadges(result, s.raceProjection?.badges, {
+        driverFeatures: job.params.driverFeatures, currentLap: job.currentLap, maxLap: job.params.maxLap,
+      });
+      request.result = {
+        ...result,
+        badges,
+        // the risk rows every view reads (Risks tab, Strategy Analysis, assistant)
+        risks: badges.risks ?? result.risks,
+        // Session seconds of the clock it was computed at (laterClockReset)
+        computedAtNow: job.now,
+        computedAtLap: job.currentLap,
+      };
+      set({ raceProjection: request.result });
     });
-
-    if (result) set({ raceProjection: { ...result, computedAtNow: now, computedAtLap: currentLap } });
-    else drop();
   },
 
   // ── Strategy Simulator ───────────────────────────────────────────
   simulatorStrategy: null,   // { driver, stints: [{compound, lapStart, length}] }
-  simulatorResult: null,     // { simProjection, baselineProjection, delta }
+  simulatorResult: null,     // { simProjection, baselineProjection, delta, ... } (runSimulation)
   simulatorComparisons: [],  // [{ label, stints, result }]
+  // What the plan is compared with: null = the stop model (the race
+  // projection's own stops), or a saved plan { label, stints }
+  simulatorBaseline: null,
   isSimulatorActive: false,
 
   setSimulatorStrategy: (strategy) => set({ simulatorStrategy: strategy }),
+  setSimulatorBaseline: (baseline) => {
+    set({ simulatorBaseline: baseline?.stints?.length ? { label: baseline.label || null, stints: baseline.stints } : null });
+    if (get().simulatorStrategy) get().runSimulation();
+  },
   toggleSimulator: () => set((s) => ({ isSimulatorActive: !s.isSimulatorActive })),
   clearSimulator: () => set({
     simulatorStrategy: null, simulatorResult: null,
-    simulatorComparisons: [], isSimulatorActive: false,
+    simulatorComparisons: [], simulatorBaseline: null, isSimulatorActive: false,
   }),
 
   addSimulatorComparison: (label, stints, result) => set((s) => ({
@@ -3267,79 +3497,48 @@ export const useF1Store = create(persist((set, get) => ({
     });
   },
 
+  // What-if (S6): the plan's stops from the lap in progress on (in-lap +
+  // compound, planFromStints), each charged a sampled pit loss, against the
+  // baseline (simulatorBaseline: a saved plan, or the stop model), both runs
+  // from the same seed and race parameters as the race projection (common
+  // random numbers): an identical plan gives every difference exactly 0. The
+  // past is the race's: the driver's laps, tyres and stops so far are real,
+  // planned stops on laps already run are ignored. Other drivers keep the
+  // stop model. No run outside race sessions (simulationJob, R7).
   runSimulation: () => {
-    const {
-      simulatorStrategy, sessionData, currentLap, maxLap,
-      raceSituationData, isQualifyingReplay,
-    } = get();
-
-    if (isQualifyingReplay || !simulatorStrategy?.stints?.length) return;
-    if (!raceSituationData?.driverFeatures || currentLap < 5 || maxLap <= currentLap) return;
-
-    const lapTimes = sessionData?.lap_times;
-    const strategies = sessionData?.tyre_strategy || sessionData?.strategies || [];
-    const trackStatus = sessionData?.track_status || [];
-    if (!lapTimes?.length) return;
-
-    // Both runs see only what happened up to sessionNow
-    const sessionNow = get().getSessionNow();
-    const { sessionTimeOffset } = get();
-
-    // Baseline: standard projection (no override)
-    const running = stintsRunningOf(get());
-    const sessionType = viewSessionType(get()); // R7: no race maths outside R / S
-    const baseline = simulateRaceFinish({
-      driverFeatures: raceSituationData.driverFeatures,
-      currentLap, maxLap, lapTimes, strategies, trackStatus,
-      sessionNow, sessionTimeOffset, sessionType, running,
-    });
-
-    // Custom: override the focused driver's strategy
+    const { simulatorStrategy, simulatorBaseline } = get();
+    if (!simulatorStrategy?.stints?.length) return;
+    const job = simulationJob(get());
+    if (!job) return;
     const driver = simulatorStrategy.driver;
-    if (!driver || !raceSituationData.driverFeatures[driver]) return;
+    if (!driver || !job.params.driverFeatures[driver]) return;
 
-    // Modify driver features to reflect custom strategy
-    const modifiedFeatures = { ...raceSituationData.driverFeatures };
-    const customStints = simulatorStrategy.stints;
-    // Find which stint the driver would be on at currentLap
-    let activeStint = customStints[0];
-    for (const stint of customStints) {
-      if (stint.lapStart <= currentLap) activeStint = stint;
-    }
-    if (activeStint) {
-      modifiedFeatures[driver] = {
-        ...modifiedFeatures[driver],
-        compoundName: activeStint.compound,
-        tyreLife: Math.max(0, currentLap - activeStint.lapStart),
-        stintNumber: customStints.indexOf(activeStint) + 1,
-      };
-    }
-
-    const simResult = simulateRaceFinish({
-      driverFeatures: modifiedFeatures,
-      currentLap, maxLap, lapTimes, strategies, trackStatus,
-      sessionNow, sessionTimeOffset, sessionType, running,
-    });
-
-    if (!baseline || !simResult) return;
-
-    const baseProj = baseline.projections.find((p) => p.driver === driver);
-    const simProj = simResult.projections.find((p) => p.driver === driver);
-    if (!baseProj || !simProj) return;
-
-    set({
-      simulatorResult: {
-        simProjection: simProj,
-        baselineProjection: baseProj,
-        delta: {
-          position: baseProj.expectedPos - simProj.expectedPos,
-          podium: simProj.podiumProb - baseProj.podiumProb,
-          points: simProj.pointsProb - baseProj.pointsProb,
+    const plan = planFromStints(simulatorStrategy.stints);
+    const basePlan = simulatorBaseline?.stints?.length ? planFromStints(simulatorBaseline.stints) : null;
+    simulation.request('whatif', 'compare', { ...job.params, focusDriver: driver, plan, basePlan }, (result, error) => {
+      const s = get();
+      // Another session, or the clock moved back while it ran: its inputs are gone
+      if (s.raceSituationData !== job.rsd || sessionNowOf(s) < job.now) return;
+      if (error) console.error('What-if simulation failed', error);
+      if (!result) return;
+      set({
+        simulatorResult: {
+          driver,
+          plan,
+          basePlan,
+          baselineLabel: basePlan ? (simulatorBaseline.label || 'saved plan') : null,
+          simProjection: result.simProjection,
+          baselineProjection: result.baselineProjection,
+          // position: baseline expected position - plan's (positive = the plan gains places)
+          delta: result.delta,
+          fullProjection: result.custom,
+          seed: result.seed,
+          numSimulations: result.numSimulations,
+          // Session seconds of the clock it was computed at (laterClockReset)
+          computedAtNow: job.now,
+          computedAtLap: job.currentLap,
         },
-        fullProjection: simResult,
-        // Session seconds of the clock it was computed at (laterClockReset)
-        computedAtNow: sessionNow,
-      },
+      });
     });
   },
 }), {
@@ -3366,3 +3565,12 @@ setHealthReporter(
   () => useF1Store.getState().reportBackendOk(),
   (msg) => useF1Store.getState().reportBackendError(msg),
 );
+
+// The Monte Carlo projection follows the race situation it is computed from:
+// whenever raceSituationData changes (a new lap's features, a clock jump, a
+// reset, a new session), computeRaceProjection runs. When nothing can be
+// projected for the new state, a projection held from an earlier clock stays
+// (laterClockReset has already dropped any from a later one).
+useF1Store.subscribe((state, prev) => {
+  if (state.raceSituationData !== prev.raceSituationData) state.computeRaceProjection();
+});

@@ -328,10 +328,87 @@ async def health_check():
     return {"status": "healthy"}
 
 
+import datetime
+import time
+
+FIRST_SEASON = 2018
+
+# year → (published, time.monotonic() of the check); a "not published" answer is re-checked
+# after _SEASON_RECHECK_S, a published one is kept for the life of the process
+_season_published_cache: Dict[int, Any] = {}
+_SEASON_RECHECK_S = 3600
+# How long a season check waits for _fastf1_lock. A first-time session load holds the lock
+# for minutes; waiting on it (with a 30 s timeout per season) made /api/seasons take 60 s
+# and then leave out the current season (verify_misc/v_b10_seasons.txt)
+_SEASON_LOCK_WAIT_S = 2.0
+
+
+def _current_year() -> int:
+    """The clock's year (a function, so that tests can pin the clock)."""
+    return datetime.date.today().year
+
+
+def _has_rounds(events) -> bool:
+    return any((e.get('RoundNumber') or 0) > 0 for e in events or [])
+
+
+def _season_published(year: int, lock_wait: float = _SEASON_LOCK_WAIT_S) -> Optional[bool]:
+    """True when `year` has a published schedule with at least one numbered round.
+
+    A schedule already cached by /api/schedule (memory, then disk) answers yes;
+    otherwise the FastF1 event schedule is asked (for a season not published yet,
+    e.g. 2027 on 2026-10-13, FastF1 returns an empty schedule). None when that
+    cannot be asked now: _fastf1_lock stayed busy for `lock_wait` seconds.
+    """
+    hit = _season_published_cache.get(year)
+    if hit is not None and (hit[0] or time.monotonic() - hit[1] < _SEASON_RECHECK_S):
+        return hit[0]
+    cached = schedule_cache.get(year) or _load_from_disk(DISK_CACHE_DIR / f"schedule_{year}.json")
+    if cached is not None and _has_rounds(cached.get('events')):
+        published = True
+    else:
+        if not _fastf1_lock.acquire(timeout=lock_wait):
+            return None
+        try:
+            schedule = extractor.get_event_schedule(year)
+            published = len(schedule) > 0 and bool((schedule['RoundNumber'] > 0).any())
+        except Exception as e:
+            logger.warning(f"Schedule check for {year} failed: {e}")
+            return False  # not cached: checked again on the next call
+        finally:
+            _fastf1_lock.release()
+    _season_published_cache[year] = (published, time.monotonic())
+    return published
+
+
 @app.get("/api/seasons")
 async def get_seasons():
-    """Get available seasons."""
-    return {"seasons": list(range(2018, 2026))}
+    """Get available seasons: from 2018 up to the next season (clock year + 1).
+
+    The seasons before the current one are always listed; the current and the
+    next one only once their schedule is published. When the check cannot run
+    now (FastF1 busy with another request, or slower than 30 s), the last answer
+    for that season stands; with none yet, the clock's season is listed (a
+    season's calendar is out before the season starts) and the next one is not.
+    Neither guess is cached, so the next call checks again.
+    """
+    current = _current_year()
+    seasons = list(range(FIRST_SEASON, current))
+    lock_wait = _SEASON_LOCK_WAIT_S
+    for year in (current, current + 1):
+        try:
+            published = await asyncio.wait_for(
+                asyncio.to_thread(_season_published, year, lock_wait), timeout=30)
+        except asyncio.TimeoutError:
+            logger.warning(f"Schedule check for {year} timed out")
+            published = None
+        if published is None:
+            lock_wait = 0  # FastF1 is busy: do not wait for it again in this request
+            last = _season_published_cache.get(year)
+            published = last[0] if last is not None else year == current
+        if published:
+            seasons.append(year)
+    return {"seasons": seasons}
 
 
 @app.get("/api/schedule/{year}")
@@ -514,8 +591,73 @@ async def get_weather(year: int, round_num: int):
 
 # ============= Championship Endpoints =============
 
+# Bumped when the points model of _compute_championship changes: a championship_{year}.json
+# written with another version is recomputed instead of served (v2: sprint points included).
+CHAMPIONSHIP_CACHE_VERSION = 2
+
+# EventFormat values of the weekends with a sprint (FastF1 schedule): 'sprint' 2021-2022,
+# 'sprint_shootout' 2023, 'sprint_qualifying' since 2024.
+SPRINT_FORMATS = ('sprint', 'sprint_shootout', 'sprint_qualifying')
+
+
+def _max_points(year: int, team: bool = False) -> Dict[str, int]:
+    """Most points one driver (team=False) or one team of two cars can score in the
+    race and in the sprint of a weekend, under the rules of `year`.
+
+    Race 25-18-...; the fastest-lap point (top ten only) was awarded 2019-2024 only.
+    Sprint points: 2021 3-2-1, since 2022 8-7-6-5-4-3-2-1; no sprints before 2021.
+    """
+    race = 25 + (18 if team else 0) + (1 if 2019 <= year <= 2024 else 0)
+    if year >= 2022:
+        sprint = 8 + (7 if team else 0)
+    elif year == 2021:
+        sprint = 3 + (2 if team else 0)
+    else:
+        sprint = 0
+    return {'race': race, 'sprint': sprint}
+
+
+def _points(row: Dict[str, Any]) -> float:
+    raw_pts = row.get('Points', 0)
+    return float(raw_pts) if raw_pts is not None and raw_pts == raw_pts else 0.0  # handles NaN
+
+
+def _load_sprint_results(year: int, round_num: int, fast_only: bool = True) -> Optional[List[Dict[str, Any]]]:
+    """Sprint classification rows (Abbreviation, TeamName, Points, ...) of a sprint
+    weekend, or None when they are not available.
+
+    Cached on disk as results_{year}_{round}_S.json: only the classification, the
+    sprint's laps and telemetry are not needed for the standings. With fast_only only
+    that file is read; otherwise the sprint is loaded from FastF1 (results only, a few
+    seconds) and cached. Rows without any points (the sprint not run yet, or FastF1 left
+    without the Ergast classification) count as not available and are not cached.
+    """
+    disk_path = _disk_cache_path("results", year, round_num, "S")
+    cached = _load_from_disk(disk_path)
+    if cached is not None:
+        return cached
+    if fast_only:
+        return None
+    try:
+        with _fastf1_lock:
+            results = clean_dataframe_for_json(extractor.get_session_results(year, round_num, "S"))
+    except Exception as e:
+        logger.warning(f"Could not load sprint results {year} R{round_num}: {e}")
+        return None
+    if not any(_points(r) > 0 for r in results):
+        logger.warning(f"Sprint results {year} R{round_num} carry no points; not cached")
+        return None
+    _save_to_disk(disk_path, results)
+    return results
+
+
 def _compute_championship(year: int, fast_only: bool = True) -> Dict[str, Any]:
     """Compute cumulative championship standings for a full season.
+
+    The points of a round are those of its race plus, on sprint weekends, those of
+    its sprint (results_{year}_{round}_S.json, see _load_sprint_results). A round
+    whose race or sprint classification is not available is listed in missing_rounds
+    (the sprint ones also in missing_sprint_rounds).
 
     Args:
         fast_only: If True, only use disk-cached sessions (instant).
@@ -524,79 +666,107 @@ def _compute_championship(year: int, fast_only: bool = True) -> Dict[str, Any]:
     # Get schedule (lock needed for FastF1 access)
     with _fastf1_lock:
         schedule = extractor.get_event_schedule(year)
-    race_rounds = schedule[schedule['EventFormat'].isin(['conventional', 'sprint_shootout', 'sprint_qualifying', 'sprint'])]['RoundNumber'].unique()
-    race_rounds = sorted(int(r) for r in race_rounds)  # ensure native Python ints
+    weekends = schedule[schedule['EventFormat'].isin(['conventional', *SPRINT_FORMATS])]
+    race_rounds = sorted(int(r) for r in weekends['RoundNumber'].unique())  # ensure native Python ints
+    sprint_rounds = {int(r) for r in weekends.loc[weekends['EventFormat'].isin(SPRINT_FORMATS), 'RoundNumber']}
 
-    driver_data = {}   # abbr → { name, team, teamColor, countryCode, rounds: [{round, points}] }
+    driver_data = {}   # abbr → { name, team, teamColor, countryCode, rounds: [{round, points, sprint_points}] }
     team_data = {}     # teamName → { teamColor, rounds: [{round, points}] }
     missing_rounds = []
+    missing_sprint_rounds = []
+    races_done = set()
+    sprints_done = set()
 
     completed_rounds = 0
     for rnd in race_rounds:
+        weekend = []  # (classification row, is_sprint) of the race and of the sprint
         try:
             # In fast mode, only use disk-cached sessions
+            data = None
             if fast_only:
                 disk_path = _disk_cache_path("session", year, rnd, "R")
-                disk_data = _load_from_disk(disk_path)
-                if disk_data is None:
+                data = _load_from_disk(disk_path)
+                if data is None:
                     # Also check in-memory cache
-                    cache_key = get_cache_key(year, rnd, "R")
-                    if cache_key in session_cache:
-                        disk_data = session_cache[cache_key]
-                    else:
+                    data = session_cache.get(get_cache_key(year, rnd, "R"))
+                    if data is None:
                         missing_rounds.append(rnd)
-                        continue
-                data = disk_data
             else:
                 data = load_session(year, rnd, "R")
 
-            results = data.get('race_results', [])
-            if not results:
-                continue
-            completed_rounds += 1
-
-            round_team_pts = {}
-            for r in results:
-                abbr = r.get('Abbreviation') or r.get('Driver')
-                if not abbr:
-                    continue
-                raw_pts = r.get('Points', 0)
-                pts = float(raw_pts) if raw_pts is not None and raw_pts == raw_pts else 0.0  # handles NaN
-                team = r.get('TeamName', '')
-                teamColor = r.get('TeamColor', '')
-                if teamColor and not teamColor.startswith('#'):
-                    teamColor = f'#{teamColor}'
-                name = r.get('FullName', abbr)
-                cc = r.get('CountryCode', '')
-
-                if abbr not in driver_data:
-                    driver_data[abbr] = {
-                        'name': name, 'team': team, 'teamColor': teamColor,
-                        'countryCode': cc, 'rounds': [],
-                    }
-                driver_data[abbr]['rounds'].append({'round': rnd, 'points': pts})
-                # Update team info in case of mid-season change
-                driver_data[abbr]['team'] = team
-                driver_data[abbr]['teamColor'] = teamColor
-
-                # Accumulate team points
-                if team:
-                    if team not in team_data:
-                        team_data[team] = {'teamColor': teamColor, 'rounds': []}
-                    round_team_pts.setdefault(team, 0)
-                    round_team_pts[team] += pts
-
-            for team, pts in round_team_pts.items():
-                team_data[team]['rounds'].append({'round': rnd, 'points': pts})
-
+            results = (data or {}).get('race_results') or []
+            if results:
+                completed_rounds += 1
+                races_done.add(rnd)
+            weekend.extend((r, False) for r in results)
         except Exception as e:
             logger.warning(f"Could not load round {rnd} for championship: {e}")
             missing_rounds.append(rnd)
-            continue
+
+        if rnd in sprint_rounds:
+            sprint = _load_sprint_results(year, rnd, fast_only)
+            if sprint is None:
+                missing_sprint_rounds.append(rnd)
+                if rnd not in missing_rounds:
+                    missing_rounds.append(rnd)
+            else:
+                sprints_done.add(rnd)
+                weekend.extend((r, True) for r in sprint)
+
+        round_driver_pts = {}  # abbr → [points, sprint points]
+        round_team_pts = {}
+        for r, is_sprint in weekend:
+            abbr = r.get('Abbreviation') or r.get('Driver')
+            if not abbr:
+                continue
+            pts = _points(r)
+            team = r.get('TeamName', '')
+            teamColor = r.get('TeamColor', '')
+            if teamColor and not teamColor.startswith('#'):
+                teamColor = f'#{teamColor}'
+            name = r.get('FullName', abbr)
+            cc = r.get('CountryCode', '')
+
+            if abbr not in driver_data:
+                driver_data[abbr] = {
+                    'name': name, 'team': team, 'teamColor': teamColor,
+                    'countryCode': cc, 'rounds': [],
+                }
+            acc = round_driver_pts.setdefault(abbr, [0.0, 0.0])
+            acc[0] += pts
+            if is_sprint:
+                acc[1] += pts
+            # Update team info in case of mid-season change
+            driver_data[abbr]['team'] = team
+            driver_data[abbr]['teamColor'] = teamColor
+
+            # Accumulate team points
+            if team:
+                if team not in team_data:
+                    team_data[team] = {'teamColor': teamColor, 'rounds': []}
+                round_team_pts.setdefault(team, 0)
+                round_team_pts[team] += pts
+
+        for abbr, (pts, sprint_pts) in round_driver_pts.items():
+            driver_data[abbr]['rounds'].append({'round': rnd, 'points': pts, 'sprint_points': sprint_pts})
+        for team, pts in round_team_pts.items():
+            team_data[team]['rounds'].append({'round': rnd, 'points': pts})
 
     # Build progression arrays with cumulative totals and positions
     total_rounds = len(race_rounds)
     remaining_rounds = total_rounds - completed_rounds
+    missing_rounds.sort()
+
+    # Best case: the most the rules of the season still allow, race by race and sprint
+    # by sprint (a sprint already run on a weekend whose race is not counts no more)
+    def _still_available(team: bool) -> int:
+        cap = _max_points(year, team=team)
+        return sum((cap['race'] if rnd not in races_done else 0)
+                   + (cap['sprint'] if rnd in sprint_rounds and rnd not in sprints_done else 0)
+                   for rnd in race_rounds)
+
+    driver_best_gain = _still_available(team=False)
+    team_best_gain = _still_available(team=True)
 
     drivers_out = []
     for abbr, d in driver_data.items():
@@ -607,10 +777,11 @@ def _compute_championship(year: int, fast_only: bool = True) -> Dict[str, Any]:
             progression.append({
                 'round': r['round'],
                 'points': r['points'],
+                'sprint_points': r['sprint_points'],
                 'cumulative': cumulative,
             })
 
-        # Prediction: weighted moving average of recent points-per-race
+        # Prediction: weighted moving average of recent points-per-weekend
         prediction = None
         if len(progression) >= 3 and remaining_rounds > 0:
             recent = [p['points'] for p in progression[-5:]]
@@ -619,7 +790,7 @@ def _compute_championship(year: int, fast_only: bool = True) -> Dict[str, Any]:
             prediction = {
                 'predicted_total': round(cumulative + avg_ppg * remaining_rounds),
                 'avg_points_per_race': round(avg_ppg, 1),
-                'best_case': cumulative + 26 * remaining_rounds,
+                'best_case': cumulative + driver_best_gain,
                 'worst_case': cumulative,
             }
 
@@ -678,7 +849,7 @@ def _compute_championship(year: int, fast_only: bool = True) -> Dict[str, Any]:
             prediction = {
                 'predicted_total': round(cumulative + avg_ppg * remaining_rounds),
                 'avg_points_per_race': round(avg_ppg, 1),
-                'best_case': cumulative + 52 * remaining_rounds,  # both drivers win + fastest lap
+                'best_case': cumulative + team_best_gain,  # 1-2 in every race and sprint left
                 'worst_case': cumulative,
             }
 
@@ -712,9 +883,11 @@ def _compute_championship(year: int, fast_only: bool = True) -> Dict[str, Any]:
 
     result = {
         'year': year,
+        'cache_version': CHAMPIONSHIP_CACHE_VERSION,
         'total_rounds': total_rounds,
         'completed_rounds': completed_rounds,
         'missing_rounds': missing_rounds,
+        'missing_sprint_rounds': missing_sprint_rounds,
         'drivers': drivers_out,
         'constructors': constructors_out,
     }
@@ -743,10 +916,11 @@ async def get_championship(year: int, load_all: bool = False):
     if year in championship_cache:
         return championship_cache[year]
 
-    # Check disk cache for championship
+    # Check disk cache for championship (one written by an older points model,
+    # e.g. without the sprint points, is recomputed)
     disk_path = DISK_CACHE_DIR / f"championship_{year}.json"
     disk_data = _load_from_disk(disk_path)
-    if disk_data is not None:
+    if disk_data is not None and disk_data.get('cache_version') == CHAMPIONSHIP_CACHE_VERSION:
         championship_cache[year] = disk_data
         return disk_data
 

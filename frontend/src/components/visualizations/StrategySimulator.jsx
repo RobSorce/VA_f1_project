@@ -5,6 +5,8 @@ import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { stintsByDriver } from '../../utils/stints';
 import { causalKey, simulatorStints } from '../../utils/strategyViews';
+import { DEFAULT_NUM_SIMULATIONS } from '../../utils/raceSimulation';
+import { planFromStints } from '../../utils/simulationClient';
 import Panel from '../ui/Panel';
 
 const COMPOUNDS = ['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'];
@@ -20,11 +22,13 @@ export default function StrategySimulator() {
   const simulatorResult = useF1Store((s) => s.simulatorResult);
   const simulatorComparisons = useF1Store((s) => s.simulatorComparisons);
   const isSimulatorActive = useF1Store((s) => s.isSimulatorActive);
+  const simulatorBaseline = useF1Store((s) => s.simulatorBaseline);
   const setSimulatorStrategy = useF1Store((s) => s.setSimulatorStrategy);
+  const setSimulatorBaseline = useF1Store((s) => s.setSimulatorBaseline);
   const runSimulation = useF1Store((s) => s.runSimulation);
+  const toggleSimulator = useF1Store((s) => s.toggleSimulator);
   const clearSimulator = useF1Store((s) => s.clearSimulator);
   const addSimulatorComparison = useF1Store((s) => s.addSimulatorComparison);
-  const raceProjection = useF1Store((s) => s.raceProjection);
   const raceSituationData = useF1Store((s) => s.raceSituationData);
 
   const effectiveMaxLap = totalRaceLaps || maxLap || 60;
@@ -114,10 +118,17 @@ export default function StrategySimulator() {
   const handleRunSimulation = () => {
     if (!editDriver) return;
     const stints = normalizeStints(editStints);
+    // Active: the what-if is recomputed at the new clock after a seek
     setSimulatorStrategy({ driver: editDriver, stints });
-    // Give store time to update, then run
-    setTimeout(() => runSimulation(), 50);
+    if (!isSimulatorActive) toggleSimulator();
+    runSimulation();
   };
+
+  // The plan's stops the simulation applies: in-laps from the lap in progress
+  // on (earlier ones are the race's own history)
+  const plannedStops = useMemo(() => planFromStints(normalizeStints(editStints)), [editStints, normalizeStints]);
+  const futureStops = plannedStops.filter((s) => s.lap >= currentLap && s.lap < effectiveMaxLap);
+  const pastStops = plannedStops.length - futureStops.length;
 
   const handleSaveComparison = () => {
     if (!simulatorResult) return;
@@ -347,6 +358,19 @@ export default function StrategySimulator() {
                 Strategy covers {totalLaps} laps ({totalLaps > effectiveMaxLap ? '+' : ''}{totalLaps - effectiveMaxLap} vs race length {effectiveMaxLap})
               </div>
             )}
+
+            {/* What the simulation applies: the planned stops from the lap in progress on */}
+            {currentLap > 0 && (
+              <div
+                title="Each planned stop is made at the end of its in-lap and charged a pit loss drawn around the race's median. The driver's laps, tyres and stops before the lap in progress are the race's own."
+                style={{ fontSize: '8px', marginTop: 4, color: 'var(--color-text-muted)', lineHeight: 1.5 }}
+              >
+                From L{currentLap}: {futureStops.length === 0
+                  ? 'no further stop'
+                  : futureStops.map((s) => `in-lap ${s.lap} → ${s.compound}`).join(', ')}
+                {pastStops > 0 && ` · ${pastStops} earlier stop${pastStops === 1 ? '' : 's'} = race history`}
+              </div>
+            )}
           </div>
 
           {/* ── Actual Strategy comparison ── */}
@@ -393,7 +417,7 @@ export default function StrategySimulator() {
           >
             {!canRun
               ? (currentLap < 5 ? 'Needs lap 5+' : !editDriver ? 'Select a driver' : 'No race data')
-              : 'Run Simulation (100 sims)'}
+              : `Run Simulation (${DEFAULT_NUM_SIMULATIONS.toLocaleString('en-US')} sims)`}
           </button>
 
           {/* ── Simulation Results ── */}
@@ -431,7 +455,7 @@ export default function StrategySimulator() {
                   color="#00e676"
                 />
                 <ResultCard
-                  label="Baseline"
+                  label={simulatorResult.baselineLabel ? `Baseline: ${simulatorResult.baselineLabel}` : 'Baseline: model stops'}
                   pos={simulatorResult.baselineProjection.expectedPos}
                   modePos={simulatorResult.baselineProjection.modePos}
                   range={simulatorResult.baselineProjection.posRange}
@@ -443,6 +467,22 @@ export default function StrategySimulator() {
 
               {/* Delta summary */}
               <DeltaSummary delta={simulatorResult.delta} />
+              <div style={{ fontSize: '8px', color: 'var(--color-text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+                {simulatorResult.numSimulations?.toLocaleString('en-US')} sims at L{simulatorResult.computedAtLap},
+                {' '}both runs on the same random numbers: an identical plan differs by exactly 0.
+                {simulatorBaseline && (
+                  <button
+                    onClick={() => setSimulatorBaseline(null)}
+                    title="Compare with the model's own stops again"
+                    style={{
+                      marginLeft: 6, background: 'none', border: 'none', padding: 0,
+                      color: '#64C4FF', cursor: 'pointer', fontSize: '8px', textDecoration: 'underline',
+                    }}
+                  >
+                    vs model stops
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -475,9 +515,20 @@ export default function StrategySimulator() {
                       color: comp.result.delta.position > 0 ? '#00e676' : comp.result.delta.position < 0 ? '#e10600' : 'var(--color-text-muted)',
                     }}>
                       P{comp.result.simProjection.modePos}
-                      {comp.result.delta.position !== 0 && ` (${comp.result.delta.position > 0 ? '+' : ''}${comp.result.delta.position.toFixed(1)})`}
+                      {` (${signedPlaces(comp.result.delta.position)})`}
                     </span>
                   )}
+                  <button
+                    onClick={() => setSimulatorBaseline({ label: comp.label, stints: comp.stints })}
+                    title="Compare the custom strategy with this plan (same random numbers)"
+                    style={{
+                      background: simulatorBaseline?.stints === comp.stints ? 'rgba(100,196,255,0.15)' : 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.1)', borderRadius: 3, padding: '0 5px',
+                      fontSize: '8px', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontWeight: 600,
+                    }}
+                  >
+                    vs
+                  </button>
                 </div>
               ))}
             </div>
@@ -540,19 +591,30 @@ function ResultCard({ label, pos, modePos, range, podium, points, color }) {
   );
 }
 
+/** Signed expected-position difference: "+1.8", "-1.6", "0.0" (positive = places gained). */
+function signedPlaces(v) {
+  if (!v) return '0.0';
+  return `${v > 0 ? '+' : '\u2212'}${Math.abs(v).toFixed(1)}`;
+}
+
 function DeltaSummary({ delta }) {
-  const posColor = delta.position > 0.5 ? '#00e676' : delta.position < -0.5 ? '#e10600' : 'var(--color-text-muted)';
-  const posArrow = delta.position > 0.5 ? '\u25B2' : delta.position < -0.5 ? '\u25BC' : '\u2022';
-  const posLabel = delta.position > 0.5 ? 'GAIN' : delta.position < -0.5 ? 'LOSS' : 'NEUTRAL';
+  // delta.position = baseline expected position - plan's, both from the same
+  // random numbers: exactly 0 for an identical plan, so its sign is the plan's
+  const posColor = delta.position > 0 ? '#00e676' : delta.position < 0 ? '#e10600' : 'var(--color-text-muted)';
+  const posArrow = delta.position > 0 ? '\u25B2' : delta.position < 0 ? '\u25BC' : '\u2022';
+  const posLabel = delta.position > 0 ? 'PLACES GAINED' : delta.position < 0 ? 'PLACES LOST' : 'NO CHANGE';
 
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12, padding: '6px 8px',
       background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)',
     }}>
-      <div style={{ textAlign: 'center' }}>
+      <div
+        style={{ textAlign: 'center' }}
+        title="Expected finishing position of the baseline minus that of the custom strategy (positive = the custom strategy finishes higher)"
+      >
         <div style={{ fontSize: 'var(--font-size-md)', fontWeight: 900, color: posColor }}>
-          {posArrow} {Math.abs(delta.position).toFixed(1)}
+          {posArrow} {signedPlaces(delta.position)}
         </div>
         <div style={{ fontSize: '7px', fontWeight: 700, color: posColor, textTransform: 'uppercase' }}>
           {posLabel}

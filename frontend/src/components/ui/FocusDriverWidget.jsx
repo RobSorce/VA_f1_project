@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
+import { activeSegmentWindow } from '../../utils/raceTime';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { focusDriverStatus, qualifyingPositionAt } from '../../utils/views/focusDriverWidget';
@@ -34,6 +35,8 @@ export default function FocusDriverWidget() {
   const color = focusDriver ? getDriverColor(focusDriver) : '#888';
 
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+  // The active qualifying segment's laps only (its window's start)
+  const segmentStart = useF1Store((s) => activeSegmentWindow(s)?.start);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
 
   // Position and tyre from the lap data at sessionNow (focusDriverStatus, utils/views)
@@ -60,11 +63,13 @@ export default function FocusDriverWidget() {
   // Current position — qualifying: the rank by best lap completed so far
   const currentPos = useMemo(() => {
     if (!focusDriver) return null;
-    if (isQualifyingReplay) return qualifyingPositionAt(sessionData?.lap_times, focusDriver, sessionNow);
+    if (isQualifyingReplay) {
+      return qualifyingPositionAt(sessionData?.lap_times, focusDriver, sessionNow, { after: segmentStart });
+    }
     // Position at the end of the last lap completed at sessionNow (a lap row's
     // Position is only known once that lap is over)
     return lapStatus?.position ?? null;
-  }, [focusDriver, sessionData, isQualifyingReplay, lapStatus, sessionNow]);
+  }, [focusDriver, sessionData, isQualifyingReplay, lapStatus, sessionNow, segmentStart]);
 
   if (!focusDriver) {
     return (

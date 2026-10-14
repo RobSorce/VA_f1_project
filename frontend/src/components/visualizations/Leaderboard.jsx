@@ -2,10 +2,11 @@ import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react'
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS, countryFlag, F1_POINTS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { isLapCompleted, leaderLapEndTime } from '../../utils/raceTime';
+import { isLapCompleted, leaderLapEndTime, activeSegmentWindow } from '../../utils/raceTime';
 import { pitStops } from '../../utils/stints';
 import { pitCountsByDriver, viewSessionType, isRaceSession } from '../../utils/strategyViews';
 import { raceStandings, qualifyingStandings } from '../../utils/views/leaderboard';
+import { battleLevel, BATTLE_BADGE_PCT, BADGE_INTERVAL_PCT } from '../../utils/simulationClient';
 import Panel from '../ui/Panel';
 
 /* ── Flag constants ─────────────────────────────────────────────────── */
@@ -64,6 +65,7 @@ export default function Leaderboard({ collapsed }) {
   const compareMode = useF1Store((s) => s.compareMode);
   const addCompareDriver = useF1Store((s) => s.addCompareDriver);
   const dnfMap = useF1Store((s) => s.dnfMap);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
   const triggerPrediction = useF1Store((s) => s.triggerPrediction);
   const driversInfo = useF1Store((s) => s.drivers);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
@@ -74,6 +76,7 @@ export default function Leaderboard({ collapsed }) {
   const columnMode = useF1Store((s) => s.leaderboardColumnMode);
   const cycleLeaderboardColumn = useF1Store((s) => s.cycleLeaderboardColumn);
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+  const segmentWindow = useF1Store(activeSegmentWindow);
   const frameData = useF1Store((s) => s.frameData);
   const raceProjection = useF1Store((s) => s.raceProjection);
 
@@ -175,8 +178,10 @@ export default function Leaderboard({ collapsed }) {
       // PIT column: tyre changes (runs) visible at sessionNow, the count the
       // Strategy Timeline STOPS badge and DriverComparePanel show (R2)
       const stops = pitCountsByDriver(pitStops(sessionData.lap_times || [], { sessionNow }));
+      // Only the active segment's laps are ranked (its window's start)
       return qualifyingStandings(sessionData.lap_times || [], sessionNow, {
         drivers: segDrivers, frameDrivers: frame?.drivers || {}, stops,
+        segmentStart: segmentWindow?.start,
       });
     }
 
@@ -229,8 +234,10 @@ export default function Leaderboard({ collapsed }) {
       const abbr = r.Abbreviation || r.Driver;
       if (abbr && r.GridPosition > 0) gridPositions[abbr] = r.GridPosition;
     }
-    return raceStandings(lapTimes, sessionNow, { dnfMap, gridPositions });
-  }, [sessionData, sessionNow, dnfMap, replayStarted, isQualifyingReplay, frameData, currentFrameIndex, driversInfo]);
+    // Live: retirements from the feed only (driverState.js nonFinisherMap)
+    return raceStandings(lapTimes, sessionNow, { dnfMap, gridPositions, isLiveMode });
+  }, [sessionData, sessionNow, dnfMap, replayStarted, isQualifyingReplay, frameData, currentFrameIndex, driversInfo,
+    isLiveMode, segmentWindow]);
 
   /* ── Battle detection (consecutive drivers within 1.0s) ───────────── */
   const battles = useMemo(() => {
@@ -250,14 +257,18 @@ export default function Leaderboard({ collapsed }) {
 
   /* ── Monte Carlo overtake probabilities (AWS F1 Insights style) ───── */
   const overtakeProbMap = useMemo(() => {
-    const map = {}; // aheadAbbr → { prob, rival, aheadCompound, behindCompound }
+    const map = {}; // aheadAbbr → { prob, level, rival, behindCompound }
     if (!raceProjection?.battles?.length) return map;
     for (const b of raceProjection.battles) {
       // Only battles where the pair is currently adjacent on track
       if (Math.abs(b.aheadCurrentPos - b.behindCurrentPos) !== 1) continue;
       // Keep highest-probability battle per "ahead" driver
       if (!map[b.ahead] || b.prob > map[b.ahead].prob) {
-        map[b.ahead] = { prob: b.prob, rival: b.behind, behindCompound: b.behindCompound };
+        // level: the store's badge rule (Wilson interval + hysteresis), the
+        // same colour state as the Race Prediction battles
+        map[b.ahead] = {
+          prob: b.prob, level: battleLevel(raceProjection, b), rival: b.behind, behindCompound: b.behindCompound,
+        };
       }
     }
     return map;
@@ -478,7 +489,6 @@ export default function Leaderboard({ collapsed }) {
 
   /* ── Race finished detection ─────────────────────────────────────── */
   const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
-  const isLiveMode = useF1Store((s) => s.isLiveMode);
   // Only a race or a sprint ends with a winner (qualifying / practice: never)
   const isRace = isRaceSession(useF1Store(viewSessionType));
   const raceTarget = totalRaceLaps || maxLap;
@@ -798,13 +808,14 @@ export default function Leaderboard({ collapsed }) {
                   const rival = battles[d.abbr].rival;
                   const gap = battles[d.abbr].gap;
                   if (mc && mc.rival === rival) {
-                    // Color by probability threshold
-                    const color = mc.prob >= 50 ? '#ef4444' : mc.prob >= 30 ? '#f5a623' : '#22c55e';
+                    // Colour by the battle badge level (store badge rule)
+                    const color = mc.level >= 2 ? '#ef4444' : mc.level === 1 ? '#f5a623' : '#22c55e';
+                    const runs = raceProjection?.numSimulations;
                     return (
                       <span
                         className="tower-row__battle-badge tower-row__battle-badge--mc"
                         style={{ color, borderColor: `${color}55`, background: `${color}18` }}
-                        title={`Overtake probability: ${mc.prob}% — chance ${rival} passes ${d.abbr} before the flag.\nCurrent gap: ${gap.toFixed(2)}s.\nBasis: Monte Carlo race simulation (100 iterations) using pace delta, tyre degradation, and pit-loss.\nColour: green <30% · amber 30-50% · red ≥50%.`}
+                        title={`Overtake probability: ${mc.prob}% — chance ${rival} passes ${d.abbr} before the flag.\nCurrent gap: ${gap.toFixed(2)}s.\nBasis: Monte Carlo race simulation (${runs != null ? runs.toLocaleString('en-US') : '?'} runs) using pace delta, tyre degradation, and pit-loss.\nColour: green below ${BATTLE_BADGE_PCT[0]}% · amber at least ${BATTLE_BADGE_PCT[0]}% · red at least ${BATTLE_BADGE_PCT[1]}%; a colour changes only when the ${BADGE_INTERVAL_PCT}% Wilson interval of the share clears the threshold.`}
                       >
                         {'\u21C5'}{mc.prob}%
                       </span>

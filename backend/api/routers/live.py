@@ -115,12 +115,26 @@ async def live_websocket(ws: WebSocket):
 
 
 async def _send_updates(ws: WebSocket, queue: asyncio.Queue):
-    """Forward messages from the session manager queue to the WebSocket."""
+    """Forward messages from the session manager queue to the WebSocket.
+
+    When the client's queue overflowed, the manager stopped feeding it and
+    queued a resync message as the last one: send it, close the socket
+    (1013, try again later) and return, so the client reconnects to a fresh
+    session_init instead of waiting forever on a queue nobody fills."""
+    from live.session_manager import RESYNC_MESSAGE
+
     while True:
         data = await queue.get()
         try:
             await ws.send_text(data)
         except Exception:
+            break
+        if data == RESYNC_MESSAGE:
+            logger.info("Live WebSocket client fell behind: closing for resync")
+            try:
+                await ws.close(code=1013, reason="resync")
+            except Exception:
+                pass
             break
 
 

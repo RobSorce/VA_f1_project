@@ -57,9 +57,9 @@ export default function PitWallSectorPanel() {
 
   const data = useMemo(
     () => pitWallSectorData(sessionData?.lap_times, focusDriver, sessionNow, {
-      replayActive: totalFrames > 0, dnfMap,
+      replayActive: totalFrames > 0, dnfMap, isLiveMode,
     }),
-    [focusDriver, sessionData, sessionNow, totalFrames, dnfMap],
+    [focusDriver, sessionData, sessionNow, totalFrames, dnfMap, isLiveMode],
   );
 
   // Current tyre: race replay / lap mode = the set in force from the lap data

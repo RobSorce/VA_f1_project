@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { completedLaps, isLapCompleted } from '../../utils/raceTime';
+import { completedLaps, isLapCompleted, activeSegmentWindow } from '../../utils/raceTime';
 import { qualifyingOrder } from '../../utils/driverState';
 import { mfdTyreInfo } from '../../utils/views/driverMFDCard';
 
@@ -22,6 +22,8 @@ export default function DriverMFDCard() {
 
   const [page, setPage] = useState(0);
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+  // The active qualifying segment's laps only (its window's start)
+  const segmentStart = useF1Store((s) => activeSegmentWindow(s)?.start);
 
   const driverInfo = useMemo(() => {
     if (!highlightedDriver || !drivers?.length) return null;
@@ -118,7 +120,7 @@ export default function DriverMFDCard() {
   const posHistory = useMemo(() => {
     if (!highlightedDriver) return [];
     if (isQualifyingReplay) {
-      const me = qualifyingOrder(doneLaps, Infinity).find((r) => r.driver === highlightedDriver);
+      const me = qualifyingOrder(doneLaps, Infinity, { after: segmentStart }).find((r) => r.driver === highlightedDriver);
       return me?.position ? [{ lap: 1, pos: me.position }] : [];
     }
     // Position at the end of each completed lap
@@ -127,7 +129,7 @@ export default function DriverMFDCard() {
       .sort((a, b) => a.LapNumber - b.LapNumber)
       .map((d) => ({ lap: d.LapNumber, pos: d.Position }));
     return posData;
-  }, [highlightedDriver, doneLaps, isQualifyingReplay]);
+  }, [highlightedDriver, doneLaps, isQualifyingReplay, segmentStart]);
 
   const color = highlightedDriver ? getDriverColor(highlightedDriver) : '#888';
 

@@ -197,13 +197,33 @@ export function hasPitOut(lap) {
 }
 
 /**
+ * The active qualifying segment's window of a store state ({ start, origin,
+ * end } session seconds, store.qualiSegmentWindows, see useF1Store.js
+ * qualiSegmentWindows), or null: not a qualifying replay, or the segment's
+ * laps were not matched. Its end is the clock of the segment's last frame
+ * (resolveSessionNow segmentEnd), its start bounds the laps the segment's
+ * standings rank.
+ *
+ * @param {Object} s - store state
+ * @returns {{start: number, origin: number, end: number}|null}
+ */
+export function activeSegmentWindow(s) {
+  if (!s?.isQualifyingReplay) return null;
+  return s.qualiSegmentWindows?.[s.qualiSegment] || null;
+}
+
+/**
  * The single "now" of the dashboard, in SESSION seconds.
  *
  *  - isLiveMode: Infinity (every lap received from the feed is already over).
  *  - replayActive (replay frames loaded): currentTime (replay s) + offset.
  *    At the last frame (currentTime + frameDt > maxTime, both optional) the
  *    whole telemetry has been shown: Infinity, so laps ending in the sub-frame
- *    tail after the last frame still count as completed.
+ *    tail after the last frame still count as completed. A qualifying
+ *    segment's last frame is not the end of the session (the next segments
+ *    follow): with `qualifying` it stands for the segment's end (segmentEnd,
+ *    the end of the segment's last lap), never Infinity; without a
+ *    segmentEnd it is the frame's own time.
  *  - otherwise, lap-indexed mode (no frames):
  *      raceOver             -> Infinity (the race-over state, after the
  *                              chequered flag: the timeline's skip-to-end);
@@ -233,11 +253,14 @@ export function hasPitOut(lap) {
  * @param {number} [p.frameDt] - replay seconds between frames
  * @param {boolean} [p.raceOver] - lap-indexed mode only: the race-over state
  *   (store.lapModeRaceOver), Infinity
+ * @param {boolean} [p.qualifying] - a qualifying segment's replay (store.isQualifyingReplay)
+ * @param {number} [p.segmentEnd] - with qualifying: session seconds of the segment's end
+ *   (store.qualiSegmentWindows[segment].end), the clock of its last frame
  * @returns {number} session seconds, or Infinity
  */
 export function resolveSessionNow({
   currentTime, sessionTimeOffset, replayActive, currentLap, maxLap, lapTimes, isLiveMode,
-  maxTime, frameDt, raceOver,
+  maxTime, frameDt, raceOver, qualifying = false, segmentEnd,
 } = {}) {
   if (isLiveMode) return Infinity;
   const offset = Number.isFinite(sessionTimeOffset)
@@ -245,11 +268,13 @@ export function resolveSessionNow({
     : computeSessionTimeOffset(lapTimes);
 
   if (replayActive && Number.isFinite(currentTime)) {
+    const atFrame = currentTime + offset;
     if (Number.isFinite(maxTime) && maxTime > 0 && Number.isFinite(frameDt) && frameDt > 0
         && currentTime + frameDt > maxTime) {
-      return Infinity;
+      if (!qualifying) return Infinity;
+      return Number.isFinite(segmentEnd) ? Math.max(segmentEnd, atFrame) : atFrame;
     }
-    return currentTime + offset;
+    return atFrame;
   }
 
   // Lap-indexed mode

@@ -29,6 +29,13 @@ _CACHE_DIR = os.path.join(
     "data", "processed_cache",
 )
 
+# The last message a client gets when its queue overflows (a reader too slow
+# to keep up): its backlog is dropped, the manager stops feeding it, and the
+# WebSocket endpoint closes the socket after sending this (api/routers/live.py
+# _send_updates), so the client reconnects to a fresh session_init snapshot
+# instead of waiting forever on a queue nobody fills.
+RESYNC_MESSAGE = json.dumps({"type": "resync", "data": {"reason": "client_queue_full"}})
+
 
 def _lookup_cached_circuit(event_name: str) -> Optional[Dict[str, Any]]:
     """Find circuit_info by event_name across cached sessions.
@@ -155,7 +162,17 @@ class LiveSessionManager:
             except asyncio.QueueFull:
                 dead.append(q)
         for q in dead:
+            # Unsubscribing alone left the client's send loop waiting forever
+            # on a queue nobody fills (a silent freeze): drop its backlog and
+            # end its stream with a resync message instead
             self._subscribers.remove(q)
+            dropped = 0
+            while not q.empty():
+                q.get_nowait()
+                dropped += 1
+            q.put_nowait(RESYNC_MESSAGE)
+            logger.warning(f"Client queue full: dropped {dropped} queued messages, "
+                           f"sent resync (clients left: {len(self._subscribers)})")
 
     # ── Snapshot (full state for new connections) ─────────────────────
 
@@ -217,8 +234,15 @@ class LiveSessionManager:
 
     # ── Message routing (called by SignalR client callback) ───────────
 
+    def set_session_time(self, t: Optional[float]):
+        """Pin the session clock (mock replay: the replayed session's own time
+        of the next message), so the live times equal the replay's."""
+        self.normalizer.set_session_time(t)
+
     async def on_message(self, topic: str, data: Any):
         """Route a SignalR message to the appropriate handler."""
+        # Starts the session clock on the first message after a reset
+        self.normalizer.session_time()
         try:
             if topic == "DriverList":
                 await self._handle_driver_list(data)
@@ -304,21 +328,10 @@ class LiveSessionManager:
                 "data": status_entry,
             })
 
-        for stint_entry in strategy_updates:
-            # Update EndLap of previous stint for same driver
-            for existing in reversed(self.tyre_strategy):
-                if existing["Driver"] == stint_entry["Driver"] and existing["EndLap"] is None:
-                    existing["EndLap"] = stint_entry["StartLap"] - 1
-                    existing["TotalLaps"] = existing["EndLap"] - existing["StartLap"] + 1
-                    break
-            self.tyre_strategy.append(stint_entry)
-            await self._broadcast({
-                "type": "strategy_update",
-                "data": stint_entry,
-            })
+        corrected = await self._apply_stints(strategy_updates)
 
         # Broadcast position update with current standings
-        if lap_updates or strategy_updates:
+        if lap_updates or strategy_updates or corrected:
             standings = self.normalizer.build_standings()
             await self._broadcast({
                 "type": "position_update",
@@ -337,17 +350,75 @@ class LiveSessionManager:
                 wrapper["Lines"][num] = {"Stints": line["Stints"]}
         if wrapper["Lines"]:
             _, strategy_updates, _ = self.normalizer.process_timing_data(wrapper)
-            for stint_entry in strategy_updates:
-                for existing in reversed(self.tyre_strategy):
-                    if existing["Driver"] == stint_entry["Driver"] and existing["EndLap"] is None:
-                        existing["EndLap"] = stint_entry["StartLap"] - 1
-                        existing["TotalLaps"] = existing["EndLap"] - existing["StartLap"] + 1
-                        break
-                self.tyre_strategy.append(stint_entry)
-                await self._broadcast({
-                    "type": "strategy_update",
-                    "data": stint_entry,
-                })
+            await self._apply_stints(strategy_updates)
+
+    async def _apply_stints(self, strategy_updates: List[Dict[str, Any]]) -> bool:
+        """Apply the normalizer's stint output: the corrections of entries
+        already sent (stint_corrections), then the new entries. True when a
+        correction was applied."""
+        corrections = self.normalizer.take_stint_corrections()
+        for driver, stints in corrections.items():
+            await self._replace_stints(driver, stints)
+        for stint_entry in strategy_updates:
+            await self._add_stint(stint_entry)
+        return bool(corrections)
+
+    async def _replace_stints(self, driver: str, stints: List[Dict[str, Any]]):
+        """Replace a driver's tyre_strategy entries with the feed's corrected
+        list (a compound corrected after the stint was sent, a pit-lane pass
+        that turned out to be a tyre change or the reverse), in place in the
+        list. Each stint but the last closes on the lap before the next one
+        (as _add_stint); the last stays open.
+
+        Broadcast as 'strategy_update' messages, one per entry of the
+        driver's corrected list, in order: the dashboard appends every
+        'strategy_update' and has no other stint message (frontend
+        useF1Store.js _handleLiveMessage), and a lap shows the driver's
+        last entry that starts on or before it, so the whole list sent
+        again, from lap 1, is what an open dashboard ends up showing. The
+        'strategy_correction' message used before had no consumer: a
+        connected client kept the old compound until it reconnected (16
+        FastF1 stints of the recorded feed, verify_live/
+        r2_client_strategy_view_WORKTREE.txt); now the client is right on
+        the 1532 of 1552 the server is right on (notes/experiments/phase8/
+        repair_r2/AFTER_r2_client_strategy_view.txt). A reconnecting client
+        gets the corrected list alone (session_init)."""
+        stints = [dict(s) for s in stints]
+        for cur, nxt in zip(stints, stints[1:]):
+            cur["EndLap"] = nxt["StartLap"] - 1
+            cur["TotalLaps"] = max(0, cur["EndLap"] - cur["StartLap"] + 1)
+        if stints:
+            stints[-1]["EndLap"], stints[-1]["TotalLaps"] = None, 0
+        others_before = 0
+        for s in self.tyre_strategy:
+            if s["Driver"] == driver:
+                break
+            others_before += 1
+        others = [s for s in self.tyre_strategy if s["Driver"] != driver]
+        self.tyre_strategy = others[:others_before] + stints + others[others_before:]
+        for stint_entry in stints:
+            await self._broadcast({
+                "type": "strategy_update",
+                "data": stint_entry,
+            })
+
+    async def _add_stint(self, stint_entry: Dict[str, Any]):
+        """Append a new stint and close the driver's previous open one on
+        the lap before it. StartLap comes from normalizer._process_stints
+        (the lap a stint arrived on, or the feed's cumulative stint laps for
+        the past stints of a mid-race snapshot, which so close on their own
+        laps); a stint left with no completed lap keeps EndLap = StartLap - 1
+        and TotalLaps 0 (DECISIONS.md R3)."""
+        for existing in reversed(self.tyre_strategy):
+            if existing["Driver"] == stint_entry["Driver"] and existing["EndLap"] is None:
+                existing["EndLap"] = stint_entry["StartLap"] - 1
+                existing["TotalLaps"] = max(0, existing["EndLap"] - existing["StartLap"] + 1)
+                break
+        self.tyre_strategy.append(stint_entry)
+        await self._broadcast({
+            "type": "strategy_update",
+            "data": stint_entry,
+        })
 
     async def _handle_lap_count(self, data: Dict):
         old_lap = self.current_lap
@@ -374,9 +445,12 @@ class LiveSessionManager:
 
     async def _handle_track_status(self, data: Dict):
         status_entry = self.normalizer.process_track_status(data)
-        # Close previous status period
+        if status_entry is None:
+            return  # the status in force, sent again by a re-subscription
+        # Close previous status period (session seconds, leader's lap)
         if self.track_status:
             self.track_status[-1]["end_time"] = status_entry["start_time"]
+            self.track_status[-1]["end_lap"] = status_entry["start_lap"]
         self.track_status.append(status_entry)
         await self._broadcast({
             "type": "track_status",
@@ -384,6 +458,7 @@ class LiveSessionManager:
         })
 
     async def _handle_race_control(self, data: Dict):
+        # Only messages not seen before: a re-subscription resends them all
         messages = self.normalizer.process_race_control(data)
         if isinstance(messages, list):
             self.race_control_messages.extend(messages)
@@ -472,6 +547,10 @@ class LiveSessionManager:
             logger.warning("TeamRadio received before SessionInfo path is known — dropping")
             return
         captures = self.normalizer.process_team_radio(data, session_path)
+        # A re-subscription resends every capture so far (the Captures
+        # snapshot): skip the ones already kept, as the static backfill does
+        known_urls = {r.get("audio_url") for r in self.team_radios}
+        captures = [c for c in captures if c.get("audio_url") not in known_urls]
 
         # Lazy-start the transcriber on first capture so we don't pay the
         # ~80 MB model-load cost on every backend boot.
@@ -510,53 +589,33 @@ class LiveSessionManager:
                 self._radio_transcriber.submit(cap, _on_done)
 
     async def _handle_timing_stats(self, data: Dict):
-        """TimingStats contains per-driver personal bests — extract best lap times."""
+        """TimingStats contains per-driver personal bests — keep the best lap time.
+
+        A personal best is not a lap row: the lap it was set on already has
+        its row (TimingData LastLapTime), so the row this used to emit was a
+        duplicate, labelled with the driver's current lap instead of the lap
+        the best was set on."""
         lines = data.get("Lines", data)
         if not isinstance(lines, dict):
             return
+        from .data_normalizer import _parse_lap_time
         for num, stats in lines.items():
             if not isinstance(stats, dict):
                 continue
-            abbr = self.normalizer.get_abbreviation(num)
+            info = self.normalizer.driver_map.get(str(num), {})
+            if not info.get("Tla"):
+                continue  # before DriverList: no abbreviation to file it under
+            abbr = info["Tla"]
             self.normalizer._ensure_driver_state(abbr)
             state = self.normalizer.driver_state[abbr]
 
-            # PersonalBestLapTime → emit a lap entry if better than current best
             pb = stats.get("PersonalBestLapTime")
             if isinstance(pb, dict):
-                from .data_normalizer import _parse_lap_time
                 val = pb.get("Value")
                 pb_sec = _parse_lap_time(val) if val else None
                 if pb_sec and pb_sec > 0:
                     if state["best_lap_time"] is None or pb_sec < state["best_lap_time"]:
                         state["best_lap_time"] = pb_sec
-                        lap_entry = {
-                            "Driver": abbr,
-                            "DriverNumber": str(num),
-                            "LapNumber": max(state["current_lap"], 1),
-                            "LapTime": pb_sec,
-                            "LapTimeSeconds": pb_sec,
-                            "Sector1Time": None, "Sector1TimeSeconds": None,
-                            "Sector2Time": None, "Sector2TimeSeconds": None,
-                            "Sector3Time": None, "Sector3TimeSeconds": None,
-                            "Position": state["position"],
-                            "Compound": state["compound"],
-                            "TyreLife": state["tyre_life"],
-                            "GapToLeader": state["gap_to_leader"],
-                            "IntervalToAhead": state["interval"],
-                            "IsPersonalBest": True,
-                            "PitInTime": None, "PitOutTime": None,
-                            "PitInTimeSeconds": None, "PitOutTimeSeconds": None,
-                            "Team": self.normalizer.driver_map.get(str(num), {}).get("TeamName", ""),
-                            "Stint": state["stint_number"],
-                            "SpeedI1": None, "SpeedI2": None,
-                            "SpeedFL": None, "SpeedST": None,
-                        }
-                        self.lap_times.append(lap_entry)
-                        await self._broadcast({
-                            "type": "lap_update",
-                            "data": lap_entry,
-                        })
 
     async def _handle_session_info(self, data: Dict):
         self.session_info = self.normalizer.process_session_info(data)

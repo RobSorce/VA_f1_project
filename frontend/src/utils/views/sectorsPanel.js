@@ -39,11 +39,12 @@ function positiveTime(v) {
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
  * @param {number} sessionNow - session seconds, Infinity = whole session
- * @param {Object} [opts] - { dnfMap, replayActive }
+ * @param {Object} [opts] - { dnfMap, replayActive, isLiveMode (live feed rows:
+ *   driverState.js nonFinisherMap) }
  * @returns {{ liveRows: Array<Object>, bestRankings: Object, bestSessionBests: Object,
  *   speedRankings: Object }}
  */
-export function sectorsPanelData(lapTimes, sessionNow, { dnfMap = {}, replayActive = false } = {}) {
+export function sectorsPanelData(lapTimes, sessionNow, { dnfMap = {}, replayActive = false, isLiveMode = false } = {}) {
   const now = sessionNow == null || Number.isNaN(sessionNow) ? Infinity : sessionNow;
   const rows = Array.isArray(lapTimes) ? lapTimes : [];
 
@@ -77,7 +78,7 @@ export function sectorsPanelData(lapTimes, sessionNow, { dnfMap = {}, replayActi
 
   // Live view: one row per running driver (results DNFs and classified
   // drivers who stopped before the flag leave it once retired)
-  const nonFinishers = nonFinisherMap(rows, dnfMap);
+  const nonFinishers = nonFinisherMap(rows, dnfMap, { live: isLiveMode });
   const live = [];
   for (const [drv, driverRows] of byDriver) {
     const st = driverStateAt(driverRows, drv, now, { dnf: !!nonFinishers[drv] });

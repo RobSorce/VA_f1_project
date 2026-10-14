@@ -1,7 +1,11 @@
 """
 Replay endpoints:
   - REST GET  /api/session/{year}/{round_num}/{session_type}/replay
-  - WebSocket /ws/replay/{year}/{round_num}
+
+The /ws/replay/{year}/{round_num} websocket that streamed the replay frames lap by
+lap was removed: no client used it (the frontend reads GET /api/frames and keeps
+its own clock) and it grouped every frame under lap 1, since the frames carry the
+lap per driver, not per frame.
 
 The replay endpoint returns structured lap-by-lap data for every driver,
 including position, lap time, sectors, tyre compound/life, pit status,
@@ -9,10 +13,9 @@ gap to leader, and interval to car ahead.  It also returns race events
 (safety car, VSC, red flags, etc.).
 """
 import asyncio
-import json
 import math
 import logging
-from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Request
 from pathlib import Path
 import sys
 
@@ -378,115 +381,3 @@ async def get_replay_data(request: Request, year: int, round_num: int, session_t
     except Exception as e:
         logger.error(f"Failed to load session for replay: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# =========================================================================
-# WebSocket endpoint
-# =========================================================================
-
-@router.websocket("/ws/replay/{year}/{round_num}")
-async def replay_session(websocket: WebSocket, year: int, round_num: int):
-    """
-    Stream race frames lap-by-lap over WebSocket.
-
-    Client can send JSON control messages:
-      { "action": "play" }
-      { "action": "pause" }
-      { "action": "set_speed", "speed": 2.0 }
-      { "action": "seek", "lap": 15 }
-    """
-    await websocket.accept()
-
-    ext, lock, cache = _get_shared_state(websocket.app)
-
-    # Load session + frames in a thread to avoid blocking the event loop
-    try:
-        def _load_frames():
-            session = _get_raw_session(ext, lock, cache, year, round_num, "R")
-            return ext.extract_race_frames(session)
-
-        frames_data = await asyncio.to_thread(_load_frames)
-    except Exception as e:
-        await websocket.send_json({"error": f"Failed to load session: {e}"})
-        await websocket.close()
-        return
-
-    frames = frames_data.get("frames", [])
-    total_laps = frames_data.get("total_laps", 0)
-
-    if not frames:
-        await websocket.send_json({"error": "No frame data available"})
-        await websocket.close()
-        return
-
-    # Group frames by lap number
-    laps = {}
-    for frame in frames:
-        lap = frame.get("lap", 1)
-        laps.setdefault(lap, []).append(frame)
-
-    max_lap = max(laps.keys()) if laps else 1
-
-    # Send initial metadata
-    await websocket.send_json({
-        "type": "metadata",
-        "total_laps": total_laps or max_lap,
-        "max_lap": max_lap,
-        "frame_count": len(frames),
-    })
-
-    # Playback state
-    playing = False
-    speed = 1.0
-    current_lap = 1
-
-    async def send_lap(lap_num):
-        """Send all frames for a given lap."""
-        lap_frames = laps.get(lap_num, [])
-        await websocket.send_json({
-            "type": "lap_data",
-            "lap": lap_num,
-            "frames": lap_frames,
-        })
-
-    try:
-        while True:
-            # Non-blocking check for control messages
-            try:
-                msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.05)
-                try:
-                    ctrl = json.loads(msg)
-                    action = ctrl.get("action")
-                    if action == "play":
-                        playing = True
-                    elif action == "pause":
-                        playing = False
-                    elif action == "set_speed":
-                        speed = max(0.25, min(16.0, float(ctrl.get("speed", 1.0))))
-                    elif action == "seek":
-                        current_lap = max(1, min(max_lap, int(ctrl.get("lap", 1))))
-                        await send_lap(current_lap)
-                except (json.JSONDecodeError, ValueError):
-                    pass
-            except asyncio.TimeoutError:
-                pass
-
-            # Advance playback
-            if playing and current_lap <= max_lap:
-                await send_lap(current_lap)
-                current_lap += 1
-                # Base interval ~1s per lap, divided by speed
-                await asyncio.sleep(max(0.05, 1.0 / speed))
-
-                if current_lap > max_lap:
-                    playing = False
-                    await websocket.send_json({"type": "replay_complete"})
-
-    except WebSocketDisconnect:
-        logger.info(f"Replay WS disconnected: {year} R{round_num}")
-    except Exception as e:
-        logger.error(f"Replay WS error: {e}")
-        try:
-            await websocket.close()
-        except Exception:
-            pass

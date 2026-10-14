@@ -4,7 +4,12 @@ import { getDriverColor } from '../../utils/colors';
 import { exportAsPng } from '../../utils/exportChart';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { causalKey } from '../../utils/strategyViews';
-import { consistencyStats } from '../../utils/views/consistencyPanel';
+import { MIN_FIT_LAPS, OUTLIER_K } from '../../utils/degradation';
+import {
+  consistencyView, formatSlope, LOW_DATA_FRACTION, FUEL_NOTE, FIT_NOTE,
+} from '../../utils/views/degradationViews';
+
+const LOW_DATA_PERCENT = Math.round(LOW_DATA_FRACTION * 100);
 
 
 function formatTime(seconds) {
@@ -66,9 +71,13 @@ export default function ConsistencyPanel() {
   const lapTimes = sessionData?.lap_times;
   const lapKey = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
 
-  // Consistency from the laps completed at sessionNow (consistencyStats, utils/views)
+  // Consistency from the laps completed at sessionNow, on the shared
+  // degradation definition (consistencyView, utils/views/degradationViews):
+  // σ = pooled residual sigma of the per-stint fits (consistencySigma), so
+  // lap 1, pit laps, non-green laps, tyre wear, fuel burn and stops do not
+  // count as inconsistency
   const { drivers, sessionAvg, minLapsThreshold } = useMemo(
-    () => (replayStarted ? consistencyStats(lapTimes, sessionNow)
+    () => (replayStarted ? consistencyView(lapTimes, sessionNow)
       : { drivers: [], sessionAvg: null, minLapsThreshold: 0 }),
     // sessionNow enters through lapKey, which changes whenever the result does
     [lapTimes, lapKey, replayStarted],
@@ -79,7 +88,10 @@ export default function ConsistencyPanel() {
       <div className="consistency-panel__empty">
         {(sessionData?.lap_times?.length > 0) && !replayStarted
           ? 'Press play to start the race replay'
-          : 'No consistency data available. Load a session first.'}
+          : (sessionData?.lap_times?.length > 0)
+            ? `No consistency yet: σ needs a stint with at least ${MIN_FIT_LAPS} clean laps `
+              + '(lap 1, pit in/out laps and non-green laps do not count).'
+            : 'No consistency data available. Load a session first.'}
       </div>
     );
   }
@@ -93,7 +105,9 @@ export default function ConsistencyPanel() {
       }}>
         {sessionAvg ? (
           <div className="consistency-panel__session-summary" style={{ margin: 0 }}>
-            <span>Session Average: <strong>{formatTime(sessionAvg)}</strong></span>
+            <span title="Mean of the clean laps of the drivers listed (lap 1, pit in/out laps, non-green laps and slow outliers left out)">
+              Session Average: <strong>{formatTime(sessionAvg)}</strong>
+            </span>
             <span>{drivers.length} drivers analyzed</span>
           </div>
         ) : <span />}
@@ -146,11 +160,11 @@ export default function ConsistencyPanel() {
           <span className="sectors-panel__legend-dot" style={{ background: 'var(--tyre-hard)' }} />
           Hard
         </span>
-        <span className="sectors-panel__legend-item">
+        <span className="sectors-panel__legend-item" title="σ at or below the field's median σ">
           <span className="sectors-panel__legend-dot" style={{ borderRadius: 2, background: '#22c55e' }} />
           Consistent
         </span>
-        <span className="sectors-panel__legend-item">
+        <span className="sectors-panel__legend-item" title="σ above the field's median σ">
           <span className="sectors-panel__legend-dot" style={{ borderRadius: 2, background: '#ef4444' }} />
           Inconsistent
         </span>
@@ -175,7 +189,7 @@ export default function ConsistencyPanel() {
               onMouseEnter={() => setHighlightedDriver(d.driver)}
               onMouseLeave={() => setHighlightedDriver(null)}
               title={d.insufficient_data
-                ? `Low data — only ${d.lap_count} laps, below ${minLapsThreshold}-lap threshold. σ is not comparable to full-race drivers.`
+                ? `Low data — σ from only ${d.lap_count} laps, below ${minLapsThreshold} laps (${LOW_DATA_PERCENT} % of the largest sample in the field). σ is not comparable to full-race drivers.`
                 : undefined}
               style={{
                 opacity: !isSelected ? 0.35 : isDimmed ? 0.5 : (d.insufficient_data ? 0.55 : 1),
@@ -196,14 +210,14 @@ export default function ConsistencyPanel() {
                 {d.insufficient_data && (
                   <span
                     className="consistency-card__low-data-chip"
-                    title={`Only ${d.lap_count} laps (< ${minLapsThreshold}) — σ from a small sample is not comparable.`}
+                    title={`Only ${d.lap_count} laps (< ${minLapsThreshold}, ${LOW_DATA_PERCENT} % of the largest sample) — σ from a small sample is not comparable.`}
                   >
                     LOW DATA
                   </span>
                 )}
                 {/* Collapsed-state key metric: σ visible without expanding */}
                 {!expanded && (
-                  <span className="consistency-card__collapsed-sigma">
+                  <span className="consistency-card__collapsed-sigma" title="σ = residual sigma of the per-stint fits">
                     &plusmn;{d.std_dev.toFixed(3)}s
                   </span>
                 )}
@@ -212,7 +226,7 @@ export default function ConsistencyPanel() {
                 >
                   {d.is_consistent ? 'Consistent' : 'Inconsistent'}
                 </span>
-                <span className="consistency-card__cv">CV: {d.cv_percent.toFixed(2)}%</span>
+                <span className="consistency-card__cv" title="σ / average clean lap">CV: {d.cv_percent.toFixed(2)}%</span>
                 <button
                   type="button"
                   className={`consistency-card__chevron${expanded ? ' consistency-card__chevron--open' : ''}`}
@@ -251,15 +265,18 @@ export default function ConsistencyPanel() {
 
                     <div className="consistency-card__col">
                       <div className="consistency-card__col-title">Consistency</div>
-                      <div className="consistency-card__stat">
-                        <span>Std Dev</span>
+                      <div
+                        className="consistency-card__stat"
+                        title={`Pooled residual sigma of ${d.fitted_stints} per-stint fit(s) of lap time on tyre life (${FIT_NOTE}): tyre wear, fuel burn and stops do not count as inconsistency`}
+                      >
+                        <span>Residual σ</span>
                         <span className="consistency-card__stat-value">&plusmn;{d.std_dev.toFixed(3)}s</span>
                       </div>
-                      <div className="consistency-card__stat">
+                      <div className="consistency-card__stat" title="Clean laps of the fitted stints">
                         <span>Sample Size</span>
                         <span className="consistency-card__stat-value">{d.sample_size} laps</span>
                       </div>
-                      <div className="consistency-card__stat">
+                      <div className="consistency-card__stat" title={`Slow laps of the fitted stints more than ${OUTLIER_K} robust sigmas above their stint's fit`}>
                         <span>Outliers</span>
                         <span className="consistency-card__stat-value">{d.outliers} removed</span>
                       </div>
@@ -281,9 +298,15 @@ export default function ConsistencyPanel() {
                           </span>
                           <span
                             className="consistency-card__tyre-stat"
-                            style={{ color: data.deg_rate > 0 ? 'var(--color-accent-danger)' : 'var(--sector-green)' }}
+                            title={data.deg_slope != null
+                              ? `Mean degradation of ${data.deg_fits} fitted stint(s) on this compound; ${FUEL_NOTE}`
+                              : `No stint on this compound has ${MIN_FIT_LAPS} or more clean laps: no fit`}
+                            style={{
+                              color: data.deg_slope == null ? undefined
+                                : data.deg_slope > 0 ? 'var(--color-accent-danger)' : 'var(--sector-green)',
+                            }}
                           >
-                            Deg: {data.deg_rate > 0 ? '+' : ''}{data.deg_rate}%
+                            Deg: {data.deg_slope != null ? `${formatSlope(data.deg_slope)} s/lap` : 'no fit'}
                           </span>
                           <span className="consistency-card__tyre-stat">
                             {data.count}L, Age {data.avg_tyre_life}

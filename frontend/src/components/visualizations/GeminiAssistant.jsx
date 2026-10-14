@@ -4,6 +4,7 @@ import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import Panel from '../ui/Panel';
 import { focusDriverStatus } from '../../utils/views/focusDriverWidget';
+import { listedBattles } from '../../utils/simulationClient';
 
 const COMPOUND_ORDER = ['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'];
 
@@ -230,8 +231,9 @@ export default function GeminiAssistant() {
     }
 
     // Battle queries from MC
+    // among the battles the Race Prediction panel lists (store list)
     if (raceProjection?.battles?.length > 0) {
-      const battle = raceProjection.battles.find(
+      const battle = listedBattles(raceProjection).find(
         (b) => b.behind === activeDriver || b.ahead === activeDriver
       );
       if (battle && queries.length < 3) {

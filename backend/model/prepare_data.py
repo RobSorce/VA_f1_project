@@ -3,6 +3,7 @@ LSTM Training Data Preparation
 Builds sliding-window sequences from cached race data across multiple seasons.
 Auto-discovers cached rounds from both processed JSON cache and FastF1 raw cache.
 """
+import datetime
 import json
 import numpy as np
 import pandas as pd
@@ -22,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 SEQUENCE_LEN = 10
 PREDICT_LEN = 5
-YEARS = list(range(2018, 2026))
+# 2018 up to the next season (clock year + 1): a season is used only when its races
+# are cached, which needs a published schedule (see discover_*_cached_rounds)
+YEARS = list(range(2018, datetime.date.today().year + 2))
 
 LAP_FEATURES = [
     'LapTimeSeconds',

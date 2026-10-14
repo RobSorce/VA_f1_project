@@ -12,22 +12,22 @@ The verification scripts and raw audit reports are available in `/tmp/audit{1,2,
 | # | Computation | Source File | Data Origin | Status | Notes |
 |---|---|---|---|---|---|
 | 1 | Pit stop time loss (mean, stdDev) | `raceSimulation.js::extractRaceParams` | Observed pit laps minus median clean lap, per driver | REAL (FALLBACK 22s only when zero pit observations) | Used in MC pit decisions |
-| 2 | Tyre degradation per compound | `raceSimulation.js::extractRaceParams` | Linear regression `lapTime ~ tyreLife` per stint | REAL (FALLBACK 0.04s/lap only when compound never used) | Used in MC pace projection |
+| 2 | Tyre degradation per compound | `raceSimulation.js::raceDegradation` (via `extractRaceParams`) | Per-stint fuel-corrected fits (`utils/degradation.js`) with at least `PRIORS.degradation[c].minFitLaps` clean laps, combined with the cached races' mean (normal-normal, weights from the within / between race spread, `computePriors`); negative fits kept and counted | REAL (the cached races' prior, labelled, until a fit is long enough) | Used in MC pace projection; evidence `notes/experiments/degradation_in_race.txt` |
 | 3 | Stint length distribution per compound | `raceSimulation.js::extractRaceParams` | Observed completed stints (StartLap-EndLap) | REAL (FALLBACK 25 laps only when no stints observed) | Used in MC pit timing |
-| 4 | Lap-to-lap noise stdDev | `raceSimulation.js::extractRaceParams` | Residuals from intra-stint regressions | REAL | Used in MC lap time sampling |
+| 4 | Lap-to-lap noise stdDev | `raceSimulation.js::lapNoiseFromFits` | Pooled residual sigma of the race's stint fits, combined with the dry / wet prior of the cached races (`PRIORS.lapNoise`, conjugate update) | REAL (prior alone before the first fit) | Used in MC lap time sampling |
 | 5 | Safety car rate and duration | `raceSimulation.js::extractRaceParams` | Observed track_status events / current_lap | REAL (FALLBACK 0.02/lap only when no SC events) | Used in MC SC simulation |
 | 6 | Fresh tyre delta | `raceSimulation.js::extractRaceParams` | Mean(tyreLife<=2 laps) vs mean(tyreLife 5-10) | REAL | Used in MC fresh-tyre boost |
-| 7 | Race finish projections (100 MC sims) | `raceSimulation.js::simulateRaceFinish` | All above + driver features from PCA | REAL | Aggregated to expectedPos, posRange, podiumProb |
-| 8 | Battle probabilities | `raceSimulation.js::aggregateResults` | Count overtakes across 100 sims | REAL | Top 6 most likely battles |
+| 7 | Race finish projections (`DEFAULT_NUM_SIMULATIONS` = 1,000 seeded MC runs, Web Worker) | `raceSimulation.js::simulateRaceFinish` via `useF1Store.js::computeRaceProjection` (the only writer of `raceProjection`) | All above + driver features from PCA | REAL | Aggregated to expectedPos, posRange, podiumProb; badges with a Wilson interval + hysteresis (`simulationClient.js`), stability in `notes/experiments/mc_benchmark.txt` section 5 |
+| 8 | Battle probabilities | `raceSimulation.js::aggregateResults` | Count overtakes across the runs, every pair within 4 positions | REAL | Listed battles: `simulationClient.js::listedBattles` (6 rows; a pair enters / leaves only when its interval clears the cut's) |
 | 9 | Risk identification | `raceSimulation.js::identifyRisks` | MC variance + observed paceTrend + tyre limits | REAL | HIGH_VARIANCE, EXTRA_STOP, DEGRADATION, TYRE_CLIFF |
 | 10 | PCA cross-race embeddings | Backend `/api/pca/embeddings` | scikit-learn StandardScaler + PCA on 17 features x ~24 sessions | REAL | Pre-computed, served as JSON |
 | 11 | Cohen's d feature importance | `StrategyAnalysis.jsx::cohensD` + backend on lasso | `|selMean - restMean| / pooledStdDev` | REAL | Standard statistical effect size |
 | 12 | Live PCA (Race Situation) | `livePCA.js` | Standardize -> covariance -> Jacobi eigen -> PC projection | REAL | Frozen basis after lap 8 + Procrustes alignment |
 | 13 | Tyre degradation regression (brushed) | Backend `/api/predict/degradation` | Linear regression on user-brushed lap range | REAL | Returns slope, R-squared, n_points |
 | 14 | LSTM lap time forecast | Backend `/api/predict/lstm` via `model/predict.py` | PyTorch 2-layer LSTM (64->32->Dense), 12 features, 10-lap window, trained 92 epochs | **REAL LSTM** | Fallback chain: model -> mean -> heuristic; `summary` field reports which was used |
-| 15 | Strategy Simulator (what-if) | `useF1Store.js::runSimulation` | Two independent `simulateRaceFinish()` calls (100 sims each): baseline vs modified driver features | **REAL DUAL MC** | Delta = baselinePos - customPos |
+| 15 | Strategy Simulator (what-if) | `useF1Store.js::runSimulation` → `raceSimulation.js::compareStrategies` | Baseline and plan, `DEFAULT_NUM_SIMULATIONS` runs each from the same seed (common random numbers): an identical plan differs by exactly 0 | **REAL DUAL MC** | Delta = baselinePos - customPos |
 | 16 | Gemini AI strategy responses | Backend `/api/gemini/strategy` | Google Gemini 2.0 Flash via `google-genai` SDK | **REAL GEMINI** (with safe fallback) | When API unavailable: returns data-driven template with `is_mock: True` flag and visible warning prefix |
-| 17 | Insights feed | `insightsGenerator.js` | Composes from #7-9, #11-13, #14 | DERIVED | Natural language wrappers around real computations |
+| 17 | Insights feed | `insightsGenerator.js` | Composes from #7-9, #11-13, #14 (battles: the listed ones with a gold / green badge) | DERIVED | Natural language wrappers around real computations |
 
 ## LSTM Architecture Detail
 

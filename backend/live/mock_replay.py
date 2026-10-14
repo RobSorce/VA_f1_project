@@ -4,10 +4,21 @@ Mock Live Replay
 Replays a previously cached session at configurable speed for development
 and testing. Converts stored session data back into incremental SignalR-style
 messages and feeds them into the LiveSessionManager, simulating a live feed.
+
+The messages use the live feed's formats (live/data_normalizer.py module
+docstring): Position as an integer string, NumberOfLaps as an int, the
+leader's gap 'LAP <n>', a lapped car's '<k>L', InPit True / False at the
+pit entry / exit, stints with TotalLaps / StartLaps. Each lap's events are
+sent in session-time order (lap completions at their Time, pit entries and
+exits, the new stint after the in-lap) with the manager's session clock
+pinned to the event's own session time, so the live rows carry the replay's
+session times (Time, PitInTime, PitOutTime, TrackStatus).
 """
 import asyncio
+import bisect
 import json
 import logging
+import math
 import time as _time
 from pathlib import Path
 from typing import Optional
@@ -17,6 +28,75 @@ from data.processors.stints import build_tyre_strategy, leader_lap_times, map_tr
 logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path(__file__).parent.parent / "data" / "processed_cache"
+
+
+def _num(value):
+    """Finite float, or None (None, NaN, non-numeric)."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def _lap_time_str(seconds):
+    """'1:23.456' / '58.123' as the feed writes LastLapTime; '' without a time."""
+    if not seconds or seconds <= 0:
+        return ""
+    minutes = int(seconds // 60)
+    rest = seconds - minutes * 60
+    return f"{minutes}:{rest:06.3f}" if minutes else f"{rest:.3f}"
+
+
+def _laps_down(row, leader_laps):
+    """Laps the race leader completed beyond this row's lap before the row
+    ended (the feed's '<k>L'): leader lap ends j > LapNumber with end <= Time."""
+    n, t = _num(row.get("LapNumber")), _num(row.get("Time"))
+    if n is None or t is None:
+        return 0
+    k = 0
+    j = int(n) + 1
+    while j in leader_laps:
+        end = leader_laps[j][1]
+        if end is None or end > t:
+            break
+        k += 1
+        j += 1
+    return k
+
+
+def _timing_line(lt, leader_laps):
+    """The TimingData line of a completed lap row, in the feed's formats."""
+    lap_num = int(_num(lt.get("LapNumber")))
+    line = {
+        "NumberOfLaps": lap_num,
+        "LastLapTime": {"Value": _lap_time_str(_num(lt.get("LapTimeSeconds")) or _num(lt.get("LapTime")))},
+    }
+    pos = _num(lt.get("Position"))
+    if pos is not None:
+        line["Position"] = str(int(pos))
+    gap, interval = _num(lt.get("GapToLeader")), _num(lt.get("IntervalToAhead"))
+    k = _laps_down(lt, leader_laps)
+    if pos == 1:
+        line["GapToLeader"] = f"LAP {lap_num + 1}"
+        line["IntervalToPositionAhead"] = {"Value": f"LAP {lap_num + 1}"}
+    else:
+        if k > 0:
+            line["GapToLeader"] = f"{k}L"
+        elif gap is not None:
+            line["GapToLeader"] = f"+{gap:.3f}"
+        if interval is not None:
+            line["IntervalToPositionAhead"] = {"Value": f"+{interval:.3f}"}
+    sectors = {}
+    for i in range(1, 4):
+        sec_time = _num(lt.get(f"Sector{i}TimeSeconds"))
+        if sec_time:
+            sectors[str(i - 1)] = {"Value": f"{sec_time:.3f}"}
+    if sectors:
+        line["Sectors"] = sectors
+    return line
 
 
 def _weather_at(weather_list, session_time):
@@ -119,6 +199,16 @@ class MockReplay:
                 pass
         logger.info("Mock replay stopped")
 
+    async def _send(self, topic: str, data: dict, session_time: Optional[float] = None):
+        """Send one message, first pinning the manager's session clock to the
+        message's own session time (a manager without a clock, e.g. a test
+        recorder, just gets the message)."""
+        if session_time is not None and math.isfinite(session_time):
+            pin = getattr(self.manager, "set_session_time", None)
+            if pin is not None:
+                pin(session_time)
+        await self.manager.on_message(topic, data)
+
     async def _replay_loop(self, session_data: dict, frames_data: Optional[dict],
                            speed: float, year: int, round_num: int):
         """Main replay loop — converts historical data to live messages."""
@@ -157,17 +247,24 @@ class MockReplay:
                 }
             await self.manager.on_message("DriverList", driver_list)
 
-            # 3. Send session started
-            await self.manager.on_message("SessionStatus", {"Status": "Started"})
-
             # The race leader's lap clock (session seconds): lap L runs from
             # leader_laps[L][0] to leader_laps[L][1]
             lap_times = session_data.get("lap_times", [])
             leader_laps = leader_lap_times(lap_times)
             weather_list = session_data.get("weather_data", [])
+            race_start = leader_laps[1][0] if 1 in leader_laps else None
+            num_of = {info["Tla"]: num for num, info in driver_list.items()}
+
+            # 3. Send session started, at the race start (lap 1 starts then);
+            # a pit-lane starter is in the pit lane until its lap-1 PitOutTime
+            for lt in lap_times:
+                if (_num(lt.get("LapNumber")) == 1 and lt.get("Driver") in num_of
+                        and _num(lt.get("PitOutTimeSeconds")) is not None):
+                    await self._send("TimingData", {"Lines": {num_of[lt["Driver"]]: {"InPit": True}}},
+                                     race_start)
+            await self._send("SessionStatus", {"Status": "Started"}, race_start)
 
             # 4. Send weather: the reading in force at the race start
-            race_start = leader_laps[1][0] if 1 in leader_laps else None
             w = _weather_at(weather_list, race_start)
             if w is not None:
                 await self.manager.on_message("WeatherData", _weather_message(w))
@@ -175,10 +272,12 @@ class MockReplay:
 
             # 5. Group lap times by lap number and replay them
             laps_by_number = {}
+            rows_by_key = {}
             for lt in lap_times:
-                lap_num = lt.get("LapNumber")
+                lap_num = _num(lt.get("LapNumber"))
                 if lap_num:
                     laps_by_number.setdefault(int(lap_num), []).append(lt)
+                    rows_by_key[(lt.get("Driver"), int(lap_num))] = lt
 
             max_lap = max(laps_by_number.keys()) if laps_by_number else 0
 
@@ -203,93 +302,122 @@ class MockReplay:
             status_by_lap = {}
             for ts in map_track_status_to_laps(track_statuses, lap_times):
                 status_by_lap.setdefault(ts["start_lap"], []).append(ts)
-            for changes in status_by_lap.values():
-                changes.sort(key=lambda ts: float(ts["start_time"]))
 
-            # Send initial tyre stints, one per tyre set (FastF1 Stint column):
-            # the cached tyre_strategy may predate that rule, so rebuild it
+            # The other events of the race, each sent while LapCount is the
+            # leader's lap at its session time (window_of), in session-time
+            # order with the statuses: (time, order, seq, kind, payload)
+            windows = sorted((s, lap) for lap, (s, _) in leader_laps.items() if s is not None)
+            window_starts = [s for s, _ in windows]
+
+            def window_of(t, fallback):
+                if t is None or not windows:
+                    return fallback
+                i = bisect.bisect_right(window_starts, t) - 1
+                return windows[max(i, 0)][1]
+
+            events_by_lap = {}
+            seq = 0
+
+            def add_event(lap, t, order, kind, payload):
+                nonlocal seq
+                seq += 1
+                events_by_lap.setdefault(lap, []).append((t, order, seq, kind, payload))
+
+            for lap, changes in status_by_lap.items():
+                for ts in changes:
+                    add_event(lap, float(ts["start_time"]), -1, "status", ts)
+
+            # Red flags: SessionStatus 'Aborted' when the red flag ('5') is
+            # shown, 'Started' at the restart. The restart time is the
+            # LapStartTime FastF1 gives every car's first lap out of the pit
+            # lane after it (the most common LapStartTime of the later pit-out
+            # laps; the recorded 'Started' times of 2024 R4 / R8 / R21)
+            for ts in map_track_status_to_laps(track_statuses, lap_times):
+                if str(ts.get("status")) != "5":
+                    continue
+                aborted = float(ts["start_time"])
+                starts = [round(_num(lt.get("LapStartTime")), 3) for lt in lap_times
+                          if _num(lt.get("LapStartTime")) is not None
+                          and _num(lt.get("PitOutTimeSeconds")) is not None
+                          and _num(lt.get("LapStartTime")) > aborted]
+                add_event(window_of(aborted, ts["start_lap"]), aborted, -2, "SessionStatus",
+                          {"Status": "Aborted"})
+                if starts:
+                    restart = max(set(starts), key=lambda s: (starts.count(s), -s))
+                    if starts.count(restart) >= 2:
+                        add_event(window_of(restart, ts["start_lap"]), restart, -2, "SessionStatus",
+                                  {"Status": "Started"})
+
+            # Tyre stints, one per tyre set (FastF1 Stint column): the cached
+            # tyre_strategy may predate that rule, so rebuild it. A new stint
+            # is sent right after its in-lap ends (the feed adds it during
+            # the stop), the first one at the start of its lap. TotalLaps /
+            # StartLaps are the set's age now / when fitted (TyreLife of the
+            # stint's first lap - 1), so the stint's laps = TotalLaps -
+            # StartLaps, the count the live side places stints with.
             strategies = build_tyre_strategy(lap_times) or session_data.get("tyre_strategy", [])
             stints_by_lap = {}
+            stint_of = {}  # (driver, lap) -> (feed stint index, StartLap, StartLaps)
             for stint in strategies:
-                start_lap = stint.get("StartLap", 1)
-                stints_by_lap.setdefault(start_lap, []).append(stint)
+                driver = stint.get("Driver", "")
+                driver_num = num_of.get(driver)
+                if not driver_num:
+                    continue
+                idx = int(stint.get("StintNumber", 1)) - 1
+                start_lap = int(stint.get("StartLap", 1))
+                end_lap = int(stint.get("EndLap") or start_lap)
+                first = rows_by_key.get((driver, start_lap)) or {}
+                life = _num(first.get("TyreLife"))
+                start_laps = int(life) - 1 if life is not None and life >= 1 else 0
+                for n in range(start_lap, end_lap + 1):
+                    stint_of[(driver, n)] = (idx, start_lap, start_laps)
+                body = {"Lines": {driver_num: {"Stints": {str(idx): {
+                    "Compound": stint.get("Compound", "UNKNOWN"),
+                    "New": "true" if start_laps == 0 else "false",
+                    "TyresNotChanged": "0",
+                    "TotalLaps": start_laps,
+                    "StartLaps": start_laps,
+                }}}}}
+                in_lap = rows_by_key.get((driver, start_lap - 1)) if start_lap > 1 else None
+                t_in = _num(in_lap.get("Time")) if in_lap else None
+                if t_in is None:
+                    stints_by_lap.setdefault(start_lap, []).append(body)
+                else:
+                    add_event(window_of(t_in, start_lap), t_in, 2, "TimingData", body)
+
+            # Lap completions at their Time; pit entry / exit (InPit) at the
+            # rows' PitInTime / PitOutTime
+            for lt in lap_times:
+                driver_num = num_of.get(lt.get("Driver", ""))
+                n = _num(lt.get("LapNumber"))
+                if not driver_num or not n:
+                    continue
+                n = int(n)
+                for key, in_pit in (("PitInTimeSeconds", True), ("PitOutTimeSeconds", False)):
+                    t = _num(lt.get(key))
+                    if t is not None:
+                        add_event(window_of(t, n), t, 0, "TimingData",
+                                  {"Lines": {driver_num: {"InPit": in_pit}}})
+                t_end = _num(lt.get("Time"))
+                add_event(window_of(t_end, n), t_end if t_end is not None else math.inf, 1, "lap",
+                          (driver_num, lt))
 
             for lap_num in range(1, max_lap + 1):
                 if not self._running:
                     break
 
+                lap_window = leader_laps.get(lap_num)
+                lap_start = lap_window[0] if lap_window else None
+
                 # Send lap count
-                await self.manager.on_message("LapCount", {
+                await self._send("LapCount", {
                     "CurrentLap": lap_num,
                     "TotalLaps": max_lap,
-                })
+                }, lap_start)
 
-                # Send stint changes
-                for stint in stints_by_lap.get(lap_num, []):
-                    driver = stint.get("Driver", "")
-                    # Find driver number
-                    driver_num = None
-                    for num, info in driver_list.items():
-                        if info.get("Tla") == driver:
-                            driver_num = num
-                            break
-                    if driver_num:
-                        await self.manager.on_message("TimingData", {
-                            "Lines": {
-                                driver_num: {
-                                    "Stints": {
-                                        str(stint.get("StintNumber", 1) - 1): {
-                                            "Compound": stint.get("Compound", "UNKNOWN"),
-                                            "New": True,
-                                            "TotalLaps": 0,
-                                        }
-                                    }
-                                }
-                            }
-                        })
-
-                # Send lap times for this lap
-                for lt in laps_by_number.get(lap_num, []):
-                    driver = lt.get("Driver", "")
-                    driver_num = None
-                    for num, info in driver_list.items():
-                        if info.get("Tla") == driver:
-                            driver_num = num
-                            break
-
-                    if not driver_num:
-                        continue
-
-                    lap_time_sec = lt.get("LapTimeSeconds") or lt.get("LapTime")
-                    if lap_time_sec and lap_time_sec > 0:
-                        minutes = int(lap_time_sec // 60)
-                        seconds = lap_time_sec - minutes * 60
-                        time_str = f"{minutes}:{seconds:06.3f}" if minutes else f"{seconds:.3f}"
-                    else:
-                        time_str = ""
-
-                    # Build timing line
-                    line = {
-                        "Position": str(lt.get("Position", "")),
-                        "GapToLeader": str(lt.get("GapToLeader", "0")),
-                        "IntervalToPositionAhead": {"Value": str(lt.get("IntervalToAhead", "0"))},
-                        "LastLapTime": {"Value": time_str},
-                        "NumberOfLaps": lap_num,
-                        "InPit": bool(lt.get("PitInTimeSeconds")),
-                    }
-
-                    # Add sectors
-                    sectors = {}
-                    for i in range(1, 4):
-                        sec_time = lt.get(f"Sector{i}TimeSeconds")
-                        if sec_time:
-                            sectors[str(i - 1)] = {"Value": f"{sec_time:.3f}"}
-                    if sectors:
-                        line["Sectors"] = sectors
-
-                    await self.manager.on_message("TimingData", {
-                        "Lines": {driver_num: line}
-                    })
+                # Send the stints that start without an in-lap (stint 1)
+                for body in stints_by_lap.get(lap_num, []):
+                    await self._send("TimingData", body, lap_start)
 
                 # Send frame data if available (for position updates)
                 if frames_data and frames_data.get("frames"):
@@ -306,12 +434,7 @@ class MockReplay:
                         position_entries = {}
                         car_entries = []
                         for abbr, fd in frame.get("drivers", {}).items():
-                            # Find driver number
-                            num = None
-                            for n, info in driver_list.items():
-                                if info.get("Tla") == abbr:
-                                    num = n
-                                    break
+                            num = num_of.get(abbr)
                             if num:
                                 position_entries[num] = {
                                     "X": fd.get("x"),
@@ -348,27 +471,44 @@ class MockReplay:
 
                 # Weather updates every 5 laps: the reading in force when the
                 # race leader starts this lap (session time)
-                lap_window = leader_laps.get(lap_num)
                 if lap_num % 5 == 0 and lap_window and lap_window[0] is not None:
                     w = _weather_at(weather_list, lap_window[0])
                     if w is not None:
                         await self.manager.on_message("WeatherData", _weather_message(w))
 
-                # Delay to simulate real-time; the lap's track status changes
-                # are sent during it, in session-time order, each at its
-                # fraction of the leader's lap
+                # Delay to simulate real-time. The lap's events go out in
+                # session-time order: each track status change at its fraction
+                # of the leader's lap (the playback is paced on them), lap
+                # completions, pit entries / exits and new stints between them
                 elapsed = 0.0
-                for ts in status_by_lap.get(lap_num, []):
+                for t, _order, _seq, kind, payload in sorted(events_by_lap.get(lap_num, [])):
                     if not self._running:
                         break
-                    wait = _lap_fraction(float(ts["start_time"]), lap_window) * delay_per_lap - elapsed
-                    if wait > 0:
-                        await asyncio.sleep(wait)
-                        elapsed += wait
-                    await self.manager.on_message("TrackStatus", {
-                        "Status": ts.get("status", "1"),
-                        "Message": ts.get("message", ""),
-                    })
+                    if kind == "status":
+                        wait = _lap_fraction(t, lap_window) * delay_per_lap - elapsed
+                        if wait > 0:
+                            await asyncio.sleep(wait)
+                            elapsed += wait
+                        await self._send("TrackStatus", {
+                            "Status": payload.get("status", "1"),
+                            "Message": payload.get("message", ""),
+                        }, t)
+                    elif kind == "lap":
+                        driver_num, lt = payload
+                        when = t if math.isfinite(t) else None
+                        await self._send("TimingData", {
+                            "Lines": {driver_num: _timing_line(lt, leader_laps)}
+                        }, when)
+                        # The tyre set's age after this lap (TimingAppData)
+                        n = int(_num(lt.get("LapNumber")))
+                        stint = stint_of.get((lt.get("Driver"), n))
+                        if stint:
+                            idx, start_lap, start_laps = stint
+                            await self._send("TimingAppData", {"Lines": {driver_num: {"Stints": {
+                                str(idx): {"TotalLaps": start_laps + n - start_lap + 1},
+                            }}}}, when)
+                    else:
+                        await self._send(kind, payload, t)
                 await asyncio.sleep(max(0.0, delay_per_lap - elapsed))
 
             # Session end

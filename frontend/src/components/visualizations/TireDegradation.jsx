@@ -3,30 +3,14 @@ import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { stintsByDriver } from '../../utils/stints';
+import { causalKey, fittedLapRange } from '../../utils/strategyViews';
+import { FUEL_EFFECT_S_PER_LAP, MIN_FIT_LAPS } from '../../utils/degradation';
 import {
-  causalKey, driverCompletedLaps, groupLapsByStint, fittedLapRange,
-} from '../../utils/strategyViews';
+  tyreDegradationView, formatSlope, FUEL_NOTE, FIT_NOTE,
+} from '../../utils/views/degradationViews';
 import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
-
-/* Simple least-squares linear regression: y = intercept + slope * x */
-function linearRegression(points) {
-  const n = points.length;
-  if (n < 2) return null;
-  const xMean = d3.mean(points, (p) => p.x);
-  const yMean = d3.mean(points, (p) => p.y);
-  let num = 0, den = 0;
-  points.forEach((p) => {
-    num += (p.x - xMean) * (p.y - yMean);
-    den += (p.x - xMean) * (p.x - xMean);
-  });
-  if (den === 0) return null;
-  const slope = num / den;
-  const intercept = yMean - slope * xMean;
-  return { slope, intercept };
-}
 
 export default function TireDegradation() {
   const svgRef = useRef(null);
@@ -35,11 +19,11 @@ export default function TireDegradation() {
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const focusDriver = useF1Store((s) => s.focusDriver);
   const currentLap = useF1Store((s) => s.currentLap);
-  const maxLap = useF1Store((s) => s.maxLap);
   const degradationRegression = useF1Store((s) => s.degradationRegression);
   const fetchDegradationRegression = useF1Store((s) => s.fetchDegradationRegression);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const dnfMap = useF1Store((s) => s.dnfMap);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
   const selectedLapRange = useF1Store((s) => s.selectedLapRange);
   const brushLapRange = useF1Store((s) => s.brushLapRange);
   const year = useF1Store((s) => s.year);
@@ -81,8 +65,9 @@ export default function TireDegradation() {
   // Has the focused driver retired by sessionNow? Only once the final lap row
   // has ended (or, for a retirement in the pits, the car entered the pits):
   // utils/driverState.js, never from the leader's lap number. Results DNFs
-  // and classified drivers who stopped before the flag (nonFinisherMap).
-  const driverDnf = driver ? (nonFinisherMap(lapTimes, dnfMap)[driver] || null) : null;
+  // and classified drivers who stopped before the flag (nonFinisherMap; live:
+  // the feed's retirements only).
+  const driverDnf = driver ? (nonFinisherMap(lapTimes, dnfMap, { live: isLiveMode })[driver] || null) : null;
   const isDriverRetired = useMemo(
     () => (driver && driverDnf
       ? driverStateAt(lapTimes, driver, sessionNow, { dnf: driverDnf }).retired
@@ -90,82 +75,19 @@ export default function TireDegradation() {
     [lapTimes, driver, driverDnf, causal],
   );
 
-  // Build stint data with linear regression per stint. The brush filters
-  // by lap-number range so the scatter visibly redraws on the brushed
-  // window — but if the filter would produce nothing renderable (e.g.
-  // currentLap hasn't reached the brushed window yet, or the focus
-  // driver had no clean laps in that stretch), we fall back to the
-  // unfiltered view so the chart stays useful and the banner explains
-  // that the brushed slope is computed for the requested range.
-  const chartData = useMemo(() => {
-    if (!driver || lapTimes.length === 0) return { stints: [], yExtent: [80, 100] };
-
-    const [brushLo, brushHi] = activeRange || [null, null];
-
-    // Only laps completed at sessionNow: the lap in progress has no time yet
-    const doneLaps = driverCompletedLaps(lapTimes, driver, sessionNow);
-    const buildLaps = (applyBrush) => doneLaps.filter((d) => (
-      (!applyBrush || brushLo == null || d.LapNumber >= brushLo)
-      && (!applyBrush || brushHi == null || d.LapNumber <= brushHi)
-    ));
-
-    let driverLaps = buildLaps(true);
-    // If the brush filter zeroes everything out, drop it for rendering.
-    // The banner above the chart still shows the brushed-range API slope.
-    if (driverLaps.length < 3 && activeRange) {
-      driverLaps = buildLaps(false);
-    }
-
-    if (driverLaps.length === 0) return { stints: [], yExtent: [80, 100] };
-
-    // Group into stints from the FastF1 Stint column (utils/stints.js), so two
-    // back-to-back stints on the same compound stay separate
-    const driverStints = stintsByDriver(lapTimes, { sessionNow })[driver] || [];
-    const stints = groupLapsByStint(driverLaps, driverStints).map(({ stint, laps }) => ({
-      compound: stint.Compound,
-      stintNumber: stint.StintNumber,
-      laps: laps.map((lap, i) => ({
-        lapNumber: lap.LapNumber,
-        lapTime: lap.LapTimeSeconds,
-        tyreLife: lap.TyreLife || i + 1,
-        compound: stint.Compound,
-        isPitIn: lap.PitInTime != null,
-        isPitOut: lap.PitOutTime != null,
-      })),
-    }));
-
-    // Filter outliers and compute linear regression per stint
-    const allCleanTimes = [];
-    stints.forEach((stint) => {
-      const times = stint.laps.map((l) => l.lapTime);
-      const median = d3.median(times);
-      const threshold = median * 1.3;
-
-      // Mark outliers: pit in/out, abnormally slow (SC, VSC, red flag)
-      stint.laps.forEach((lap) => {
-        lap.isOutlier = lap.lapTime > threshold || lap.isPitIn || lap.isPitOut;
-      });
-
-      // Clean laps for regression and rendering
-      stint.cleanLaps = stint.laps.filter((l) => !l.isOutlier);
-      stint.cleanLaps.forEach((l) => allCleanTimes.push(l.lapTime));
-
-      // Linear regression: lapTime = intercept + slope * tyreLife
-      const regressionPoints = stint.cleanLaps.map((l) => ({ x: l.tyreLife, y: l.lapTime }));
-      stint.regression = linearRegression(regressionPoints);
-
-      stint.stintIndex = stint.stintNumber - 1;
-      stint.startLap = stint.laps[0]?.lapNumber;
-      stint.endLap = stint.laps[stint.laps.length - 1]?.lapNumber;
-    });
-
-    // Y-axis extent from clean lap times
-    const yExtent = allCleanTimes.length > 0
-      ? [d3.min(allCleanTimes), d3.max(allCleanTimes)]
-      : [80, 100];
-
-    return { stints, yExtent };
-  }, [driver, lapTimes, maxLap, causal, activeRange]);
+  // Per-stint scatter and fit from the shared degradation definition
+  // (utils/degradation.js via tyreDegradationView): stints of utils/stints.js
+  // (a same-compound stop opens a new stint), clean laps only in the fit
+  // (lap 1, pit in/out laps, non-green laps and slow outliers left out), fit
+  // of the fuel-corrected time on TyreLife, null below MIN_FIT_LAPS laps.
+  // The brush restricts the laps to the brushed window; when the driver has
+  // too few completed laps in it (the replay has not reached it yet) the
+  // whole race is drawn and the banner still reports the brushed range.
+  // sessionNow enters through causal, which changes whenever the laps do.
+  const chartData = useMemo(
+    () => tyreDegradationView(lapTimes, driver, { sessionNow, lapRange: activeRange }),
+    [driver, lapTimes, causal, activeRange],
+  );
 
   // Pit window info
   const pitWindow = useMemo(() => {
@@ -351,8 +273,9 @@ export default function TireDegradation() {
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.3);
 
-      // Outlier laps — small hollow circles
-      const outliers = stint.laps.filter((l) => l.isOutlier && l.lapTime <= chartData.yExtent[1] + yPad);
+      // Laps left out of the fit (lap 1, pit in/out, non-green, slow
+      // outliers) — small hollow circles
+      const outliers = stint.excludedLaps.filter((l) => l.lapTime <= chartData.yExtent[1] + yPad);
       g.selectAll(`.outlier-stint-${stint.stintIndex}`)
         .data(outliers)
         .enter()
@@ -364,33 +287,29 @@ export default function TireDegradation() {
         .attr('stroke', 'rgba(255,255,255,0.15)')
         .attr('stroke-width', 0.8);
 
-      // Regression fit line
-      if (stint.regression) {
-        const { slope, intercept } = stint.regression;
-        const tyreMin = d3.min(stint.cleanLaps, (l) => l.tyreLife);
-        const tyreMax = d3.max(stint.cleanLaps, (l) => l.tyreLife);
+      // Fit line, drawn in raw lap time (fitLapTime: the fitted
+      // fuel-corrected time with the fuel correction taken back out)
+      if (stint.fit && stint.line) {
+        const { tyreMin, tyreMax, y1, y2 } = stint.line;
 
         g.append('line')
           .attr('x1', x(tyreMin))
-          .attr('y1', y(intercept + slope * tyreMin))
+          .attr('y1', y(y1))
           .attr('x2', x(tyreMax))
-          .attr('y2', y(intercept + slope * tyreMax))
+          .attr('y2', y(y2))
           .attr('stroke', compoundColor)
           .attr('stroke-width', 1.8)
           .attr('opacity', 0.9)
           .attr('stroke-dasharray', '6,3');
 
-        // Slope annotation near end of fit line. Show both the raw slope and
-        // the fuel-corrected slope (raw + 30 ms/lap): at Monza every Hard stint
-        // returns a negative raw slope because fuel burn dominates (H2/V2.2).
-        const FUEL_CORRECTION = 0.030;
-        const slopeCorr = slope + FUEL_CORRECTION;
-        const slopeSign = slope >= 0 ? '+' : '';
-        const corrSign = slopeCorr >= 0 ? '+' : '';
-        const slopeLabel = `${slopeSign}${slope.toFixed(3)} s/lap (raw)`;
-        const corrLabel = `${corrSign}${slopeCorr.toFixed(3)} s/lap (tyre only)`;
+        // Slope annotation near end of fit line: the degradation of the
+        // shared definition (fuel-corrected slope, fuel effect an assumed
+        // constant, FUEL_NOTE under the chart) and the raw slope, which
+        // includes the fuel burn (often negative on low-degradation tracks)
+        const corrLabel = `${formatSlope(stint.fit.slope)} s/lap (fuel-corr.*)`;
+        const rawLabel = `${formatSlope(stint.fit.rawSlope)} s/lap (raw)`;
         const annotX = tyreMax;
-        const annotY = intercept + slope * tyreMax;
+        const annotY = y2;
 
         g.append('text')
           .attr('x', x(annotX) + 4)
@@ -400,7 +319,7 @@ export default function TireDegradation() {
           .attr('font-weight', 700)
           .attr('font-family', 'var(--font-mono)')
           .attr('opacity', 0.9)
-          .text(slopeLabel);
+          .text(corrLabel);
 
         g.append('text')
           .attr('x', x(annotX) + 4)
@@ -410,10 +329,10 @@ export default function TireDegradation() {
           .attr('font-weight', 600)
           .attr('font-family', 'var(--font-mono)')
           .attr('opacity', 0.62)
-          .text(corrLabel);
+          .text(rawLabel);
       }
 
-      // Stint label at first point
+      // Stint label at first point (and why a stint has no line)
       const first = stint.cleanLaps[0];
       g.append('text')
         .attr('x', x(first.tyreLife) - 2)
@@ -423,7 +342,9 @@ export default function TireDegradation() {
         .attr('font-weight', 700)
         .attr('font-family', 'var(--font-mono)')
         .attr('opacity', 0.65)
-        .text(`S${stint.stintIndex + 1}`);
+        .text(stint.fit
+          ? `S${stint.stintNumber}`
+          : `S${stint.stintNumber} no fit (${stint.cleanCount} < ${MIN_FIT_LAPS} clean laps)`);
     });
 
     // Tooltip on hover
@@ -483,14 +404,15 @@ export default function TireDegradation() {
           .attr('stroke-width', 1.5);
 
         // Tooltip content
-        const slopeText = closestStint.regression
-          ? `${closestStint.regression.slope >= 0 ? '+' : ''}${closestStint.regression.slope.toFixed(3)} s/lap`
-          : '—';
+        const fit = closestStint.fit;
+        const slopeText = fit
+          ? `${formatSlope(fit.slope)} s/lap fuel-corr. (raw ${formatSlope(fit.rawSlope)}) · ${fit.n} laps`
+          : `no fit (${closestStint.cleanCount} < ${MIN_FIT_LAPS} clean laps)`;
         const tooltipHtml = `
           <div style="color:${driverColor};font-weight:700;font-size:11px">${driver}</div>
           <div style="font-size:9px;color:rgba(255,255,255,0.5)">Lap ${closest.lapNumber} · tyre lap ${closest.tyreLife}</div>
           <div style="font-size:12px;font-weight:700">${Math.floor(closest.lapTime / 60)}:${(closest.lapTime % 60).toFixed(3).padStart(6, '0')}</div>
-          <div style="font-size:9px;color:${compColor}">${closestStint.compound} — S${closestStint.stintIndex + 1}</div>
+          <div style="font-size:9px;color:${compColor}">${closestStint.compound} — S${closestStint.stintNumber}</div>
           <div style="font-size:9px;color:rgba(255,255,255,0.5)">Deg: ${slopeText}</div>
         `;
         let tooltip = d3.select('.deg-tooltip');
@@ -560,12 +482,17 @@ export default function TireDegradation() {
                 {slopeMs >= 0 ? '+' : ''}{slopeMs} ms/lap
               </strong>
             </span>
-            <span className="deg-brush-banner__slope">
-              <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>tyre only</span>
-              <strong style={{ color: slopeFc >= 0 ? '#ef4444' : '#22c55e' }}>
-                {slopeFc >= 0 ? '+' : ''}{slopeFc} ms/lap
-              </strong>
-            </span>
+            {slopeFc != null && (
+              <span
+                className="deg-brush-banner__slope"
+                title={`raw slope + ${(reg.fuel_correction_per_lap ?? FUEL_EFFECT_S_PER_LAP).toFixed(3)} s/lap: an assumed fuel effect, not measured`}
+              >
+                <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>fuel-corr.*</span>
+                <strong style={{ color: slopeFc >= 0 ? '#ef4444' : '#22c55e' }}>
+                  {slopeFc >= 0 ? '+' : ''}{slopeFc} ms/lap
+                </strong>
+              </span>
+            )}
           </>
         ) : reg?.reason ? (
           <span className="deg-brush-banner__reason">{reg.reason}</span>
@@ -587,6 +514,17 @@ export default function TireDegradation() {
       {brushBanner}
       <div className="viz-container deg-manager">
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+        {/* The fuel constant and the clean-lap rule behind every slope above
+            (utils/degradation.js; FUEL_EFFECT_S_PER_LAP is an assumption) */}
+        <div
+          className="deg-fit-note"
+          style={{
+            padding: '2px 12px', fontSize: 9, lineHeight: 1.3, flexShrink: 0,
+            color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--font-mono)',
+          }}
+        >
+          *{FUEL_NOTE} · {FIT_NOTE}
+        </div>
         {pitWindow && (
           <div className="deg-pit-window">
             <span className="deg-pit-window__label">&#9668; NEXT PIT WINDOW</span>

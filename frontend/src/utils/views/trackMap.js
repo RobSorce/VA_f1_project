@@ -25,9 +25,11 @@ const COMPOUND_CODES = { SOFT: 1, MEDIUM: 2, HARD: 3, INTERMEDIATE: 4, WET: 5 };
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
  * @param {number} sessionNow - session seconds, Infinity = whole race
  * @param {Object} [dnfMap] - store.dnfMap (did not finish; gated by time here)
+ * @param {Object} [opts]
+ * @param {boolean} [opts.isLiveMode] - live feed rows (driverState.js nonFinisherMap)
  * @returns {Object<string, {retired: boolean, tyre: number|null, tyreLife: number|null, lapsCompleted: number}>}
  */
-export function trackMapDriverStatus(lapTimes, sessionNow, dnfMap = {}) {
+export function trackMapDriverStatus(lapTimes, sessionNow, dnfMap = {}, { isLiveMode = false } = {}) {
   const byDriver = new Map();
   for (const lt of Array.isArray(lapTimes) ? lapTimes : []) {
     if (!lt?.Driver) continue;
@@ -35,7 +37,7 @@ export function trackMapDriverStatus(lapTimes, sessionNow, dnfMap = {}) {
     byDriver.get(lt.Driver).push(lt);
   }
   // Results DNFs plus classified drivers who stopped before the flag
-  const nonFinishers = nonFinisherMap(lapTimes, dnfMap);
+  const nonFinishers = nonFinisherMap(lapTimes, dnfMap, { live: isLiveMode });
   const out = {};
   for (const [drv, rows] of byDriver) {
     const st = driverStateAt(rows, drv, sessionNow, { dnf: !!nonFinishers[drv] });
@@ -54,18 +56,21 @@ export function trackMapDriverStatus(lapTimes, sessionNow, dnfMap = {}) {
  * (frame.t + sessionTimeOffset; utils/raceTime.js resolveSessionNow), the
  * lap-mode / live clock otherwise. Same rule as the store's getSessionNow: a
  * qualifying segment's last frame is not the end of the session (the next
- * segments follow), so "last frame = Infinity" does not apply there.
+ * segments follow): it stands for the segment's end (qualiSegmentWindows),
+ * never Infinity.
  *
- * @param {Object} s - store fields plus frameTime (t of the frame on screen)
+ * @param {Object} s - store fields (qualiSegmentWindows, qualiSegment included) plus
+ *   frameTime (t of the frame on screen)
  * @returns {number} session seconds, or Infinity
  */
 export function trackMapSessionNow({
   frameTime, sessionTimeOffset, totalFrames, currentLap, maxLap, lapTimes, isLiveMode,
-  isQualifyingReplay, maxTime, frameDt, lapModeRaceOver,
+  isQualifyingReplay, maxTime, frameDt, lapModeRaceOver, qualiSegmentWindows, qualiSegment,
 }) {
+  const segment = isQualifyingReplay ? qualiSegmentWindows?.[qualiSegment] : null;
   return resolveSessionNow({
     currentTime: frameTime, sessionTimeOffset, replayActive: totalFrames > 0, currentLap, maxLap,
-    lapTimes, isLiveMode, maxTime: isQualifyingReplay ? undefined : maxTime, frameDt,
-    raceOver: lapModeRaceOver,
+    lapTimes, isLiveMode, maxTime, frameDt, raceOver: lapModeRaceOver,
+    qualifying: !!isQualifyingReplay, segmentEnd: segment?.end,
   });
 }

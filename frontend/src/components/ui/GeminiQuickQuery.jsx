@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { queryGemini } from '../../utils/apiClient';
+import { geminiQuickQueryBody } from '../../utils/strategyViews';
 
 const QUICK_QUERIES = ['Pit window?', 'Strategy?', 'Tyre deg?'];
 
@@ -20,11 +21,6 @@ const titleStyle = {
 };
 
 export default function GeminiQuickQuery() {
-  const sessionData = useF1Store((s) => s.sessionData);
-  const currentLap = useF1Store((s) => s.currentLap);
-  const focusDriver = useF1Store((s) => s.focusDriver);
-  const selectedDrivers = useF1Store((s) => s.selectedDrivers);
-
   const [input, setInput] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
@@ -36,20 +32,16 @@ export default function GeminiQuickQuery() {
     setError('');
     setResponse('');
     try {
-      const result = await queryGemini({
-        query: text.trim(),
-        year: sessionData?.year,
-        round: sessionData?.round,
-        driver: focusDriver || selectedDrivers[0] || null,
-        current_lap: currentLap,
-      });
+      // The state at the click: the session type on screen (R7) goes with
+      // the request, as in the store's sendGeminiQuery
+      const result = await queryGemini(geminiQuickQueryBody(useF1Store.getState(), text));
       setResponse(result?.response || result?.answer || JSON.stringify(result));
     } catch (err) {
       setError(err?.message || 'Failed to get response');
     } finally {
       setLoading(false);
     }
-  }, [sessionData, currentLap, focusDriver, selectedDrivers]);
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();

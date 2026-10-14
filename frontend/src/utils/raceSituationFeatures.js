@@ -83,12 +83,14 @@ function linearSlope(values) {
  * @param {number} [params.sessionNow] - session seconds (raceTime.resolveSessionNow);
  *   when omitted, derived in lap mode from currentLap
  * @param {number} [params.sessionTimeOffset] - session seconds of replay time 0
+ * @param {boolean} [params.isLiveMode] - live feed rows: retirements from the feed's
+ *   dnfMap only (driverState.js nonFinisherMap)
  * @returns {{ driverAbbrs: string[], matrix: number[][], driverFeatures: Object, featureNames: string[] } | null}
  */
 export function extractRaceSituationFeatures({
   lapTimes, dnfMap, currentLap,
   frameDrivers, lstmPredictions, focusDriver,
-  sessionNow, sessionTimeOffset,
+  sessionNow, sessionTimeOffset, isLiveMode = false,
 }) {
   if (!lapTimes?.length || currentLap < 3) return null;
 
@@ -113,7 +115,7 @@ export function extractRaceSituationFeatures({
   const driverFeatures = {};
 
   // Results DNFs plus classified drivers who stopped before the flag
-  const nonFinishers = nonFinisherMap(lapTimes, dnfMap);
+  const nonFinishers = nonFinisherMap(lapTimes, dnfMap, { live: isLiveMode });
   for (const [driver, laps] of Object.entries(driverLaps)) {
     // Skip DNF drivers once they have retired at `now` (their final lap row has
     // ended, or they entered the pits for good), not from the leader's lap number

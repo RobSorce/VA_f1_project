@@ -176,18 +176,20 @@ export default function TrackMap({ compact = false }) {
   const sessionTimeOffset = useF1Store((s) => s.sessionTimeOffset);
   const maxTime = useF1Store((s) => s.maxTime);
   const lapModeRaceOver = useF1Store((s) => s.lapModeRaceOver);
+  const qualiSegmentWindows = useF1Store((s) => s.qualiSegmentWindows);
+  const qualiSegment = useF1Store((s) => s.qualiSegment);
   const statusLapTimes = sessionData?.lap_times;
   const frameTime = frameData?.frames?.[currentFrameIndex]?.t;
   const sessionNow = useMemo(() => trackMapSessionNow({
     frameTime, sessionTimeOffset, totalFrames, currentLap, maxLap, lapTimes: statusLapTimes,
-    isLiveMode, isQualifyingReplay, maxTime, frameDt, lapModeRaceOver,
+    isLiveMode, isQualifyingReplay, maxTime, frameDt, lapModeRaceOver, qualiSegmentWindows, qualiSegment,
   }), [frameTime, sessionTimeOffset, totalFrames, currentLap, maxLap, statusLapTimes, isLiveMode,
-    isQualifyingReplay, maxTime, frameDt, lapModeRaceOver]);
+    isQualifyingReplay, maxTime, frameDt, lapModeRaceOver, qualiSegmentWindows, qualiSegment]);
   const statusKey = useMemo(() => causalKey(statusLapTimes, sessionNow), [statusLapTimes, sessionNow]);
   const driverStatus = useMemo(
-    () => trackMapDriverStatus(statusLapTimes, sessionNow, dnfMap),
+    () => trackMapDriverStatus(statusLapTimes, sessionNow, dnfMap, { isLiveMode }),
     // sessionNow enters through statusKey, which changes whenever the result does
-    [statusLapTimes, statusKey, dnfMap],
+    [statusLapTimes, statusKey, dnfMap, isLiveMode],
   );
   // The leader has taken the chequered flag (end of the last lap) at the map's clock
   const chequered = useMemo(() => leaderLapEndTime(statusLapTimes, maxLap), [statusLapTimes, maxLap]);

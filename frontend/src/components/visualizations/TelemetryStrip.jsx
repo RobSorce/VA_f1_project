@@ -7,7 +7,7 @@ import { stintsByDriver } from '../../utils/stints';
 import { causalKey } from '../../utils/strategyViews';
 import { isLapCompleted } from '../../utils/raceTime';
 import {
-  telemetryReferenceLap, telemetryTargets, truncateToNow, recordedExtent, revealPoint, inDomain, telemetryCards,
+  telemetryReferenceLap, telemetryTargets, traceSamplesAt, revealPoint, inDomain, telemetryCards,
 } from '../../utils/views/telemetryStrip';
 
 const LAP_COLORS = ['#a855f7', '#22c55e', '#ff8000', '#e10600'];
@@ -73,7 +73,6 @@ export default function TelemetryStrip({ embedded = false }) {
   const maxLap = useF1Store((s) => s.maxLap);
   const drivers = useF1Store((s) => s.drivers);
   const toggleDriver = useF1Store((s) => s.toggleDriver);
-  const currentFrameIndex = useF1Store((s) => s.currentFrameIndex);
   const totalFrames = useF1Store((s) => s.totalFrames);
   const frameData = useF1Store((s) => s.frameData);
   const isPlaying = useF1Store((s) => s.isPlaying);
@@ -255,54 +254,23 @@ export default function TelemetryStrip({ embedded = false }) {
     }
   }, [selectedLapRange, telemetryCompareMode]);
 
-  // A lap still in progress is drawn only up to sessionNow (truncateToNow).
-  // The focus trace is revealed smoothly by the clip of the RAF loop below
-  // when it can run (frames, track coordinates, past frame 0), up to its own
-  // samples recorded by now (revealPoint); every other trace of a running lap
-  // is cut at its samples' SessionTime, on a half-second grid so the charts
-  // are not redrawn on every replay tick.
-  const clipActive = replayActive && currentFrameIndex > 0
-    && (circuitInfo?.track_coordinates?.length || 0) > 0;
+  // A lap still in progress holds only its samples recorded by sessionNow
+  // (traceSamplesAt, R6), every trace alike, the focus trace included: the
+  // charts never carry a sample from after now, not even under a clip. Cut on
+  // a half-second grid so the charts are not redrawn on every replay tick.
   const cutNow = Number.isFinite(sessionNow) ? Math.floor(sessionNow * 2) / 2 : Infinity;
-  const cutSignature = fetchTargets
-    .filter((t, i) => t.inProgress
-      && !(clipActive && (telemetryCompareMode === 'drivers' ? t.driver === presetDriver : i === 0)))
-    .map((t) => `${t.driver}-${t.lap}`)
-    .join(',');
-  const cutKey = cutSignature ? `${cutSignature}@${cutNow}` : '';
-  // A running lap (clip-revealed or cut) also bounds the axes at the samples
-  // recorded by now (domainLimit below), on the same half-second grid
-  const domainKey = fetchTargets.some((t) => t.inProgress) ? `${cutNow}` : '';
+  const cutKey = fetchTargets.some((t) => t.inProgress) ? `${cutNow}` : '';
 
   // Build resolved trace data
   const traces = useMemo(() => {
     const totalLaps = fetchTargets.length;
-    const cutSet = new Set(cutSignature ? cutSignature.split(',') : []);
+    // When xAxisMode is 'time', Distance ← Time so all render code (which keys
+    // off d.Distance) transparently plots against lap-time seconds.
+    const samples = traceSamplesAt(fetchTargets, telemetryCache, { cacheKeySuffix, cutNow, xAxisMode });
     const resolved = fetchTargets
       .map(({ driver, lap, inProgress }, i) => {
-        const key = `${driver}-${lap}${cacheKeySuffix}`;
-        const cached = telemetryCache[key];
-        if (!cached || cached.length === 0) return null;
-        const rawData = cutSet.has(`${driver}-${lap}`) ? truncateToNow(cached, cutNow) : cached;
-        if (rawData.length === 0) return null;
-        // Full-lap extent, so the x-axis does not grow while a running lap is cut
-        const fullLast = cached[cached.length - 1];
-        let fullLength = xAxisMode === 'time' ? (fullLast.Time ?? fullLast.Distance) : fullLast.Distance;
-        // A running lap's samples after now never set an axis (R6): the y
-        // domains use only its samples recorded by now (domainLimit, in x
-        // units; the clip-revealed focus trace holds the whole lap), and in
-        // time mode its x extent is the time run so far (its lap time is not
-        // known yet). The full distance of a lap is the track's, known.
-        let domainLimit = null;
-        if (inProgress && cutNow !== Infinity) {
-          domainLimit = recordedExtent(cached, cutNow, xAxisMode);
-          if (xAxisMode === 'time') fullLength = Math.max(0, domainLimit);
-        }
-        // When xAxisMode is 'time', remap Distance ← Time so all render code (which keys
-        // off d.Distance) transparently plots against lap-time seconds.
-        const data = xAxisMode === 'time'
-          ? rawData.map((d) => ({ ...d, Distance: d.Time != null ? d.Time : d.Distance, _origDistance: d.Distance }))
-          : rawData;
+        if (!samples[i]) return null;
+        const { key, data, extent, domainLimit } = samples[i];
         const color = telemetryCompareMode === 'drivers'
           ? getDriverColor(driver)
           : (LAP_COLORS[i] || '#888');
@@ -319,11 +287,13 @@ export default function TelemetryStrip({ embedded = false }) {
           ? (i === 0 ? 1 : Math.max(0.35, 1 - i * 0.25))
           : 1;
         const lapDashed = telemetryCompareMode === 'laps' && i > 0;
-        // The running lap that is not cut here is revealed by the clip
-        const clipReveal = !!inProgress && !cutSet.has(`${driver}-${lap}`);
+        // The focus driver's running lap: the playhead follows its newest
+        // sample (the RAF loop below)
+        const followsNow = !!inProgress
+          && (telemetryCompareMode === 'drivers' ? driver === presetDriver : i === 0);
         return {
-          driver, lap, data, fullLength, domainLimit, color, isFocus, isDimmed, isReference, lapOpacity,
-          lapDashed, key, clipReveal,
+          driver, lap, data, extent, domainLimit, color, isFocus, isDimmed, isReference, lapOpacity,
+          lapDashed, key, followsNow,
         };
       })
       .filter(Boolean);
@@ -365,9 +335,9 @@ export default function TelemetryStrip({ embedded = false }) {
     }
     // Ghosts first, so they render underneath the main traces
     return [...ghosts, ...mainTraces];
-    // cutNow enters through cutKey / domainKey, which change only while a lap is running
-  }, [fetchTargets, telemetryCache, focusDriver, telemetryCompareMode, highlightedDriver, xAxisMode,
-    showGhosts, cacheKeySuffix, cutKey, domainKey, focusRef.lapsCompleted]);
+    // cutNow enters through cutKey, which changes only while a lap is running
+  }, [fetchTargets, telemetryCache, focusDriver, presetDriver, telemetryCompareMode, highlightedDriver,
+    xAxisMode, showGhosts, cacheKeySuffix, cutKey, focusRef.lapsCompleted]);
 
   // Position the speed-chart playhead at the focus driver's current distance
   // and stamp its bubble with the instant speed. Reads refs directly so it
@@ -419,13 +389,14 @@ export default function TelemetryStrip({ embedded = false }) {
     ph.group.style('display', null);
   }, []);
 
-  // ── Smooth incremental telemetry reveal (RAF-driven) ─────────
-  // The replay engine updates currentFrameIndex every ~400ms but drives
-  // currentTime smoothly at wall-clock speed. We run a RAF loop that reads
-  // both imperatively and linearly interpolates the focus driver's x/y
-  // between frames, so the clip rect and playhead slide smoothly instead
-  // of jumping 2.5× per second. No React re-renders — all DOM writes go
-  // through refs.
+  // ── Playhead and reveal clip (RAF-driven) ─────────
+  // The focus driver's running lap holds only its samples recorded by now
+  // (traceSamplesAt): the playhead sits on its newest sample, and the clip is
+  // only a guard (a backward seek before the traces are re-cut). Samples
+  // without SessionTime cannot be cut by time: for those the RAF loop
+  // interpolates the focus driver's x/y between replay frames and the clip
+  // and playhead follow the car's track position. No React re-renders — all
+  // DOM writes go through refs.
   useEffect(() => {
     let rafId;
     const nearestDistance = (coords, x, y) => {
@@ -456,7 +427,9 @@ export default function TelemetryStrip({ embedded = false }) {
         : null;
 
       if (reveal) {
-        currentDistRef.current = reveal.complete ? null : reveal.distance;
+        // The trace ends at now: the playhead on its newest sample (or where
+        // now falls between two samples after a backward seek)
+        currentDistRef.current = reveal.distance;
         revealXRef.current = reveal.complete ? null : reveal.x;
       } else if (!revealTraceRef.current || !frames?.length || idx <= 0 || !focus || !coords?.length) {
         // No running lap to reveal (or no clock to reveal it by): no clip
@@ -545,13 +518,14 @@ export default function TelemetryStrip({ embedded = false }) {
 
   // Track length — mode-aware: meters in distance mode, seconds in time mode.
   // The circuit fallback is meters only, so skip it in time mode to avoid
-  // crushing the domain (e.g. 5700m) against a ~85s trace. A running lap that
-  // is drawn only up to now counts with its full-lap extent (fullLength).
+  // crushing the domain (e.g. 5700m) against a ~85s trace. A running lap
+  // counts with the extent recorded by now (its full length and lap time are
+  // not known yet); in distance mode the track's length comes from the circuit.
   const trackLength = useMemo(() => {
     let max = 0;
     for (const t of traces) {
       const last = t.data[t.data.length - 1];
-      const extent = t.fullLength ?? last?.Distance;
+      const extent = t.extent ?? last?.Distance;
       if (extent > max) max = extent;
     }
     if (xAxisMode === 'distance' && circuitInfo?.track_coordinates?.length) {
@@ -715,11 +689,10 @@ export default function TelemetryStrip({ embedded = false }) {
     renderGearChart(gearRef.current, sorted, xScale, margin, sectorBoundaries, xAxisMode);
     renderRPMChart(rpmRef.current, sorted, xScale, margin, sectorBoundaries, xAxisMode);
 
-    // Add clipPaths for progressive reveal (only clips trace <path> elements),
-    // at once at the running lap's samples recorded by now (the RAF loop then
-    // follows the clock)
+    // Add clipPaths (only clips trace <path> elements): a guard at now for the
+    // running lap the playhead follows (the RAF loop then follows the clock)
     const svgRefs = [speedRef, deltaRef, throttleRef, gearRef, rpmRef];
-    revealTraceRef.current = traces.find((t) => t.clipReveal && !t.isGhost) || null;
+    revealTraceRef.current = traces.find((t) => t.followsNow && !t.isGhost) || null;
     const st = useF1Store.getState();
     const reveal = revealTraceRef.current && st.totalFrames > 0 && st.currentFrameIndex > 0
       ? revealPoint(revealTraceRef.current.data, st.getSessionNow())
@@ -1553,8 +1526,8 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
   // Kept outside clippable groups so it's always visible, and drawn last so
   // it renders above the trace lines.
   if (playheadRef) {
-    // The running lap revealed by the clip first: the playhead reads its speed
-    const focusTrace = traces.find((t) => t.clipReveal && !t.isGhost)
+    // The focus driver's running lap first: the playhead reads its speed
+    const focusTrace = traces.find((t) => t.followsNow && !t.isGhost)
       || traces.find((t) => t.isFocus) || traces[0] || null;
     const phGroup = g.append('g')
       .attr('class', 'telem-playhead')

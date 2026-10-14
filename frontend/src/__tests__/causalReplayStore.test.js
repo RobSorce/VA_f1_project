@@ -40,7 +40,12 @@ vi.mock('../utils/apiClient', async (importOriginal) => {
 });
 vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
 // Only the arguments of the Monte Carlo calls are under test
-vi.mock('../utils/raceSimulation', () => ({ simulateRaceFinish: vi.fn(() => null) }));
+// No Monte Carlo run here; the rest of the module (constants, the risk rules
+// the badges use) is the real one
+vi.mock('../utils/raceSimulation', async (importOriginal) => ({
+  ...(await importOriginal()),
+  simulateRaceFinish: vi.fn(() => null),
+}));
 
 // In-memory localStorage for the persist middleware
 if (typeof globalThis.localStorage === 'undefined') {

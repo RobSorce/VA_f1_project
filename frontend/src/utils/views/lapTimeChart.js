@@ -94,11 +94,12 @@ export function qualiSegmentBadges({ raceResults, segments, offsets, sessionNow 
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
  * @param {number} sessionNow - session seconds, Infinity = whole session
- * @param {Object} [opts] - { dnfMap, replayActive, brushLapRange: [min, max], qualifying }
+ * @param {Object} [opts] - { dnfMap, replayActive, brushLapRange: [min, max], qualifying,
+ *   isLiveMode (live feed rows: driverState.js nonFinisherMap) }
  * @returns {{ bests: Object, rows: Array<Object> }}
  */
 export function lapTimingSheet(lapTimes, sessionNow, {
-  dnfMap = {}, replayActive = false, brushLapRange = null, qualifying = false,
+  dnfMap = {}, replayActive = false, brushLapRange = null, qualifying = false, isLiveMode = false,
 } = {}) {
   const now = sessionNow == null || Number.isNaN(sessionNow) ? Infinity : sessionNow;
   const rows = Array.isArray(lapTimes) ? lapTimes : [];
@@ -128,7 +129,7 @@ export function lapTimingSheet(lapTimes, sessionNow, {
   }
   const bests = { bestS1, bestS2, bestS3, bestLap, fastestLapDriver, personalBests };
   // Results DNFs plus classified drivers who stopped before the flag
-  const nonFinishers = nonFinisherMap(rows, dnfMap);
+  const nonFinishers = nonFinisherMap(rows, dnfMap, { live: isLiveMode });
 
   const brushMin = brushLapRange ? brushLapRange[0] : -Infinity;
   const brushMax = brushLapRange ? brushLapRange[1] : Infinity;

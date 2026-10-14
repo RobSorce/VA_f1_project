@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
+import { listedBattles } from '../../utils/simulationClient';
 
 /* Gemini logo — the official 4-pointed spark/star shape */
 function GeminiLogo({ size = 22 }) {
@@ -110,10 +111,10 @@ export default function GeminiFloatingButton() {
     if (activeDriver) {
       queries[2] = `Best strategy for ${activeDriver}?`;
     }
-    if (raceProjection?.battles?.length > 0) {
-      const b = raceProjection.battles[0];
-      queries.push(`${b.behind} vs ${b.ahead}?`);
-    }
+    // the first battle the Race Prediction panel lists (store list: badge
+    // level, then race order, so it changes only on evidence or new data)
+    const [b] = listedBattles(raceProjection);
+    if (b) queries.push(`${b.behind} vs ${b.ahead}?`);
     return queries;
   }, [focusDriver, selectedDrivers, raceProjection]);
 

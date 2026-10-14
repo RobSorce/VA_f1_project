@@ -8,6 +8,8 @@
  * Confidence: 0-1 based on data quality (more laps = higher confidence)
  */
 
+import { listedBattles, projectionRisks } from './simulationClient';
+
 export function generateInsights({
   raceProjection,
   raceSituationData,
@@ -22,30 +24,37 @@ export function generateInsights({
   const progress = maxLap > 0 ? currentLap / maxLap : 0;
   const confidence = Math.min(1, currentLap / 10);
 
-  // Category 1: Monte Carlo battles (high-probability overtakes)
+  // Category 1: Monte Carlo battles the Race Prediction panel lists with a
+  // gold or green badge (store list and levels: Wilson interval + hysteresis,
+  // utils/simulationClient.js); green (at least 60 %) is 'high', gold (at
+  // least 30 %) 'notable'
   if (raceProjection?.battles?.length > 0) {
-    for (const battle of raceProjection.battles.slice(0, 3)) {
-      if (battle.prob >= 50) {
-        insights.push({
-          id: `battle-${battle.behind}-${battle.ahead}`,
-          category: 'battle',
-          severity: battle.prob >= 70 ? 'high' : 'notable',
-          text: `${battle.behind} has ${battle.prob}% probability of passing ${battle.ahead} before the end of the race (Monte Carlo, 100 sims).`,
-          actions: [{
-            label: 'Focus both',
-            drivers: [battle.behind, battle.ahead],
-          }],
-          confidence,
-        });
-      }
+    const runs = raceProjection.numSimulations;
+    for (const battle of listedBattles(raceProjection).filter((b) => b.level >= 1).slice(0, 3)) {
+      insights.push({
+        id: `battle-${battle.behind}-${battle.ahead}`,
+        category: 'battle',
+        severity: battle.level >= 2 ? 'high' : 'notable',
+        text: `${battle.behind} has ${battle.prob}% probability of passing ${battle.ahead} before the end of the race`
+          + ` (Monte Carlo, ${runs != null ? `${runs.toLocaleString('en-US')} sims` : 'simulation'}).`,
+        actions: [{
+          label: 'Focus both',
+          drivers: [battle.behind, battle.ahead],
+        }],
+        confidence,
+      });
     }
   }
 
-  // Category 2: High-variance finishes (uncertainty alerts)
+  // Category 2: High-variance finishes (uncertainty alerts): the Risks tab's
+  // HIGH VARIANCE rows (judged beyond the Monte Carlo error, in race order),
+  // never a bare threshold or a cut on a Monte Carlo statistic
   if (raceProjection?.projections?.length > 0) {
-    const uncertain = raceProjection.projections
-      .filter(p => (p.posRange[1] - p.posRange[0]) >= 6)
-      .slice(0, 2);
+    const byDriver = new Map(raceProjection.projections.map((p) => [p.driver, p]));
+    const uncertain = projectionRisks(raceProjection)
+      .filter((r) => r.type === 'HIGH VARIANCE' && byDriver.has(r.driver))
+      .slice(0, 2)
+      .map((r) => byDriver.get(r.driver));
     for (const p of uncertain) {
       insights.push({
         id: `uncertain-${p.driver}`,

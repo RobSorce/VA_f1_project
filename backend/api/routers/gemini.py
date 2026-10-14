@@ -27,6 +27,9 @@ class GeminiRequest(BaseModel):
     query: str
     year: Optional[int] = None
     round: Optional[int] = None
+    # Type of the session on screen: 'R', 'S', 'Q', 'SQ', 'FP1'-'FP3' or 'FP'
+    # (frontend utils/strategyViews.js viewSessionType)
+    session_type: Optional[str] = None
     current_lap: Optional[int] = None
     drivers: Optional[List[str]] = None
     lstm_predictions: Optional[Dict[str, Any]] = None
@@ -37,6 +40,28 @@ class GeminiRequest(BaseModel):
 # FALLBACK_PIT_LOSS.median in frontend/src/utils/pitLoss.js. Not data; every
 # text that uses it labels it as a fallback.
 FALLBACK_PIT_LOSS_S = 22.0
+
+# Session types with a race pit loss: race and sprint. Same rule as
+# isRaceSession in frontend/src/utils/pitLoss.js: a request without a type
+# counts as a race (clients that predate the field sent race context only).
+RACE_SESSION_TYPES = {'R', 'S'}
+
+SESSION_TYPE_NAMES = {
+    'R': 'Race', 'S': 'Sprint', 'Q': 'Qualifying', 'SQ': 'Sprint Qualifying',
+    'FP': 'Practice', 'FP1': 'Practice 1', 'FP2': 'Practice 2', 'FP3': 'Practice 3',
+}
+
+
+def _is_race_session(session_type) -> bool:
+    """True for a race-type session ('R', 'S') or when no type was sent."""
+    if session_type is None or str(session_type).strip() == '':
+        return True
+    return str(session_type).strip().upper() in RACE_SESSION_TYPES
+
+
+def _session_type_name(session_type) -> str:
+    code = str(session_type).strip().upper()
+    return SESSION_TYPE_NAMES.get(code, code)
 
 
 def _finite(value):
@@ -99,7 +124,18 @@ def _pit_loss_line(info: dict) -> str:
 
 
 def _build_prompt(request: GeminiRequest) -> str:
-    """Build a structured prompt for Gemini with full race intelligence."""
+    """Build a structured prompt for Gemini with full race intelligence.
+
+    Outside race sessions (request.session_type not 'R' / 'S') there is no
+    race pit loss: the prompt carries none and tells the model not to use one.
+    """
+    is_race = _is_race_session(request.session_type)
+    numbers_rule = (
+        "2. Always reference specific numbers to justify recommendations (e.g. 'pace trend +0.08s/lap', "
+        "the pit loss given under Race Parameters, saying whether it is measured or a fallback)."
+        if is_race else
+        "2. Always reference specific numbers to justify recommendations (e.g. 'pace trend +0.08s/lap')."
+    )
     parts = [
         "You are a senior F1 race strategy engineer with access to live analytical data. "
         "Your job is to give clear, actionable strategy calls that a race engineer could "
@@ -107,19 +143,25 @@ def _build_prompt(request: GeminiRequest) -> str:
         "",
         "CRITICAL RULES:",
         "1. ONLY use the data provided below. NEVER invent lap times, positions, or probabilities.",
-        "2. Always reference specific numbers to justify recommendations (e.g. 'pace trend +0.08s/lap', "
-        "the pit loss given under Race Parameters, saying whether it is measured or a fallback).",
+        numbers_rule,
         "3. If the data for a topic is missing, say 'I don't have data for this' — do NOT guess.",
         "4. Structure your response around actionable decisions: when to pit, which compound, how to handle battles.",
         "5. Be concise and decisive. No filler or hedging.",
-        "",
     ]
+    if not is_race:
+        parts.append(
+            f"6. This is a {_session_type_name(request.session_type)} session, not a race: "
+            "there is no race pit loss. Do not quote or estimate a pit loss or the race time a stop costs."
+        )
+    parts.append("")
 
     ctx = request.race_context or {}
 
     # Race header
     if request.year:
         parts.append(f"Race: {request.year} Round {request.round}")
+    if request.session_type:
+        parts.append(f"Session type: {_session_type_name(request.session_type)}")
     lap = request.current_lap or ctx.get('currentLap')
     max_lap = ctx.get('maxLap')
     if lap:
@@ -190,7 +232,11 @@ def _build_prompt(request: GeminiRequest) -> str:
 
     # Monte Carlo projections
     if ctx.get('monteCarloProjections'):
-        parts.append("\n## Monte Carlo Race Predictions (100 simulations)")
+        # the run count the frontend used (raceProjection.numSimulations); no
+        # count is printed when an older client sends none
+        n_sims = _finite(ctx.get('monteCarloSimulations'))
+        runs = f" ({int(n_sims):,} simulations)" if n_sims and n_sims > 0 else ""
+        parts.append(f"\n## Monte Carlo Race Predictions{runs}")
         for p in ctx['monteCarloProjections']:
             exp = p.get('expectedPos', '?')
             exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
@@ -215,14 +261,16 @@ def _build_prompt(request: GeminiRequest) -> str:
                 f"{r.get('description', r.get('message', ''))}"
             )
 
-    # Race parameters
+    # Race parameters (pit loss in race sessions only)
     if ctx.get('raceParams'):
         rp = ctx['raceParams']
-        parts.append(f"\n## Race Parameters")
-        parts.append(f"  {_pit_loss_line(_pit_loss_info(rp))}")
+        rp_lines = [f"  {_pit_loss_line(_pit_loss_info(rp))}"] if is_race else []
         sc = _finite(rp.get('scRate')) if isinstance(rp, dict) else None
         if sc is not None:
-            parts.append(f"  Safety car prob: {sc*100:.1f}%/lap")
+            rp_lines.append(f"  Safety car prob: {sc*100:.1f}%/lap")
+        if rp_lines:
+            parts.append(f"\n## Race Parameters")
+            parts.extend(rp_lines)
 
     # Degradation regression
     if ctx.get('degradationRegression'):
@@ -309,6 +357,9 @@ def _mock_response(request: GeminiRequest) -> dict:
         pit_loss_str = f"~{pit_loss:.0f}s"
     else:
         pit_loss_str = f"~{pit_loss:.0f}s (fallback assumption)"
+    # The pit loss appears in race sessions only (none in qualifying / practice)
+    is_race = _is_race_session(request.session_type)
+    pit_loss_note = f" Pit loss: {pit_loss_str}." if is_race else ""
     max_lap = ctx.get('maxLap') or 57
 
     # Current driver state
@@ -368,7 +419,7 @@ def _mock_response(request: GeminiRequest) -> dict:
             f"STRATEGY ANALYSIS — {driver} at Lap {current_lap}\n\n"
             f"Current: P{position}, {compound} tyres ({tyre_age} laps), "
             f"pace {recent_pace:.1f}s, trend {pace_trend:+.2f}s/lap.\n"
-            f"Pit loss: {pit_loss_str}. Estimated tyre life remaining: ~{est_pit} laps.\n\n"
+            f"Estimated tyre life remaining: ~{est_pit} laps.{pit_loss_note}\n\n"
         )
 
         if pace_trend > 0.08:
@@ -414,7 +465,7 @@ def _mock_response(request: GeminiRequest) -> dict:
                 'risk': strat_b_risk,
                 'projected_position': strat_b_proj,
                 'total_stops': 1,
-                'time_delta': f'-{pit_loss * 0.3:.0f}s',
+                'time_delta': f'-{pit_loss * 0.3:.0f}s' if is_race else None,
                 'stints': strat_b_stints,
             },
             {
@@ -424,7 +475,10 @@ def _mock_response(request: GeminiRequest) -> dict:
                 'risk': strat_c_risk,
                 'projected_position': strat_c_proj,
                 'total_stops': 2,
-                'time_delta': f'+{pit_loss * 0.7:.0f}s' if pace_trend > 0.05 else f'-{pit_loss * 0.2:.0f}s',
+                'time_delta': (
+                    (f'+{pit_loss * 0.7:.0f}s' if pace_trend > 0.05 else f'-{pit_loss * 0.2:.0f}s')
+                    if is_race else None
+                ),
                 'stints': strat_c_stints,
             },
         ]
@@ -440,7 +494,7 @@ def _mock_response(request: GeminiRequest) -> dict:
             text = (
                 f"UNDERCUT RECOMMENDED — {driver}, Lap {current_lap}\n\n"
                 f"Degradation: {pace_trend:+.2f}s/lap on {compound} (age {tyre_age}).\n"
-                f"Pit lap {pit_now} for {next_compound}. Pit loss {pit_loss_str}.\n"
+                f"Pit lap {pit_now} for {next_compound}.{pit_loss_note}\n"
                 f"Expected to gain track position during rivals' stops."
             )
         else:
@@ -449,7 +503,7 @@ def _mock_response(request: GeminiRequest) -> dict:
                 f"OVERCUT VIABLE — {driver}, Lap {current_lap}\n\n"
                 f"Tyres performing well ({pace_trend:+.2f}s/lap). Stay out.\n"
                 f"Extend to lap {pit_late}, gain time while others pit.\n"
-                f"Pit loss {pit_loss_str}."
+                f"{pit_loss_note.strip()}"
             )
 
         scenarios = [
@@ -484,7 +538,7 @@ def _mock_response(request: GeminiRequest) -> dict:
         text = (
             f"PIT DECISION — {driver}, Lap {current_lap}\n\n"
             f"Current: {compound} (age {tyre_age}), pace trend {pace_trend:+.2f}s/lap.\n"
-            f"Est. remaining tyre life: {est_pit} laps. Pit loss: {pit_loss_str}.\n\n"
+            f"Est. remaining tyre life: {est_pit} laps.{pit_loss_note}\n\n"
         )
         if est_pit <= 3 or pace_trend > 0.1:
             text += "BOX BOX BOX. Tyres are done. Pit this lap or next."
@@ -563,7 +617,7 @@ def _mock_response(request: GeminiRequest) -> dict:
             exp = drv_proj.get('expectedPos', '?')
             exp_str = f"{exp:.1f}" if isinstance(exp, (int, float)) else str(exp)
             text += f"MC projection: P{exp_str}, podium {drv_proj.get('podiumProb', 0)}%.\n"
-        text += f"Est. laps to pit: {est_pit}. Pit loss: {pit_loss_str}.\n\n"
+        text += f"Est. laps to pit: {est_pit}.{pit_loss_note}\n\n"
 
         if battles:
             b = battles[0]

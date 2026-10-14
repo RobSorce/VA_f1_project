@@ -295,6 +295,50 @@ describe.skipIf(!haveFonts || !SCENARIOS.length)('centre text at the Pit Wall vi
   }
 });
 
+// "Pit in k laps" (k > 0): the centre line is longer ("LEC pits in 3: P2 → P8
+// (−1 vs now)"), the ring's label is the ghost's, the legend's rejoin entry
+// shows both diamonds
+describe.skipIf(!haveFonts || !SCENARIOS.length)('pit in k laps at the Pit Wall viewports (real font metrics)', () => {
+  for (const [vp, [vw, vh]] of Object.entries(VIEWPORTS)) {
+    it(`${vp}: k = 3 and 10, the centre and the ghost's legend entry fit like k = 0`, () => {
+      const slot = pitWallSlot(vw, vh);
+      for (const sc of SCENARIOS.filter((s) => s.extra.focusDriver)) {
+        replayAt(sc.session, sc.now, sc.lap, sc.extra);
+        for (const k of [3, 10]) {
+          const markup = renderToString(React.createElement(CircleOfDoom, { slotSize: slot, measureText: realMeasure, pitInK: k }));
+          const r = readRender(markup);
+          const shown = `${r.centreText.replace(/ \| /g, ' ')} ${r.statusText}`;
+          const ghost = /<g class="cod-ghost"/.test(markup);
+          console.log(`${vp} ${sc.name}, k ${k}: ghost ${ghost}, R ${r.R.toFixed(0)}, layout ${r.layout}; centre [${r.centre.map((l) => `${l.text}@${l.size.toFixed(1)}`).join(' | ')}]; legend line [${r.statusText}]`);
+          for (const l of r.centre) expect(l.size).toBeGreaterThanOrEqual(9);
+          expect(r.fits).toBe(true);
+          expect(shown).toContain(`LAP ${sc.lap}/${maxLapOf(sc.session)}`);
+          expect(shown).toMatch(/pit loss \d+\.\d s/);
+          for (const l of r.centre) expect(r.statusText).not.toContain(l.text);
+          // labels (the ghost's included): no overlap, nothing clamped into the slot
+          // (the 1366x768 slot keeps the sweep's allowance above)
+          const labelOverlaps = r.labels.reduce((n, a, i) => n + r.labels.slice(i + 1).filter((b) => overlaps(a, b)).length, 0);
+          if (vp !== '1366x768') expect({ labelOverlaps, layout: r.layout }).toEqual({ labelOverlaps: 0, layout: 'fits' });
+          if (ghost) {
+            expect(markup).toMatch(/<text class="cod-rejoin-label"[^>]*data-of="ghost"/);
+            expect(markup).toContain('title="rejoin: now · in k laps"');
+            // the focus line: in the centre, on the legend line or (no room) in the tooltip
+            if (shown.includes('pits in')) expect(shown).toMatch(/pits in \d+: P\d+ → P\d+ \((= now|[+−]\d+ vs now)\)/);
+          }
+          if (r.legend.side) {
+            expect(r.width + 2).toBeLessThanOrEqual(slot.width);
+          } else {
+            const rows = Math.ceil(9 / r.legend.cols);
+            const used = r.height + (r.statusLines ? 2 + 13 * r.statusLines : 0) + 2 + rows * 14 + (rows - 1);
+            expect(used).toBeLessThanOrEqual(slot.height + 0.5);
+            expect(r.width).toBeLessThanOrEqual(slot.width + 0.5);
+          }
+        }
+      }
+    });
+  }
+});
+
 const { circleState, gapSeconds } = await import('../utils/circleOfDoom.js');
 const firstStartOfLap = (session, n) => Math.min(...session.lap_times
   .filter((r) => r.LapNumber === n && r.LapStartTime != null).map((r) => r.LapStartTime));

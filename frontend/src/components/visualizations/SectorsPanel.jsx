@@ -18,6 +18,7 @@ export default function SectorsPanel() {
   const currentLap = useF1Store((s) => s.currentLap);
   const totalFrames = useF1Store((s) => s.totalFrames);
   const dnfMap = useF1Store((s) => s.dnfMap);
+  const isLiveMode = useF1Store((s) => s.isLiveMode);
   const speedUnit = useF1Store((s) => s.speedUnit);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
@@ -41,8 +42,8 @@ export default function SectorsPanel() {
   // it was at that time, bests and rankings from completed laps only
   const sessionNow = useSessionNow();
   const { liveRows, bestRankings, bestSessionBests, speedRankings } = useMemo(
-    () => sectorsPanelData(lapTimes, sessionNow, { dnfMap, replayActive }),
-    [lapTimes, sessionNow, dnfMap, replayActive],
+    () => sectorsPanelData(lapTimes, sessionNow, { dnfMap, replayActive, isLiveMode }),
+    [lapTimes, sessionNow, dnfMap, replayActive, isLiveMode],
   );
 
   const hasData = (view === 'live' && liveRows.length > 0)

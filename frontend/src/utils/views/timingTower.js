@@ -107,10 +107,14 @@ function pitExitPassed(lt, now) {
  * @param {Object} [opts.gridPositions] - { driver: grid slot } (race_results GridPosition)
  * @param {Object} [opts.driverInfoMap] - { driver: { driverNumber } }
  * @param {boolean} [opts.qualifying] - order by best completed lap
+ * @param {boolean} [opts.isLiveMode] - live feed rows (driverState.js nonFinisherMap)
+ * @param {number} [opts.segmentStart] - qualifying segment replay: the order ranks only the
+ *   segment's laps (LapStartTime after it; store qualiSegmentWindows[segment].start)
  * @returns {Array<Object>} TimingRow entries, active drivers first
  */
 export function timingTowerEntries(lapTimes, sessionNow, {
   dnfMap = {}, replayActive = false, gridPositions = {}, driverInfoMap = {}, qualifying = false,
+  isLiveMode = false, segmentStart = -Infinity,
 } = {}) {
   const now = sessionNow == null || Number.isNaN(sessionNow) ? Infinity : sessionNow;
   const rows = Array.isArray(lapTimes) ? lapTimes : [];
@@ -118,6 +122,10 @@ export function timingTowerEntries(lapTimes, sessionNow, {
   // Session and personal bests over the laps completed at now
   const sessionBest = { 1: Infinity, 2: Infinity, 3: Infinity, lap: Infinity };
   const personalBest = {};
+  // Qualifying order: each driver's best lap of the active segment (all laps
+  // outside a segment replay)
+  const segmentBest = {};
+  const from = Number.isFinite(segmentStart) ? segmentStart : -Infinity;
   for (const lt of rows) {
     if (!lt?.Driver || !isLapCompleted(lt, now)) continue;
     const pb = personalBest[lt.Driver] || (personalBest[lt.Driver] = { 1: Infinity, 2: Infinity, 3: Infinity, lap: Infinity });
@@ -131,12 +139,15 @@ export function timingTowerEntries(lapTimes, sessionNow, {
     if (lap != null) {
       if (lap < pb.lap) pb.lap = lap;
       if (lap < sessionBest.lap) sessionBest.lap = lap;
+      if (from === -Infinity || lapStartTime(lt) > from) {
+        if (!(segmentBest[lt.Driver] <= lap)) segmentBest[lt.Driver] = lap;
+      }
     }
   }
   const best = (v) => (v === Infinity ? null : v);
 
   // Results DNFs plus classified drivers who stopped before the flag
-  const nonFinishers = nonFinisherMap(rows, dnfMap);
+  const nonFinishers = nonFinisherMap(rows, dnfMap, { live: isLiveMode });
   const rawEntries = [];
   for (const [drv, driverRows] of rowsByDriver(rows)) {
     const st = driverStateAt(driverRows, drv, now, { dnf: !!nonFinishers[drv] });
@@ -209,7 +220,7 @@ export function timingTowerEntries(lapTimes, sessionNow, {
       _crossed: ranked && Number.isFinite(ranked.Time) ? ranked.Time : Infinity,
       _position: ranked && Number.isFinite(ranked.Position) ? ranked.Position : Infinity,
       _grid: gridPositions[drv] ?? Infinity,
-      _best: best(pb.lap ?? Infinity) ?? Infinity,
+      _best: segmentBest[drv] ?? Infinity,
     });
   }
 

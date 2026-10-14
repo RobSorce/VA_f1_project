@@ -281,7 +281,7 @@ frontend/src/
 │   ├── lasso.js                   ── D3 lasso tool
 │   ├── livePCA.js                 ── In-browser PCA with frozen basis
 │   ├── liveWebSocket.js           ── Live WS client
-│   ├── raceSimulation.js          ── Monte Carlo race simulation (100 iters)
+│   ├── raceSimulation.js          ── Monte Carlo race simulation (DEFAULT_NUM_SIMULATIONS = 1,000 runs, §7.5)
 │   ├── raceSituationFeatures.js   ── Feature extraction from current state
 │   ├── trackPositionEstimator.js  ── Track-coord lookup
 │   └── exportChart.js             ── html2canvas export
@@ -371,9 +371,10 @@ When the user lassos a region of the PCA/t-SNE scatter:
 
 ### 7.5 Monte Carlo race simulation (`utils/raceSimulation.js`)
 
-- 100 simulations of the remaining race per call. Median stability converges at ~80; 500 needed for reliable tails but takes ~1.5 s on mid-range hardware.
-- `extractRaceParams` measures empirical distributions for pit loss (stats over PitInTimeSeconds), tyre degradation per compound, and race-pace noise.
-- Output fed to Leaderboard → overtake probability badge (next driver ahead) with color thresholds: green <30 %, amber 30-50 %, red ≥50 %.
+- `DEFAULT_NUM_SIMULATIONS` (1,000) seeded simulations of the remaining race per call, run in a Web Worker; runtimes for 100 / 1,000 / 10,000 runs and badge stability in `notes/experiments/mc_benchmark.txt` (section 5, `frontend/scripts/mc_benchmark.mjs`).
+- Every mark the views draw from a projection changes only on evidence beyond the Monte Carlo error (`utils/simulationClient.js` `projectionBadges`, chained by the store): the badges, the most likely position shown (`modePosition`), the battle list (the pairs surely among the six most likely, no fill by a point estimate: `notes/experiments/battle_list_rules.txt`) and its order (badge level, then race order) and the risk rows (`raceSimulation.js` `evaluateRisks`: the range ends and the mean stops to come judged beyond their sampling interval); measured, mark by mark, in `notes/experiments/mc_benchmark.txt` section 5.
+- `extractRaceParams` measures pit loss (`utils/pitLoss.js`), tyre degradation per compound (`raceDegradation`: fits long enough, combined with the cached races' prior) and race-pace noise (`lapNoiseFromFits`: combined with the dry / wet prior); see `notes/experiments/degradation_in_race.txt`.
+- Output fed to Leaderboard → overtake probability badge (next driver ahead), coloured by the battle badge level of the store (green below 30 %, amber at least 30 %, red at least 60 %, each changing only when the 95 % Wilson interval clears the threshold).
 
 ### 7.6 Linear regression for degradation (brush-triggered)
 

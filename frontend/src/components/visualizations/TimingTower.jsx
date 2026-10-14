@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
+import { activeSegmentWindow } from '../../utils/raceTime';
 import { TYRE_COLORS, TYRE_LABELS } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { timingTowerEntries } from '../../utils/views/timingTower';
@@ -283,6 +284,8 @@ export default function TimingTower() {
   const totalFrames = useF1Store((s) => s.totalFrames);
   const sessionType = useF1Store(loadedSessionTypeOf); // the loaded session, not the pill
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
+  // The active qualifying segment's laps only (its window's start)
+  const segmentStart = useF1Store((s) => activeSegmentWindow(s)?.start);
   // Causal "now" in session seconds (utils/raceTime.js): rows, tyres, pit
   // status and retirements as they were at that time (utils/driverState.js)
   const sessionNow = useSessionNow();
@@ -345,8 +348,11 @@ export default function TimingTower() {
       gridPositions,
       driverInfoMap,
       qualifying: sessionType === 'Q' || isQualifyingReplay,
+      isLiveMode,
+      segmentStart,
     });
-  }, [sessionData, totalFrames, driverInfoMap, dnfMap, sessionNow, sessionType, isQualifyingReplay]);
+  }, [sessionData, totalFrames, driverInfoMap, dnfMap, sessionNow, sessionType, isQualifyingReplay, isLiveMode,
+    segmentStart]);
 
   /* -- Flag status banner ------------------------------------------------ */
   const flagBanner = useMemo(() => {

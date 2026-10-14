@@ -109,9 +109,9 @@ function buildTooltip(driver, lap, lapEntry) {
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
  * @param {number} sessionNow - session seconds, Infinity = whole race
- * @param {Object} [opts] - { dnfMap }
+ * @param {Object} [opts] - { dnfMap, isLiveMode (live feed rows: driverState.js nonFinisherMap) }
  */
-export function paceGridData(lapTimes, sessionNow, { dnfMap = {} } = {}) {
+export function paceGridData(lapTimes, sessionNow, { dnfMap = {}, isLiveMode = false } = {}) {
   const now = sessionNow == null || Number.isNaN(sessionNow) ? Infinity : sessionNow;
   const rows = Array.isArray(lapTimes) ? lapTimes : [];
   const lookup = {};
@@ -153,7 +153,7 @@ export function paceGridData(lapTimes, sessionNow, { dnfMap = {} } = {}) {
   }
 
   // Results DNFs plus classified drivers who stopped before the flag
-  const nonFinishers = nonFinisherMap(rows, dnfMap);
+  const nonFinishers = nonFinisherMap(rows, dnfMap, { live: isLiveMode });
   const state = {};
   for (const [drv, driverRows] of byDriver) {
     const st = driverStateAt(driverRows, drv, now, { dnf: !!nonFinishers[drv] });

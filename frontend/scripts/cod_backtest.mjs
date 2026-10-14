@@ -45,6 +45,12 @@
  * retirement) puts a rival on the other side, pace-model sensitivity (recent /
  * race-median / reference) and the calibration of rejoinDistribution (1000
  * seeded draws per stop).
+ * "Pit in k laps" (utils/undercut.js pitInLaps, race params = extractRaceParams
+ * at the same clock): k = 0 against pitWindow at the end of lap n - 1 on every
+ * stop; then the same stop predicted k laps ahead, at the end of the driver's
+ * lap n - 1 - k (row k: in-lap n, rejoin at the end of lap n + 1), with the lap
+ * model and with a flat one (no wear, no fresh-tyre delta: the window's
+ * constant paces carried on), against the same actual position.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -53,6 +59,8 @@ import {
   circleState, pitWindow, rankByCrossing, rejoinDistribution,
 } from '../src/utils/circleOfDoom.js';
 import { estimatePitLoss, driverGreenMedians } from '../src/utils/pitLoss.js';
+import { extractRaceParams } from '../src/utils/raceSimulation.js';
+import { pitInLaps } from '../src/utils/undercut.js';
 import { hasPitIn, hasPitOut } from '../src/utils/raceTime.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -107,6 +115,18 @@ const calib = {
 let identityChecks = 0;
 let ongoingStops = 0;
 let identityFails = 0;
+// Pit in k laps: k = 0 identity, and the stop predicted k laps ahead
+const K_AHEAD = [1, 2, 3, 5];
+const pitIn = { k0: 0, k0Same: 0, ahead: Object.fromEntries(K_AHEAD.map((k) => [k, { model: [], flat: [] }])) };
+const FLAT_DEG = {
+  mean: 0, median: 0, stdDev: 0, n: 1, negativeCount: 0, source: 'race',
+};
+/** Race params without wear or fresh-tyre delta: the window's constant paces carried on. */
+const flatParams = (rp) => ({
+  ...rp,
+  freshDelta: 0,
+  tyreDeg: Object.fromEntries(['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET', 'UNKNOWN'].map((c) => [c, FLAT_DEG])),
+});
 
 for (const race of races) {
   const lapTimes = loadRace(race.file);
@@ -162,6 +182,28 @@ for (const race of races) {
       if (Math.abs(tPace - w.predictedCrossing) > 1e-6) identityFails += 1;
     }
     const pPace = rankByCrossing(tPace, otherTimes);
+
+    // Pit in k laps: k = 0 is this window
+    if (!ongoing) {
+      const pk = pitInLaps(drv, state, est, extractRaceParams(lapTimes, [], [], 1, { sessionNow: now, sessionType: 'R' }), { maxK: 0 });
+      pitIn.k0 += 1;
+      const r0 = pk.rows[0];
+      if (r0 && r0.predictedPosition === w.predictedPosition && r0.predictedCrossing === w.predictedCrossing
+        && r0.ghostOffset === w.rejoinOffset) pitIn.k0Same += 1;
+      // the same stop predicted k laps ahead (end of the driver's lap n - 1 - k)
+      for (const k of K_AHEAD) {
+        const tK = laps.get(n - 1 - k)?.Time;
+        if (!tK) continue;
+        const stK = circleState(lapTimes, { sessionNow: tK });
+        const estK = estimatePitLoss(lapTimes, { sessionNow: tK });
+        const rpK = extractRaceParams(lapTimes, [], [], 1, { sessionNow: tK, sessionType: 'R' });
+        const a = pitInLaps(drv, stK, estK, rpK, { maxK: k });
+        if (!a.available || a.ongoingStop || a.kMax < k || a.rows[k].inLap !== n) continue;
+        const b = pitInLaps(drv, stK, estK, flatParams(rpK), { maxK: k });
+        pitIn.ahead[k].model.push(a.rows[k].predictedPosition - pAct);
+        pitIn.ahead[k].flat.push(b.rows[k].predictedPosition - pAct);
+      }
+    }
 
     for (const model of ['recent', 'race-median', 'reference']) {
       const wm = model === 'recent' ? w : pitWindow(drv, state, est, { paceModel: model });
@@ -340,6 +382,14 @@ r(`    mean probability given to the actual position ${(calib.subPActual.reduce(
 r(`    actual position = most likely position        ${pct(calib.subModal, calib.subN)}`);
 r(`    actual position inside the 80% most-likely set ${pct(calib.subCover80, calib.subN)}`);
 r('  The draws cover the pit-loss uncertainty only (not rival stops, not pace), hence the low coverage overall.');
+r('');
+r('Pit in k laps (utils/undercut.js pitInLaps, race params at the same clock):');
+r(`  k = 0 = pitWindow (place, crossing, rejoin offset) on ${pitIn.k0Same}/${pitIn.k0} stops (the stops not taken right after another one)`);
+r('  the same stop predicted k laps ahead, at the end of the driver\'s lap n - 1 - k (row k: in-lap n, rejoin at the end of lap n + 1):');
+for (const k of K_AHEAD) {
+  r(`    k = ${k}  lap model      ${summary(pitIn.ahead[k].model)}`);
+  r(`    k = ${k}  flat (no wear) ${summary(pitIn.ahead[k].flat)}`);
+}
 r('');
 r(`Stops where module != script: ${diffs.length} of ${totals.script.length}`);
 r(`  stops taken right after another stop (module projects the first one): ${ongoingStops}`);

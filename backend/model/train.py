@@ -24,24 +24,29 @@ except ImportError:
     logger.warning("PyTorch not available. Will save fallback mean model only.")
 
 
-class F1LapPredictor(nn.Module):
-    """LSTM model for F1 lap time prediction."""
+# The network class subclasses nn.Module, so it exists only with PyTorch; without it
+# train_model() saves the fallback mean model and predict.py never asks for the class.
+if TORCH_AVAILABLE:
+    class F1LapPredictor(nn.Module):
+        """LSTM model for F1 lap time prediction."""
 
-    def __init__(self, n_features=12, hidden1=64, hidden2=32, pred_len=6):
-        super().__init__()
-        self.lstm1 = nn.LSTM(n_features, hidden1, batch_first=True)
-        self.dropout1 = nn.Dropout(0.2)
-        self.lstm2 = nn.LSTM(hidden1, hidden2, batch_first=True)
-        self.dropout2 = nn.Dropout(0.2)
-        self.fc = nn.Linear(hidden2, pred_len)
+        def __init__(self, n_features=12, hidden1=64, hidden2=32, pred_len=6):
+            super().__init__()
+            self.lstm1 = nn.LSTM(n_features, hidden1, batch_first=True)
+            self.dropout1 = nn.Dropout(0.2)
+            self.lstm2 = nn.LSTM(hidden1, hidden2, batch_first=True)
+            self.dropout2 = nn.Dropout(0.2)
+            self.fc = nn.Linear(hidden2, pred_len)
 
-    def forward(self, x):
-        out, _ = self.lstm1(x)
-        out = self.dropout1(out)
-        out, _ = self.lstm2(out)
-        out = self.dropout2(out[:, -1, :])  # Last time step
-        out = self.fc(out)
-        return out
+        def forward(self, x):
+            out, _ = self.lstm1(x)
+            out = self.dropout1(out)
+            out, _ = self.lstm2(out)
+            out = self.dropout2(out[:, -1, :])  # Last time step
+            out = self.fc(out)
+            return out
+else:
+    F1LapPredictor = None
 
 
 def combined_loss(pred, target, time_weight=1.0, pit_weight=2.0):

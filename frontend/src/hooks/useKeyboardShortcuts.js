@@ -22,6 +22,57 @@ export function stepLap(state, delta) {
   }
 }
 
+/**
+ * The element takes typed text (input, textarea, select, contentEditable):
+ * no shortcut fires while it has the focus. Shared with the keys a view
+ * handles itself (the Circle of Doom's [ and ], "pit in k laps").
+ *
+ * @param {Element|null} el - usually document.activeElement
+ * @returns {boolean}
+ */
+export function isTypingTarget(el) {
+  return !!el && (
+    el.tagName === 'INPUT'
+    || el.tagName === 'TEXTAREA'
+    || el.tagName === 'SELECT'
+    || !!el.isContentEditable
+  );
+}
+
+/**
+ * The key event comes with the layout's character modifier: AltGr (reported
+ * as AltGraph, or by Windows browsers as Ctrl + Alt together).
+ */
+function isAltGraph(e) {
+  if (typeof e.getModifierState === 'function' && e.getModifierState('AltGraph')) return true;
+  return !!e.ctrlKey && !!e.altKey && !e.metaKey;
+}
+
+/**
+ * Step of the Circle of Doom's "pit in k laps" keys: ']' one lap more, '['
+ * one lap fewer, matched on the character the layout produces (e.key), so the
+ * modifier a layout needs to type it counts as part of the key: AltGr on the
+ * Italian, Spanish or German layouts ('[' = AltGr+è on it-IT; Windows reports
+ * AltGr as Ctrl + Alt), Option on a Mac layout. 0 for any other key, for a
+ * Cmd chord or a Ctrl chord (Ctrl without Alt: a shortcut, not a character),
+ * while the focus is in a text field (isTypingTarget) or while the command
+ * palette or the cheatsheet is open (as every global shortcut).
+ *
+ * @param {{key: string, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean,
+ *   getModifierState?: function(string): boolean}} e - keydown event
+ * @param {Object} [state] - useF1Store.getState() (commandPaletteOpen, cheatsheetOpen)
+ * @param {Element|null} [activeElement] - document.activeElement
+ * @returns {-1|0|1}
+ */
+export function pitInLapsKeyStep(e, state = {}, activeElement = null) {
+  if (e.key !== '[' && e.key !== ']') return 0;
+  if (e.metaKey) return 0;
+  if (e.ctrlKey && !isAltGraph(e)) return 0;
+  if (state?.commandPaletteOpen || state?.cheatsheetOpen) return 0;
+  if (isTypingTarget(activeElement)) return 0;
+  return e.key === ']' ? 1 : -1;
+}
+
 export function useKeyboardShortcuts() {
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -103,17 +154,11 @@ export function useKeyboardShortcuts() {
       // If cheatsheet is open, only Esc closes it
       if (state.cheatsheetOpen) return;
 
-      // Check if user is typing in an input field
-      const el = document.activeElement;
-      const isInput = el && (
-        el.tagName === 'INPUT' ||
-        el.tagName === 'TEXTAREA' ||
-        el.tagName === 'SELECT' ||
-        el.isContentEditable
-      );
-
       // If typing in any input, don't fire shortcuts
-      if (isInput) return;
+      if (isTypingTarget(document.activeElement)) return;
+
+      // [ and ] are the Circle of Doom's "pit in k laps" keys, handled by
+      // that view (CircleOfDoom.jsx): no global shortcut uses them
 
       // === SHORTCUTS (no input focused, no modal open) ===
 

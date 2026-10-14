@@ -81,10 +81,50 @@ export function truncateToNow(samples, cutNow) {
 }
 
 /**
+ * The samples each drawn lap holds at sessionNow, causal (decision R6): a lap
+ * in progress holds only its samples recorded by cutNow (truncateToNow), every
+ * trace alike, the focus trace included. Nothing recorded after now is in the
+ * chart's data, drawn or hidden: no axis, delta trace, sector boundary,
+ * annotation or playhead can read it. A completed lap holds all its samples.
+ * extent = the x of the last sample held (a running lap's lap time and full
+ * length are not known yet; the x-axis takes the track's length from the
+ * circuit outline); domainLimit = that extent for a running lap (null
+ * otherwise), the bound of its y domains (inDomain).
+ *
+ * @param {Array<{driver: string, lap: number, inProgress: boolean}>} targets - telemetryTargets output
+ * @param {Object} cache - store.telemetryCache: { 'DRV-lap-R': samples }
+ * @param {Object} opts
+ * @param {string} opts.cacheKeySuffix - '-R' or '-Q' (the store's cache key suffix)
+ * @param {number} opts.cutNow - session seconds (Infinity keeps every sample)
+ * @param {'distance'|'time'} [opts.xAxisMode='distance'] - time mode: Distance = the lap
+ *   Time, _origDistance = metres
+ * @returns {Array<Object|null>} one entry per target (same index): null when nothing is
+ *   held, else { driver, lap, inProgress, key, data, extent, domainLimit }
+ */
+export function traceSamplesAt(targets, cache, { cacheKeySuffix = '-R', cutNow = Infinity, xAxisMode = 'distance' } = {}) {
+  return (targets || []).map(({ driver, lap, inProgress }) => {
+    const key = `${driver}-${lap}${cacheKeySuffix}`;
+    const cached = cache?.[key];
+    if (!Array.isArray(cached) || cached.length === 0) return null;
+    const rawData = inProgress ? truncateToNow(cached, cutNow) : cached;
+    if (rawData.length === 0) return null;
+    const last = rawData[rawData.length - 1];
+    const extent = xAxisMode === 'time' ? (last.Time ?? last.Distance) : last.Distance;
+    const data = xAxisMode === 'time'
+      ? rawData.map((d) => ({ ...d, Distance: d.Time != null ? d.Time : d.Distance, _origDistance: d.Distance }))
+      : rawData;
+    return {
+      driver, lap, inProgress: !!inProgress, key, data, extent,
+      domainLimit: inProgress && cutNow !== Infinity ? extent : null,
+    };
+  });
+}
+
+/**
  * x of the last sample recorded by cutNow (session seconds), in axis units:
  * Distance (m), or the lap Time (s) in time mode. -Infinity when no sample is
  * recorded yet. A running lap's samples beyond it are in the future: they
- * may be drawn under the reveal clip but never set an axis (inDomain).
+ * are never in its trace (traceSamplesAt) and never set an axis (inDomain).
  *
  * @param {Array<Object>} samples - one lap's telemetry (Distance, Time, SessionTime)
  * @param {number} cutNow - session seconds

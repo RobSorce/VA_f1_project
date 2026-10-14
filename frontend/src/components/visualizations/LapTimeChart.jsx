@@ -155,9 +155,9 @@ export default function LapTimeChart() {
   /* ── Bests (completed laps) and one row per driver at sessionNow ── */
   const sheet = useMemo(
     () => lapTimingSheet(lapTimes, sessionNow, {
-      dnfMap, replayActive, brushLapRange, qualifying: isQualifying,
+      dnfMap, replayActive, brushLapRange, qualifying: isQualifying, isLiveMode,
     }),
-    [lapTimes, sessionNow, dnfMap, replayActive, brushLapRange, isQualifying],
+    [lapTimes, sessionNow, dnfMap, replayActive, brushLapRange, isQualifying, isLiveMode],
   );
   const sessionBests = sheet.bests;
 

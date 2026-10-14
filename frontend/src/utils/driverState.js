@@ -112,8 +112,15 @@ function inferredNonFinishers(lapTimes) {
  * the drivers whose final lap row ended before the race leader finished the
  * last lap, who are classified on distance yet stopped before the flag (2024
  * R3 RUS: crash on lap 57, classified 17th; 2024 R17 PER and SAI). Those get
- * { status: 'Retired', inferred: true }. Rows without times (live) and
- * sessions without a race classification (qualifying, practice) add nothing.
+ * { status: 'Retired', inferred: true }. Rows without times and sessions
+ * without a race classification (qualifying, practice) add nothing.
+ *
+ * Live mode (opts.live) adds nothing either: the feed's rows are the race so
+ * far, not its final classification. Their latest lap is not the race's last
+ * lap, so every car that has not yet completed the leader's latest lap would
+ * look stopped before the flag; and the live "now" is Infinity, so
+ * driverStateAt would show all of them retired at once. Live retirements come
+ * from the feed as they happen (store.dnfMap), the map returned as is.
  *
  * A final result: a view passes `dnf: !!map[driver]` to driverStateAt, whose
  * `retired` shows the retirement only once the final row has ended (R6).
@@ -121,10 +128,13 @@ function inferredNonFinishers(lapTimes) {
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
  * @param {Object} [dnfMap] - store.dnfMap
+ * @param {Object} [opts]
+ * @param {boolean} [opts.live=false] - the rows are a live feed's (store.isLiveMode)
  * @returns {Object} { driver: { status, ... } }
  */
-export function nonFinisherMap(lapTimes, dnfMap = {}) {
+export function nonFinisherMap(lapTimes, dnfMap = {}, { live = false } = {}) {
   const base = dnfMap || {};
+  if (live) return base;
   const inferred = inferredNonFinishers(lapTimes).filter((d) => !base[d]);
   if (!inferred.length) return base;
   const out = { ...base };
@@ -293,20 +303,26 @@ export function driverStateAt(lapTimes, driver, sessionNow = Infinity, { stints,
  * best COMPLETED lap (a valid lap time under 300 s on a row with Time <= now),
  * fastest first; drivers without one after them, by code. Never the final
  * classification (race_results Position) nor a lap still to come: at the
- * start of Q1 nobody has a time yet.
+ * start of Q1 nobody has a time yet. A segment ranks only its own laps
+ * (opts.after: laps that started after the previous segment's end), as the
+ * official Q2 / Q3 order does: at the start of Q3 nobody has a Q3 time yet,
+ * whatever they did in Q2.
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
  * @param {number} sessionNow - session seconds, Infinity = whole session
  * @param {Object} [opts]
  * @param {string[]} [opts.drivers] - only these drivers (e.g. the segment's), each listed
  *   even without a lap; default: every driver with a lap row
+ * @param {number} [opts.after=-Infinity] - only laps whose LapStartTime is later (session
+ *   seconds; store qualiSegmentWindows[segment].start)
  * @returns {Array<{driver: string, best: Object|null, position: number|null}>}
  *   best = the row of the best completed lap; position = rank among the drivers
  *   with a time (null without one)
  */
-export function qualifyingOrder(lapTimes, sessionNow = Infinity, { drivers = null } = {}) {
+export function qualifyingOrder(lapTimes, sessionNow = Infinity, { drivers = null, after = -Infinity } = {}) {
   const now = normaliseNow(sessionNow);
   const want = Array.isArray(drivers) && drivers.length ? new Set(drivers) : null;
+  const from = Number.isFinite(after) ? after : -Infinity;
   const best = new Map();
   for (const d of want || []) best.set(d, null);
   for (const lt of Array.isArray(lapTimes) ? lapTimes : []) {
@@ -315,6 +331,7 @@ export function qualifyingOrder(lapTimes, sessionNow = Infinity, { drivers = nul
     if (!best.has(drv)) best.set(drv, null);
     const t = toNum(lt.LapTimeSeconds);
     if (t == null || t <= 0 || t >= 300 || !isLapCompleted(lt, now)) continue;
+    if (from > -Infinity && !(lapStartTime(lt) > from)) continue;
     const cur = best.get(drv);
     if (!cur || t < toNum(cur.LapTimeSeconds)) best.set(drv, lt);
   }

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { extractRaceParams, simulateRaceFinish } from '../raceSimulation.js';
 import { extractRaceSituationFeatures } from '../raceSituationFeatures.js';
 import { estimatePitLoss, FALLBACK_PIT_LOSS } from '../pitLoss.js';
-import { deriveStints } from '../stints.js';
+import { deriveStints, pitStops } from '../stints.js';
 import { resolveSessionNow } from '../raceTime.js';
 import { hasCachedSession, loadCachedSession } from '../../__tests__/helpers/cachedSession.js';
 import { perturbFuture } from './futureRows.js';
@@ -116,17 +116,25 @@ describe('extractRaceParams: causal laps (D4) and stints from lap_times (D1)', (
     }
   });
 
-  it('stint lengths come from deriveStints (completed stints only), not from tyre_strategy', () => {
+  it('stint lengths come from deriveStints, ongoing / to-the-flag stints censored (S3), not from tyre_strategy', () => {
     const rows = syntheticRace();
     const merged = [{ Driver: 'AAA', StintNumber: 1, Compound: 'MEDIUM', StartLap: 1, EndLap: 14, TotalLaps: 14 }];
     const final = extractRaceParams(rows, merged, [], 14, { sessionNow: Infinity });
-    // 3 x MEDIUM 1-6 and 3 x HARD 7-14 from the Stint column; the merged row is ignored
-    expect(final.stintLength.MEDIUM.mean).toBe(6);
-    expect(final.stintLength.HARD.mean).toBe(8);
-    // mid-race: the running HARD stints are ongoing and excluded
+    // 3 x MEDIUM 1-6 (changed at TyreLife 6: events) and 3 x HARD 7-14 (ran to the
+    // flag: censored at TyreLife 8) from the Stint column; the merged row is ignored
+    expect(final.stintLength.MEDIUM).toMatchObject({ events: 3, censored: 0, dropped: 0, median: 6, mean: 6 });
+    expect(final.stintLength.MEDIUM.survival.slice(0, 8)).toEqual([1, 1, 1, 1, 1, 1, 0, 0]);
+    expect(final.stintLength.HARD).toMatchObject({ events: 0, censored: 3, source: 'race' });
+    // censored at 8: S = 1 up to 8, then the prior's conditional tail (never a stop at 8)
+    expect(final.stintLength.HARD.survival.slice(0, 9).every((v) => v === 1)).toBe(true);
+    expect(final.stintLength.HARD.survival[9]).toBeLessThan(1);
+    expect(final.stintLength.HARD.median).toBeGreaterThan(8);
+    // mid-race (leader at the end of lap 9): the running HARD stints are censored at
+    // TyreLife 3, not dropped and not counted as stint ends
     const mid = extractRaceParams(rows, merged, [], 10);
-    expect(mid.stintLength.MEDIUM.mean).toBe(6);
-    expect(mid.stintLength.HARD).toBeUndefined();
+    expect(mid.stintLength.MEDIUM).toMatchObject({ events: 3, censored: 0, median: 6 });
+    expect(mid.stintLength.HARD).toMatchObject({ events: 0, censored: 3 });
+    expect(mid.stintLength.HARD.survival.slice(0, 4)).toEqual([1, 1, 1, 1]);
   });
 });
 
@@ -155,14 +163,21 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached)', () => {
     expect(lapMode.pitLoss.source).toBe('fallback');
   });
 
-  it('stint lengths use the 50 Stint-column stints (tyre_strategy has 40)', () => {
+  it('stint lengths use the 50 Stint-column stints (tyre_strategy has 40): 30 ends, 19 censored, 1 dropped', () => {
     const p = extractRaceParams(lapTimes, s.tyre_strategy, s.track_status, maxLap, { sessionNow: Infinity });
     const stints = deriveStints(lapTimes);
     expect(stints.length).toBe(50);
     expect(s.tyre_strategy.length).toBe(40);
-    const hard = stints.filter((st) => st.Compound === 'HARD').map((st) => st.TotalLaps);
-    const mean = hard.reduce((a, b) => a + b, 0) / hard.length;
-    expect(p.stintLength.HARD.mean).toBeCloseTo(mean, 9);
+    const total = { events: 0, censored: 0, dropped: 0 };
+    for (const c of Object.keys(p.stintLength)) {
+      for (const k of Object.keys(total)) total[k] += p.stintLength[c][k];
+    }
+    // every tyre change ends a stint (pitStops); every driver's last stint is either
+    // censored (ran to the flag) or dropped (TSU retired on lap 7)
+    expect(total.events).toBe(pitStops(lapTimes).length);
+    expect(total).toEqual({ events: 30, censored: 19, dropped: 1 });
+    const hard = stints.filter((st) => st.Compound === 'HARD');
+    expect(p.stintLength.HARD.events + p.stintLength.HARD.censored + p.stintLength.HARD.dropped).toBe(hard.length);
   });
 
   it('lap 30 is causal: changing anything not known yet leaves the parameters unchanged', () => {

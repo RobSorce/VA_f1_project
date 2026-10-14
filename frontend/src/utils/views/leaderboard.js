@@ -30,10 +30,11 @@ import { pitCountsByDriver } from '../strategyViews';
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
  * @param {number} sessionNow - session seconds, Infinity = whole race
- * @param {Object} [opts] - { dnfMap, gridPositions: { driver: grid slot } }
+ * @param {Object} [opts] - { dnfMap, gridPositions: { driver: grid slot }, isLiveMode
+ *   (live feed rows: retirements from the feed's dnfMap only, driverState.js nonFinisherMap) }
  * @returns {Array<Object>} rows, active drivers first
  */
-export function raceStandings(lapTimes, sessionNow, { dnfMap = {}, gridPositions = {} } = {}) {
+export function raceStandings(lapTimes, sessionNow, { dnfMap = {}, gridPositions = {}, isLiveMode = false } = {}) {
   const now = sessionNow == null || Number.isNaN(sessionNow) ? Infinity : sessionNow;
   const rows = Array.isArray(lapTimes) ? lapTimes : [];
   const byDriver = new Map();
@@ -44,7 +45,7 @@ export function raceStandings(lapTimes, sessionNow, { dnfMap = {}, gridPositions
   }
   const stops = pitCountsByDriver(pitStops(rows, { sessionNow: now }));
   // Results DNFs plus classified drivers who stopped before the flag
-  const nonFinishers = nonFinisherMap(rows, dnfMap);
+  const nonFinishers = nonFinisherMap(rows, dnfMap, { live: isLiveMode });
 
   const out = [];
   for (const [drv, driverRows] of byDriver) {
@@ -102,10 +103,14 @@ const QUALI_COMPOUND_NAMES = { 1: 'SOFT', 2: 'MEDIUM', 3: 'HARD', 4: 'INTERMEDIA
  * @param {string[]} [opts.drivers] - the active segment's drivers (all when empty)
  * @param {Object} [opts.frameDrivers] - the replay frame's drivers ({tyre, tyre_life, speed})
  * @param {Object} [opts.stops] - pitCountsByDriver at sessionNow
+ * @param {number} [opts.segmentStart] - the active segment's laps start after it (store
+ *   qualiSegmentWindows[segment].start): only they are ranked
  * @returns {Array<Object>} leaderboard rows
  */
-export function qualifyingStandings(lapTimes, sessionNow, { drivers = [], frameDrivers = {}, stops = {} } = {}) {
-  const order = qualifyingOrder(lapTimes, sessionNow, { drivers });
+export function qualifyingStandings(lapTimes, sessionNow, {
+  drivers = [], frameDrivers = {}, stops = {}, segmentStart = -Infinity,
+} = {}) {
+  const order = qualifyingOrder(lapTimes, sessionNow, { drivers, after: segmentStart });
   const leaderTime = order[0]?.best ? order[0].best.LapTimeSeconds : null;
   return order.map(({ driver: abbr, best }, i) => {
     const fd = frameDrivers[abbr];
