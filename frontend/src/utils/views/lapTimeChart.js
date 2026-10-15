@@ -11,7 +11,11 @@
  */
 import { hasPitOut, isLapCompleted, isPitVisible, lapStartTime, pitOutSeconds } from '../raceTime';
 import { driverStateAt, nonFinisherMap } from '../driverState';
-import { STATUS_COLORS, STATUS_GLYPHS, DIVERGING, TEXT_COLORS } from '../colors';
+import {
+  STATUS_COLORS, STATUS_GLYPHS, DIVERGING, TEXT_COLORS, SURFACES, compositeOver, withAlpha, markColor, tyreColor,
+  contrastText, contextColor,
+} from '../colors';
+import { columnFloors, fitColumns } from './timingSheetFit';
 
 /* ── Color codes for sector/lap timing: the STATUS_COLORS map of utils/colors.js ── */
 // (F1 TV convention; each drawn with its glyph, see timingSheetLegend)
@@ -22,6 +26,64 @@ export const TIME_COLORS = {
   slow: STATUS_COLORS.slower, // yellow — significantly slower
   pit: STATUS_COLORS.pit, // pit colour + the text PIT — pit lap
 };
+
+/**
+ * Columns of the timing sheet (LapTimeChart.jsx), widths in CSS px: the
+ * defaults (the user can drag them), fitted to the pane down to the floors
+ * of ./timingSheetFit.js (minW: the floor of a column without one). The
+ * header is uppercase Formula1 Bold at the data size, 0.06 em
+ * letter-spacing: every label fits its default width up to
+ * the 12.5 px top of --font-size-data (real font widths,
+ * __tests__/laptimes.header.test.js). Phase 9c (D3): "GAP TO FASTEST" was
+ * 121-137 px in a 96 px column, "TEAM" 42-48 px in 38, "LAPS" 41 px in 38 at
+ * 12.41 px, all cut without an ellipsis; the gap column is now "Gap" (its full
+ * name in the header's title) and the 16 px it no longer needs went to Team and
+ * Laps. A label still cut (a column fitted or dragged narrower) ends in an
+ * ellipsis, its full name in the title.
+ */
+export const TIMING_COLUMNS = Object.freeze([
+  { key: 'pos',     label: 'P',        title: 'Position',       defaultW: 30,  minW: 24,  resizable: false, align: 'center' },
+  { key: 'bar',     label: '',         defaultW: 3,   minW: 3,   resizable: false, align: 'center' },
+  { key: 'team',    label: 'Team',     defaultW: 50,  minW: 22,  resizable: true,  align: 'center' },
+  { key: 'driver',  label: 'Driver',   defaultW: 170, minW: 70,  resizable: true,  align: 'flex-start' },
+  { key: 's1',      label: 'S1',       title: 'Sector 1',       defaultW: 72,  minW: 48,  resizable: true,  align: 'flex-end' },
+  { key: 's2',      label: 'S2',       title: 'Sector 2',       defaultW: 72,  minW: 48,  resizable: true,  align: 'flex-end' },
+  { key: 's3',      label: 'S3',       title: 'Sector 3',       defaultW: 72,  minW: 48,  resizable: true,  align: 'flex-end' },
+  { key: 'lapTime', label: 'Lap Time', defaultW: 96,  minW: 56,  resizable: true,  align: 'flex-end' },
+  { key: 'gap',     label: 'Gap',      title: 'Gap to fastest', defaultW: 80,  minW: 56,  resizable: true,  align: 'flex-end' },
+  { key: 'tyre',    label: 'Tyre',     defaultW: 54,  minW: 36,  resizable: true,  align: 'center' },
+  { key: 'laps',    label: 'Laps',     title: 'Laps on the tyre', defaultW: 44, minW: 28, resizable: true, align: 'center' },
+]);
+
+/* ── The sheet fitted to its pane (Phase 9c r2, D3): the floors and the
+   fit live in ./timingSheetFit.js (no imports, so the static layout checks
+   of notes/experiments/v13_audit load it in plain node); bound here to the
+   columns above ── */
+export {
+  TIMING_GAP, TIMING_PAD_X, TIMING_FLOORS, TIMING_DROP_ORDER, TIMING_HIDDEN_EM,
+} from './timingSheetFit';
+
+/**
+ * Floors of TIMING_COLUMNS (px) at a data type size (timingSheetFit.js).
+ *
+ * @param {number} dataPx
+ * @returns {number[]}
+ */
+export function timingColumnFloors(dataPx) {
+  return columnFloors(TIMING_COLUMNS, dataPx);
+}
+
+/**
+ * TIMING_COLUMNS fitted to the rows' box (timingSheetFit.js fitColumns).
+ *
+ * @param {number[]} widths
+ * @param {number} available
+ * @param {number[]} floors
+ * @param {{hiddenW?: number}} [opts]
+ */
+export function fitTimingColumns(widths, available, floors, opts) {
+  return fitColumns(TIMING_COLUMNS, widths, available, floors, opts);
+}
 
 /**
  * Legend rows of the timing sheet (V4): every colour the sheet draws, with the
@@ -267,4 +329,23 @@ export function lapTimingSheet(lapTimes, sessionNow, {
   const retired = out.filter((r) => r.isRetired).sort(order);
   const sorted = [...active, ...retired].map(({ _laps, _crossed, _position, _best, ...r }, i) => ({ ...r, pos: i + 1 }));
   return { bests, rows: sorted };
+}
+
+/**
+ * Marks of a forecast row of the sheet (the focus driver's predicted laps):
+ * the team bar and the tyre badge of the current set are context, mixed
+ * toward the row (contextColor: bar and badge >= 2:1 on it) instead of drawn
+ * at opacity 0.5, which put the badge letter at 1.8-2.7:1 (D7); the letter is
+ * contrastText on its badge (>= 4.5:1).
+ *
+ * @param {string} teamColor - the driver's colour (getDriverColor)
+ * @param {string} compound
+ * @param {string} [surface] - the row: the forecast tint over the panel
+ * @returns {{bar: string, badge: string, badgeText: string}}
+ */
+export function forecastRowMarks(teamColor, compound,
+  surface = compositeOver(withAlpha(STATUS_COLORS.predicted, 0.03), SURFACES.panel)) {
+  const bar = contextColor(markColor(teamColor, surface), surface);
+  const badge = contextColor(tyreColor(compound), surface);
+  return { bar, badge, badgeText: contrastText(badge) };
 }

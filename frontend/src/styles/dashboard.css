@@ -301,6 +301,62 @@
   min-height: 0;
 }
 
+/* Legend of the tower marks (Leaderboard.jsx): in the panel from 900 px of
+   window height; below, a card laid over the top of the rows, opened by the
+   "?" key of the header (Phase 9c D1: the three legend lines left the rows
+   too little room in the 240-300 px sidebar) */
+.tower-legend {
+  flex: 0 0 auto;
+  padding: 0 6px;
+}
+
+.tower-legend--popover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  padding: 4px 8px 6px;
+  background: var(--color-bg-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.tower-legend__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.tower-legend__close {
+  min-width: 22px;
+  height: 18px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tower-legend-toggle {
+  font-weight: 800;
+}
+
+.tower-legend-toggle--open {
+  color: var(--color-text-primary);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+[data-theme="light"] .tower-legend--popover { border-bottom-color: rgba(0, 0, 0, 0.45); }
+[data-theme="light"] .tower-legend__close { border-color: rgba(0, 0, 0, 0.45); }
+
 /* Pager of the Leaderboard rows that do not fit (Leaderboard.jsx) */
 .tower-pager {
   flex: 0 0 auto;
@@ -1842,12 +1898,20 @@
   .weather-bar .search-bar { max-width: 180px; }
 }
 
+/* Event name: the full one, "GP" for "Grand Prix" up to 1440 px wide
+   (WeatherBar.jsx); the box still ends a longer name in an ellipsis, the
+   full name in its title (Phase 9c D3: "Italian Grand Prix", 118 px in the
+   Formula1 Bold face, was cut in the 109 px box at 1366 x 768) */
+.weather-bar__event-short { display: none; }
+
 /* 1366-1440 px wide: the decorative icons of the bar give their room to
    the values (the condition icon repeats the Rain / humidity values) */
 @media (max-width: 1440px) {
   .weather-bar__condition-icon,
   .weather-bar__elapsed-icon { display: none; }
   .weather-bar__event { max-width: 8vw; }
+  .weather-bar__event-long { display: none; }
+  .weather-bar__event-short { display: inline; }
   .weather-bar .search-bar { max-width: 150px; }
 }
 
@@ -3425,9 +3489,10 @@
 }
 
 .situation-label {
+  /* no fill here: the map draws it (white, a context driver's code mixed
+     toward the panel, D7); a fill in this rule would win over the drawn one */
   font-size: var(--font-size-data);
   font-weight: 700;
-  fill: #fff;
   text-anchor: middle;
   dominant-baseline: central;
   pointer-events: none;
@@ -3485,27 +3550,35 @@
 /* ==========================================================================
    Sectors Panel
    ========================================================================== */
+/* No scroll and no cut row (Phase 9c D1): the rows fit the body or are
+   paged, the ranked columns fit the width or are paged (SectorsPanel.jsx,
+   utils/views/sectorsPanel.js sectorsRowFit / sectorsColumnsFit) */
 .sectors-panel-wrapper {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  padding: 0 12px 12px;
+  padding: 0 8px 8px;
 }
 
-/* ── Toggle pills ── */
+/* ── Toggle pills and the legend of the tab, one line that wraps on a
+   narrow pane ── */
 .sectors-panel__toggle {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
-  padding: 8px 0 6px;
+  padding: 4px 0;
   flex-shrink: 0;
 }
 
+/* Bold, not the Wide black face, and 6 px sides: the toggle and the live
+   legend share one line in the 794 px pane of the Pace preset at 1920 x 1080,
+   so its 20 rows fit (v13_audit/panel_fit.mjs) */
 .sectors-panel__toggle-btn {
-  padding: 4px 14px;
+  padding: 3px 6px;
   font-size: var(--font-size-label);
-  font-weight: var(--font-weight-black);
+  font-weight: var(--font-weight-bold);
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -3532,9 +3605,54 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 2px 0 4px;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 8px;
 }
+
+/* Pager of the ranks / columns that do not fit (height SECTORS_PAGER_H) */
+.sectors-panel__pager {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.sectors-panel__pager-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.sectors-panel__pager-btn {
+  min-width: 22px;
+  height: 18px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sectors-panel__pager-btn:disabled {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+[data-theme="light"] .sectors-panel__pager { border-top-color: rgba(0, 0, 0, 0.10); }
+[data-theme="light"] .sectors-panel__pager-btn { border-color: rgba(0, 0, 0, 0.45); }
+[data-theme="light"] .sectors-panel__pager-btn:disabled { border-color: rgba(0, 0, 0, 0.18); }
 
 .sectors-panel__legend-item {
   display: flex;
@@ -3561,10 +3679,61 @@
   min-height: 0;
 }
 
+/* One header row for every ranked column (Phase 9c, F4): the columns share
+   a grid whose first row is as tall as the tallest header (subgrid), so
+   every rows' body is as tall as the one SectorsPanel.jsx measures (the
+   first column's). A header that wrapped onto one more line than the
+   first column's left its body 15-17.5 px shorter than the fit, P20 cut
+   by about 7 px (Top Speeds at 2048 x 1100, "FINISH LINE" / "SPEED TRAP"
+   on three lines, "SECTOR 1" on two: verifier r1, ranked_header_mismatch.txt) */
+@supports (grid-template-rows: subgrid) {
+  .sectors-panel__columns {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 8px;
+    row-gap: 0;
+  }
+
+  .sectors-panel__columns > .sectors-panel__column {
+    grid-row: span 2;
+    display: grid;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+    min-height: 0;
+  }
+}
+
+/* Without subgrid (a browser before Chrome 117 / Safari 16 / Firefox 71):
+   every header keeps one line, so every column's header is as tall as the
+   first one's and every body as tall as the one measured. The title ends in
+   an ellipsis (its full text in its title attribute), the best time stays
+   whole (D3) */
+@supports not (grid-template-rows: subgrid) {
+  .sectors-panel__col-header {
+    flex-wrap: nowrap;
+  }
+
+  .sectors-panel__col-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sectors-panel__col-best {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
 /* ── Sector time visual bar ── */
 .sectors-panel__bar-cell {
   flex: 1;
-  min-width: 30px;
+  /* the bar gives way first in a narrow column (the time and the gap are
+     the data; the bar repeats them) */
+  min-width: 0;
   height: 6px;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 3px;
@@ -3609,18 +3778,26 @@
     inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
 }
 
+/* Title and best value wrap onto two lines in a narrow column, never cut
+   (the rows' body under it is measured) */
 .sectors-panel__col-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 10px;
+  gap: 0 6px;
+  flex-shrink: 0;
+  padding: 4px 8px;
   background: rgba(20, 22, 40, 0.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* Bold, not the Wide black face: a title and its "Lap N" stay on one line
+   in a column of SECTORS_COL_EM (16 ems: "SPEED TRAP Lap 53" 148 px in the
+   184 px of a 200 px column at 12.5 px; the Wide face took 228 px) */
 .sectors-panel__col-title {
   font-size: var(--font-size-data);
-  font-weight: var(--font-weight-black);
+  font-weight: var(--font-weight-bold);
   font-family: var(--font-display);
   color: rgba(255, 255, 255, 0.7);
   text-transform: uppercase;
@@ -3638,17 +3815,21 @@
   color: var(--sector-purple);
 }
 
+/* No padding: the rows' height is fitted to this box (measured) */
 .sectors-panel__col-body {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
-  padding: 2px 0;
+  padding: 0;
 }
 
+/* Height set by SectorsPanel.jsx (sectorsRowFit, 18-26 px); centred, no
+   vertical padding */
 .sectors-panel__row {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 6px;
+  padding: 0 6px;
   transition: background var(--transition-fast);
 }
 
@@ -3658,16 +3839,13 @@
 
 /* Focus + context (SectorsPanel.jsx, every view): a context row (not
    selected, or another row hovered) keeps its text at full opacity in the
-   muted colour (>= 4.5:1) and fades its marks only; row opacity 0.3 put the
-   text at 1.77-2.69:1 (verifier r2, drawn_colours.txt) */
+   muted colour (>= 4.5:1); its team bar is mixed toward the panel in
+   SectorsPanel.jsx (contextColor, >= 2:1, D7), never an opacity (0.35 read
+   1.36:1). Row opacity 0.3 put the text at 1.77-2.69:1 (verifier r2,
+   drawn_colours.txt) */
 .sectors-panel__row--context,
 .sectors-panel__row--context > span {
   color: var(--color-text-muted) !important;
-}
-
-.sectors-panel__row--context .sectors-panel__team-bar,
-.sectors-panel__row--context .sectors-panel__bar-fill {
-  opacity: 0.35;
 }
 
 .sectors-panel__row--best {
@@ -3715,13 +3893,6 @@
   margin-left: auto;
 }
 
-.sectors-panel__speed-unit {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-data);
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
 .sectors-panel__gap {
   font-family: var(--font-mono);
   font-size: var(--font-size-data);
@@ -3751,9 +3922,10 @@
 
 .sectors-panel__live-header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 5px;
-  padding: 6px 8px;
+  padding: 3px 8px;
   background: rgba(20, 22, 40, 0.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   font-size: var(--font-size-data);
@@ -3786,18 +3958,20 @@
   min-width: 56px;
 }
 
+/* No padding: the rows' height is fitted to this box (measured) */
 .sectors-panel__live-body {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 2px 0;
+  padding: 0;
 }
 
+/* Height set by SectorsPanel.jsx (sectorsRowFit, 18-26 px) */
 .sectors-panel__live-row {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 8px;
+  padding: 0 8px;
   transition: background var(--transition-fast);
 }
 
@@ -3849,19 +4023,89 @@
 /* ==========================================================================
    Consistency Panel
    ========================================================================== */
+/* No scroll (Phase 9c D1): one header line, then the cards' area, fitted and
+   paged by ConsistencyPanel.jsx (utils/views/consistencyLayout.js) */
 .consistency-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 12px;
-  gap: 12px;
+  overflow: hidden;
+  padding: 8px;
+  gap: 6px;
 }
+
+/* Summary, pager, buttons, then the legend, on one line that wraps on a
+   narrow pane (the legend first) */
+.consistency-panel__bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.consistency-panel__legend {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.consistency-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* The cards of the page (ConsistencyPanel.jsx) */
+.consistency-panel__area {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Pager of the cards that do not fit, in the header line */
+.consistency-panel__pager {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.consistency-panel__pager-btn {
+  min-width: 24px;
+  height: 18px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.consistency-panel__pager-btn:disabled {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+[data-theme="light"] .consistency-panel__pager-btn { border-color: rgba(0, 0, 0, 0.45); }
+[data-theme="light"] .consistency-panel__pager-btn:disabled { border-color: rgba(0, 0, 0, 0.18); }
 
 .consistency-panel__session-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px;
+  gap: 10px;
+  padding: 4px 10px;
   background: var(--glass-bg-light);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -3877,25 +4121,27 @@
   font-family: var(--font-mono);
 }
 
+/* Columns and the collapsed cards' height come from ConsistencyPanel.jsx
+   (consistencyColumns / consistencyPages): every card of the page fits, the
+   others are on the pager's pages; it never scrolls (it scrolled before
+   Phase 9c, 2-6 of 20 cards visible at 1536 x 750) */
 .consistency-panel__grid {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 6px;
-  /* Was: overflow: hidden — clipped the bottom cards when user pressed
-     "Expand all". Now scrolls inside the panel so every card is reachable. */
-  overflow-y: auto;
-  overflow-x: hidden;
+  grid-template-columns: repeat(auto-fill, minmax(352px, 1fr));
+  grid-auto-rows: auto;
+  gap: 4px;
+  overflow: hidden;
   align-content: start;
-  padding-right: 2px; /* breathing room for the scrollbar */
 }
 
 .consistency-card {
-  padding: 8px 10px;
+  padding: 6px 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
   /* Chevron is absolutely positioned; reserve space so long badge text
      can't collide with it or push it outside the card. */
   position: relative;
@@ -3908,6 +4154,7 @@
   flex-wrap: wrap;
   padding-right: 26px; /* reserve room for the absolute chevron */
   min-height: 24px;
+  flex-shrink: 0;
 }
 
 .consistency-card__team-bar {
@@ -3955,16 +4202,83 @@
   padding: 1px 6px;
   cursor: help;
 }
-.consistency-card--low-data { filter: saturate(0.6); }
+/* A low-data card is told by its LOW DATA chip (and its title), not by a
+   filter: saturate(0.6) on the card took a context card's team bar, mixed to
+   2.01:1 (contextColor), down to about 1.5:1, and greyed the tyre and badge
+   colours of every low-data card (verifier r2, D7) */
 
-/* Collapsed state — single-row card, uniform height so the grid looks
-   clean regardless of which driver has the longest team name. */
+/* Collapsed state — one line, its height fitted by ConsistencyPanel.jsx
+   (20-30 px: 18 px of content under the card's border); its parts keep one
+   line in the CONSISTENCY_CARD_EM width (Bold, not the Wide black face, for
+   the code and the badge; no driver number) */
 .consistency-card--collapsed {
-  padding: 8px 10px;
+  padding: 0 8px;
   gap: 0;
-  min-height: 40px;
+  min-height: 0;
   justify-content: center;
+  overflow: hidden;
 }
+
+.consistency-card--collapsed .consistency-card__header {
+  flex-wrap: nowrap;
+  min-height: 0;
+  gap: 6px;
+  padding-right: 24px;
+  white-space: nowrap;
+}
+
+.consistency-card--collapsed .consistency-card__team-bar { height: 14px; }
+
+.consistency-card--collapsed .consistency-card__name { font-weight: var(--font-weight-bold); }
+
+.consistency-card--collapsed .consistency-card__badge,
+.consistency-card--collapsed .consistency-card__low-data-chip {
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+}
+
+.consistency-card--collapsed .consistency-card__chevron {
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+}
+
+/* Focus + context (D7): a context card (not selected, or another card
+   hovered) keeps full opacity; its text turns to the muted colour (>= 4.5:1)
+   and its team bar is mixed toward the panel in ConsistencyPanel.jsx
+   (contextColor, >= 2:1; opacity 0.6 read 1.94:1 for Alfa Romeo). The card
+   faded to 0.35 before, its text at 2.37-3.13:1 */
+.consistency-card--context .consistency-card__header > span:not(.consistency-card__team-bar),
+.consistency-card--context .consistency-card__details,
+.consistency-card--context .consistency-card__stat-value,
+.consistency-card--context .consistency-card__tyre-name {
+  color: var(--color-text-muted);
+}
+
+/* Expanded card: Performance | Consistency, the tyres under them; on a wide
+   card (.consistency-card--wide, >= CONSISTENCY_WIDE_CARD px) the three
+   side by side, so a card stays low enough for the smallest preset pane */
+.consistency-card__details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 16px;
+  /* An expanded card is at most as tall as the cards' area
+     (ConsistencyPanel.jsx maxHeight): one taller than that, only in a
+     floating overlay near its 420 x 320 minimum (a 202-289 px card in
+     166-174 px), scrolls its details under its header instead of being cut
+     (docs/SCROLL_JUSTIFICATIONS.md) */
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.consistency-card__details .consistency-card__tyres { grid-column: 1 / -1; }
+
+.consistency-card--wide .consistency-card__details {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr);
+}
+
+.consistency-card--wide .consistency-card__details .consistency-card__tyres { grid-column: auto; }
 
 /* Collapsed-state hero metric (σ) — visible without expanding so users
    can scan consistency order at a glance. Hidden when expanded to avoid
@@ -4076,15 +4390,12 @@
   color: var(--color-text-secondary);
 }
 
-.consistency-card__body {
-  display: flex;
-  gap: 16px;
-}
-
 .consistency-card__col {
-  flex: 1;
+  min-width: 0;
 }
 
+/* Tighter titles and stats (2 px, 4 before Phase 9c): an expanded card fits
+   one page of the smallest preset pane (v13_audit/panel_fit.mjs) */
 .consistency-card__col-title {
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
@@ -4092,15 +4403,16 @@
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding-bottom: 4px;
+  padding-bottom: 2px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .consistency-card__stat {
   display: flex;
   justify-content: space-between;
-  padding: 2px 0;
+  gap: 6px;
+  padding: 1px 0;
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
 }
@@ -4115,13 +4427,17 @@
 .consistency-card__tyres {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
+/* A compound's values wrap onto a second line in a narrow tyre column (the
+   card's height is measured, so a wrap is never cut) */
 .consistency-card__tyre-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 0 6px;
   font-size: var(--font-size-data);
   color: var(--color-text-secondary);
 }
@@ -5532,7 +5848,7 @@
 [data-theme="light"] .overlay-panel__btn {
   background: #F3F4F6;
   border-color: #D1D5DB;
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .overlay-panel__btn:hover {
@@ -5590,7 +5906,9 @@
    ========================================================================== */
 .welcome-toast {
   position: fixed;
-  bottom: 72px;
+  /* above the bottom chrome (timeline row + dock), never over the timeline
+     row (it overlapped it at bottom: 72px, D10) */
+  bottom: calc(var(--chrome-bottom) + 8px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 9000;
@@ -5927,7 +6245,7 @@
 
 [data-theme="light"] .telem-mfd-card__close {
   background: rgba(0, 0, 0, 0.05);
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .telem-mfd-card__close:hover {
@@ -5949,11 +6267,11 @@
 }
 
 [data-theme="light"] .telem-mfd-card__tyre-life {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .telem-mfd-card__sector-label {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .telem-mode-toggle {
@@ -6048,7 +6366,7 @@
 }
 
 [data-theme="light"] .bottom-tab-bar__tab {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .bottom-tab-bar__tab:hover {
@@ -6113,7 +6431,7 @@
 }
 
 [data-theme="light"] .tower-mode-bar__arrow {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .tower-mode-bar__arrow:hover {
@@ -6128,7 +6446,7 @@
 [data-theme="light"] .tower-col-header {
   background: rgba(0, 0, 0, 0.025);
   border-bottom-color: rgba(0, 0, 0, 0.08);
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .tower-row {
@@ -6210,7 +6528,7 @@
 [data-theme="light"] .overlay-panel__btn {
   background: rgba(0, 0, 0, 0.05);
   border-color: rgba(0, 0, 0, 0.10);
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .overlay-panel__btn:hover {
@@ -6254,7 +6572,7 @@
 }
 
 [data-theme="light"] .sectors-panel__live-header {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .sectors-panel__row:hover,
@@ -6272,7 +6590,7 @@
 }
 
 [data-theme="light"] .sectors-panel__legend-item {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .sectors-panel__bar-cell {
@@ -6361,7 +6679,7 @@
 [data-theme="light"] .compare-panel__empty kbd {
   background: #F3F4F6;
   border-color: #D1D5DB;
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .compare-panel__driver-select {
@@ -6455,7 +6773,7 @@
 [data-theme="light"] .settings-tab__pill {
   background: #F3F4F6;
   border-color: #D1D5DB;
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .settings-tab__pill:hover {
@@ -6522,7 +6840,7 @@
 }
 
 [data-theme="light"] .deg-pit-window__label {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 /* ── Telem Zoom Indicator ──────────────────────────────────────────── */
@@ -6808,7 +7126,7 @@
 }
 
 [data-theme="light"] .layout-preset-bar__btn {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .layout-preset-bar__btn:hover {

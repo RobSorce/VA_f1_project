@@ -70,7 +70,8 @@ describe('help texts that match the code', () => {
   it('Shift+P is the forecast of the focus driver, not "Run LSTM Prediction"', () => {
     const sheet = read('components/ShortcutCheatsheet/ShortcutCheatsheet.jsx');
     expect(sheet).not.toMatch(/Run LSTM Prediction/);
-    expect(sheet).toMatch(/keys: \['\\u21E7', 'P'\], desc: 'Lap-Time Forecast of the Focus Driver'/);
+    // the label of lead decision D9 (phase 9c)
+    expect(sheet).toMatch(/keys: \['\\u21E7', 'P'\], desc: 'Run lap-time forecast'/);
   });
 
   it('the MOCK chip is the labelled heuristic fallback, not hand-written examples', () => {
@@ -102,7 +103,12 @@ describe('help texts that match the code', () => {
     const lt = all(CHART_HELP.laptimes);
     expect(lt).not.toMatch(/Each line is a driver|dots are individual laps/);
     const panel = read('components/visualizations/LapTimeChart.jsx');
-    for (const col of ['S1', 'S2', 'S3', 'Lap Time', 'Gap to fastest', 'Tyre']) expect(panel).toContain(`label: '${col}'`);
+    // the columns: TIMING_COLUMNS of utils/views/lapTimeChart.js (the gap
+    // column is labelled "Gap", its full name in the header's title)
+    const columns = read('utils/views/lapTimeChart.js');
+    expect(panel).toMatch(/TIMING_COLUMNS as COLUMN_DEFS/);
+    for (const col of ['S1', 'S2', 'S3', 'Lap Time', 'Gap', 'Tyre']) expect(columns).toContain(`label: '${col}'`);
+    expect(columns).toMatch(/title: 'Gap to fastest'/);
     expect(lt).toMatch(/sector times/);
     expect(panel).toMatch(/function LapRangeBrush/);
   });
@@ -124,7 +130,7 @@ describe('help texts that match the code', () => {
   });
 
   it('P3: "above random" for on-screen rows only is a baseline within the race on screen', () => {
-    expect(all(CHART_HELP.analysis)).toMatch(/a baseline within the race on screen/);
+    expect(all(CHART_HELP.crossrace)).toMatch(/a baseline within the race on screen/);
   });
 
   it('Race Situation: a lasso selects drivers, it does not filter the other panels', () => {

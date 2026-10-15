@@ -292,7 +292,7 @@ export function createCommandRegistry() {
     // === ANALYTICS ===
     {
       id: 'predict-pit',
-      label: 'Lap-Time Forecast of the Focus Driver + Prediction View',
+      label: 'Run lap-time forecast',
       category: 'Analytics',
       shortcut: '⇧P',
       icon: 'activity',

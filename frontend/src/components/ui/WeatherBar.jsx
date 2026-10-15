@@ -134,7 +134,13 @@ export default function WeatherBar() {
             </svg>
           </button>
           <img src={publicAsset('f1-logo.png')} alt="F1" className="weather-bar__logo" />
-          <span className="weather-bar__event" title={eventName}>{eventName}</span>
+          {/* The full name, or "GP" for "Grand Prix" up to 1440 px wide (CSS),
+              where the 8vw box cut "Italian Grand Prix" by 15-22 px; a name
+              still too long ends in an ellipsis, the full name in the title */}
+          <span className="weather-bar__event" title={eventName}>
+            <span className="weather-bar__event-long">{eventName}</span>
+            <span className="weather-bar__event-short">{eventName.replace(/\bGrand Prix\b/, 'GP')}</span>
+          </span>
           {demo.active && (
             <span
               className="weather-bar__demo"

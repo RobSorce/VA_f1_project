@@ -8,8 +8,9 @@ import {
 } from '../../utils/views/pcaBiplot';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+import { useChartBox, chartSize } from '../../utils/views/chartBox';
 import {
-  CHART_FONT, TEXT_COLORS, GRID_COLORS, UI_COLORS, withAlpha,
+  CHART_FONT, TEXT_COLORS, GRID_COLORS, UI_COLORS, withAlpha, contextColor, SURFACES,
 } from '../../utils/colors';
 
 // Toggle button: active = the brush / selection blue with its border; a
@@ -25,6 +26,8 @@ const toggleStyle = (active, disabled = false) => ({
 
 export default function PCABiplot() {
   const svgRef = useRef(null);
+  // The box the chart fills: it lays out again at each new size (D4)
+  const box = useChartBox(svgRef);
   const cleanupRef = useRef(null);
 
   const pcaEmbeddings = useF1Store((s) => s.pcaEmbeddings);
@@ -86,10 +89,8 @@ export default function PCABiplot() {
   useEffect(() => {
     if (!svgRef.current || !points.length) return;
 
-    const container = svgRef.current.parentElement;
-    const rect = container.getBoundingClientRect();
-    const width = rect.width || 500;
-    const height = rect.height || 400;
+    // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width, height } = chartSize(svgRef.current, box, { width: 500, height: 400 });
     const margin = { top: 15, right: 15, bottom: 36, left: 46 };
     const innerW = width - margin.left - margin.right;
     const innerH = height - margin.top - margin.bottom;
@@ -248,6 +249,7 @@ export default function PCABiplot() {
     // Draw the points the filter keeps: star = a row of the race on screen,
     // fill = team or outcome class ('none' = result not shown: outline only)
     const isLoaded = (d) => isLoadedRace(d, loaded);
+    const isContextPoint = (d) => selectedPCAPoints.length > 0 && !selectedPCAPoints.includes(d.id);
 
     g.selectAll('.pca-point')
       .data(visible, (d) => d.id)
@@ -261,13 +263,21 @@ export default function PCABiplot() {
       })
       .attr('transform', (d) => `translate(${x(d.x)},${y(d.y)})`)
       .attr('d', (d) => markPath(isLoaded(d)))
-      .attr('fill', (d) => pointFill(d, colorBy, ctx))
+      // a point outside the selection is context (D7): its colour mixed
+      // toward the panel (contextColor, >= 2:1), never an opacity (the CSS
+      // opacity 0.15 of .pca-point.dimmed read under 2:1)
+      .attr('fill', (d) => {
+        const f = pointFill(d, colorBy, ctx);
+        return f !== 'none' && isContextPoint(d) ? contextColor(f, SURFACES.panel) : f;
+      })
       // hit on the whole mark, outline-only marks included
       .attr('pointer-events', 'visible')
       .each(function outline(d) {
         // an outline-only circle gets a visible stroke (stars have the CSS one)
         if (pointFill(d, colorBy, ctx) === 'none' && !isLoaded(d)) {
-          d3.select(this).style('stroke', 'var(--color-text-secondary)').style('stroke-width', 1.5);
+          d3.select(this)
+            .style('stroke', isContextPoint(d) ? contextColor(TEXT_COLORS.secondary, SURFACES.panel) : 'var(--color-text-secondary)')
+            .style('stroke-width', 1.5);
         }
       })
       .on('mouseenter', function (event, d) {
@@ -333,7 +343,7 @@ export default function PCABiplot() {
     }
 
   }, [pcaEmbeddings, points, visible, loaded, resultHidden, colorBy, selectedPCAPoints, selectedDrivers,
-    setSelectedPCAPoints, setSelectedDrivers, fetchPCAAnalysis, showAxes]);
+    setSelectedPCAPoints, setSelectedDrivers, fetchPCAAnalysis, showAxes, box.width, box.height]);
 
   // Cleanup lasso on unmount
   useEffect(() => () => { if (cleanupRef.current) cleanupRef.current(); }, []);

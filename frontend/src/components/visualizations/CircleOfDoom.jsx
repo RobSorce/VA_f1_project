@@ -80,7 +80,7 @@ import React, {
 import * as d3 from 'd3';
 import { useF1Store, flagAtClock } from '../../store/useF1Store';
 import {
-  getDriverColor, markColor, textColor, withAlpha, UI_COLORS, TEXT_COLORS, SURFACES, CHART_FONT, chartFontPx,
+  getDriverColor, markColor, textColor, withAlpha, contextColor, UI_COLORS, TEXT_COLORS, SURFACES, CHART_FONT, chartFontPx,
 } from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { pitInLapsKeyStep } from '../../hooks/useKeyboardShortcuts';
@@ -97,6 +97,7 @@ import {
 import {
   layoutLabels, polar, wrapAngle, CHAR_EM,
 } from '../../utils/circleLabelLayout';
+import { useChartBox } from '../../utils/views/chartBox';
 import Panel from '../ui/Panel';
 
 /** Pit-window purple: utils/colors.js UI_COLORS.pitWindow (>= 3:1 as a mark). */
@@ -111,10 +112,13 @@ const TWO_PI = 2 * Math.PI;
 const MINUS = '−';
 // Size of the first render, before the slot is measured (and in server rendering)
 const FALLBACK_SIZE = { width: 520, height: 360 };
-// Leader lines of cars not relevant to the focus (or not selected); their
-// labels are never faded: they turn to the muted text colour (>= 4.5:1,
+// Leader lines of cars not relevant to the focus (or not selected): the
+// leader grey (.cod-leader, 2.49:1 on the panel) mixed toward the panel down
+// to the mark floor of a context item (contextColor, >= 2:1; at opacity 0.3
+// it read 1.25:1, D7); their labels turn to the muted text colour (>= 4.5:1,
 // docs/COLOR_ENCODING.md, focus + context)
-const DIM_OPACITY = 0.3;
+const LEADER_STROKE = 'rgba(255,255,255,0.28)';
+const CONTEXT_LEADER = contextColor(LEADER_STROKE, SURFACES.panel);
 // Fixed drawing size (size prop) and wide: legend beside the circle instead of under it
 const SIDE_LEGEND_ASPECT = 1.45;
 // Ring labels are data: drawn at the data type (CHART_FONT.data, >= 11 px)
@@ -815,26 +819,6 @@ function row(label, value) {
     + `<span class="tooltip-value">${value}</span></div>`;
 }
 
-/** Width and height of the element, kept up to date (ResizeObserver). */
-function useElementSize(el) {
-  const [size, setSize] = useState(null);
-  useEffect(() => {
-    if (!el) return undefined;
-    const measure = () => {
-      const r = el.getBoundingClientRect();
-      setSize((prev) => (prev && Math.abs(prev.width - r.width) < 0.5 && Math.abs(prev.height - r.height) < 0.5
-        ? prev
-        : { width: r.width, height: r.height }));
-    };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [el]);
-  return size;
-}
-
 /**
  * Width in px of a text in the font it is drawn with (canvas measureText, the
  * family the element inherits; weight 700, the labels', unless given; italic
@@ -1004,7 +988,11 @@ export default function CircleOfDoom({
 
   const [wrapEl, setWrapEl] = useState(null);
   const [plotEl, setPlotEl] = useState(null);
-  const wrapSize = useElementSize(wrapEl);
+  // The slot's box, kept up to date by the shared hook of every D3 view (D4:
+  // one ResizeObserver, one measure per frame, utils/views/chartBox.js); the
+  // wrap element itself is measured (parent: false). null until measured.
+  const wrapBox = useChartBox(useMemo(() => ({ current: wrapEl }), [wrapEl]), { parent: false });
+  const wrapSize = wrapBox.width > 0 && wrapBox.height > 0 ? wrapBox : null;
   const canvasMeasure = useTextMeasure(plotEl);
   const measure = measureText || canvasMeasure;
 
@@ -1732,7 +1720,7 @@ export default function CircleOfDoom({
                     y1={l.from[1]}
                     x2={l.to[0]}
                     y2={l.to[1]}
-                    opacity={l.car.dim ? DIM_OPACITY : 1}
+                    style={l.car.dim ? { stroke: CONTEXT_LEADER } : undefined}
                   />
                 )))}
               </g>

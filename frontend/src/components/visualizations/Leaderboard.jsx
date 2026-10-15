@@ -15,6 +15,8 @@ import { battleLevel, BATTLE_BADGE_PCT, BADGE_INTERVAL_PCT } from '../../utils/s
 import { focusForecast, forecastPit, forecastMethodLabel, FORECAST_LAPS } from '../../utils/forecast';
 import Panel from '../ui/Panel';
 import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { towerRowStyle, towerBodyStyle } from '../../utils/views/leaderboard';
 
 /* ── Flag constants: FIA colours of utils/colors.js, always with their label ── */
 const FLAG_BORDER_COLORS = Object.fromEntries(
@@ -54,9 +56,22 @@ const TOWER_LEGEND = [
 // while the field fits, down to 18 px (the Timing Tower's minimum, same data
 // type); when even 18 px rows do not fit (the focus cards opened in full on a
 // short window) they are paged, with a pager line, never clipped (V5 / V13 r2)
+//
+// Phase 9c (D1): the browser pass found P16-P20 below a 440 px body, the rows
+// still standing at the 28 px spacing of the first render (19 x 28 + 22 =
+// 554 px): their translateY was in px, so a new row height was animated by
+// the row's 500 ms transform transition and depended on a ResizeObserver
+// callback. The body now takes its height from the flex layout (at most 28 px
+// a row) and each row is a share of it, translateY(k x 100 %) of its own
+// height: the rows tile the body at every size with no JS measure and no
+// transition on a resize; the measure only decides when to page.
 const ROW_MIN = 18;
 const ROW_MAX = 28;
 const PAGER_H = 22;
+// Below this window height the legend (three lines in the 240-300 px
+// sidebar) opens from a "?" key in the header, so the 20 rows keep the room
+// (notes/experiments/v13_audit/layout_fit.mjs, Leaderboard sidebar)
+const LEGEND_POPOVER_VIEWPORT = '(max-height: 899px)';
 
 /* ── Column display modes ───────────────────────────────────────────── */
 const COLUMN_MODES = ['INT', 'GAP', 'TYRE', 'PIT'];
@@ -350,11 +365,26 @@ export default function Leaderboard({ collapsed }) {
   }, []);
 
   /* ── Rows fitted to the room left, paged when 18 px rows do not fit ── */
+  // The measure (towerBox) decides only whether to page; the rows' height is
+  // a share of the body (towerRowStyle), so they fit without it
   const rowFit = fitRows(towerBox.height, standings.length, { rowMin: ROW_MIN, rowMax: ROW_MAX, rowDefault: ROW_MAX, pagerH: PAGER_H });
-  const ROW_HEIGHT = rowFit.rowH;
   const rowPg = pageOf(standings, rowFit.paged ? rowPage : 0, rowFit.perPage);
   const pageRows = rowPg.rows;
   const pageFirst = rowPg.first - 1; // index of the page's first row
+  const bodyStyle = towerBodyStyle({
+    rows: standings.length, perPage: rowFit.perPage, paged: rowFit.paged, rowMin: ROW_MIN, rowMax: ROW_MAX,
+  });
+
+  /* ── Legend: in the panel on a tall window, behind a "?" key below 900 px ── */
+  const legendAsPopover = useMediaQuery(LEGEND_POPOVER_VIEWPORT);
+  const [legendOpen, setLegendOpen] = useState(false);
+  useEffect(() => { if (!legendAsPopover) setLegendOpen(false); }, [legendAsPopover]);
+  useEffect(() => {
+    if (!legendOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setLegendOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [legendOpen]);
 
   /* ── Position-change highlight flash (CSS transition handles the slide) */
   useEffect(() => {
@@ -562,6 +592,16 @@ export default function Leaderboard({ collapsed }) {
         <kbd className="panel-shortcut-hint" title="Press 2 to focus" style={{ opacity: focusedView === 'leaderboard' ? 1 : undefined }}>2</kbd>
       </div>
       <div className="tower-broadcast-header__right">
+        {legendAsPopover && (
+          <button
+            type="button"
+            className={`leaderboard-toggle tower-legend-toggle${legendOpen ? ' tower-legend-toggle--open' : ''}`}
+            onClick={() => setLegendOpen((v) => !v)}
+            aria-expanded={legendOpen}
+            aria-controls="tower-legend-popover"
+            title={legendOpen ? 'Close the key of the marks' : 'Key of the marks (arrows, tyres, pit, battles)'}
+          >?</button>
+        )}
         <button
           className="leaderboard-toggle leaderboard-toggle--collapse"
           onClick={toggleLeaderboard}
@@ -674,22 +714,30 @@ export default function Leaderboard({ collapsed }) {
         <span className="tower-col-header__tyre-dot"></span>
       </div>
 
-      {/* Legend of the marks the tower draws (arrows, tyre letters, pit, battle) */}
-      <div style={{ padding: '0 6px' }}>
-        <Legend items={TOWER_LEGEND} shape="glyph" />
-      </div>
+      {/* Legend of the marks the tower draws (arrows, tyre letters, pit,
+          battle): in the panel on a tall window, else a card laid over the
+          rows from the "?" key (closed with ×, the key or Escape) */}
+      {!legendAsPopover && (
+        <div className="tower-legend">
+          <Legend items={TOWER_LEGEND} shape="glyph" />
+        </div>
+      )}
 
       {/* Driver rows */}
-      <div ref={towerWrapRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div ref={towerWrapRef} className="tower-rows" style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {legendAsPopover && legendOpen && (
+        <div id="tower-legend-popover" className="tower-legend tower-legend--popover" role="dialog" aria-label="Key of the tower marks">
+          <div className="tower-legend__head">
+            <span>Key</span>
+            <button type="button" className="tower-legend__close" onClick={() => setLegendOpen(false)} aria-label="Close the key">×</button>
+          </div>
+          <Legend items={TOWER_LEGEND} shape="glyph" />
+        </div>
+      )}
       <div
         className="tower-body"
         ref={containerRef}
-        style={{
-          position: 'relative',
-          flex: '0 0 auto',
-          height: standings.length > 0 ? pageRows.length * ROW_HEIGHT : 'auto',
-          minHeight: standings.length === 0 ? 120 : undefined,
-        }}
+        style={bodyStyle}
       >
         {pageRows.map((d) => {
           const isSelected = selectedDrivers.includes(d.abbr);
@@ -731,8 +779,8 @@ export default function Leaderboard({ collapsed }) {
                 top: 0,
                 left: 0,
                 right: 0,
-                height: ROW_HEIGHT,
-                transform: `translateY(${(d.pos - 1 - pageFirst) * ROW_HEIGHT}px)`,
+                // a share of the body, moved by multiples of its own height
+                ...towerRowStyle(d.pos - 1 - pageFirst, rowFit.perPage),
                 ...(isFocused ? {
                   borderLeft: `4px solid ${markColor(d.color)}`,
                   boxShadow: `inset 6px 0 12px -2px ${withAlpha(d.color, 0.33)}, 0 0 8px ${withAlpha(d.color, 0.13)}`,
@@ -770,7 +818,8 @@ export default function Leaderboard({ collapsed }) {
                     color: contrastText(MEDAL_COLORS[d.pos]),
                     borderRadius: 3,
                     width: 20,
-                    height: 18,
+                    // inside the 18 px minimum row (17 px under its rule)
+                    height: 16,
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',

@@ -22,14 +22,19 @@
   padding: 0 12px;
   height: 32px;
   background: var(--rh-surface, #141414);
-  border: 1px solid var(--rh-border, #2A2A2A);
+  /* The field's boundary >= 3:1 on the field and on the weather bar (WCAG 2.1
+     SC 1.4.11, UI_COLORS.controlBorder: 4.52:1 / 4.64:1; --rh-border #2A2A2A
+     read 1.28:1 / 1.32:1, D10; notes/experiments/phase9c/state-help/state_help_check.txt) */
+  border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: var(--rh-radius-xl, 12px);
   transition: all var(--rh-transition-normal, 0.2s ease);
 }
 
+/* Focus: the accent itself as the boundary (14.9:1 on #1A1A1A; the 27 %
+   accent read 2.25:1, D10), plus the focus shadow */
 .search-bar--focused .search-bar__wrap {
   background: var(--rh-surface-active, #1A1A1A);
-  border-color: var(--rh-border-focus, rgba(213, 253, 81, 0.27));
+  border-color: var(--rh-accent, #D5FD51);
   box-shadow: var(--rh-shadow-focus, 0 0 0 3px rgba(213, 253, 81, 0.06), 0 8px 32px rgba(0, 0, 0, 0.4));
 }
 
@@ -219,14 +224,16 @@
 }
 
 /* --- Light theme (search bar adapts, dropdown stays dark) --- */
+/* the boundary >= 3:1 on the field (3.8:1; 10 % black read 1.25:1) and on
+   focus the F1 red text colour (>= 5:1; the 35 % lime read 1.1:1), D10 */
 [data-theme="light"] .search-bar__wrap {
   background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.1);
+  border-color: rgba(0, 0, 0, 0.5);
 }
 
 [data-theme="light"] .search-bar--focused .search-bar__wrap {
   background: rgba(0, 0, 0, 0.06);
-  border-color: rgba(213, 253, 81, 0.35);
+  border-color: var(--color-f1-red-text, #B80500);
   box-shadow: 0 0 0 3px rgba(213, 253, 81, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 

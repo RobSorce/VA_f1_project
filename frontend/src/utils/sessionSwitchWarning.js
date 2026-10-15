@@ -3,13 +3,13 @@
  * (H5 / V5.2): what the switch keeps and what it clears, read from the store
  * state.
  *
- * A load (store loadSession) keeps the open panels, the lap ranges (the
- * Timing Sheet's brush bar and the Position Tracker's brush), the PCA
- * selection (its analysis is asked again for the new session,
- * refetchDroppedPCA) and the focus driver. It clears the assistant's chat and
- * its scenario overlays (screenSwitchState), the Strategy Simulator plan and
- * result, the lap-time forecast (forecastReset) and the telemetry compare
- * laps. __tests__/sessionMenu.warning.test.js runs a real load and checks
+ * A load (store loadSession) keeps the open panels, the PCA selection (its
+ * analysis is asked again for the new session, refetchDroppedPCA) and the
+ * focus driver. It clears the assistant's chat and its scenario overlays and
+ * the lap range (the Timing Sheet's brush bar and the Position Tracker's
+ * brush: laps of one race never filter the next, D8; screenSwitchState), the
+ * Strategy Simulator plan and result, the lap-time forecast (forecastReset)
+ * and the telemetry compare laps. __tests__/sessionMenu.warning.test.js runs a real load and checks
  * both lists against it.
  *
  * Pure module: no React, no store access (the state is passed in).
@@ -27,14 +27,14 @@ export function sessionSwitchSummary(s) {
   const cleared = [];
   const overlays = s?.openOverlays?.length || 0;
   if (overlays > 0) kept.push(`${plural(overlays, 'open panel', 'open panels')}`);
-  if (isRange(s?.selectedLapRange)) kept.push(`lap range ${s.selectedLapRange[0]}–${s.selectedLapRange[1]}`);
-  if (isRange(s?.brushLapRange)) kept.push(`brushed laps ${s.brushLapRange[0]}–${s.brushLapRange[1]}`);
   const lasso = s?.selectedPCAPoints?.length || 0;
   if (lasso > 0) {
     kept.push(`${plural(lasso, 'lasso-selected point', 'lasso-selected points')} (analysis recomputed for the new session)`);
   }
   if (s?.focusDriver) kept.push(`focus on ${s.focusDriver}`);
 
+  if (isRange(s?.selectedLapRange)) cleared.push(`lap range ${s.selectedLapRange[0]}–${s.selectedLapRange[1]}`);
+  if (isRange(s?.brushLapRange)) cleared.push(`brushed laps ${s.brushLapRange[0]}–${s.brushLapRange[1]}`);
   const messages = s?.geminiMessages?.length || 0;
   if (messages > 0) cleared.push(`the assistant chat (${plural(messages, 'message', 'messages')})`);
   const scenarios = s?.geminiOverlays?.length || 0;

@@ -23,7 +23,7 @@ const STALE = [/Cohen/i, /\b17\b/, /\b499\b/, /\b24 cached\b/, /frozen/i, /warm-
 
 describe('in-app help of the PCA panels (utils/chartHelp.js)', () => {
   it('no term of the removed methods, no number of its own', () => {
-    for (const key of ['analytics', 'analysis', 'racesituation']) {
+    for (const key of ['analytics', 'crossrace', 'racesituation']) {
       const text = all(CHART_HELP[key]);
       for (const re of STALE) expect(text, `${key} ${re}`).not.toMatch(re);
       expect(text.match(/\d/g), key).toBeNull();
@@ -31,10 +31,10 @@ describe('in-app help of the PCA panels (utils/chartHelp.js)', () => {
   });
 
   it('the lasso analysis: Hedges\' g, the random baseline, not a test', () => {
-    const analysis = all(CHART_HELP.analysis);
+    const analysis = all(CHART_HELP.crossrace);
     expect(analysis).toMatch(/Hedges' g/);
     expect(analysis).toMatch(/random selection of the same size/);
-    expect(CHART_HELP.analysis.summary).toMatch(/not a significance test/);
+    expect(CHART_HELP.crossrace.summary).toMatch(/not a significance test/);
     expect(ANALYSIS_LABEL).toBe('Descriptive differences, not a test');
     expect(all(CHART_HELP.analytics)).toMatch(/Hedges' g/);
   });
@@ -122,12 +122,12 @@ describe('the interval of g and the stratified baseline, as the docs and the hel
       expect(read(p), p).toContain(SE);
       expect(read(p), p).toContain('Hedges and Olkin 1985');
     }
-    expect(all(CHART_HELP.analysis)).toMatch(/normal-approximation interval/);
+    expect(all(CHART_HELP.crossrace)).toMatch(/normal-approximation interval/);
     expect(all(CHART_HELP.analytics)).toMatch(/normal-approximation interval/);
   });
 
   it('no text calls the shipped interval a bootstrap', () => {
-    for (const key of ['analytics', 'analysis']) expect(all(CHART_HELP[key]), key).not.toMatch(/bootstrap/i);
+    for (const key of ['analytics', 'crossrace']) expect(all(CHART_HELP[key]), key).not.toMatch(/bootstrap/i);
     for (const p of ['frontend/src/components/visualizations/PCAAnalysisPanel.jsx',
       'frontend/src/utils/views/pcaSelection.js', 'docs/pca_features.md']) {
       expect(read(p), p).not.toMatch(/bootstrap/i);
@@ -144,7 +144,7 @@ describe('the interval of g and the stratified baseline, as the docs and the hel
   });
 
   it('the help explains the mix of rows and the progress-dependent rows', () => {
-    const analysis = all(CHART_HELP.analysis);
+    const analysis = all(CHART_HELP.crossrace);
     expect(analysis).toMatch(/same size and the same mix of rows/);
     expect(analysis).toMatch(/progress-dependent/);
     expect(analysis).toMatch(/states the mix and the lap/);

@@ -3,11 +3,12 @@ import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import {
   countryFlag, CHART_FONT, TEXT_COLORS, GRID_COLORS, STATUS_COLORS, FLAG_COLORS, SURFACES, tintedChip, withAlpha,
-  textColor,
+  textColor, contextColor, contextText, CONTEXT_MIX_LINES,
 } from '../../utils/colors';
 import { championshipStyles, championshipLegend, usedDashes, PREDICTION_DASH } from '../../utils/views/championshipChart';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+import { useChartBox, chartSize } from '../../utils/views/chartBox';
 
 // Header toggle: active = white on a grey chip, inactive = muted (>= 4.5:1)
 const toggleBtn = (active, activeColor = TEXT_COLORS.primary) => ({
@@ -21,6 +22,8 @@ const toggleBtn = (active, activeColor = TEXT_COLORS.primary) => ({
 export default function ChampionshipChart() {
   const svgRef = useRef(null);
   const tooltipRef = useRef(null);
+  // The box the chart fills: it lays out again at each new size (D4)
+  const box = useChartBox(svgRef);
 
   const championshipData = useF1Store((s) => s.championshipData);
   const championshipLoading = useF1Store((s) => s.championshipLoading);
@@ -77,8 +80,8 @@ export default function ChampionshipChart() {
   useEffect(() => {
     if (!svgRef.current || !chartEntries || chartEntries.length === 0) return;
 
-    const container = svgRef.current.parentElement;
-    const { width: W, height: H } = container.getBoundingClientRect();
+    // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width: W, height: H } = chartSize(svgRef.current, box);
     if (W < 50 || H < 50) return;
 
     const margin = { top: 30, right: 100, bottom: 36, left: 50 };
@@ -216,8 +219,12 @@ export default function ChampionshipChart() {
         ? selectedDrivers.includes(entry.abbr)
         : false;
       const isDimmed = (selectedDrivers.length > 0 || highlightedDriver) && !isHigh && !isSelected;
-      // focus + context: full colour unless another line is highlighted or selected
-      const opacity = isDimmed ? 0.15 : 1;
+      // focus + context (D7): full colour unless another line is highlighted or
+      // selected; a context line, its dots and its label are mixed toward the
+      // panel (contextColor: marks >= 2:1, the label >= 3:1), never faded by
+      // opacity (stroke-opacity 0.15 read 1.08:1, the label at 0.3 1.48-2.22:1)
+      const lineColor = isDimmed ? contextColor(color, SURFACES.panel, { mix: CONTEXT_MIX_LINES }) : color;
+      const labelColor = isDimmed ? contextText(st.text, SURFACES.panel, CONTEXT_MIX_LINES) : st.text;
       const strokeW = isHigh ? 3 : isSelected ? 2.5 : 1.5;
 
       const entryG = linesGroup.append('g');
@@ -226,9 +233,8 @@ export default function ChampionshipChart() {
       entryG.append('path')
         .datum(entry.progression)
         .attr('fill', 'none')
-        .attr('stroke', color)
+        .attr('stroke', lineColor)
         .attr('stroke-width', strokeW)
-        .attr('stroke-opacity', opacity)
         .attr('stroke-dasharray', st.dash)
         .attr('d', line);
 
@@ -242,9 +248,9 @@ export default function ChampionshipChart() {
         entryG.append('path')
           .datum(predLine)
           .attr('fill', 'none')
-          .attr('stroke', color)
+          .attr('stroke', lineColor)
           .attr('stroke-width', strokeW)
-          .attr('stroke-opacity', opacity * 0.8)
+          .attr('stroke-opacity', isDimmed ? 1 : 0.8)
           .attr('stroke-linecap', 'round')
           .attr('stroke-dasharray', PREDICTION_DASH)
           .attr('d', line);
@@ -257,8 +263,7 @@ export default function ChampionshipChart() {
         .attr('cx', (d) => x(d.round))
         .attr('cy', (d) => y(d.cumulative))
         .attr('r', isHigh ? 4 : 2.5)
-        .attr('fill', color)
-        .attr('fill-opacity', opacity)
+        .attr('fill', lineColor)
         .attr('stroke', isHigh ? TEXT_COLORS.primary : 'none')
         .attr('stroke-width', isHigh ? 1 : 0);
 
@@ -276,8 +281,7 @@ export default function ChampionshipChart() {
           .attr('x', labelX)
           .attr('y', labelY)
           .attr('dy', '0.35em')
-          .attr('fill', st.text)
-          .attr('fill-opacity', isDimmed ? 0.3 : 1)
+          .attr('fill', labelColor)
           .style('font-size', CHART_FONT.data)
           .style('font-weight', 700)
           .style('font-family', "'Formula1', 'Titillium Web', sans-serif")
@@ -364,7 +368,7 @@ export default function ChampionshipChart() {
         if (tooltipRef.current) tooltipRef.current.style.display = 'none';
       });
 
-  }, [chartEntries, championshipData, isDriverView, showPredictions, highlightedDriver, selectedDrivers, setHighlightedDriver, toggleDriver]);
+  }, [chartEntries, championshipData, isDriverView, showPredictions, highlightedDriver, selectedDrivers, setHighlightedDriver, toggleDriver, box.width, box.height]);
 
   // Controls
   const controls = (

@@ -19,7 +19,7 @@ import {
 } from '../../utils/forecast';
 import { drawPositionRanges, positionRangeRow, POSITION_AXIS_H } from '../../utils/views/positionRangeChart';
 import { drawLegend } from '../../utils/views/d3Legend';
-import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
+import { useBoxSize, useChartBox, fitRows, pageOf } from '../../utils/views/chartBox';
 import {
   placesMark, severityOf, levelMark, PODIUM_COLOR, CHART_COLORS, chipStyle, UP, DOWN,
 } from '../../utils/views/strategyMarks';
@@ -444,7 +444,8 @@ function ProjectionTable({ projection, selectedDrivers, numDrivers }) {
   const svgRef = useRef(null);
   const legendRef = useRef(null);
   const rowsBox = useBoxSize(rowsBoxRef);
-  const chartBox = useBoxSize(chartBoxRef);
+  // the D3 chart's box: the shared, frame-throttled hook of the D3 views (D4)
+  const chartBox = useChartBox(chartBoxRef, { parent: false });
   const [page, setPage] = useState(0);
   const badges = projection?.badges;
 

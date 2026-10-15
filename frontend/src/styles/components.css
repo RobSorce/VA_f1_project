@@ -126,7 +126,7 @@
 [data-theme="light"] .panel-shortcut-hint {
   background: #F3F4F6;
   border-color: #D1D5DB;
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .select-control {

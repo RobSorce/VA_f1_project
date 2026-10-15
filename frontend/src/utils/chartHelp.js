@@ -57,6 +57,27 @@ const NUMBER = (v) => v.toLocaleString('en-US');
 // A held-out MAE of the forecast evaluation (utils/forecast.js FORECAST_EVALUATION), seconds
 const S3 = (v) => `${v.toFixed(3)} s`;
 
+/**
+ * What selecting a lap range does (store setSelectedLapRange: the one range of
+ * every view, V7 r2), as the views that read it draw it: words only, no
+ * digits, so the PCA help keeps its rule of no number of its own (D9).
+ */
+export const LAP_RANGE_EFFECTS = 'the Lap Times sheet shows each driver\'s latest lap inside them, the Position Tracker brush '
+  + 'and the Strategy Timeline band mark them, Tyre Degradation fits them for the focus driver (a range of five laps '
+  + 'or more), Telemetry in laps mode compares up to four of them';
+
+/**
+ * Tooltip of a control that selects a lap range (a pit window of the
+ * Cross-Race Analysis panel): what the click really does (D9).
+ *
+ * @param {number} start
+ * @param {number} end
+ * @returns {string}
+ */
+export function lapRangeTooltip(start, end) {
+  return `Click to select laps ${start}–${end} of the race on screen: ${LAP_RANGE_EFFECTS}.`;
+}
+
 export const CHART_HELP = {
   trackmap: {
     title: 'Track Map',
@@ -106,7 +127,7 @@ export const CHART_HELP = {
       'Positive slope = catching up; negative = falling back.',
       'Pit stops appear as discrete jumps the size of the race\'s pit loss (see the per-stop labels in Strategy Timeline).',
       'Click a line to swap baseline drivers.',
-      'Each compared driver is a line in his colour, the second driver of a team dashed; the base driver is the dashed zero line. Orange hatching rising to the right (+) = behind the base driver, blue hatching falling to the right (−) = ahead; every value carries its sign.',
+      'Each compared driver is a line in his colour, the second driver of a team dashed; the base driver is the double grey zero line (two thin rails, a style no driver line has), labelled "base: XXX". Orange hatching rising to the right (+) = behind the base driver, blue hatching falling to the right (−) = ahead; every value carries its sign.',
     ],
     limitations: [
       'Baseline defaults to the focus driver; with no focus, falls back to the first selected driver.',
@@ -124,7 +145,7 @@ export const CHART_HELP = {
     howToRead: [
       'Three columns, one per sector (S1, S2, S3).',
       'Times sorted fastest → slowest; the session best in purple with ◆ (the glyph repeats the colour); on the live tab personal bests are green with ●.',
-      'The bar shows how close a time is to the best (full = best): the best bar purple, the others grey.',
+      'Best tab: each sector is a chart of the gap to the session best, drivers in ranking order, a grey bar as long as the gap (one scale per sector, the axis in s under the rows when there is room) and its value next to it (+0.123); the session best has no bar, its time in purple with ◆.',
     ],
     limitations: [
       'Only best-of-session times; ignores stint-level variation.',
@@ -179,15 +200,20 @@ export const CHART_HELP = {
 
   tyrehealth: {
     title: 'Tyre Health',
-    summary: 'Per-driver tyre-health bars using a 1.6 decay exponent calibrated on 24 dry sessions.',
+    // D9: what components/visualizations/TyreHealth.jsx draws and computes
+    // (its constants are checked against the source, __tests__/help.texts.test.js)
+    summary: 'Estimated tyre life of the focus driver, lap by lap: one curve per stint in the compound colour, from tyre age and pace.',
     howToRead: [
-      'Four bars per driver: current compound health + each used set in the garage.',
-      'One line per stint in the compound colour (the badge below carries its letter); the CRITICAL (< 30 %) and WORN (< 60 %) zones are tinted orange and yellow and named on the chart.',
-      'Pace penalty ≈ (life/normalised_max)^1.6 × 80 — calibrated against Pirelli session briefings.',
+      'One driver: the focus driver, else the first selected. x = lap, y = estimated tyre life in %, 100 % for a new tyre.',
+      'One line per stint (tyre set) in the compound colour, with a light fill under it; the bar under the lap axis spans each stint with its compound letter; dashed PIT lines mark the stops, the solid L line the current lap.',
+      'The CRITICAL (< 30 %) and WORN (< 60 %) zones are tinted orange and yellow and named on the chart.',
+      'Life of a lap = 100 × (1 − (tyre age / max life)^1.6) − 80 × the fraction the lap is slower than the stint\'s best lap, and it never rises again within a stint (running minimum). Max life: SOFT 22, MEDIUM 32, HARD 45, INTERMEDIATE 30, WET 25 laps, or 1.1 × the stint\'s length when the stint ran longer.',
+      'Laps slower than 1.4 × the stint\'s median lap (in-laps, safety car) are left out of the curve. Hover a lap for its life, compound and tyre age.',
     ],
     limitations: [
-      'Only models thermal / wear degradation — does not predict punctures, graining, or rain-track transitions.',
-      'Calibration is from 2022-24 dry Pirelli compounds; 2025 compound changes may shift the curve.',
+      'A heuristic, not measured wear: the compound lives, the exponent 1.6 and the pace weight 80 are fixed constants of the view, not fitted to this race.',
+      'Tyre age and pace only: punctures, graining and a drying or wet track are not modelled.',
+      'Completed laps only: the lap in progress has no time yet.',
     ],
     seeAlso: [
       { tabId: 'tiredeg', label: 'Tyre Degradation' },
@@ -264,12 +290,14 @@ export const CHART_HELP = {
       'Filters: all races, the season, or the race of the session on screen (stars). Colour: team, or the finishing class (podium, points, no points).',
       'During a replay of a cached race its stars are its rows at the replay clock (only the laps completed so far, projected on axes fitted without that race), labelled "at lap N" in the shape legend; its result shows once the race has ended. While another session of the weekend is on screen the race has not started and has no stars.',
       'Lasso-select (Shift+drag) a group → the Cross-Race Analysis panel beside the biplot compares it with the other rows (Hedges\' g, its normal-approximation interval, a random baseline with the same mix of rows).',
+      `Its Details list the selection's common pit windows; a click on one selects its laps in the race on screen: ${LAP_RANGE_EFFECTS}.`,
     ],
     limitations: [
       'The other races\' points use their whole race; the finishing position is metadata for the colour and the tooltip, never a feature.',
       'PCA assumes linear feature relationships; non-linear patterns (e.g. wet/dry split) are spread across components instead of separated.',
     ],
     seeAlso: [
+      { tabId: 'crossrace', label: 'Cross-Race Analysis' },
       { tabId: 'analysis', label: 'Strategy Analysis' },
       { tabId: 'racesituation', label: 'Race Situation Map' },
     ],
@@ -345,15 +373,38 @@ export const CHART_HELP = {
     ],
   },
 
+  // The docked / overlay "Strategy Analysis" view: StrategyAnalysis.jsx
+  // ("Race Analysis", beside the Race Situation map)
   analysis: {
     title: 'Strategy Analysis',
+    summary: 'Race Analysis: insights from the analytical outputs, the field at the replay clock, and for the drivers you select what sets them apart from the field.',
+    howToRead: [
+      'Two tabs. Insights: cards built from the race projection, the Race Situation features, the lap-time forecast, the degradation fit and the PCA analysis, each with its category glyph, its severity (glyph, colour and word) and a confidence; a card that names drivers says what a click does (→ …): two drivers are both selected, the first (the car behind) becomes the focus and the second the comparison driver of Sector Delta and the Undercut Calculator; one driver becomes the focus.',
+      'Analysis, with no driver selected: the field. Overview = the field\'s tyre mix (a strip of cars per compound, letter and count on it); Battles = pairs closing in (gap, pace delta per lap, laps to close; the badge glyph ! imminent ≤ 3 laps, ▶ approaching ≤ 7, → developing); Overtakes = the pairs the Race Prediction panel projects (Monte Carlo pass probability with its badge); Alerts = Pit Window Open (drivers about to pit, ~laps, compound letter), Losing Pace (+ s/lap), On The Move (▲ places gained) and the projection\'s risk alerts. A battle or overtake row selects both drivers (focus on the car behind); a pit-window chip or a risk row makes that driver the focus.',
+      'Analysis, with drivers selected (on the Race Situation map, the leaderboard or any view): Summary (compounds, tyre age, pace), Threats (battles of the selection with the cars around it, ▼ threat / ▲ opportunity), Insights (shared pit windows, pace loss, tyre-age gaps) with "What makes this cluster different": one bar per feature, Cohen\'s d of the selection against the rest of the field (+ = higher in the selection; features under 0.2 left out), and Drivers (position, projected finish, compound, pace, trend, pit estimate).',
+      'Lists fit the panel and page the rest (◀ ▶), never scroll.',
+    ],
+    limitations: [
+      'Battles, pit windows and pace trends come from the Race Situation features at the replay clock (recent pace, gap, estimated laps to the pit): estimates, not timing data.',
+      'Cohen\'s d of a few selected drivers against the field is descriptive, not a significance test.',
+    ],
+    seeAlso: [
+      { tabId: 'racesituation', label: 'Race Situation Map' },
+      { tabId: 'prediction', label: 'Race Prediction' },
+    ],
+  },
+
+  // The Cross-Race Analysis panel of the Analytics tab (PCAAnalysisPanel.jsx),
+  // beside the PCA biplot; it has no tab of its own (openTabId)
+  crossrace: {
+    title: 'Cross-Race Analysis',
     summary: 'Descriptive differences between a lasso selection on the PCA biplot and the other rows — not a significance test.',
     howToRead: [
       'One row per feature: Hedges\' g (selection mean minus the other rows\' mean, in pooled standard deviations, with the small-sample correction), its normal-approximation interval (g plus or minus the normal quantile times the large-sample standard error of g; Method gives the formula), and N of both groups.',
       'Shaded band = the |g| a random selection of the same size and the same mix of rows reaches on average; dashed lines = the threshold a feature must pass to be marked "above random" (after a race: a high percentile of the largest |g| over all features in those random selections, one threshold for all; during a replay, once the race on screen has rows at the replay clock, each feature has its own, the same high percentile of its own random |g|, set so that random selections pass some threshold as rarely as with one threshold for all, because pit stops and stint lengths reach far larger |g| by the mix of rows alone; Method gives it).',
       'During a replay the rows of the race on screen are taken at the replay clock and the other races are whole races: each random selection holds as many rows of each kind as the selection, and the line under N states the mix and the lap. So "above random" for a selection of rows of the race on screen only means above random groups of that race\'s rows (a baseline within the race on screen); after the race, the same selection is compared with random rows of every race.',
       'A row marked "progress-dependent" (pit stops, stint lengths, tyre degradation) compares rows of the race on screen, which count only the laps completed so far, with whole races: the two kinds differ in it whatever the drivers did, so read it against the random baseline, which draws the same mix.',
-      'Patterns and Details: the selection\'s tyre strategies, stints and pit windows (in-laps of tyre changes); click a pit window to select its laps (the Strategy Timeline shades them, the Timing Sheet\'s lap bar shows them, Tyre Degradation fits them, Telemetry in laps mode compares them).',
+      'Patterns and Details: the selection\'s tyre strategies, stints and common pit windows (in-laps of tyre changes).',
       'Rows of the race on screen during its replay are taken at the replay clock: a note says so, and their stints and stops end there.',
       'Triggered by a lasso selection on the Analytics biplot.',
       'The g axis is drawn above the strips; features that do not fit are paged (◀ ▶); "Method" holds the explanation of the marks and replaces the rows while open.',
@@ -365,6 +416,7 @@ export const CHART_HELP = {
     seeAlso: [
       { tabId: 'analytics', label: 'Analytics (PCA)' },
     ],
+    openTabId: 'analytics',
   },
 
   racesituation: {

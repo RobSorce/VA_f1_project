@@ -4,6 +4,7 @@ import { useF1Store } from '../../store/useF1Store';
 import {
   getDriverColor, TYRE_COLORS, TYRE_LABELS, tyreColor, tyreLetter, contrastText, markColor, textColor,
   withAlpha, TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT, chartFontPx, UI_COLORS,
+  contextColor, contextText, CONTEXT_MIX_LINES, brushTintOver,
 } from '../../utils/colors';
 import Legend from '../ui/Legend';
 import { useSessionNow } from '../../hooks/useSessionNow';
@@ -11,8 +12,11 @@ import { completedLaps, isLapCompleted } from '../../utils/raceTime';
 import { causalKey } from '../../utils/strategyViews';
 import { positionPitMarkers } from '../../utils/views/positionByLap';
 import Panel from '../ui/Panel';
+import { useChartBox } from '../../utils/views/chartBox';
 
 const MARGIN = { top: 28, right: 90, bottom: 32, left: 36 };
+// Size drawn at before the box is measured (no layout: tests, server render)
+const DEFAULT_DIMS = { width: 600, height: 400 };
 // Dash of the position-trend projection (legend and line)
 const PROJECTION_DASH = '6 4';
 
@@ -77,7 +81,10 @@ export default function PositionByLap() {
   const containerRef = useRef(null);
   const tooltipRef = useRef(null);
   const brushSyncRef = useRef(false);   // true while we programmatically move the brush
-  const [dims, setDims] = useState({ width: 600, height: 400 });
+  // The box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4):
+  // the svg is drawn at exactly that width and height
+  const box = useChartBox(containerRef, { parent: false });
+  const dims = box.width > 0 && box.height > 0 ? box : DEFAULT_DIMS;
   const [showProjection, setShowProjection] = useState(true);
   const [showUndercut, setShowUndercut] = useState(true);
 
@@ -93,18 +100,6 @@ export default function PositionByLap() {
   // Causal "now" in session seconds (utils/raceTime.js): positions, stints and
   // pit markers are drawn only for laps completed at that time
   const sessionNow      = useSessionNow();
-
-  /* ── Resize observer ─────────────────────────────────────────── */
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect;
-      if (width > 0 && height > 0) setDims({ width, height });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   /* ── Data preparation ────────────────────────────────────────── */
   // Rows completed at sessionNow: the count changes once per finished lap, so
@@ -203,16 +198,20 @@ export default function PositionByLap() {
       const isDimmed = focusDriver && !isFocus && !isSelected;
 
       // No focus: every line at 0.8 (marks >= 3:1 on the panel); with a focus
-      // the others are context, faded on purpose (focus + context)
+      // the others are context (focus + context, D7): their compound colour
+      // mixed toward the panel (contextColor, >= 2:1), not faded by opacity
+      // (0.12 read 1.06:1)
       let sw, op;
       if (isFocus) { sw = 3; op = 1; }
       else if (isSelected) { sw = 2; op = 0.85; }
-      else if (isDimmed) { sw = 1.5; op = 0.12; }
+      else if (isDimmed) { sw = 1.5; op = 1; }
       else { sw = 1.5; op = 0.8; }
 
       stints.forEach(stint => {
         if (stint.laps.length < 2) return;
-        const color = tyreColor(stint.compound);
+        const color = isDimmed
+          ? contextColor(tyreColor(stint.compound), SURFACES.panel, { mix: CONTEXT_MIX_LINES })
+          : tyreColor(stint.compound);
         linesG.append('path')
           .datum(stint.laps)
           .attr('d', lineGen)
@@ -270,16 +269,20 @@ export default function PositionByLap() {
     // a tick in the driver's colour and a badge of the NEW compound with its
     // letter (FIA colour never alone: S M H I W in contrastText)
     const badgeR = Math.ceil(chartFontPx('label') * 0.65);
-    const compoundBadge = (parent, cx, cy, compound) => {
+    // a context driver's badge (D7): the compound colour mixed toward the
+    // panel (>= 2:1), its letter in contrastText of that fill (>= 3:1 on it);
+    // a group opacity of 0.12 put the letter at 1.13:1
+    const compoundBadge = (parent, cx, cy, compound, dimmed = false) => {
+      const fill = dimmed ? contextColor(tyreColor(compound), SURFACES.panel) : tyreColor(compound);
       parent.append('circle')
         .attr('class', 'pos-compound-badge')
         .attr('cx', cx).attr('cy', cy).attr('r', badgeR)
-        .attr('fill', tyreColor(compound)).attr('stroke', SURFACES.page).attr('stroke-width', 1);
+        .attr('fill', fill).attr('stroke', SURFACES.page).attr('stroke-width', 1);
       parent.append('text')
         .attr('class', 'pos-compound-letter')
         .attr('x', cx).attr('y', cy).attr('dy', '0.35em')
         .attr('text-anchor', 'middle')
-        .attr('fill', contrastText(tyreColor(compound)))
+        .attr('fill', contrastText(fill))
         .style('font-size', CHART_FONT.label).attr('font-weight', 800)
         .style('pointer-events', 'none')
         .text(tyreLetter(compound));
@@ -290,17 +293,18 @@ export default function PositionByLap() {
       const cx = xScale(lap);
       const cy = yScale(position);
 
-      const g = pitG.append('g').attr('opacity', isDimmed ? 0.12 : 1);
+      const g = pitG.append('g').attr('class', 'pos-pit-marker');
 
       // Vertical tick
       g.append('line')
         .attr('x1', cx).attr('x2', cx)
         .attr('y1', cy - yScale(0.7) + yScale(1))
         .attr('y2', cy + yScale(0.7) - yScale(1))
-        .attr('stroke', markColor(color)).attr('stroke-width', 2);
+        .attr('stroke', isDimmed ? contextColor(markColor(color), SURFACES.panel) : markColor(color))
+        .attr('stroke-width', 2);
 
       // Badge of the compound fitted at this stop
-      compoundBadge(g, cx, cy, toCompound);
+      compoundBadge(g, cx, cy, toCompound, isDimmed);
 
       // Pit tooltip on hover
       g.style('cursor', 'default')
@@ -327,8 +331,8 @@ export default function PositionByLap() {
       const first = driverLapMap[driver]?.[0];
       if (!first?.Compound) return;
       const isDimmed = focusDriver && driver !== focusDriver && !selectedDrivers.includes(driver);
-      const g = pitG.append('g').attr('class', 'pos-start-compound').attr('opacity', isDimmed ? 0.12 : 1);
-      compoundBadge(g, xScale(first.LapNumber), yScale(first.Position), first.Compound);
+      const g = pitG.append('g').attr('class', 'pos-start-compound');
+      compoundBadge(g, xScale(first.LapNumber), yScale(first.Position), first.Compound, isDimmed);
     });
 
     /* ── Layer 4: Undercut band ────────────────────────────────── */
@@ -452,8 +456,11 @@ export default function PositionByLap() {
         .attr('class', 'pos-driver-label')
         .attr('x', xScale(lap) + 6)
         .attr('y', yScale(pos) + 3)
-        .attr('fill', textColor(color))
-        .attr('opacity', isDimmed ? 0.3 : 1)
+        // a context driver's name mixed toward the panel (>= 3:1), never at
+        // an opacity (0.3 read 1.48-2.22:1); computed on the brush tint, the
+        // lightest background under it (the labels are drawn above the brush:
+        // on the panel alone they read 3.00-3.07:1, 2.79-2.84:1 in a brushed range)
+        .attr('fill', isDimmed ? contextText(textColor(color), brushTintOver(SURFACES.panel), CONTEXT_MIX_LINES) : textColor(color))
         .style('font-size', CHART_FONT.data)
         .attr('font-weight', isFocus ? 800 : 700)
         .style('filter', isFocus ? `drop-shadow(0 0 2px ${color})` : null)

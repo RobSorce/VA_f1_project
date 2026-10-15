@@ -77,6 +77,98 @@ export function championshipStyles(entries, isDriverView) {
   return out;
 }
 
+/**
+ * The teams of a driver over the season, oldest first (D11: a driver who
+ * changed team mid-season). The championship colours a driver by `team`,
+ * his team at the latest round he scored a result in (the backend keeps the
+ * last one); the session views colour him by his team in the session on
+ * screen. What is known of the earlier teams:
+ *  - a progression row that carries its own `team` (exact rounds);
+ *  - else the session on screen, when it is of the same season: the
+ *    driver's team at that round (its driver_info).
+ *
+ * @param {{team?: string, progression?: Array<{round: number, team?: string}>,
+ *   seasonProgression?: Array<{round: number, team?: string}>}} entry
+ * @param {{round?: number, team?: string}|null} [session] - the round of the
+ *   session on screen and the driver's team in it (same season only)
+ * @returns {Array<{team: string, from: number, to: number, exact: boolean, session?: boolean}>}
+ *   spells of one team, rounds `from`..`to` as known; `exact`: the rounds
+ *   come from the progression rows; `session`: the spell is the session's
+ */
+export function driverTeamSpells(entry, session = null) {
+  // the whole season (seasonProgression: the rows before a view cut them at
+  // the round on screen), so `team` is matched with its own last round
+  const rows = (entry?.seasonProgression || entry?.progression || [])
+    .filter((p) => Number.isFinite(p?.round)).sort((a, b) => a.round - b.round);
+  const latest = entry?.team || '';
+  const lastRound = rows.length ? rows[rows.length - 1].round : null;
+  const spells = [];
+  if (rows.some((p) => p.team)) {
+    for (const p of rows) {
+      const team = p.team || spells[spells.length - 1]?.team || latest;
+      const cur = spells[spells.length - 1];
+      if (cur && cur.team === team) cur.to = p.round;
+      else spells.push({ team, from: p.round, to: p.round, exact: true });
+    }
+    return spells;
+  }
+  if (latest) spells.push({ team: latest, from: lastRound, to: lastRound, exact: false });
+  const sTeam = session?.team;
+  const sRound = Number(session?.round);
+  if (sTeam && latest && Number.isFinite(sRound) && lastRound != null && sRound !== lastRound
+    && !sameTeam(sTeam, latest)) {
+    spells.push({ team: sTeam, from: sRound, to: sRound, exact: false, session: true });
+    spells.sort((a, b) => a.from - b.from);
+  }
+  return spells;
+}
+
+// One team under two names (a rename such as 'RB' / 'Visa Cash App RB'
+// shares the palette colour) is not a team change
+function sameTeam(a, b) {
+  if (String(a).toLowerCase() === String(b).toLowerCase()) return true;
+  const ca = getTeamColor(a);
+  return ca !== UNKNOWN_TEAM_COLOR && ca === getTeamColor(b);
+}
+
+/**
+ * Tooltip line of a driver who changed team (D11), e.g.
+ * "Red Bull Racing → Racing Bulls from R3" (rounds known), or
+ * "Red Bull Racing (R1, session on screen) → Racing Bulls (R24)" (only the
+ * session's round known); null when one team is known.
+ *
+ * @param {Object} entry - championship driver entry
+ * @param {{round?: number, team?: string}|null} [session]
+ * @returns {string|null}
+ */
+export function teamChangeNote(entry, session = null) {
+  const spells = driverTeamSpells(entry, session);
+  if (spells.length < 2) return null;
+  if (spells.every((s) => s.exact)) {
+    return spells.map((s, i) => (i === 0 ? s.team : `${s.team} from R${s.from}`)).join(' → ');
+  }
+  return spells.map((s) => `${s.team} (R${s.to}${s.session ? ', session on screen' : ''})`).join(' → ');
+}
+
+/**
+ * Tooltip of a standings bar / championship line: the entry, its points and,
+ * for a driver who changed team, the earlier team and why the colour is the
+ * latest team's (D11).
+ *
+ * @param {{abbr?: string, name?: string, team?: string, position?: number, totalPoints?: number}} entry
+ * @param {boolean} isDriverView
+ * @param {{round?: number, team?: string}|null} [session]
+ * @returns {string}
+ */
+export function championshipTooltip(entry, isDriverView, session = null) {
+  const who = isDriverView ? (entry?.name ? `${entry.name} (${entry.abbr})` : entry?.abbr) : entry?.team;
+  const lines = [`${entry?.position ?? '?'}. ${who}: ${entry?.totalPoints ?? 0} pts`];
+  if (isDriverView && entry?.team) lines.push(`Team: ${entry.team}`);
+  const change = isDriverView ? teamChangeNote(entry, session) : null;
+  if (change) lines.push(`${change}: drawn in the colour of ${entry.team}, his team at the latest round`);
+  return lines.join('\n');
+}
+
 /** The teammate dashes the styles use (a Set of TEAMMATE_DASHES values). */
 export function usedDashes(styles) {
   return new Set(Object.values(styles || {}).map((s) => s?.dash).filter(Boolean));

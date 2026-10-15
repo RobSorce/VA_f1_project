@@ -4,9 +4,10 @@ import { useF1Store, sessionScopeOf, telemetryKeySuffix } from '../../store/useF
 import {
   getDriverColor, getDriverDash, markColor, textColor, tyreColor, tyreLetter, contrastText, withAlpha,
   SERIES_COLORS, CHANNEL_COLORS, DIVERGING, STATUS_COLORS, STATUS_GLYPHS, TEXT_COLORS, GRID_COLORS, UI_COLORS, SURFACES,
-  CHART_FONT, chartFontPx,
+  CHART_FONT, chartFontPx, contextColor, contextText, CONTEXT_MIX_LINES,
 } from '../../utils/colors';
 import Legend from '../ui/Legend';
+import { useChartBox } from '../../utils/views/chartBox';
 import { useDemoMode, BACKEND_ONLY_TEXT, BACKEND_ONLY_FEATURES } from '../../utils/demoMode';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { stintsByDriver } from '../../utils/stints';
@@ -96,7 +97,9 @@ export default function TelemetryStrip({ embedded = false }) {
   const isPlaying = useF1Store((s) => s.isPlaying);
   const telemetryChannels = useF1Store((s) => s.telemetryChannels);
 
-  const [dims, setDims] = useState({ width: 0, height: 0 });
+  // The box of the traces, kept up to date (utils/views/chartBox.js useChartBox,
+  // D4): every trace is drawn again at each new size
+  const dims = useChartBox(containerRef, { parent: false });
   const [lapInput, setLapInput] = useState('');
   const [crosshairInfo, setCrosshairInfo] = useState(null); // { x, distance, values }
 
@@ -106,18 +109,6 @@ export default function TelemetryStrip({ embedded = false }) {
   const [xAxisMode, setXAxisMode] = useState('distance');
   // ── Reference-lap ghost overlay (Pi Toolbox style): dims other cached laps of focus driver ──
   const [showGhosts, setShowGhosts] = useState(false);
-
-  // ResizeObserver
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      if (width > 0 && height > 0) setDims({ width, height });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // Available drivers for the selector — fall back through multiple sources so
   // the dropdown is never empty when a session is loaded.
@@ -1492,7 +1483,7 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
     .curve(d3.curveMonotoneX);
 
   traces.forEach((t) => {
-    const opacity = t.isDimmed ? 0.15 : (t.lapOpacity || 1);
+    const opacity = traceOpacity(t);
     if (t.isFocus && !t.isDimmed && !t.lapDashed) {
       const area = d3.area()
         .x((d) => xScale(d.Distance))
@@ -1506,7 +1497,7 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
     }
     const path = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-speed-line telem-speed-line--focus' : 'telem-speed-line')
-      .attr('d', line).attr('stroke', t.color)
+      .attr('d', line).attr('stroke', traceStroke(t, t.color))
       .attr('opacity', opacity)
       .attr('stroke-width', t.lapDashed ? 1.2 : null);
     if (t.lapDashed) path.attr('stroke-dasharray', LAP_DASH);
@@ -1519,11 +1510,12 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
         g.append('text')
           .attr('x', xScale(lastPt.Distance) + 3)
           .attr('y', yScale(lastPt.Speed))
-          .attr('fill', textColor(t.color, SURFACES.panel))
+          // a faded trace's label mixed toward the panel (>= 3:1), never at
+          // an opacity (D7)
+          .attr('fill', traceLabelColor(t))
           .style('font-size', CHART_FONT.data)
           .attr('font-weight', 600)
           .attr('dominant-baseline', 'middle')
-          .attr('opacity', opacity)
           .text(`L${t.lap}`);
       }
     }
@@ -1802,32 +1794,32 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
     .curve(d3.curveMonotoneX);
 
   traces.forEach((t) => {
-    const opacity = t.isDimmed ? 0.15 : (t.lapOpacity || 1);
+    const opacity = traceOpacity(t);
     // the focus driver's channels in the Okabe-Ito pair (throttle sky blue,
     // brake orange: not green / red); other traces in their own colour
     const throttleColor = t.isFocus && !t.lapDashed ? CHANNEL_COLORS.throttle : t.color;
     const brakeColor = t.isFocus && !t.lapDashed ? CHANNEL_COLORS.brake : t.color;
 
-    // Area fill only for focus/reference (not dashed comparison laps)
-    if (!t.lapDashed) {
+    // Area fill only for focus/reference (not dashed comparison laps); a
+    // context trace (another driver hovered) draws its line only: its areas
+    // at opacity 0.08 were a mark under the 2:1 floor (D7)
+    if (!t.lapDashed && !t.isDimmed) {
       g.append('path').datum(t.data)
         .attr('class', t.isFocus ? 'telem-throttle-area telem-throttle-area--focus' : 'telem-throttle-area')
         .attr('d', throttleArea)
-        .attr('fill', throttleColor)
-        .attr('opacity', t.isDimmed ? 0.08 : null);
+        .attr('fill', throttleColor);
 
       g.append('path').datum(t.data)
         .attr('class', t.isFocus ? 'telem-brake-area telem-brake-area--focus' : 'telem-brake-area')
         .attr('d', brakeArea)
-        .attr('fill', brakeColor)
-        .attr('opacity', t.isDimmed ? 0.08 : null);
+        .attr('fill', brakeColor);
     }
 
     // Lines
     const tLine = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-throttle-line telem-throttle-line--focus' : 'telem-throttle-line')
       .attr('d', throttleLine)
-      .attr('stroke', throttleColor)
+      .attr('stroke', traceStroke(t, throttleColor))
       .attr('opacity', opacity);
     if (t.lapDashed) tLine.attr('stroke-dasharray', LAP_DASH).attr('stroke-width', 1.2);
     else if (t.dash && !t.isFocus) tLine.attr('stroke-dasharray', t.dash);
@@ -1835,11 +1827,27 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
     const bLine = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-brake-line telem-brake-line--focus' : 'telem-brake-line')
       .attr('d', brakeLine)
-      .attr('stroke', brakeColor)
+      .attr('stroke', traceStroke(t, brakeColor))
       .attr('opacity', opacity);
     if (t.lapDashed) bLine.attr('stroke-dasharray', LAP_DASH).attr('stroke-width', 1.2);
     else if (t.dash && !t.isFocus) bLine.attr('stroke-dasharray', t.dash);
   });
+}
+
+// Focus + context of a trace (D7): a dimmed trace (another driver hovered,
+// a ghost lap of the focus driver) is drawn in its colour mixed toward the
+// panel (contextColor: >= 2:1), at full opacity; opacity 0.15 read 1.08:1.
+// A comparison lap of laps mode keeps its lapOpacity (an encoding of its
+// order, with its dash and its L label), its label mixed like a context text.
+function traceStroke(t, color) {
+  return t.isDimmed ? contextColor(color, SURFACES.panel, { mix: CONTEXT_MIX_LINES }) : color;
+}
+function traceOpacity(t) {
+  return t.isDimmed ? 1 : (t.lapOpacity || 1);
+}
+function traceLabelColor(t) {
+  const full = textColor(t.color, SURFACES.panel);
+  return t.isDimmed || (t.lapOpacity ?? 1) < 1 ? contextText(full, SURFACES.panel) : full;
 }
 
 function renderGearChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisMode) {
@@ -1874,10 +1882,10 @@ function renderGearChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisM
     .curve(d3.curveStepAfter);
 
   traces.forEach((t) => {
-    const opacity = t.isDimmed ? 0.15 : (t.lapOpacity || 1);
+    const opacity = traceOpacity(t);
     const path = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-gear-line telem-gear-line--focus' : 'telem-gear-line')
-      .attr('d', line).attr('stroke', t.color)
+      .attr('d', line).attr('stroke', traceStroke(t, t.color))
       .attr('opacity', opacity);
     if (t.lapDashed) path.attr('stroke-dasharray', LAP_DASH).attr('stroke-width', 1.2);
     else if (t.dash) path.attr('stroke-dasharray', t.dash);
@@ -1953,10 +1961,10 @@ function renderRPMChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisMo
     .curve(d3.curveMonotoneX);
 
   traces.forEach((t) => {
-    const opacity = t.isDimmed ? 0.15 : (t.lapOpacity || 1);
+    const opacity = traceOpacity(t);
     const path = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-rpm-line telem-rpm-line--focus' : 'telem-rpm-line')
-      .attr('d', line).attr('stroke', t.color)
+      .attr('d', line).attr('stroke', traceStroke(t, t.color))
       .attr('opacity', opacity);
     if (t.lapDashed) path.attr('stroke-dasharray', LAP_DASH).attr('stroke-width', 1.2);
     else if (t.dash) path.attr('stroke-dasharray', t.dash);

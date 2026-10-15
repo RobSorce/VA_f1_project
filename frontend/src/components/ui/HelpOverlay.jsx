@@ -47,8 +47,11 @@ export default function HelpOverlay() {
     if (CHART_HELP[id]) openHelp(id);
   };
 
-  const openAndClose = (id) => {
-    // Open the target chart and dismiss help.
+  const openAndClose = (helpId) => {
+    // Open the target chart and dismiss help. A help entry of a panel with
+    // no tab of its own (e.g. 'crossrace', inside Analytics) names the tab
+    // that holds it (openTabId).
+    const id = CHART_HELP[helpId]?.openTabId || helpId;
     closeHelp();
     if (openOverlays.includes(id)) focusOverlay(id);
     else setActiveTab(id);

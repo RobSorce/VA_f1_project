@@ -11,6 +11,7 @@
 import { isLapCompleted, lapStartTime } from '../raceTime';
 import { driverStateAt, nonFinisherMap } from '../driverState';
 import { STATUS_COLORS, STATUS_GLYPHS } from '../colors';
+import { sectorsBestLegend } from './sectorsBestChart';
 
 // Timing colours: the one STATUS_COLORS map of utils/colors.js, each with its
 // glyph (◆ overall best, ● personal best) so colour is never the only cue
@@ -33,6 +34,8 @@ const TIME_GLYPHS = {
  * @returns {Array<{label:string, color:string, glyph?:string, shape:string}>}
  */
 export function sectorsLegend(view) {
+  // Best: the D3 chart of the gap to the session best (sectorsBestChart.js, D5)
+  if (view === 'best') return sectorsBestLegend();
   if (view === 'live') {
     return [
       { label: 'Session best', color: STATUS_COLORS.overallBest, glyph: STATUS_GLYPHS.overallBest, shape: 'glyph' },
@@ -41,15 +44,8 @@ export function sectorsLegend(view) {
       { label: 'Sector running', color: STATUS_COLORS.running, glyph: '12.3', shape: 'glyph' },
     ];
   }
-  const best = view === 'speeds' ? 'Fastest' : 'Session best';
   return [
-    { label: best, color: STATUS_COLORS.overallBest, glyph: STATUS_GLYPHS.overallBest, shape: 'glyph' },
-    ...(view === 'best'
-      ? [
-        { label: 'Bar: closeness to the best (full = best)', color: STATUS_COLORS.overallBest, shape: 'square' },
-        { label: 'Other drivers', color: SECTOR_BAR_COLOR, shape: 'square' },
-      ]
-      : []),
+    { label: 'Fastest', color: STATUS_COLORS.overallBest, glyph: STATUS_GLYPHS.overallBest, shape: 'glyph' },
   ];
 }
 
@@ -205,4 +201,65 @@ export function sectorsPanelData(lapTimes, sessionNow, { dnfMap = {}, replayActi
   }
 
   return { liveRows, bestRankings, bestSessionBests, speedRankings };
+}
+
+/* ── Fit of the rows and the ranked columns to the panel (Phase 9c D1) ──
+   The panel never scrolls and never cuts a row: the rows take the height
+   (SECTORS_ROW_MAX px down to SECTORS_ROW_MIN, the 18 px floor of a data
+   row), else they are paged, the same page of ranks in every column; the
+   ranked columns (Best, Top Speeds) take the width, at least
+   SECTORS_COL_EM data-type ems each, else they are paged too. The browser
+   pass found 20 rows drawn into overflow-hidden bodies, cut with no pager. */
+export const SECTORS_ROW_MIN = 18;
+export const SECTORS_ROW_MAX = 26;
+/** Height of the pager line under the rows (px, its border included). */
+export const SECTORS_PAGER_H = 22;
+export const SECTORS_COL_GAP = 8;
+/**
+ * Minimum width of a ranked column, in data-type ems: rank, team bar, code,
+ * the time or speed with its glyph and the gap to the best on one line
+ * (16 x 11 px = 176 px; real font widths in __tests__/sectors.fit.test.jsx).
+ */
+export const SECTORS_COL_EM = 16;
+
+/**
+ * Rows of a table fitted to a height (the rule of utils/views/chartBox.js
+ * fitRows, kept here so this module stays free of React): every row when
+ * they fit at the minimum (then as tall as the room allows, up to the
+ * maximum), else as many per page as fit next to the pager. An unknown
+ * height (0, null: not measured, a server render) shows every row.
+ *
+ * @param {number|null} height - px for the rows and the pager line
+ * @param {number} n - rows
+ * @returns {{rowH: number, perPage: number, paged: boolean}}
+ */
+export function sectorsRowFit(height, n) {
+  const count = Math.max(0, Math.floor(Number(n) || 0));
+  const h = Number(height);
+  if (!Number.isFinite(h) || h <= 0 || count === 0) {
+    return { rowH: SECTORS_ROW_MAX, perPage: Math.max(1, count), paged: false };
+  }
+  if (count * SECTORS_ROW_MIN <= h) {
+    return {
+      rowH: Math.max(SECTORS_ROW_MIN, Math.min(SECTORS_ROW_MAX, Math.floor(h / count))), perPage: count, paged: false,
+    };
+  }
+  const perPage = Math.max(1, Math.floor((h - SECTORS_PAGER_H) / SECTORS_ROW_MIN));
+  return { rowH: SECTORS_ROW_MIN, perPage, paged: perPage < count };
+}
+
+/**
+ * Ranked columns that fit a width side by side (at least 1, at most n).
+ *
+ * @param {number} width - px of the columns' row
+ * @param {number} n - columns
+ * @param {number} minColW - px a column needs
+ * @param {number} [gap]
+ * @returns {number}
+ */
+export function sectorsColumnsFit(width, n, minColW, gap = SECTORS_COL_GAP) {
+  const count = Math.max(1, Math.floor(Number(n) || 0));
+  const w = Number(width);
+  if (!Number.isFinite(w) || w <= 0) return count;
+  return Math.max(1, Math.min(count, Math.floor((w + gap) / (minColW + gap))));
 }

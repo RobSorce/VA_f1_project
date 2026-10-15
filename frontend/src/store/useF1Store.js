@@ -1194,8 +1194,10 @@ const GEMINI_QUICK_IDLE = Object.freeze({ loading: false, response: '', error: '
  * generation on (so every answer to a request of the previous screen is
  * dropped, sessionRequestGuard) and clears what was said about the previous
  * screen: the assistant's chat and its scenario overlays (StrategyTimeline
- * draws them), the quick query's answer, and the telemetry spinner of
- * requests that can no longer land.
+ * draws them), the quick query's answer, the telemetry spinner of requests
+ * that can no longer land, and the lap range (D8): laps of one race never
+ * filter the next (the Timing Sheet rows and title, the Position Tracker
+ * brush, the Strategy Timeline band, the Tyre Degradation fit).
  *
  * @returns {Object} partial state
  */
@@ -1203,6 +1205,7 @@ function screenSwitchState() {
   _screenGeneration += 1;
   return {
     geminiMessages: [], geminiOverlays: [], geminiQuick: GEMINI_QUICK_IDLE, telemetryLoading: false,
+    selectedLapRange: null, brushLapRange: null,
   };
 }
 

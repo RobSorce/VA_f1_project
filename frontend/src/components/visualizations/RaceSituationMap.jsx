@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import {
   getDriverColor, TYRE_COLORS, TYRE_LABELS, tyreColor, tyreLetter, contrastText, markColor, textColor, withAlpha,
-  TEXT_COLORS, GRID_COLORS, UI_COLORS, SURFACES, CHART_FONT, chartFontPx,
+  TEXT_COLORS, GRID_COLORS, UI_COLORS, SURFACES, CHART_FONT, chartFontPx, contextColor, contextText,
 } from '../../utils/colors';
 import { teamPairLegend } from '../../utils/views/teamLegend';
 import { attachLasso } from '../../utils/lasso';
@@ -12,6 +12,7 @@ import {
 } from '../../utils/views/raceSituationMap';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+import { useChartBox, chartSize } from '../../utils/views/chartBox';
 
 // Driver dot radius and the compound badge under it (letter in contrastText)
 const POINT_R = 11;
@@ -19,9 +20,17 @@ const POINT_R_HOVER = 14;
 const tyreBadgeR = () => Math.max(6, Math.ceil(chartFontPx('label') * 0.65));
 // Driver colour of a point / trail on the panel (teammate tint, >= 3:1)
 const driverMark = (abbr) => markColor(getDriverColor(abbr), SURFACES.panel);
+// Focus + context (D7): a driver outside the selection is drawn in colours
+// mixed toward the panel, never at an opacity: his dot and tyre badge >= 2:1,
+// his code >= 3:1 (opacity 0.3 / 0.25 read 1.16-2.81:1, verifier r2)
+const contextDot = (abbr) => contextColor(driverMark(abbr), SURFACES.panel);
+const contextBadge = (compound) => contextColor(tyreColor(compound), SURFACES.panel);
+const CONTEXT_LABEL = contextText(TEXT_COLORS.primary, SURFACES.panel);
 
 export default function RaceSituationMap() {
   const svgRef = useRef(null);
+  // The box the chart fills: it lays out again at each new size (D4)
+  const box = useChartBox(svgRef);
   const cleanupRef = useRef(null);
   // Drawn positions + trails (utils/views/raceSituationMap.js advanceDisplay):
   // each dot at its score, advanced only on new lap data (re-renders never
@@ -83,10 +92,8 @@ export default function RaceSituationMap() {
     const display = advanceDisplay(displayRef.current, data);
     displayRef.current = display;
 
-    const container = svgRef.current.parentElement;
-    const rect = container.getBoundingClientRect();
-    const width = rect.width || 500;
-    const height = rect.height || 400;
+    // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width, height } = chartSize(svgRef.current, box, { width: 500, height: 400 });
     const margin = { top: 20, right: 20, bottom: 42, left: 52 };
     const innerW = width - margin.left - margin.right;
     const innerH = height - margin.top - margin.bottom;
@@ -250,13 +257,14 @@ export default function RaceSituationMap() {
     for (const d of pointData) {
       const trail = history[d.abbr];
       if (!trail || trail.length < 2) continue;
+      // a context driver's trail is not drawn (D7): at 3-8 % opacity it read
+      // about 1.05:1, under the 2:1 of a context mark; his dot, badge and code stay
+      if (isDimmed(d)) continue;
 
       const selected = isSelected(d);
-      const dimmed = isDimmed(d);
       const highlighted = d.abbr === highlightedDriver || d.abbr === focusDriver;
       const driverColor = driverMark(d.abbr);
       const showFull = selected || highlighted;
-      const showMinimal = dimmed;
 
       // Trail line segments
       for (let i = 1; i < trail.length; i++) {
@@ -268,9 +276,6 @@ export default function RaceSituationMap() {
         if (showFull) {
           opacity = 0.2 + progress * 0.55;
           strokeW = 1.5 + progress * 2;
-        } else if (showMinimal) {
-          opacity = 0.03 + progress * 0.05;
-          strokeW = 0.5;
         } else {
           opacity = 0.06 + progress * 0.22;
           strokeW = 0.8 + progress * 0.9;
@@ -287,7 +292,7 @@ export default function RaceSituationMap() {
       }
 
       // Trail dots with lap labels for focused/selected drivers
-      if (!showMinimal) {
+      {
         for (let i = 0; i < trail.length - 1; i++) {
           const pt = trail[i];
           const progress = (i + 1) / trail.length;
@@ -318,7 +323,7 @@ export default function RaceSituationMap() {
       }
 
       // Direction arrow on most recent trail segment
-      if (trail.length >= 2 && !showMinimal) {
+      if (trail.length >= 2) {
         const prev = trail[trail.length - 2];
         const curr = trail[trail.length - 1];
         const adx = x(curr.x) - x(prev.x);
@@ -346,16 +351,15 @@ export default function RaceSituationMap() {
           .attr('class', 'tyre-dot')
           .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y) + POINT_R + tyreBadgeR())
           .attr('r', 0)
-          .attr('fill', (d) => tyreColor(d.compoundName))
+          .attr('fill', (d) => (isDimmed(d) ? contextBadge(d.compoundName) : tyreColor(d.compoundName)))
           .attr('stroke', SURFACES.page).attr('stroke-width', 1)
-          .attr('opacity', (d) => isDimmed(d) ? 0.25 : 1)
           .attr('pointer-events', 'none')
           .call((e) => e.transition(t).attr('r', tyreBadgeR())),
         (update) => update
           .call((u) => u.transition(t)
             .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y) + POINT_R + tyreBadgeR())
-            .attr('fill', (d) => tyreColor(d.compoundName))
-            .attr('opacity', (d) => isDimmed(d) ? 0.25 : 1)),
+            .attr('fill', (d) => (isDimmed(d) ? contextBadge(d.compoundName) : tyreColor(d.compoundName)))
+            .attr('opacity', 1)),
         (exit) => exit.transition(t).attr('r', 0).remove()
       );
     // the compound letter on its badge (the FIA colour is never alone)
@@ -364,9 +368,10 @@ export default function RaceSituationMap() {
       .attr('class', 'tyre-letter')
       .attr('x', (d) => x(d.x)).attr('y', (d) => y(d.y) + POINT_R + tyreBadgeR())
       .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-      .attr('fill', (d) => contrastText(tyreColor(d.compoundName)))
+      // black or white on the badge drawn (the context badge included): >= 4.5:1
+      .attr('fill', (d) => contrastText(isDimmed(d) ? contextBadge(d.compoundName) : tyreColor(d.compoundName)))
       .style('font-size', CHART_FONT.label).attr('font-weight', 800)
-      .attr('opacity', (d) => isDimmed(d) ? 0.25 : 1)
+      .attr('opacity', 1)
       .attr('pointer-events', 'none')
       .text((d) => tyreLetter(d.compoundName));
 
@@ -378,19 +383,18 @@ export default function RaceSituationMap() {
           .attr('class', 'driver-point')
           .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y))
           .attr('r', 0)
-          .attr('fill', (d) => driverMark(d.abbr))
+          .attr('fill', (d) => (isDimmed(d) ? contextDot(d.abbr) : driverMark(d.abbr)))
           .attr('stroke', (d) => isSelected(d) ? TEXT_COLORS.primary : 'rgba(0,0,0,0.3)')
           .attr('stroke-width', (d) => isSelected(d) ? 2 : 1)
-          .attr('opacity', (d) => isDimmed(d) ? 0.3 : 1)
           .attr('cursor', 'pointer')
           .call((e) => e.transition(t).attr('r', POINT_R)),
         (update) => update
           .call((u) => u.transition(t)
             .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y))
-            .attr('fill', (d) => driverMark(d.abbr))
+            .attr('fill', (d) => (isDimmed(d) ? contextDot(d.abbr) : driverMark(d.abbr)))
             .attr('stroke', (d) => isSelected(d) ? TEXT_COLORS.primary : 'rgba(0,0,0,0.3)')
             .attr('stroke-width', (d) => isSelected(d) ? 2 : 1)
-            .attr('opacity', (d) => isDimmed(d) ? 0.3 : 1)),
+            .attr('opacity', 1)),
         (exit) => exit.transition(t).attr('r', 0).remove()
       )
       .on('mouseenter', function (event, d) {
@@ -463,6 +467,10 @@ export default function RaceSituationMap() {
       }
     }
 
+    const dimmedAbbr = (abbr) => {
+      const pd = pointData.find((p) => p.abbr === abbr);
+      return !!pd && isDimmed(pd);
+    };
     const labelsLayer = g.select('.labels-layer');
     labelsLayer.selectAll('.situation-label').data(labelPositions, (d) => d.abbr)
       .join(
@@ -470,26 +478,25 @@ export default function RaceSituationMap() {
           .attr('class', 'situation-label')
           .attr('x', (d) => d.lx).attr('y', (d) => d.ly)
           .text((d) => d.abbr)
-          // white with a dark halo: readable on any team colour and the panel
+          // white with a dark halo: readable on any team colour and the panel;
+          // a context driver's code mixed toward the panel (>= 3:1 on the panel
+          // and on its halo), never at an opacity. A style, not an attribute:
+          // the stylesheet's .situation-label rule would win over an attribute
           .style('font-size', CHART_FONT.data).attr('font-weight', 700)
-          .attr('fill', TEXT_COLORS.primary).attr('text-anchor', (d) => d.anchor)
+          .style('fill', (d) => (dimmedAbbr(d.abbr) ? CONTEXT_LABEL : TEXT_COLORS.primary))
+          .attr('text-anchor', (d) => d.anchor)
           .attr('dominant-baseline', 'central')
           .attr('pointer-events', 'none')
           .attr('paint-order', 'stroke')
           .attr('stroke', 'rgba(0,0,0,0.85)').attr('stroke-width', 3)
           .attr('stroke-linejoin', 'round')
           .attr('opacity', 0)
-          .call((e) => e.transition(t).attr('opacity', (d) => {
-            const pd = pointData.find((p) => p.abbr === d.abbr);
-            return pd && isDimmed(pd) ? 0.3 : 1;
-          })),
+          .call((e) => e.transition(t).attr('opacity', 1)),
         (update) => update
+          .style('fill', (d) => (dimmedAbbr(d.abbr) ? CONTEXT_LABEL : TEXT_COLORS.primary))
           .call((u) => u.transition(t)
             .attr('x', (d) => d.lx).attr('y', (d) => d.ly)
-            .attr('opacity', (d) => {
-              const pd = pointData.find((p) => p.abbr === d.abbr);
-              return pd && isDimmed(pd) ? 0.3 : 1;
-            })),
+            .attr('opacity', 1)),
         (exit) => exit.transition(t).attr('opacity', 0).remove()
       );
 
@@ -585,7 +592,7 @@ export default function RaceSituationMap() {
       },
     });
 
-  }, [raceSituationData, selectedDrivers, highlightedDriver, focusDriver, driverInfoMap, setSelectedDrivers, toggleDriver, setHighlightedDriver, setFocusDriver, showAxes]);
+  }, [raceSituationData, selectedDrivers, highlightedDriver, focusDriver, driverInfoMap, setSelectedDrivers, toggleDriver, setHighlightedDriver, setFocusDriver, showAxes, box.width, box.height]);
 
   // Cleanup on unmount
   useEffect(() => () => { if (cleanupRef.current) cleanupRef.current(); }, []);

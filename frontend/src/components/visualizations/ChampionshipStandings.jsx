@@ -2,14 +2,19 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import {
-  countryFlag, CHART_FONT, TEXT_COLORS, GRID_COLORS, textColor, markColor, contrastText, SURFACES,
+  countryFlag, CHART_FONT, TEXT_COLORS, GRID_COLORS, textColor, markColor, contrastText, contextColor, SURFACES,
 } from '../../utils/colors';
-import { championshipStyles, championshipStandingsLegend } from '../../utils/views/championshipChart';
+import {
+  championshipStyles, championshipStandingsLegend, championshipTooltip,
+} from '../../utils/views/championshipChart';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+import { useChartBox, chartSize } from '../../utils/views/chartBox';
 
 export default function ChampionshipStandings() {
   const svgRef = useRef(null);
+  // The box the chart fills: it lays out again at each new size (D4)
+  const box = useChartBox(svgRef);
 
   const championshipData = useF1Store((s) => s.championshipData);
   const championshipView = useF1Store((s) => s.championshipView);
@@ -18,6 +23,11 @@ export default function ChampionshipStandings() {
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const toggleDriver = useF1Store((s) => s.toggleDriver);
   const round = useF1Store((s) => s.round);
+  // The session on screen (its line-up and round): the earlier team of a
+  // driver who changed team, in his tooltip (D11)
+  const sessionDrivers = useF1Store((s) => s.drivers);
+  const loadedYear = useF1Store((s) => s.loadedYear);
+  const loadedRound = useF1Store((s) => s.loadedRound);
 
   const isDriverView = championshipView === 'drivers';
 
@@ -34,7 +44,8 @@ export default function ChampionshipStandings() {
     const filtered = list.map((e) => {
       const prog = (e.progression || []).filter((p) => p.round <= round);
       const totalPoints = prog.length > 0 ? prog[prog.length - 1].cumulative : 0;
-      return { ...e, progression: prog, totalPoints };
+      // seasonProgression: the team of the entry is the latest round's (D11)
+      return { ...e, progression: prog, seasonProgression: e.progression, totalPoints };
     }).filter((e) => e.progression.length > 0);
 
     filtered.sort((a, b) => b.totalPoints - a.totalPoints);
@@ -54,11 +65,21 @@ export default function ChampionshipStandings() {
     [entries, styles, isDriverView],
   );
 
+  // Driver → {round, team} in the session on screen, for the tooltips (same season only)
+  const sessionTeams = useMemo(() => {
+    const out = {};
+    if (!championshipData || Number(loadedYear) !== Number(championshipData.year) || !loadedRound) return out;
+    for (const d of sessionDrivers || []) {
+      if (d?.Abbreviation && d?.TeamName) out[d.Abbreviation] = { round: Number(loadedRound), team: d.TeamName };
+    }
+    return out;
+  }, [championshipData, loadedYear, loadedRound, sessionDrivers]);
+
   useEffect(() => {
     if (!svgRef.current || entries.length === 0) return;
 
-    const container = svgRef.current.parentElement;
-    const { width: W, height: H } = container.getBoundingClientRect();
+    // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width: W, height: H } = chartSize(svgRef.current, box);
     if (W < 50 || H < 50) return;
 
     const margin = { top: 8, right: 54, bottom: 20, left: isDriverView ? 80 : 120 };
@@ -112,9 +133,11 @@ export default function ChampionshipStandings() {
       const nameColor = textColor(style.color, SURFACES.panel);
       const isHigh = isDriverView ? highlightedDriver === entry.abbr : false;
       const isSelected = isDriverView ? selectedDrivers.includes(entry.abbr) : false;
-      // Focus + context: a context bar is faded on purpose; its text is never
-      // faded, it turns to the muted text colour (>= 4.5:1, COLOR_ENCODING.md)
+      // Focus + context (D7): a context bar is mixed toward the panel
+      // (contextColor, >= 2:1, never an opacity); its text turns to the muted
+      // text colour (>= 4.5:1, COLOR_ENCODING.md)
       const isDimmed = (selectedDrivers.length > 0 || highlightedDriver) && !isHigh && !isSelected;
+      const barFill = isDimmed ? contextColor(color, SURFACES.panel) : color;
       const yPos = yOffset + i * (barHeight + barGap);
 
       const barG = g.append('g').style('cursor', 'pointer');
@@ -135,8 +158,7 @@ export default function ChampionshipStandings() {
         .attr('y', yPos)
         .attr('width', barW)
         .attr('height', barHeight)
-        .attr('fill', color)
-        .attr('fill-opacity', isDimmed ? 0.2 : 1)
+        .attr('fill', barFill)
         .attr('rx', 3)
         // the hovered bar: a white outline
         .attr('stroke', isHigh ? TEXT_COLORS.primary : 'none')
@@ -145,16 +167,17 @@ export default function ChampionshipStandings() {
       // The teammate's bar carries the chart's teammate dash as a line along
       // its middle, in the text colour of the bar (contrastText, >= 4.5:1 on
       // it): the pattern reads on the bar (V3 r2: a dashed outline in the
-      // bar's own colour was invisible)
+      // bar's own colour was invisible); on a context bar, mixed toward the
+      // bar (>= 2:1 on it, D7)
       if (style.dash && barW > 8) {
-        barG.append('line')
+        const dash = barG.append('line')
           .attr('class', 'standings-teammate-dash')
           .attr('x1', 3).attr('x2', barW - 3)
           .attr('y1', yPos + barHeight / 2).attr('y2', yPos + barHeight / 2)
           .attr('stroke', contrastText(color))
           .attr('stroke-width', 2)
-          .attr('stroke-dasharray', style.dash)
-          .attr('stroke-opacity', isDimmed ? 0.2 : 1);
+          .attr('stroke-dasharray', style.dash);
+        if (isDimmed) dash.attr('stroke', contextColor(contrastText(barFill), barFill));
       }
 
       // Points label at end of bar
@@ -192,6 +215,10 @@ export default function ChampionshipStandings() {
         .attr('width', margin.left + innerW + margin.right)
         .attr('height', barHeight)
         .attr('fill', 'transparent')
+        // tooltip: points, team and, for a driver who changed team, his
+        // earlier team and why the bar has the latest team's colour (D11)
+        .call((hit) => hit.append('title')
+          .text(championshipTooltip(entry, isDriverView, isDriverView ? sessionTeams[entry.abbr] : null)))
         .on('mouseenter', () => {
           if (isDriverView) setHighlightedDriver(entry.abbr);
         })
@@ -203,7 +230,7 @@ export default function ChampionshipStandings() {
         });
     });
 
-  }, [entries, styles, isDriverView, highlightedDriver, selectedDrivers, setHighlightedDriver, toggleDriver]);
+  }, [entries, styles, isDriverView, highlightedDriver, selectedDrivers, setHighlightedDriver, toggleDriver, sessionTeams, box.width, box.height]);
 
   if (!championshipData) {
     return (

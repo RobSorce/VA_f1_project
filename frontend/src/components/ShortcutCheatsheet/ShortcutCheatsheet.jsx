@@ -60,7 +60,9 @@ const SHORTCUT_SECTIONS = [
       { keys: ['D'], desc: 'Select Driver' },
       { keys: ['F'], desc: 'Focus / Unfocus Driver' },
       { keys: ['C'], desc: 'Toggle Compare Mode' },
-      { keys: ['\u21E7', 'P'], desc: 'Lap-Time Forecast of the Focus Driver' },
+      // D9: Shift+P runs the lap-time forecast of the focus driver (else the
+      // first selected) and opens Race Prediction (useKeyboardShortcuts)
+      { keys: ['\u21E7', 'P'], desc: 'Run lap-time forecast' },
       { keys: ['S'], desc: 'Strategy Timeline' },
       { keys: ['T'], desc: 'Tyres (Degradation)' },
       { keys: ['A'], desc: 'Analytics (PCA)' },

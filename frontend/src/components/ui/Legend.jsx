@@ -11,9 +11,10 @@ const PAIR_DOT_PX = 9;
 /**
  * Reusable legend component: each swatch is drawn like the mark it explains.
  * @param {Array} items - [{ label, color, shape?, active?, onClick?, title?,
- *   path?, viewBox?, className?, stroke?, strokeWidth?, dash?, glyph? }].
+ *   path?, viewBox?, className?, stroke?, strokeWidth?, dash?, double?, glyph? }].
  *   shape 'line' draws a stroke (dashed with `dash`, an SVG stroke-dasharray:
- *   the teammate dash, a projection); 'circle' / 'square' a dot / cell;
+ *   the teammate dash, a projection; two rails `double` px off the middle:
+ *   the Lap Delta base line); 'circle' / 'square' a dot / cell;
  *   'band' a translucent area with its edge; 'glyph' the glyph or letter
  *   itself in the colour (◆ ● P, a compound letter); 'badge' a filled chip
  *   with the glyph in contrastText; 'pair' two dots, `color` and `color2`
@@ -77,13 +78,21 @@ function Swatch({ item, shape }) {
     );
   }
   if (shape === 'line') {
+    // `double`: two rails that many px above and below the middle (the Lap
+    // Delta base line), else one stroke
+    const ys = item.double > 0
+      ? [LINE_SWATCH.h / 2 - item.double, LINE_SWATCH.h / 2 + item.double]
+      : [LINE_SWATCH.h / 2];
     return (
       <svg width={LINE_SWATCH.w} height={LINE_SWATCH.h} aria-hidden="true" style={{ flexShrink: 0 }} className="legend-line">
-        <line
-          x1={1} x2={LINE_SWATCH.w - 1} y1={LINE_SWATCH.h / 2} y2={LINE_SWATCH.h / 2}
-          stroke={item.color} strokeWidth={item.strokeWidth || 2.5}
-          strokeDasharray={item.dash || undefined} strokeLinecap="butt"
-        />
+        {ys.map((yy) => (
+          <line
+            key={yy}
+            x1={1} x2={LINE_SWATCH.w - 1} y1={yy} y2={yy}
+            stroke={item.color} strokeWidth={item.strokeWidth || 2.5}
+            strokeDasharray={item.dash || undefined} strokeLinecap="butt"
+          />
+        ))}
       </svg>
     );
   }

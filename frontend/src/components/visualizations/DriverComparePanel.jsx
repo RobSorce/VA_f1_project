@@ -8,7 +8,7 @@ import {
   signedDelta, DIVERGING, TEXT_COLORS, GRID_COLORS, CHART_FONT, chartFontPx,
 } from '../../utils/colors';
 import Legend from '../ui/Legend';
-import { useBoxSize } from '../../utils/views/chartBox';
+import { useBoxSize, useChartBox, chartSize } from '../../utils/views/chartBox';
 import { compareSections, comparePages, COMPARE_GAP } from '../../utils/views/driverCompare';
 import { drawStintStrips, lapTicks } from '../../utils/views/stintStripChart';
 
@@ -151,6 +151,10 @@ export default function DriverComparePanel() {
   const panelRef = useRef(null);
   const gapChartRef = useRef(null);
   const lapChartRef = useRef(null);
+  // The boxes the two D3 charts fill, kept up to date (D4: the shared hook);
+  // a chart lays out again at each new size of its box
+  const gapBox = useChartBox(gapChartRef);
+  const lapBox = useChartBox(lapChartRef);
   // The body's box: its sections flow into columns and pages that fit it
   // (utils/views/driverCompare.js; V13: nothing cut, no scroll)
   const bodyRef = useRef(null);
@@ -392,8 +396,7 @@ export default function DriverComparePanel() {
   // ── D3: Gap evolution chart ──
   useEffect(() => {
     if (!gapChartRef.current || gapData.length < 2) return;
-    const container = gapChartRef.current.parentElement;
-    const { width: W, height: H } = container.getBoundingClientRect();
+    const { width: W, height: H } = chartSize(gapChartRef.current, gapBox);
     // not laid out yet (or a pane too small to draw in): nothing to draw
     if (W < 80 || H < 70) return;
     const margin = { top: 20, right: 16, bottom: 28, left: 50 };
@@ -473,13 +476,12 @@ export default function DriverComparePanel() {
     // Clean up axis lines
     svg.selectAll('.domain').attr('stroke', GRID_COLORS.axis);
     svg.selectAll('.tick line').attr('stroke', GRID_COLORS.axis);
-  }, [gapData, driverA, driverB, colorA, colorB, layoutKey]);
+  }, [gapData, driverA, driverB, colorA, colorB, layoutKey, gapBox.width, gapBox.height]);
 
   // ── D3: Lap times overlay ──
   useEffect(() => {
     if (!lapChartRef.current || racingA.length < 2 || racingB.length < 2) return;
-    const container = lapChartRef.current.parentElement;
-    const { width: W, height: H } = container.getBoundingClientRect();
+    const { width: W, height: H } = chartSize(lapChartRef.current, lapBox);
     if (W < 80 || H < 70) return;
     const margin = { top: 20, right: 16, bottom: 28, left: 50 };
     const w = W - margin.left - margin.right;
@@ -570,7 +572,7 @@ export default function DriverComparePanel() {
 
     svg.selectAll('.domain').attr('stroke', GRID_COLORS.axis);
     svg.selectAll('.tick line').attr('stroke', GRID_COLORS.axis);
-  }, [racingA, racingB, pitLapsA, pitLapsB, driverA, driverB, colorA, colorB, currentLap, lstmPredictions, layoutKey]);
+  }, [racingA, racingB, pitLapsA, pitLapsB, driverA, driverB, colorA, colorB, currentLap, lstmPredictions, layoutKey, lapBox.width, lapBox.height]);
 
   // ── Empty state ──
   if (!driverA || !driverB) {

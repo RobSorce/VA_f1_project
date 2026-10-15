@@ -6,12 +6,13 @@ import {
   getDriverColor, markColor, textColor, withAlpha, tyreColor, tyreLetter, contrastText,
   TRACK_STATUS_STYLES, FLAG_COLORS as FLAG_PALETTE, SECTOR_COLORS, CHANNEL_COLORS, TRACK_COLORS,
   CHANNEL_RAMP_LOW, SPEED_RAMP_START,
-  TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT,
+  TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT, contextColor,
 } from '../../utils/colors';
 import { estimateFromFramePositions } from '../../utils/trackPositionEstimator';
 import { leaderLapEndTime } from '../../utils/raceTime';
 import { causalKey, viewSessionType, isRaceSession } from '../../utils/strategyViews';
 import { trackMapDriverStatus, trackMapSessionNow } from '../../utils/views/trackMap';
+import { useChartBox, chartSize, svgScreenScale } from '../../utils/views/chartBox';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
@@ -46,7 +47,9 @@ const COMPOUND_COLORS = Object.fromEntries(Object.entries(COMPOUND_KEYS).map(([k
 // Car dots and labels on the map: driver colour (teammate tint) as a mark / text
 const carMark = (abbr) => markColor(getDriverColor(abbr), SURFACES.panel);
 const carText = (abbr) => textColor(getDriverColor(abbr), SURFACES.panel);
-// Font sizes of text inside the zoomed group: divided by the zoom factor
+// Font sizes of text inside the zoomed group: divided by --map-zoom, the
+// d3.zoom factor times the svg's scale on screen (setMapZoom), so they read
+// at their CHART_FONT size whatever the zoom and the size of the panel (D4)
 const ZOOMED_FONT = {
   data: `calc(${CHART_FONT.data} / var(--map-zoom, 1))`,
   label: `calc(${CHART_FONT.label} / var(--map-zoom, 1))`,
@@ -158,10 +161,25 @@ const TRAIL_CONFIG = [
 ];
 const TRAIL_LENGTH = TRAIL_CONFIG.length;
 
+// --map-zoom of the svg: the zoom factor k times the svg's on-screen scale
+// (chartBox.js svgScreenScale; 1 once the viewBox is the panel's box), the
+// divisor of every label size in the map (ZOOMED_FONT, visualizations.css
+// .car-label / .corner-label), so a label keeps its size on screen (D4)
+function setMapZoom(svgEl, k, screenScale) {
+  if (!svgEl) return;
+  const f = (Number(k) || 1) * (Number(screenScale) || 1);
+  svgEl.style.setProperty('--map-zoom', String(f));
+}
+
 export default function TrackMap({ compact = false }) {
   const svgRef = useRef(null);
   const gRef = useRef(null);
   const zoomRef = useRef(null);
+  // The box the map fills: the track is laid out again at each new size (D4)
+  const box = useChartBox(svgRef);
+  // d3.zoom's factor and the svg's scale on screen: --map-zoom = k x scale
+  const zoomKRef = useRef(1);
+  const screenScaleRef = useRef(1);
   const trailPositionsRef = useRef({}); // { driverAbbr: [{x, y}, ...] } — most recent first
   const isInitialRenderRef = useRef(true);
   const prevFrameIndexRef = useRef(-1); // Track previous frame to detect changes
@@ -387,12 +405,18 @@ export default function TrackMap({ compact = false }) {
     // The map's text keeps its size on screen at any zoom (semantic zoom):
     // --map-zoom divides the font size of every label drawn in the group
     // (visualizations.css .car-label, .corner-label; the inline sizes below),
-    // so an 11 px label never renders at 5.5 px when zoomed out (V13)
+    // so an 11 px label never renders at 5.5 px when zoomed out (V13), nor
+    // at 6.6 px in a panel smaller than the one it was drawn for (D4)
+    zoomKRef.current = 1;
+    setMapZoom(svg.node(), 1, screenScaleRef.current);
     const zoom = d3.zoom()
       .scaleExtent([0.5, 8])
       .on('zoom', (event) => {
         g.attr('transform', event.transform);
-        svg.node().style.setProperty('--map-zoom', String(event.transform.k));
+        zoomKRef.current = event.transform.k;
+        // the svg's scale now (a resize may not have been laid out yet)
+        screenScaleRef.current = svgScreenScale(svg.node());
+        setMapZoom(svg.node(), event.transform.k, screenScaleRef.current);
       });
     svg.call(zoom);
     zoomRef.current = zoom;
@@ -415,10 +439,14 @@ export default function TrackMap({ compact = false }) {
     if (!circuitInfo?.track_coordinates?.length || !gRef.current) return;
 
     const svg = d3.select(svgRef.current);
-    const rect = svgRef.current.parentElement.getBoundingClientRect();
-    const width = compact ? (rect.width || 300) : (rect.width || 800);
-    const height = compact ? (rect.height || 200) : (rect.height || 500);
+    // the box the map fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width, height } = chartSize(svgRef.current, box, compact
+      ? { width: 300, height: 200 }
+      : { width: 800, height: 500 });
     svg.attr('viewBox', `0 0 ${width} ${height}`);
+    // its scale on screen (1 when the viewBox is the box), into --map-zoom
+    screenScaleRef.current = svgScreenScale(svgRef.current);
+    setMapZoom(svgRef.current, zoomKRef.current, screenScaleRef.current);
 
     const g = gRef.current;
     const rawCoords = circuitInfo.track_coordinates;
@@ -758,7 +786,8 @@ export default function TrackMap({ compact = false }) {
 
     isInitialRenderRef.current = true;
     trailPositionsRef.current = {}; // Clear stale screen-space trails on redraw
-  }, [circuitInfo, compact, trackRotationOffset]);
+    // box: the track is laid out again in the panel's new box (D4)
+  }, [circuitInfo, compact, trackRotationOffset, box.width, box.height]);
 
   // Update sector visibility
   useEffect(() => {
@@ -896,7 +925,7 @@ export default function TrackMap({ compact = false }) {
         .attr('stroke-linecap', 'round')
         .attr('opacity', 0.95);
     }
-  }, [channelMode, channelTelemetry, circuitInfo, trackRotationOffset, compact]);
+  }, [channelMode, channelTelemetry, circuitInfo, trackRotationOffset, compact, box.width, box.height]);
 
   // Update track border color based on flag status
   useEffect(() => {
@@ -939,7 +968,8 @@ export default function TrackMap({ compact = false }) {
         .attr('font-family', "'Titillium Web', sans-serif")
         .text(label);
     }
-  }, [currentFlagStatus]);
+    // box: the label is centred in the new viewBox (D4)
+  }, [currentFlagStatus, box.width, box.height]);
 
   // Helper: update trail positions for a driver
   const updateTrailPositions = useCallback((driverAbbr, x, y) => {
@@ -1077,11 +1107,20 @@ export default function TrackMap({ compact = false }) {
     // Retired only once the retirement has happened (driverStatus)
     const isDriverRetired = (abbr) => !!driverStatus[abbr]?.retired;
 
-    const getDimmedOpacity = (abbr) => {
-      if (abbr === focusDriver) return 1;
-      if (selectedDrivers.length > 0 && !selectedDrivers.includes(abbr)) return 0.7;
-      if (focusDriver && abbr !== focusDriver && !selectedDrivers.includes(abbr)) return 0.55;
-      return 1;
+    // Context cars (D7): not selected while others are, or not the focus (and
+    // not selected) while there is one. Their dot is mixed toward the panel
+    // (contextColor, >= 2:1) at full opacity: opacity 0.55 read 1.80:1
+    // (Alfa Romeo). A car away from the focus is mixed further than a car
+    // not selected, as it was faded further (0.55 / 0.7 before)
+    const contextMix = (abbr) => {
+      if (abbr === focusDriver) return 0;
+      if (selectedDrivers.length > 0 && !selectedDrivers.includes(abbr)) return 0.3;
+      if (focusDriver && abbr !== focusDriver && !selectedDrivers.includes(abbr)) return 0.45;
+      return 0;
+    };
+    const carDotFill = (abbr) => {
+      const mix = contextMix(abbr);
+      return mix > 0 ? contextColor(carMark(abbr), SURFACES.panel, { mix }) : carMark(abbr);
     };
 
     // ── Resolve which data source to use for car positions ──
@@ -1214,15 +1253,16 @@ export default function TrackMap({ compact = false }) {
       .classed('car-marker--focused', (d) => d[0] === focusDriver)
       .classed('car-marker--retired', (d) => isDriverRetired(d[0]))
       // dot >= 3:1, glow in the driver colour (currentColor); a context car
-      // (not selected / not the focus) fades its dot only, its label turns to
-      // the muted text colour (.car-marker--context, still >= 4.5:1)
-      .classed('car-marker--context', (d) => getDimmedOpacity(d[0]) < 1)
+      // (not selected / not the focus) mixes its dot toward the panel only
+      // (carDotFill), its label turns to the muted text colour
+      // (.car-marker--context, still >= 4.5:1)
+      .classed('car-marker--context', (d) => contextMix(d[0]) > 0)
       .style('color', (d) => carText(d[0]));
 
     merged.select('.car-dot')
-      .attr('fill', (d) => carMark(d[0]))
+      .attr('fill', (d) => carDotFill(d[0]))
       .attr('r', (d) => getCarDotRadius(d[0]))
-      .attr('opacity', (d) => getDimmedOpacity(d[0]));
+      .attr('opacity', null);
 
     merged.select('.car-glow')
       .attr('r', (d) => getGlowRadius(d[0]))
@@ -1281,7 +1321,7 @@ export default function TrackMap({ compact = false }) {
   }, [circuitInfo, sessionData, currentFrameIndex, frameData, totalFrames, frameDt,
       selectedDrivers, highlightedDriver, focusDriver, gridPositions, driverStatus, isLiveMode, isQualifyingReplay,
       toggleDriver, setHighlightedDriver, isPlaying, compact, dotRadius, glowRadius,
-      updateTrailPositions, renderTrails, trackRotationOffset]);
+      updateTrailPositions, renderTrails, trackRotationOffset, box.width, box.height]);
 
   // ── Telemetry HUD data for focused + selected drivers ──────────────
   const hudDrivers = useMemo(() => {
@@ -1455,7 +1495,7 @@ export default function TrackMap({ compact = false }) {
     } catch {
       // Path not ready yet
     }
-  }, [trackProgress, focusDriverForTrack]);
+  }, [trackProgress, focusDriverForTrack, box.width, box.height]);
 
   const controls = (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>

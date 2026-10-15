@@ -6,6 +6,7 @@ import {
   CHART_FONT, DIVERGING, FLAG_COLORS, STATUS_COLORS, STATUS_GLYPHS, TRACK_STATUS_STYLES, UI_COLORS,
   chartFontPx, contrastText, getDriverColor, markColor, withAlpha,
 } from '../../utils/colors';
+import { useChartBox } from '../../utils/views/chartBox';
 
 const SPEED_OPTIONS = [0.5, 1, 2, 5, 10, 20, 50];
 
@@ -77,6 +78,11 @@ export default function TimelinePlayer() {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
   const qualiSvgRef = useRef(null);
+  // The width the expanded timeline fills, kept up to date (D4, the shared
+  // hook of utils/views/chartBox.js): a resize while the strip is expanded
+  // lays it out again, not only the next lap or the next expand
+  const timelineBox = useChartBox(svgRef);
+  const qualiBox = useChartBox(qualiSvgRef);
   const collapseTimerRef = useRef(null);
   const interactingRef = useRef(false);
 
@@ -140,7 +146,7 @@ export default function TimelinePlayer() {
 
     const svg = d3.select(svgRef.current);
     const containerEl = svgRef.current.parentElement;
-    const width = containerEl.clientWidth;
+    const width = timelineBox.width > 0 ? timelineBox.width : containerEl.clientWidth;
     const hasDriverSelection = selectedDrivers?.length > 0;
     // Geometry from the type tokens: tick labels at the data size, marker
     // letters at the label size (utils/colors.js CHART_FONT, >= 11 / 10 px)
@@ -537,7 +543,7 @@ export default function TimelinePlayer() {
     svg.on('mouseleave', handleDragEnd);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, hasData, maxLap, currentLap, raceEvents, seekToLap, seekToFrame, totalFrames, openPanel, setSelectedLapRange, setHighlightedDriver, selectedDrivers, isQualifyingReplay]);
+  }, [expanded, hasData, maxLap, currentLap, raceEvents, seekToLap, seekToFrame, totalFrames, openPanel, setSelectedLapRange, setHighlightedDriver, selectedDrivers, isQualifyingReplay, timelineBox.width]);
 
   // Handle drag on the SVG (additional global listener for edge cases)
   useEffect(() => {
@@ -577,7 +583,7 @@ export default function TimelinePlayer() {
 
     const svg = d3.select(qualiSvgRef.current);
     const containerEl = qualiSvgRef.current.parentElement;
-    const width = containerEl.clientWidth;
+    const width = qualiBox.width > 0 ? qualiBox.width : containerEl.clientWidth;
     const tickPx = chartFontPx('data');
     const margin = { left: 12, right: 12, top: tickPx + 6, bottom: 4 };
     const trackY = margin.top + 4;
@@ -699,7 +705,7 @@ export default function TimelinePlayer() {
       seekToFrame(Math.round(fraction * (totalFrames - 1)));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, isQualifyingReplay, frameData, currentFrameIndex, totalFrames, qualiSegment, seekToFrame]);
+  }, [expanded, isQualifyingReplay, frameData, currentFrameIndex, totalFrames, qualiSegment, seekToFrame, qualiBox.width]);
 
   // Compute elapsed time from frame data
   const elapsedTime = useMemo(() => {

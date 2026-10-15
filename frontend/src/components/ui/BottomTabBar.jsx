@@ -6,7 +6,7 @@ import DockContextMenu from './DockContextMenu';
 import DockOverflowPopover from './DockOverflowPopover';
 import LayoutDockPopover from './LayoutDockPopover';
 import DockCustomizePopover from './DockCustomizePopover';
-import { dockCapacity } from '../../utils/dockCapacity';
+import { dockCapacity, dockRow } from '../../utils/dockCapacity';
 
 const HOVER_ZONE_HEIGHT = 12;
 // Width of the ⋯ overflow button (6 + 10 px padding each side, 18 px icon),
@@ -76,8 +76,11 @@ export default function BottomTabBar() {
   const [layoutsAnchorRect, setLayoutsAnchorRect] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [customizeAnchor, setCustomizeAnchor] = useState(null);
-  // Items shown on the dock's one row; Infinity = render all and measure
+  // Items shown on the dock's one row; Infinity = render all and measure.
+  // setMeasureGen: a new render, so a new measure, even when the capacity
+  // is already Infinity (all the items fitted, then the fonts loaded)
   const [capacity, setCapacity] = useState(Infinity);
+  const [, setMeasureGen] = useState(0);
   const [dragId, setDragId] = useState(null);
   const [dropTargetId, setDropTargetId] = useState(null);
 
@@ -110,31 +113,61 @@ export default function BottomTabBar() {
 
   /* ── Capacity measurement (overflow handling) ───────────────── */
   // The dock never scrolls (V13): with every item rendered, the real button
-  // widths (labels follow the type tokens) and the fixed buttons are measured,
-  // and dockCapacity says how many items fit next to the ⋯ button. A resize
-  // or a change of the items renders them all again and re-measures.
+  // widths (labels follow the type tokens) and everything else on the bar
+  // (padding, border, gaps, the divider with its margins, the fixed group)
+  // are measured, and dockCapacity says how many items fit next to the ⋯
+  // button. A resize, a change of the items or the web fonts finishing to
+  // load (the Formula1 labels are wider than the fallback's) renders them all
+  // again and re-measures; after every render the row is checked once more
+  // and one more item goes to the ⋯ popover while it overflows (D2).
   useLayoutEffect(() => { setCapacity(Infinity); }, [displayTabs]);
   useEffect(() => {
-    const reset = () => setCapacity(Infinity);
+    const reset = () => { setCapacity(Infinity); setMeasureGen((g) => g + 1); };
     window.addEventListener('resize', reset);
-    return () => window.removeEventListener('resize', reset);
+    const fonts = typeof document !== 'undefined' ? document.fonts : null;
+    let live = true;
+    fonts?.addEventListener?.('loadingdone', reset);
+    fonts?.ready?.then?.(() => { if (live) reset(); });
+    return () => {
+      live = false;
+      window.removeEventListener('resize', reset);
+      fonts?.removeEventListener?.('loadingdone', reset);
+    };
   }, []);
   useLayoutEffect(() => {
-    if (capacity !== Infinity) return;
     const nav = navRef.current;
     if (!nav || typeof window === 'undefined') return;
     const cs = window.getComputedStyle(nav);
-    const gap = parseFloat(cs.columnGap) || 0;
-    const items = new Set(itemEls.current.values());
-    let fixedWidth = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-    for (const el of nav.children) {
-      if (!items.has(el)) fixedWidth += el.getBoundingClientRect().width + gap;
+    const px = (v) => parseFloat(v) || 0;
+    const gap = px(cs.columnGap);
+    const box = {
+      gap,
+      paddingLeft: px(cs.paddingLeft),
+      paddingRight: px(cs.paddingRight),
+      borderLeft: px(cs.borderLeftWidth),
+      borderRight: px(cs.borderRightWidth),
+    };
+    const part = (el) => {
+      const s = window.getComputedStyle(el);
+      return { width: el.getBoundingClientRect().width, marginLeft: px(s.marginLeft), marginRight: px(s.marginRight) };
+    };
+    const available = px(cs.maxWidth) || window.innerWidth - 40;
+    const children = [...nav.children];
+    if (capacity === Infinity) {
+      const items = new Set(itemEls.current.values());
+      const fixedWidth = dockRow(children.filter((el) => !items.has(el)).map(part), box);
+      const widths = displayTabs.map((o) => {
+        const el = itemEls.current.get(o.id);
+        return el ? dockRow([part(el)]) : 0;
+      });
+      const cap = dockCapacity(widths, { available, fixedWidth, overflowWidth: OVERFLOW_BUTTON_W, gap });
+      if (cap < displayTabs.length) setCapacity(cap);
+      return;
     }
-    const widths = displayTabs.map((o) => itemEls.current.get(o.id)?.getBoundingClientRect().width || 0);
-    const available = parseFloat(cs.maxWidth) || window.innerWidth - 40;
-    const cap = dockCapacity(widths, { available, fixedWidth, overflowWidth: OVERFLOW_BUTTON_W, gap });
-    if (cap < displayTabs.length) setCapacity(cap);
-  }, [capacity, displayTabs]);
+    // The row as rendered (items shown, ⋯, divider, fixed group): one more
+    // item to the popover while it is wider than the bar
+    if (capacity > 1 && dockRow(children.map(part), box) > available + 0.5) setCapacity(Math.min(capacity, displayTabs.length) - 1);
+  });
 
   const overflowing = displayTabs.length > capacity;
   const visibleTabs = overflowing ? displayTabs.slice(0, Math.max(1, capacity)) : displayTabs;

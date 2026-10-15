@@ -3,20 +3,25 @@ import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import {
   getDriverColor, getDriverDash, markColor, textColor, signedDelta, TEXT_COLORS,
-  GRID_COLORS, SURFACES, CHART_FONT, chartFontPx,
+  GRID_COLORS, SURFACES, CHART_FONT, chartFontPx, contextColor, CONTEXT_MIX_LINES,
 } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { causalKey } from '../../utils/strategyViews';
-import { cumulativeLapTimes, lapDeltaLegend, BASE_LINE_DASH } from '../../utils/views/lapDeltaChart';
+import {
+  cumulativeLapTimes, lapDeltaLegend, BASE_LINE, BASE_LABEL_COLOR, baseLineLabel,
+} from '../../utils/views/lapDeltaChart';
 import { defineDeltaHatches } from '../../utils/views/deltaHatch';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+import { useChartBox, chartSize } from '../../utils/views/chartBox';
 
 // Ids of the hatch patterns of each mounted chart (unique in the document)
 let hatchSeq = 0;
 
 export default function LapDeltaChart() {
   const svgRef = useRef(null);
+  // The box the chart fills: it lays out again at each new size (D4)
+  const box = useChartBox(svgRef);
   const [hatchId] = useState(() => {
     hatchSeq += 1;
     return `lap-delta-hatch-${hatchSeq}`;
@@ -62,11 +67,8 @@ export default function LapDeltaChart() {
   useEffect(() => {
     if (!svgRef.current || !baseDriver || !driverCumTimes[baseDriver]) return;
 
-    // Always read fresh container dimensions so the chart fits its space
-    const container = svgRef.current.parentElement;
-    const cRect = container.getBoundingClientRect();
-    const width = Math.round(cRect.width) || 500;
-    const height = Math.round(cRect.height) || 250;
+    // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width, height } = chartSize(svgRef.current, box, { width: 500, height: 250 });
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
@@ -123,7 +125,7 @@ export default function LapDeltaChart() {
     }
 
     // Measure actual label widths using a hidden SVG text element
-    const labelTexts = [baseDriver];
+    const labelTexts = [baseLineLabel(baseDriver)];
     deltaData.forEach(({ driver, deltas }) => {
       const last = deltas[deltas.length - 1];
       if (last) labelTexts.push(`${driver} ${signedDelta(last.delta, 1)}s`);
@@ -161,17 +163,22 @@ export default function LapDeltaChart() {
       .attr('stroke', GRID_COLORS.grid)
       .attr('stroke-dasharray', '2,4');
 
-    // Zero line (base driver): dashed, in the base driver's colour
-    g.append('line')
-      .attr('x1', 0).attr('x2', innerW)
-      .attr('y1', y(0)).attr('y2', y(0))
-      .attr('stroke', markColor(getDriverColor(baseDriver)))
-      .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', BASE_LINE_DASH);
+    // Zero line (the base driver): a double line, two neutral rails, a style
+    // no driver line has (a driver line is one 2 px stroke, D6); named at its end
+    const baseLine = g.append('g')
+      .attr('class', 'delta-base-line')
+      .attr('stroke', BASE_LINE.stroke)
+      .attr('stroke-width', BASE_LINE.width);
+    for (const dy of [-BASE_LINE.offset, BASE_LINE.offset]) {
+      baseLine.append('line')
+        .attr('class', 'delta-base-rail')
+        .attr('x1', 0).attr('x2', innerW)
+        .attr('y1', y(0) + dy).attr('y2', y(0) + dy);
+    }
 
     // Collect all end-labels for collision resolution
     const labelEntries = [
-      { driver: baseDriver, yPos: y(0), text: baseDriver, color: getDriverColor(baseDriver) },
+      { driver: baseDriver, yPos: y(0), text: baseLineLabel(baseDriver), fill: BASE_LABEL_COLOR },
     ];
 
     // Axes
@@ -233,6 +240,7 @@ export default function LapDeltaChart() {
         .datum(deltas)
         .attr('class', 'delta-line')
         .attr('data-driver', driver)
+        .attr('data-color', color)
         .attr('d', lineGen)
         .attr('fill', 'none')
         .attr('stroke', color)
@@ -276,7 +284,7 @@ export default function LapDeltaChart() {
       g.append('text')
         .attr('x', innerW + 4)
         .attr('y', l.yPos)
-        .attr('fill', textColor(l.color))
+        .attr('fill', l.fill || textColor(l.color))
         .style('font-size', CHART_FONT.data)
         .attr('font-weight', '800')
         .attr('dominant-baseline', 'middle')
@@ -324,25 +332,30 @@ export default function LapDeltaChart() {
       });
 
     return () => { d3.selectAll('.delta-tooltip').remove(); };
-  }, [baseDriver, displayDrivers, driverCumTimes, hatchId]);
+  }, [baseDriver, displayDrivers, driverCumTimes, hatchId, box.width, box.height]);
 
-  // Lightweight highlight effect — updates opacity/stroke without full redraw
+  // Lightweight highlight effect — updates colour/stroke without full redraw:
+  // the other lines are context, their colour mixed toward the panel
+  // (contextColor, >= 2:1; opacity 0.25 read 1.19:1, D7)
   useEffect(() => {
     if (!svgRef.current) return;
     const svg = d3.select(svgRef.current);
     svg.selectAll('.delta-line').each(function () {
       const el = d3.select(this);
       const driver = el.attr('data-driver');
+      const color = el.attr('data-color');
       const isHl = highlightedDriver && driver === highlightedDriver;
       const isDimmed = highlightedDriver && driver !== highlightedDriver;
-      el.attr('opacity', isDimmed ? 0.25 : 1)
+      el.attr('stroke', isDimmed ? contextColor(color, SURFACES.panel, { mix: CONTEXT_MIX_LINES }) : color)
         .attr('stroke-width', isHl ? 3 : 2);
     });
+    // the hatched areas repeat the sign of a line: a context driver's are
+    // left out while another line is hovered (no area drawn under its floor)
     svg.selectAll('.delta-area').each(function () {
       const el = d3.select(this);
       const driver = el.attr('data-driver');
       const isDimmed = highlightedDriver && driver !== highlightedDriver;
-      el.attr('opacity', isDimmed ? 0.1 : 1);
+      el.style('display', isDimmed ? 'none' : null);
     });
   }, [highlightedDriver]);
 

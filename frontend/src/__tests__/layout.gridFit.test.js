@@ -201,17 +201,22 @@ describe('Strategy Timeline: driver rows never under their minimum, in columns t
 // V5 / V13 r2: in the Analyse sidebar the Leaderboard rows were clipped under
 // the focus cards. The cards now stay collapsed to their header lines below
 // 1200 px of window height (SidebarFocusCards.jsx), "Details" laying them
-// over the sidebar, and the rows fit (fitRows 28 -> 18 px) or page. Model as
-// notes/experiments/phase9/repair3/leaderboard_sidebar_fit.mjs: Leaderboard
-// chrome (header, mode bar, column header, 2-line legend) and the collapsed
+// over the sidebar, and the rows fit (fitRows 28 -> 18 px) or page. Phase 9c
+// (D1): the legend (three lines in the sidebar) opens from a "?" key below
+// 900 px of height, the header, column header and banner are a step tighter
+// (the full model, with the real font widths and the flag banner and the
+// forecast footer: __tests__/leaderboard.fit.test.jsx and
+// notes/experiments/v13_audit/panel_fit.mjs). Here: the Leaderboard chrome
+// (header, mode bar, column header, the legend from 900 px) and the collapsed
 // cards (toggle 22 px + the two header lines).
 describe('Analyse sidebar: the 20 Leaderboard rows fit with the focus cards collapsed', () => {
   const cards = read('components/layout/SidebarFocusCards.jsx');
   const lb = read('components/visualizations/Leaderboard.jsx');
-  it('the cards collapse below 1200 px of height; the rows fit 28 -> 18 px with a pager', () => {
+  it('the cards collapse below 1200 px of height; the rows fit 28 -> 18 px with a pager; the legend behind a key below 900 px', () => {
     expect(cards).toMatch(/const SIDEBAR_SHORT_VIEWPORT = '\(max-height: 1199px\)';/);
     expect(lb).toMatch(/const ROW_MIN = 18;/);
     expect(lb).toMatch(/const ROW_MAX = 28;/);
+    expect(lb).toMatch(/const LEGEND_POPOVER_VIEWPORT = '\(max-height: 899px\)';/);
   });
   for (const vp of VIEWPORTS) {
     it(`${vp.name}: 20 rows on one page with a focus driver (cards collapsed)`, () => {
@@ -220,7 +225,8 @@ describe('Analyse sidebar: the 20 Leaderboard rows fit with the focus cards coll
       const xs = px(css, '--spacing-xs', vp);
       const body = vp.H - px(css, '--weather-bar-height', vp) - px(css, '--timeline-height', vp)
         - px(css, '--bottom-tab-height', vp) - px(css, '--dock-margin', vp);
-      const chrome = (10 + 8 + 16) + 24 + (8 + Math.ceil(data * 1.4) + 1) + (2 * (4 + 1.25 * label) + 3 * xs + 1);
+      const legend = vp.H >= 900 ? 3 * (4 + 1.4 * label) + 4 * xs : 0;
+      const chrome = (6 + 6 + 24 + 1) + 24 + (6 + Math.ceil(data * 1.4) + 1) + legend;
       const collapsed = 22 + (1 + 8 + Math.max(18, 2 + 1.2 * data + 2) + 8 + 1) + (1 + 8 + Math.max(24, 14 + 1 + 1.2 * label) + 8 + 1);
       expect(vp.H).toBeLessThanOrEqual(1199);
       const fit = fitRows(body - chrome - collapsed, 20, { rowMin: 18, rowMax: 28, rowDefault: 28, pagerH: 22 });

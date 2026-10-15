@@ -100,8 +100,10 @@ describe('V8: the session-switch confirmation reads the PCA lasso', () => {
   it('a real load keeps every "kept" item and clears every "cleared" one', async () => {
     useF1Store.setState(ANALYTICAL);
     const before = sessionSwitchSummary(store());
-    expect(before.kept).toHaveLength(5);
-    expect(before.cleared).toHaveLength(5);
+    // D8: the lap ranges are cleared by a load, not kept
+    expect(before.kept).toHaveLength(3);
+    expect(before.cleared).toHaveLength(7);
+    expect(before.cleared).toContain('lap range 3–6');
     console.log(`before the load: ${JSON.stringify(before)}`);
     fx.session = async () => race(12);
     useF1Store.setState({ round: 2 });

@@ -13,7 +13,7 @@ import { planFromStints, whatIfMarksOf, pairedInterval } from '../../utils/simul
 import { drawStintStrips, stintSegments, lapTicks } from '../../utils/views/stintStripChart';
 import { drawPositionRanges, positionRangeRow, POSITION_AXIS_H } from '../../utils/views/positionRangeChart';
 import { drawLegend } from '../../utils/views/d3Legend';
-import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
+import { useBoxSize, useChartBox, fitRows, pageOf } from '../../utils/views/chartBox';
 import {
   CHART_COLORS, SEVERITY, PODIUM_COLOR, verdictMark, MINUS,
 } from '../../utils/views/strategyMarks';
@@ -449,7 +449,8 @@ const PAGER_H = 22;
 function StintStrips({ rows, laps, currentLap }) {
   const boxRef = useRef(null);
   const svgRef = useRef(null);
-  const box = useBoxSize(boxRef);
+  // a D3 drawing: the shared, frame-throttled hook of the D3 views (D4)
+  const box = useChartBox(boxRef, { parent: false });
   const rowH = Math.max(18, Math.round(chartFontPx('data') * 1.8));
   useEffect(() => {
     if (!svgRef.current) return;
@@ -585,7 +586,8 @@ function ResultRanges({ result, positions }) {
   const boxRef = useRef(null);
   const svgRef = useRef(null);
   const legendRef = useRef(null);
-  const box = useBoxSize(boxRef);
+  // a D3 drawing: the shared, frame-throttled hook of the D3 views (D4)
+  const box = useChartBox(boxRef, { parent: false });
   const marks = whatIfMarksOf(result);
   const rows = [
     positionRangeRow(result.simProjection, { key: 'custom', label: 'Custom strategy', shown: marks.shown.custom }),
@@ -701,7 +703,8 @@ function ComparisonTable({ comparisons, baseline, laps, onBaseline }) {
 function ComparisonStrip({ stints, laps, rowH }) {
   const boxRef = useRef(null);
   const svgRef = useRef(null);
-  const box = useBoxSize(boxRef);
+  // a D3 drawing: the shared, frame-throttled hook of the D3 views (D4)
+  const box = useChartBox(boxRef, { parent: false });
   useEffect(() => {
     if (!svgRef.current) return;
     const segs = stintSegments(stints);

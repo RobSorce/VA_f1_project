@@ -18,9 +18,13 @@ import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
 import { focusForecast } from '../../utils/forecast';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+import { useChartBox, chartSize } from '../../utils/views/chartBox';
 
 export default function TireDegradation() {
   const svgRef = useRef(null);
+  // The box the chart fills (.deg-plot, the svg's parent): it lays out again
+  // at each new size (D4)
+  const box = useChartBox(svgRef);
   const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -151,10 +155,8 @@ export default function TireDegradation() {
   useEffect(() => {
     if (!svgRef.current) return;
 
-    const container = svgRef.current.parentElement;
-    const rect = container.getBoundingClientRect();
-    const width = rect.width || 600;
-    const height = rect.height || 250;
+    // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width, height } = chartSize(svgRef.current, box, { width: 600, height: 250 });
     const margin = { top: 12, right: 16, bottom: 30, left: 54 };
     const innerW = width - margin.left - margin.right;
     const innerH = height - margin.top - margin.bottom;
@@ -452,7 +454,7 @@ export default function TireDegradation() {
     return () => {
       d3.select('body').select('.deg-tooltip').remove();
     };
-  }, [chartData, driver, driverColor, currentLap, isDriverRetired, driverDnf]);
+  }, [chartData, driver, driverColor, currentLap, isDriverRetired, driverDnf, box.width, box.height]);
 
   // Build a banner whenever there's a brushed range — primary feedback
   // that the user's selection actually triggered analysis. Source priority:
@@ -532,7 +534,12 @@ export default function TireDegradation() {
     >
       {brushBanner}
       <div className="viz-container deg-manager">
-        <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+        {/* The svg fills .deg-plot, the row the fit note and the pit window
+            leave: its viewBox is that box, so the drawing is never scaled down
+            (measuring .deg-manager, note included, drew every label at 0.94) */}
+        <div className="deg-plot">
+          <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+        </div>
         {/* The fuel constant and the clean-lap rule behind every slope above
             (utils/degradation.js; FUEL_EFFECT_S_PER_LAP is an assumption) */}
         <div

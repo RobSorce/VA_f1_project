@@ -134,8 +134,9 @@
   stroke-width: 3;
 }
 
-/* Context cars (TrackMap.jsx getDimmedOpacity < 1): the dot fades (its
-   opacity attribute), the label is never faded: muted text, >= 4.5:1 */
+/* Context cars (TrackMap.jsx contextMix > 0): the dot is mixed toward the
+   panel (contextColor, >= 2:1, never an opacity), the label is never faded:
+   muted text, >= 4.5:1 */
 .car-marker--context .car-label {
   fill: var(--color-text-muted);
 }
@@ -500,9 +501,9 @@
   filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.7)) drop-shadow(0 0 8px color-mix(in srgb, var(--color-brush) 50%, transparent));
 }
 
-.pca-point.dimmed {
-  opacity: 0.15;
-}
+/* .pca-point.dimmed (a point outside the selection): its fill is mixed
+   toward the panel in PCABiplot.jsx (contextColor, >= 2:1, D7); an opacity
+   of 0.15 put it under the floor */
 
 .pca-point--current {
   stroke: #fff;
@@ -527,9 +528,19 @@
   border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
-.deg-manager svg {
+/* The chart's row: what the fit note and the pit window leave. The svg is
+   laid out over it (absolute), so its viewBox (this box, useChartBox) is the
+   size it is drawn at, 1:1: no scale-down under the type floors (Phase 9c r2) */
+.deg-manager .deg-plot {
   flex: 1;
   min-height: 0;
+  position: relative;
+}
+
+.deg-manager .deg-plot svg {
+  position: absolute;
+  inset: 0;
+  display: block;
 }
 
 .deg-pit-window {
@@ -644,11 +655,14 @@
    -------------------------------------------------------------------------- */
 
 /* ── Broadcast Header ───────────────────────────────────────────────── */
+/* 6 px above and below (10 / 8 before Phase 9c): with the column header and
+   the flag banner a step tighter, the 20 sidebar rows keep >= 18 px with a
+   flag banner and the forecast footer at 1536 x 750 (v13_audit/panel_fit.mjs) */
 .tower-broadcast-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 26px 8px 12px;
+  padding: 6px 26px 6px 12px;
   background: linear-gradient(135deg, var(--color-f1-red) 0%, var(--color-f1-red-dark) 50%, rgba(20, 20, 40, 0.95) 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px 20px 0 0;
@@ -773,7 +787,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 3px 8px;
   animation: flag-pulse 1.5s ease-in-out infinite;
   flex-shrink: 0;
 }
@@ -789,7 +803,7 @@
 .tower-col-header {
   display: flex;
   align-items: center;
-  padding: 4px 8px;
+  padding: 3px 8px;
   background: rgba(26, 31, 51, 0.5);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   font-size: var(--font-size-data);
@@ -825,18 +839,24 @@
   width: 16px;
 }
 
-/* ── Tower body (row container): its height is the rows of the page
-   (Leaderboard.jsx fitRows / pageOf), so it never scrolls ─────────────── */
+/* ── Tower body (row container): the flex room the sidebar leaves it, at
+   most 28 px a row, or the rows of the page at 18 px when paged
+   (Leaderboard.jsx towerBodyStyle / fitRows / pageOf), so it never
+   scrolls ─────────────────────────────────────────────────────────────── */
 .tower-body {
   overflow: hidden;
 }
 
-/* ── Driver row (absolute positioned for D3 translateY animation) ──── */
+/* ── Driver row: absolute, a share of the body's height (calc(100% / n))
+   moved by translateY(k x 100 %) of its own height, so a resize moves no
+   transform and only a change of position slides the row (Phase 9c D1).
+   No vertical padding: the content is centred, and an 18 px row keeps
+   17 px under its rule for the 11 px data type and the 14 px tyre circle ── */
 .tower-row {
   display: flex;
   align-items: center;
   height: 28px;
-  padding: 2px 6px;
+  padding: 0 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   cursor: pointer;
   font-size: 11px;
@@ -998,14 +1018,18 @@
 .tower-row__driver-cell {
   display: flex;
   align-items: center;
+  /* the row's full height, so the team bar can follow it */
+  align-self: stretch;
   flex: 1;
   min-width: 0;
   gap: 6px;
 }
 
+/* 18 px, never taller than the row (an 18 px row has 17 px under its rule) */
 .tower-row__team-bar {
   width: 3px;
   height: 18px;
+  max-height: 100%;
   border-radius: 1.5px;
   flex-shrink: 0;
 }
@@ -1232,21 +1256,23 @@
   font-style: italic;
 }
 
-/* Retired car marker on track map: the dot fades, its label does not (it
-   turns to the muted text colour, >= 4.5:1; COLOR_ENCODING.md focus + context) */
+/* Retired car marker on track map (TrackMap.jsx leaves a retired car off the
+   track in a replay or a live feed; this is the marker where one is drawn):
+   never faded (D7). Its dot is the retired grey at full opacity (7.63:1 on
+   the panel; at opacity 0.2 it read 1.13-1.62:1), its glow off, its label
+   the muted text colour (>= 4.5:1; COLOR_ENCODING.md focus + context) */
 .car-marker--retired {
   pointer-events: none;
 }
 
-.car-marker--retired .car-dot,
 .car-marker--retired .car-glow {
-  opacity: 0.2;
+  display: none;
 }
 
 .car-marker--retired .car-dot {
+  fill: var(--status-retired);
   stroke: rgba(255, 255, 255, 0.3);
   stroke-width: 1;
-  filter: grayscale(0.6);
 }
 
 .car-marker--retired .car-label {
@@ -1756,16 +1782,17 @@
   stroke-width: 1;
 }
 
-/* Speed chart */
+/* Speed chart. The trace lines set no opacity here: the strip draws it
+   (TelemetryStrip.jsx traceOpacity: 1, or a comparison lap's lapOpacity),
+   and a CSS opacity would win over that attribute: it drew the context
+   traces, mixed to 2:1, at 0.55 (1.32-1.42:1) and the ghost laps at 1.41:1 */
 .telem-speed-line {
   fill: none;
   stroke-width: 1.5;
-  opacity: 0.55;
 }
 
 .telem-speed-line--focus {
   stroke-width: 2.5;
-  opacity: 1;
   filter: drop-shadow(0 0 3px currentColor);
 }
 
@@ -1785,13 +1812,11 @@
 .telem-throttle-line {
   fill: none;
   stroke-width: 1.5;
-  opacity: 0.55;
 }
 
 .telem-throttle-line--focus {
   fill: none;
   stroke-width: 2.5;
-  opacity: 1;
   filter: drop-shadow(0 0 3px currentColor);
 }
 
@@ -1806,13 +1831,11 @@
 .telem-brake-line {
   fill: none;
   stroke-width: 1.5;
-  opacity: 0.55;
 }
 
 .telem-brake-line--focus {
   fill: none;
   stroke-width: 2.5;
-  opacity: 1;
   filter: drop-shadow(0 0 3px currentColor);
 }
 
@@ -1820,12 +1843,10 @@
 .telem-gear-line {
   fill: none;
   stroke-width: 1.5;
-  opacity: 0.55;
 }
 
 .telem-gear-line--focus {
   stroke-width: 2.5;
-  opacity: 1;
 }
 
 /* Axes */
@@ -1865,12 +1886,10 @@
 .telem-rpm-line {
   fill: none;
   stroke-width: 1.2;
-  opacity: 0.7;
 }
 
 .telem-rpm-line--focus {
   stroke-width: 2;
-  opacity: 1;
 }
 
 /* Speed annotations */
@@ -1997,7 +2016,7 @@
 }
 
 [data-theme="light"] .track-telemetry-hud__lap {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .track-telemetry-hud__label {
@@ -2035,7 +2054,7 @@
 }
 
 [data-theme="light"] .lap-times-chart .axis text {
-  fill: #6B7280;
+  fill: var(--color-text-muted);
 }
 
 [data-theme="light"] .lap-times-chart .grid line {
@@ -2063,7 +2082,7 @@
 
 /* ── Telemetry Strip Chart Labels ──────────────────────────────────── */
 [data-theme="light"] .telem-chart-label {
-  fill: #6B7280;
+  fill: var(--color-text-muted);
 }
 
 [data-theme="light"] .telem-sector-line {
@@ -2071,7 +2090,7 @@
 }
 
 [data-theme="light"] .telem-sector-label {
-  fill: #6B7280;
+  fill: var(--color-text-muted);
 }
 
 [data-theme="light"] .telem-grid-line {
@@ -2079,7 +2098,7 @@
 }
 
 [data-theme="light"] .telem-axis text {
-  fill: #6B7280;
+  fill: var(--color-text-muted);
 }
 
 [data-theme="light"] .telem-axis path,
@@ -2107,7 +2126,7 @@
 }
 
 [data-theme="light"] .axis text {
-  fill: #6B7280;
+  fill: var(--color-text-muted);
 }
 
 [data-theme="light"] .grid line {
@@ -2292,7 +2311,7 @@
 [data-theme="light"] .pos-chart-toggle {
   background: #F3F4F6;
   border-color: #D1D5DB;
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .pos-chart-toggle:hover {
@@ -2320,7 +2339,7 @@
 }
 
 [data-theme="light"] .pos-chart-tooltip__row {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .pos-chart-tooltip__row span:last-child {
@@ -2328,7 +2347,7 @@
 }
 
 [data-theme="light"] .pos-chart-legend__item {
-  color: #6B7280;
+  color: var(--color-text-muted);
 }
 
 

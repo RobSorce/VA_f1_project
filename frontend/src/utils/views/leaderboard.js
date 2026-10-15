@@ -136,3 +136,35 @@ export function qualifyingStandings(lapTimes, sessionNow, {
     };
   });
 }
+
+/* ── Row geometry of the tower body (Leaderboard.jsx, Phase 9c D1) ── */
+/**
+ * Style of the tower body: the rows' box. Fitted (not paged), it takes the
+ * room the sidebar's flex column leaves it, at most `rowMax` px a row, so
+ * the rows fit with no JS measure; paged, it is `perPage` rows of `rowMin`.
+ * An empty tower keeps room for its placeholder.
+ *
+ * @param {{rows: number, perPage: number, paged: boolean, rowMin: number, rowMax: number}} fit
+ * @returns {Object} React style object
+ */
+export function towerBodyStyle({ rows, perPage, paged, rowMin, rowMax }) {
+  if (!(rows > 0)) return { position: 'relative', flex: '0 0 auto', minHeight: 120 };
+  if (paged) return { position: 'relative', flex: '0 0 auto', height: perPage * rowMin };
+  return { position: 'relative', flex: '1 1 0', minHeight: 0, maxHeight: perPage * rowMax };
+}
+
+/**
+ * Geometry of the k-th row of the page (0-based) when the body is divided in
+ * `perPage` rows: a share of the body's height, moved down k times its own
+ * height. Percentages, so a new body height (a resize, the focus cards, the
+ * forecast footer) moves no transform and starts no transition: only a
+ * change of position (k) slides the row.
+ *
+ * @param {number} k - index of the row on its page
+ * @param {number} perPage - rows the body is divided in
+ * @returns {{height: string, transform: string}}
+ */
+export function towerRowStyle(k, perPage) {
+  const n = Math.max(1, Math.floor(Number(perPage) || 1));
+  return { height: `calc(100% / ${n})`, transform: `translateY(${Math.max(0, k) * 100}%)` };
+}

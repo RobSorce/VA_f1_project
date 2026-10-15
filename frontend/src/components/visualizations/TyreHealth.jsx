@@ -6,6 +6,7 @@ import {
   DIVERGING, STATUS_COLORS, TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT, chartFontPx, UNKNOWN_TEAM_COLOR,
 } from '../../utils/colors';
 import Legend from '../ui/Legend';
+import { useChartBox, chartSize } from '../../utils/views/chartBox';
 
 // Tyre-life zones: a tint of the diverging pair's "worse" side for the
 // critical zone, of the "slower" yellow for the worn one, each named on the
@@ -28,6 +29,8 @@ const COMPOUND_MAX_LIFE = {
 
 export default function TyreHealth() {
   const svgRef = useRef(null);
+  // The box the chart fills: it lays out again at each new size (D4)
+  const box = useChartBox(svgRef);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const focusDriver = useF1Store((s) => s.focusDriver);
@@ -149,10 +152,8 @@ export default function TyreHealth() {
   useEffect(() => {
     if (!svgRef.current) return;
 
-    const container = svgRef.current.parentElement;
-    const rect = container.getBoundingClientRect();
-    const width = rect.width || 600;
-    const height = rect.height || 250;
+    // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width, height } = chartSize(svgRef.current, box, { width: 600, height: 250 });
     const margin = { top: 12, right: 16, bottom: 30, left: 40 };
     const stintBarH = 14;
     const innerW = width - margin.left - margin.right;
@@ -365,7 +366,7 @@ export default function TyreHealth() {
       });
 
     return () => { d3.selectAll('.tyre-health-tooltip').remove(); };
-  }, [chartData, driver, driverColor, currentLap]);
+  }, [chartData, driver, driverColor, currentLap, box.width, box.height]);
 
   const tyreLegendItems = useMemo(() => {
     if (!chartData.stints.length) return [];

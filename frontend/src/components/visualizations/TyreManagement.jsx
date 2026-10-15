@@ -6,6 +6,7 @@ import {
   TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT, chartFontPx, UNKNOWN_TEAM_COLOR,
 } from '../../utils/colors';
 import Legend from '../ui/Legend';
+import { useChartBox, chartSize } from '../../utils/views/chartBox';
 
 const PIT_DASH = '2,3';
 import { useSessionNow } from '../../hooks/useSessionNow';
@@ -15,6 +16,8 @@ import Panel from '../ui/Panel';
 
 export default function TyreManagement() {
   const svgRef = useRef(null);
+  // The box the chart fills: it lays out again at each new size (D4)
+  const box = useChartBox(svgRef);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const focusDriver = useF1Store((s) => s.focusDriver);
@@ -124,10 +127,8 @@ export default function TyreManagement() {
   useEffect(() => {
     if (!svgRef.current) return;
 
-    const container = svgRef.current.parentElement;
-    const rect = container.getBoundingClientRect();
-    const width = rect.width || 600;
-    const height = rect.height || 250;
+    // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width, height } = chartSize(svgRef.current, box, { width: 600, height: 250 });
     const margin = { top: 12, right: 16, bottom: 30, left: 40 };
     const stintBarH = 14;
     const innerW = width - margin.left - margin.right;
@@ -323,7 +324,7 @@ export default function TyreManagement() {
       });
 
     return () => { d3.selectAll('.tyre-mgmt-tooltip').remove(); };
-  }, [chartData, driver, driverColor, currentLap]);
+  }, [chartData, driver, driverColor, currentLap, box.width, box.height]);
 
   const tyreLegendItems = useMemo(() => {
     if (!chartData.stints.length) return [];

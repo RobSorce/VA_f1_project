@@ -242,6 +242,76 @@ export function textColor(color, surface = CHART_SURFACE) {
   return liftToContrast(color, surface, 4.5);
 }
 
+// ── Focus + context (D7) ───────────────────────────────────────────────
+// A de-emphasised (context) item is drawn in its colour mixed toward the
+// surface it sits on, never at a lower opacity: its text keeps >= 3:1 and its
+// marks >= 2:1 on that surface (docs/COLOR_ENCODING.md, focus + context).
+// Disabled controls are exempt (WCAG 2.1 SC 1.4.3 / 1.4.11).
+export const CONTEXT_FLOOR = Object.freeze({ text: 3, mark: 2 });
+// How far toward the surface a context item is mixed when its floor allows it
+export const CONTEXT_MIX = 0.5;
+// The mix of a chart of many lines (a line per driver: Championship, Position
+// Tracker, Lap Delta, Telemetry), where the context lines would otherwise
+// compete with the focus: further toward the surface, still at the floors
+export const CONTEXT_MIX_LINES = 0.75;
+
+const _contextCache = new Map();
+/**
+ * Colour of a context item: `color` (alpha composited on the surface) mixed
+ * toward the surface by `mix`, or by less where that would take it under
+ * `min` contrast on the surface; a colour already under `min` is lifted to it
+ * (liftToContrast). Always opaque ('#RRGGBB'), so nothing is drawn at an
+ * opacity below 1.
+ *
+ * @param {string} color
+ * @param {string} [surface=CHART_SURFACE] - the background the item is drawn on
+ * @param {{min?: number, mix?: number}} [opts] - min: CONTEXT_FLOOR.mark
+ *   (default, lines / bars / dots) or CONTEXT_FLOOR.text; mix: 0..1
+ * @returns {string}
+ */
+export function contextColor(color, surface = CHART_SURFACE, { min = CONTEXT_FLOOR.mark, mix = CONTEXT_MIX } = {}) {
+  const key = `${color}|${surface}|${min}|${mix}`;
+  if (_contextCache.has(key)) return _contextCache.get(key);
+  const back = compositeOver(surface, SURFACES.page);
+  const opaque = parseColor(color) && back ? compositeOver(color, back) : null;
+  let out = opaque || color;
+  if (opaque) {
+    if (contrastRatio(opaque, back) < min) {
+      out = liftToContrast(opaque, back, min);
+    } else {
+      // the largest mix (1 % steps down from `mix`) that keeps the floor
+      for (let w = Math.round(Math.max(0, Math.min(1, mix)) * 100); w >= 0; w -= 1) {
+        const c = mixColors(opaque, back, w / 100);
+        if (contrastRatio(c, back) >= min) { out = c; break; }
+      }
+    }
+  }
+  _contextCache.set(key, out);
+  return out;
+}
+
+/** Text of a context item: contextColor at the text floor (>= 3:1 on the surface). */
+export function contextText(color, surface = CHART_SURFACE, mix = CONTEXT_MIX) {
+  return contextColor(color, surface, { min: CONTEXT_FLOOR.text, mix });
+}
+
+// The tint of a brushed lap range (the Position Tracker's d3-brush): the
+// CSS fill, --color-brush at 16 % (visualizations.css .pos-chart__brush
+// .selection), at the fill-opacity 0.3 that d3-brush sets on the selection
+export const BRUSH_TINT_ALPHA = 0.16 * 0.3;
+/**
+ * A surface under the brushed range's tint: the lightest background of an
+ * item drawn above the brush. Context text drawn there is computed on it
+ * (contextText), so it keeps 3:1 inside the range as well as outside (on the
+ * panel alone the labels read 3.00-3.07:1, and 2.79-2.84:1 inside the range).
+ *
+ * @param {string} [surface=SURFACES.panel]
+ * @returns {string} '#RRGGBB'
+ */
+export function brushTintOver(surface = SURFACES.panel) {
+  return compositeOver(withAlpha(UI_COLORS.brush, BRUSH_TINT_ALPHA), compositeOver(surface, SURFACES.page));
+}
+
 // Machado, Oliveira & Fernandes (2009), severity 1.0, applied to linear RGB
 export const CVD_MATRICES = {
   protanopia: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],

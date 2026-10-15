@@ -15,7 +15,8 @@ import {
 } from '../../utils/views/pcaForestChart';
 import { drawStintStrips, stintSegments } from '../../utils/views/stintStripChart';
 import { drawLegend } from '../../utils/views/d3Legend';
-import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
+import { useBoxSize, useChartBox, fitRows, pageOf } from '../../utils/views/chartBox';
+import { lapRangeTooltip } from '../../utils/chartHelp';
 import Panel from '../ui/Panel';
 
 /* ── Shared tab pill style helper ── */
@@ -302,7 +303,7 @@ export default function PCAAnalysisPanel() {
                     {pitWindows.map((pw, i) => (
                       <div key={i}
                         onClick={() => setSelectedLapRange([pw.lap_start, pw.lap_end])}
-                        title="Click to highlight this lap range across all views"
+                        title={lapRangeTooltip(pw.lap_start, pw.lap_end)}
                         style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: CHART_FONT.data, cursor: 'pointer' }}>
                         <span style={{
                           padding: '2px 6px', borderRadius: 3, fontWeight: 700, fontSize: CHART_FONT.data,
@@ -433,7 +434,8 @@ function PatternList({ strategies, simulatorStrategy, canApply, onApply }) {
 function PatternStrip({ stints, rowH }) {
   const boxRef = useRef(null);
   const svgRef = useRef(null);
-  const box = useBoxSize(boxRef);
+  // a D3 drawing: the shared, frame-throttled hook of the D3 views (D4)
+  const box = useChartBox(boxRef, { parent: false });
   useEffect(() => {
     if (!svgRef.current) return;
     const segs = stintSegments(stints).map((seg, j) => ({
@@ -468,7 +470,8 @@ function ForestTable({ rows, stats, half, statsBanner }) {
   const axisRef = useRef(null);
   const legendRef = useRef(null);
   const rowsBox = useBoxSize(rowsRef);
-  const axisBox = useBoxSize(axisBoxRef);
+  // the D3 axis: the shared, frame-throttled hook of the D3 views (D4)
+  const axisBox = useChartBox(axisBoxRef, { parent: false });
   const [page, setPage] = useState(0);
   const [methodOpen, setMethodOpen] = useState(false);
 

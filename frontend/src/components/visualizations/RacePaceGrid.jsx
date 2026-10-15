@@ -384,7 +384,12 @@ function RacePaceGrid() {
       </div>
 
       {/* Pace legend: every cell colour with its glyph / sample text
-          (paceLegend), and the pagers of the laps and drivers that do not fit */}
+          (paceLegend), and the pagers of the laps and drivers that do not fit.
+          The lap pager's slot is always there, hidden while every lap fits:
+          its arrival no longer wraps the bar onto one more line after the
+          rows were fitted to the grid's height (browser pass 2026-10-16 at
+          1536 x 750: 12 rows, 246 px, fitted to a 254 px grid that the pager
+          then cut to 237 px), so the measured grid is the final one */}
       <div style={{
         flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
         padding: '2px 8px',
@@ -394,38 +399,40 @@ function RacePaceGrid() {
         <div style={{ flex: '1 1 auto', minWidth: 0 }}>
           <Legend items={paceLegend()} shape="glyph" title="Lap vs driver median" />
         </div>
-        {(rowFit.paged || driverPg.pages > 1) && (
-          <div className="pace-grid__pager" style={{
-            display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-            fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary,
+        <div className="pace-grid__pager" style={{
+          display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+          fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary,
+        }}
+        >
+          <span className="pace-grid__lap-pager" aria-hidden={rowFit.paged ? undefined : 'true'} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            visibility: rowFit.paged ? 'visible' : 'hidden',
           }}
           >
-            {rowFit.paged && (
-              <>
-                <button type="button" aria-label="Older laps" disabled={!win.canOlder}
-                  onClick={() => setPinnedLast(Math.max(win.size, win.last - win.size))} style={pagerBtn(win.canOlder)}
-                >{'◀'}</button>
-                <span title={win.following ? 'The most recent laps, following the replay' : 'Older laps: the right arrow returns to the most recent'}>
-                  L{win.first}{'–'}{win.last} of {gridMaxLap}
-                </span>
-                <button type="button" aria-label="Newer laps" disabled={!win.canNewer}
-                  onClick={() => setPinnedLast(win.last + win.size)} style={pagerBtn(win.canNewer)}
-                >{'▶'}</button>
-              </>
-            )}
-            {driverPg.pages > 1 && (
-              <>
-                <button type="button" aria-label="Previous drivers" disabled={driverPg.page === 0}
-                  onClick={() => setDriverPage(driverPg.page - 1)} style={pagerBtn(driverPg.page > 0)}
-                >{'◀'}</button>
-                <span>drivers {driverPg.first}{'–'}{driverPg.last} of {sortedDrivers.length}</span>
-                <button type="button" aria-label="Next drivers" disabled={driverPg.page >= driverPg.pages - 1}
-                  onClick={() => setDriverPage(driverPg.page + 1)} style={pagerBtn(driverPg.page < driverPg.pages - 1)}
-                >{'▶'}</button>
-              </>
-            )}
-          </div>
-        )}
+            <button type="button" aria-label="Older laps" disabled={!rowFit.paged || !win.canOlder}
+              tabIndex={rowFit.paged ? undefined : -1}
+              onClick={() => setPinnedLast(Math.max(win.size, win.last - win.size))} style={pagerBtn(win.canOlder)}
+            >{'◀'}</button>
+            <span title={win.following ? 'The most recent laps, following the replay' : 'Older laps: the right arrow returns to the most recent'}>
+              L{win.first}{'–'}{win.last} of {gridMaxLap}
+            </span>
+            <button type="button" aria-label="Newer laps" disabled={!rowFit.paged || !win.canNewer}
+              tabIndex={rowFit.paged ? undefined : -1}
+              onClick={() => setPinnedLast(win.last + win.size)} style={pagerBtn(win.canNewer)}
+            >{'▶'}</button>
+          </span>
+          {driverPg.pages > 1 && (
+            <>
+              <button type="button" aria-label="Previous drivers" disabled={driverPg.page === 0}
+                onClick={() => setDriverPage(driverPg.page - 1)} style={pagerBtn(driverPg.page > 0)}
+              >{'◀'}</button>
+              <span>drivers {driverPg.first}{'–'}{driverPg.last} of {sortedDrivers.length}</span>
+              <button type="button" aria-label="Next drivers" disabled={driverPg.page >= driverPg.pages - 1}
+                onClick={() => setDriverPage(driverPg.page + 1)} style={pagerBtn(driverPg.page < driverPg.pages - 1)}
+              >{'▶'}</button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

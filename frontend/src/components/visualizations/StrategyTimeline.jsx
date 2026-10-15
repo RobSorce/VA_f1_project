@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import {
-  getDriverColor, TYRE_COLORS, TYRE_LABELS, getTyreTextColor, tyreColor, tyreLetter, textColor, tintedChip, withAlpha,
+  getDriverColor, TYRE_COLORS, TYRE_LABELS, tyreColor, tyreLetter, textColor, tintedChip, withAlpha,
   STATUS_COLORS, TEXT_COLORS, GRID_COLORS, UI_COLORS, SURFACES, CHART_FONT, chartFontPx,
 } from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
@@ -14,7 +14,8 @@ import {
 } from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
-import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
+import { useChartBox, chartSize, fitRows, pageOf } from '../../utils/views/chartBox';
+import { stintLevel, stintFill, stintLabelFill } from '../../utils/views/strategyTimeline';
 
 // Driver rows fitted to the pane (V13): a row is never lower than the data
 // type needs (its label, the STOPS badge of 16 px and the bar, 20 px at 11 px
@@ -34,7 +35,8 @@ const MARGIN = { top: 12, right: 18, bottom: 28, left: 96 };
 export default function StrategyTimeline({ showOverlays = false }) {
   const svgRef = useRef(null);
   const boxRef = useRef(null);
-  const box = useBoxSize(boxRef);
+  // The box the chart fills (the svg's container): rows and layout follow it (D4)
+  const box = useChartBox(boxRef, { parent: false });
   const [page, setPage] = useState(0);
   const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
@@ -140,11 +142,8 @@ export default function StrategyTimeline({ showOverlays = false }) {
       return;
     }
 
-    // Always read fresh container dimensions so the chart fills its space
-    const container = svgRef.current.parentElement;
-    const rect = container.getBoundingClientRect();
-    const width = Math.round(rect.width) || 600;
-    const height = Math.round(rect.height) || 350;
+    // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
+    const { width, height } = chartSize(svgRef.current, box, { width: 600, height: 350 });
     const margin = MARGIN;
     const innerH = height - margin.top - margin.bottom;
 
@@ -294,12 +293,15 @@ export default function StrategyTimeline({ showOverlays = false }) {
 
           const barW = Math.max(2, x(lapStart + length) - x(lapStart));
 
-          const compoundDimmed = highlightedCompound && highlightedCompound !== compound;
-          // full colour when selected (the label inside keeps its contrastText
-          // contrast); unselected bars are context, faded on purpose
-          let barOpacity = isSelected ? 1 : 0.2;
-          if (compoundDimmed) barOpacity *= 0.3;
-          barOpacity = Math.max(barOpacity, 0.12); // floor: always perceptible
+          const compoundDimmed = !!highlightedCompound && highlightedCompound !== compound;
+          // full colour when selected; an unselected bar (or another driver
+          // hovered, another compound hovered in the legend) is context: its
+          // colour mixed toward the panel, never an opacity, and the label
+          // inside in contrastText of the fill drawn (utils/views/strategyTimeline.js, D7)
+          const hovered = useF1Store.getState().highlightedDriver;
+          const level = stintLevel({
+            selected: isSelected, highlighted: hovered === driver, hoverActive: !!hovered, compoundDimmed,
+          });
 
           g.append('rect')
             .attr('class', 'stint-bar')
@@ -310,8 +312,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
             .attr('width', barW)
             .attr('height', y.bandwidth())
             .attr('rx', 4)
-            .attr('fill', tyreColor(compound))
-            .attr('opacity', barOpacity)
+            .attr('fill', stintFill(compound, level))
             .on('click', () => {
               toggleDriver(driver);
               setSelectedStint({
@@ -363,9 +364,11 @@ export default function StrategyTimeline({ showOverlays = false }) {
           if (label) {
             g.append('text')
               .attr('class', 'stint-bar-label')
+              .attr('data-driver', driver)
+              .attr('data-compound', compound)
               .attr('x', x(lapStart) + barW / 2)
               .attr('y', y(driver) + y.bandwidth() / 2)
-              .attr('fill', getTyreTextColor(compound))
+              .attr('fill', stintLabelFill(compound, level))
               .text(label);
           }
         });
@@ -590,21 +593,25 @@ export default function StrategyTimeline({ showOverlays = false }) {
     };
   }, [strategies, pitMarkers, inPitLane, storeMaxLap, totalRaceLaps, selectedDrivers, currentLap, lstmPredictions, focusDriver, pcaStrategyAnalysis, geminiOverlays, showOverlays, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound, selectedLapRange, setSelectedLapRange, simulatorStrategy, shownKey, box.width, box.height]);
 
-  // Lightweight highlight effect — updates opacity without full redraw
+  // Lightweight highlight effect — recolours the bars and their labels
+  // (focus + context by colour, never opacity: stintLevel) without a full redraw
   useEffect(() => {
     if (!svgRef.current) return;
     const svg = d3.select(svgRef.current);
-    svg.selectAll('.stint-bar').each(function () {
+    svg.selectAll('.stint-bar, .stint-bar-label').each(function () {
       const el = d3.select(this);
       const driver = el.attr('data-driver');
+      const compound = el.attr('data-compound');
       if (!driver) return;
-      const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(driver);
-      const baseOpacity = isSelected ? 1 : 0.2;
-      const isHl = highlightedDriver && driver === highlightedDriver;
-      const isDimmed = highlightedDriver && driver !== highlightedDriver;
-      el.attr('opacity', isDimmed ? Math.min(baseOpacity, 0.15) : isHl ? Math.min(1, baseOpacity + 0.15) : baseOpacity);
+      const level = stintLevel({
+        selected: selectedDrivers.length === 0 || selectedDrivers.includes(driver),
+        highlighted: highlightedDriver === driver,
+        hoverActive: !!highlightedDriver,
+        compoundDimmed: !!highlightedCompound && highlightedCompound !== compound,
+      });
+      el.attr('fill', el.classed('stint-bar') ? stintFill(compound, level) : stintLabelFill(compound, level));
     });
-  }, [highlightedDriver, selectedDrivers]);
+  }, [highlightedDriver, selectedDrivers, highlightedCompound]);
 
   return (
     <Panel
