@@ -10,23 +10,22 @@ export default function ShortcutHints() {
   const compareMode = useF1Store((s) => s.compareMode);
   const openCommandPalette = useF1Store((s) => s.openCommandPalette);
 
-  const [faded, setFaded] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const timerRef = useRef(null);
 
-  // Auto-fade after 5 seconds of no activity, reappear on any key/click
+  // Shown for 5 s when the dashboard opens and after a key press, then hidden
+  // completely (ShortcutHints.css: never a faded, low-contrast state)
   useEffect(() => {
     const show = () => {
-      setFaded(false);
+      setHidden(false);
       clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setFaded(true), 5000);
+      timerRef.current = setTimeout(() => setHidden(true), 5000);
     };
 
     show();
     window.addEventListener('keydown', show);
-    window.addEventListener('click', show);
     return () => {
       window.removeEventListener('keydown', show);
-      window.removeEventListener('click', show);
       clearTimeout(timerRef.current);
     };
   }, []);
@@ -61,7 +60,7 @@ export default function ShortcutHints() {
   const displayHints = hints.slice(0, 7);
 
   return (
-    <div className={`shortcut-hints ${faded ? 'shortcut-hints--faded' : ''}`}>
+    <div className={`shortcut-hints${hidden ? ' shortcut-hints--hidden' : ''}`} aria-hidden={hidden}>
       {displayHints.map((h) => (
         <div key={h.key} className="shortcut-hint">
           <kbd className="shortcut-hint-key">{h.key}</kbd>

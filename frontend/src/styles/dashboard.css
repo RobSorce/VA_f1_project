@@ -1,26 +1,27 @@
 /* ==========================================================================
    F1 Race Control - Dashboard Layout
-   No-scroll tabbed design (1920x1080)
+   Fixed-viewport design: no page scroll at any supported size
+   (1366x768, 1536x750, 1920x1080, 2048x1100; V13)
    ========================================================================== */
 
+/* The shell is exactly the viewport: weather bar, body, timeline, dock in a
+   column; the body takes the rest (flex 1 1 0, min-height 0) and the chrome
+   rows keep their token heights. No page-scroll fallback: content adapts
+   inside its panel. */
 .app-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  width: 100vw;
+  width: 100%;
+  min-width: 0;
   overflow: hidden;
   background: linear-gradient(180deg, #0f0f1e 0%, #15152a 100%);
 }
 
-/* Below the design canvas, let the app-container grow with content
-   and the body scroll — prevents silent clipping of the dock and
-   panels on HiDPI-scaled 15-inch laptops. */
-@media (max-width: 1440px), (max-height: 900px) {
-  .app-container {
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
-  }
+/* The expanded timeline (event strip) is taller: floating overlays keep
+   clear of it too */
+.app-container:has(> .timeline-player.expanded) {
+  --overlay-inset-bottom: calc(var(--chrome-bottom) + var(--timeline-expanded-extra) + 12px);
 }
 
 /* --------------------------------------------------------------------------
@@ -107,9 +108,10 @@
 }
 
 .app-sidebar {
-  width: var(--sidebar-width);
+  position: relative;
+  width: var(--app-sidebar-width);
   min-width: 40px;
-  max-width: var(--sidebar-width);
+  max-width: var(--app-sidebar-width);
   display: flex;
   flex-direction: column;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
@@ -130,7 +132,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.6);
   cursor: pointer;
-  font-size: 10px;
+  font-size: var(--font-size-label);
   width: 20px;
   height: 20px;
   border-radius: 4px;
@@ -160,10 +162,10 @@
 .leaderboard-collapsed__label {
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   margin: 4px 0 6px;
 }
@@ -198,7 +200,7 @@
 }
 
 .leaderboard-collapsed__num {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: 700;
   font-family: var(--font-mono);
   color: rgba(255, 255, 255, 0.6);
@@ -295,10 +297,45 @@
 }
 
 .app-sidebar .tower-body {
-  flex: 1;
   overflow: hidden;
   min-height: 0;
 }
+
+/* Pager of the Leaderboard rows that do not fit (Leaderboard.jsx) */
+.tower-pager {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.tower-pager__btn {
+  min-width: 22px;
+  height: 18px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tower-pager__btn:disabled {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.tower-pager__btn:not(:disabled):hover { color: var(--color-text-primary); background: rgba(255, 255, 255, 0.08); }
 
 .app-main {
   flex: 1;
@@ -435,7 +472,7 @@
   gap: 4px;
   padding: 3px 8px;
   font-family: var(--font-primary);
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-secondary);
   background: rgba(255, 255, 255, 0.05);
@@ -599,7 +636,7 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-bold);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
   background: rgba(225, 6, 0, 0.15);
   padding: 2px 10px;
   border-radius: var(--radius-sm);
@@ -671,7 +708,7 @@
   background: rgba(15, 15, 30, 0.45);
   border: 1.5px solid rgba(255, 255, 255, 0.10);
   border-radius: 8px;
-  font-size: 10px;
+  font-size: var(--font-size-data);
   flex-shrink: 0;
   font-family: var(--font-mono);
   min-width: 160px;
@@ -696,8 +733,8 @@
   transition: color 0.15s, background 0.15s;
 }
 .telem-mfd-card__close:hover {
-  color: #fff;
-  background: rgba(225, 6, 0, 0.5);
+  color: #000;
+  background: var(--color-worse);
 }
 
 .telem-mfd-card__top {
@@ -735,13 +772,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: 900;
   flex-shrink: 0;
 }
 
 .telem-mfd-card__lap-badge {
-  font-size: 8px;
+  font-size: var(--font-size-data);
   font-weight: 700;
   color: rgba(255, 255, 255, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -764,8 +801,8 @@
 }
 
 .telem-mfd-card__tyre-life {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.35);
+  font-size: var(--font-size-data);
+  color: var(--color-text-muted);
   font-weight: 600;
 }
 
@@ -781,14 +818,14 @@
 }
 
 .telem-mfd-card__sector-label {
-  font-size: 8px;
+  font-size: var(--font-size-data);
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--color-text-muted);
   letter-spacing: 0.02em;
 }
 
 .telem-mfd-card__sector-val {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -796,7 +833,7 @@
 .telem-sector-badge {
   padding: 0 3px;
   border-radius: 2px;
-  font-size: 8px;
+  font-size: var(--font-size-data);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -812,7 +849,7 @@
 
 .telem-mode-btn {
   padding: 2px 10px;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -825,8 +862,8 @@
 }
 
 .telem-mode-btn--active {
-  background: rgba(225, 6, 0, 0.15);
-  color: var(--color-f1-red);
+  background: color-mix(in srgb, var(--color-f1-red) 15%, transparent);
+  color: var(--color-f1-red-text);
 }
 
 .telem-mode-btn:hover:not(.telem-mode-btn--active) {
@@ -836,7 +873,7 @@
 /* Lap picker */
 .telem-lap-picker {
   padding: 1px 6px;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-family: var(--font-mono);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -848,21 +885,21 @@
 /* Lap add button */
 .telem-lap-add-btn {
   padding: 1px 6px;
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   font-family: var(--font-mono);
   letter-spacing: 0.04em;
-  background: rgba(100, 180, 255, 0.12);
-  border: 1px solid rgba(100, 180, 255, 0.3);
+  background: color-mix(in srgb, var(--color-brush) 12%, transparent);
+  border: 1px solid var(--color-brush);
   border-radius: var(--radius-sm);
-  color: rgba(100, 180, 255, 0.9);
+  color: var(--color-brush);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
 }
 
 .telem-lap-add-btn:hover:not(:disabled) {
-  background: rgba(100, 180, 255, 0.2);
+  background: color-mix(in srgb, var(--color-brush) 20%, transparent);
   color: #fff;
 }
 
@@ -880,7 +917,7 @@
 
 .telem-preset-btn {
   padding: 2px 8px;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   font-family: var(--font-primary);
   background: rgba(255, 255, 255, 0.06);
@@ -893,8 +930,8 @@
 }
 
 .telem-preset-btn:hover:not(:disabled) {
-  background: rgba(100, 180, 255, 0.15);
-  border-color: rgba(100, 180, 255, 0.35);
+  background: color-mix(in srgb, var(--color-brush) 15%, transparent);
+  border-color: var(--color-brush);
   color: #fff;
 }
 
@@ -904,13 +941,13 @@
 }
 
 .telem-preset-btn--best {
-  border-color: rgba(160, 32, 240, 0.3);
-  color: #a855f7;
+  border-color: var(--sector-green);
+  color: var(--sector-green);
 }
 
 .telem-preset-btn--best:hover:not(:disabled) {
-  background: rgba(160, 32, 240, 0.15);
-  border-color: rgba(160, 32, 240, 0.5);
+  background: color-mix(in srgb, var(--sector-green) 15%, transparent);
+  border-color: var(--sector-green);
 }
 
 .telem-preset-divider {
@@ -922,11 +959,11 @@
 
 .telem-lap-chip {
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   font-family: var(--font-mono);
-  background: rgba(100, 180, 255, 0.12);
-  border: 1px solid rgba(100, 180, 255, 0.4);
+  background: color-mix(in srgb, var(--color-brush) 12%, transparent);
+  border: 1px solid var(--color-brush);
   border-radius: var(--radius-full);
   color: #fff;
   cursor: pointer;
@@ -935,12 +972,12 @@
 }
 
 .telem-lap-chip:hover {
-  background: rgba(225, 6, 0, 0.15);
-  border-color: rgba(225, 6, 0, 0.4);
+  background: color-mix(in srgb, var(--color-worse) 15%, transparent);
+  border-color: var(--color-worse);
 }
 
 .telem-lap-chip--active {
-  background: rgba(100, 180, 255, 0.12);
+  background: color-mix(in srgb, var(--color-brush) 12%, transparent);
 }
 
 /* Charts area — vertical stack sharing X-axis */
@@ -1008,7 +1045,7 @@
   align-items: center;
   justify-content: center;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: var(--font-size-label);
 }
 
 /* --------------------------------------------------------------------------
@@ -1027,11 +1064,17 @@
 }
 
 .timeline-player.collapsed {
-  height: 40px;
+  height: var(--timeline-height);
 }
 
 .timeline-player.expanded {
-  height: 136px;
+  height: calc(var(--timeline-height) + var(--timeline-expanded-extra));
+  /* The event strip opens over the bottom of the app body (negative top
+     margin = its extra height): the flex column keeps the body's height, so
+     no view re-lays out while the user scrubs (V13 r2). Opaque enough to
+     read over the panels it covers for the moment it is open. */
+  margin-top: calc(-1 * var(--timeline-expanded-extra));
+  background: var(--color-bg-primary);
 }
 
 /* ── Collapsed row ── */
@@ -1039,7 +1082,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  height: 40px;
+  height: var(--timeline-height);
   padding: 0 var(--spacing-md);
 }
 
@@ -1157,7 +1200,7 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
   background: rgba(225, 6, 0, 0.12);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
@@ -1166,7 +1209,7 @@
 }
 
 .timeline-player__status-text {
-  font-size: 10px;
+  font-size: var(--font-size-label);
   white-space: nowrap;
 }
 
@@ -1202,7 +1245,7 @@
 .timeline-player__speed-pill {
   padding: 2px 10px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-secondary);
   background: rgba(255, 255, 255, 0.05);
@@ -1224,7 +1267,7 @@
 .timeline-player__speed-pill.active {
   background: rgba(225, 6, 0, 0.15);
   border-color: var(--color-f1-red);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
   box-shadow: 0 0 8px rgba(225, 6, 0, 0.2);
 }
 
@@ -1239,7 +1282,7 @@
 .timeline-player__quali-pill {
   padding: 2px 10px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-secondary);
   background: rgba(255, 255, 255, 0.05);
@@ -1259,7 +1302,7 @@
 .timeline-player__quali-pill.active {
   background: rgba(225, 6, 0, 0.15);
   border-color: var(--color-f1-red);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
   box-shadow: 0 0 8px rgba(225, 6, 0, 0.2);
 }
 
@@ -1269,27 +1312,29 @@
 }
 
 /* ── Legend ── */
+/* Legend of the event strip: one row of the markers as drawn (9 items at
+   most); it wraps rather than scrolls on a narrow window */
 .timeline-player__legend {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px 10px;
   padding: 2px 12px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-wrap: wrap;
+  overflow: hidden;
 }
 
-.timeline-player__legend::-webkit-scrollbar {
-  display: none;
+.timeline-player__legend-mark {
+  flex-shrink: 0;
+  display: block;
 }
 
 .timeline-player__legend-item {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-family: var(--font-mono);
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--color-text-muted);
   white-space: nowrap;
   letter-spacing: 0.03em;
 }
@@ -1309,8 +1354,34 @@
 }
 
 .timeline-player__legend-item--driver {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--color-text-secondary);
 }
+
+/* Live bar: the track-status label next to its dot, the disconnect button */
+.timeline-player__flag-label {
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.timeline-player__disconnect {
+  margin-left: 8px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-f1-red-text);
+  font-family: var(--font-display);
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.timeline-player__disconnect:hover { background: rgba(239, 68, 68, 0.2); }
 
 /* ── Tooltip ── */
 .timeline-player__tooltip {
@@ -1318,7 +1389,7 @@
   z-index: var(--z-tooltip);
   padding: 4px 8px;
   font-family: var(--font-primary);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
   background: var(--glass-bg-heavy);
@@ -1477,13 +1548,13 @@
 
 /* Micro-hint below each form label — Phase 1 of the main-menu hints. */
 .session-screen__field-hint {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.40);
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
   line-height: 1.3;
   margin-bottom: 2px;
   font-weight: 400;
 }
-[data-theme="light"] .session-screen__field-hint { color: rgba(0,0,0,0.45); }
+[data-theme="light"] .session-screen__field-hint { color: var(--color-text-muted); }
 
 .session-screen__select {
   padding: 10px 14px;
@@ -1536,7 +1607,7 @@
 .session-screen__pill--active {
   background: rgba(225, 6, 0, 0.15);
   border-color: rgba(225, 6, 0, 0.4);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
 }
 
 .session-screen__btn {
@@ -1595,21 +1666,26 @@
 .weather-bar {
   display: flex;
   align-items: center;
-  height: 44px;
-  padding: 0 16px;
+  height: var(--weather-bar-height);
+  min-width: 0;
+  /* one row that never overflows the window: the groups below shrink or
+     shorten (event name, search, weather labels) before the lap / flag */
+  overflow: hidden;
+  padding: 0 clamp(8px, 1vw, 16px);
   background: var(--glass-bg-heavy);
   backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
   -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
   border-bottom: var(--glass-border-light);
   flex-shrink: 0;
-  gap: 12px;
+  gap: clamp(6px, 0.8vw, 12px);
 }
 
 .weather-bar__left {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .weather-bar__menu-btn {
@@ -1634,6 +1710,7 @@
 .weather-bar__logo {
   height: 22px;
   width: auto;
+  flex-shrink: 0;
   filter: drop-shadow(0 0 6px rgba(225, 6, 0, 0.4));
 }
 
@@ -1644,10 +1721,36 @@
   color: var(--color-text-primary);
   letter-spacing: 0.04em;
   white-space: nowrap;
+  /* long event names end in an ellipsis (full name in the title) */
+  min-width: 0;
+  max-width: clamp(96px, 11vw, 260px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Static demo chip (WeatherBar.jsx): the API answers from the bundled
+   races; text >= 4.5:1, outline >= 3:1 on the bar */
+.weather-bar__demo {
+  flex-shrink: 0;
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-primary);
+  color: var(--color-text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--radius-full);
+  padding: 1px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: help;
+}
+
+[data-theme="light"] .weather-bar__demo {
+  border-color: rgba(0, 0, 0, 0.45);
 }
 
 .weather-bar__change-btn {
-  font-size: 9px;
+  flex-shrink: 0;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   font-family: var(--font-primary);
   color: var(--color-text-muted);
@@ -1666,19 +1769,28 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* One row of pills: when the window is too narrow for all of them, the
+   pills that do not fit wrap onto a second line that the fixed height hides,
+   so a pill is either shown whole or not at all (never cut in half); the
+   Pit Wall's WeatherMini and the Settings show every value. */
 .weather-bar__center {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 34px;
+  overflow: hidden;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  align-content: flex-start;
   justify-content: center;
-  gap: 4px;
+  gap: 12px 4px;
   /* Glassmorphism capsule wrapping all weather pills */
   background: rgba(28, 28, 40, 0.55);
   backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 20px;
-  padding: 4px 8px;
+  padding: 3px 8px;
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.3),
     inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
@@ -1695,15 +1807,16 @@
 .weather-bar__pill {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 4px;
-  padding: 3px 10px;
+  padding: 3px clamp(6px, 0.6vw, 10px);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-full);
 }
 
 .weather-bar__pill-label {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-muted);
   text-transform: uppercase;
@@ -1715,6 +1828,27 @@
   font-family: var(--font-mono);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+/* Short weather labels (Trk / Hum) replace the long ones below 1600 px wide,
+   so the bar keeps every value, its label and the lap / flag on one row */
+.weather-bar__pill-label--short { display: none; }
+
+@media (max-width: 1600px) {
+  .weather-bar__pill-label--long { display: none; }
+  .weather-bar__pill-label--short { display: inline; }
+  .layout-preset-bar__label { display: none; }
+  .weather-bar .search-bar { max-width: 180px; }
+}
+
+/* 1366-1440 px wide: the decorative icons of the bar give their room to
+   the values (the condition icon repeats the Rain / humidity values) */
+@media (max-width: 1440px) {
+  .weather-bar__condition-icon,
+  .weather-bar__elapsed-icon { display: none; }
+  .weather-bar__event { max-width: 8vw; }
+  .weather-bar .search-bar { max-width: 150px; }
 }
 
 .weather-bar__right {
@@ -1725,10 +1859,10 @@
 }
 
 .weather-bar__session-badge {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
   background: rgba(225, 6, 0, 0.12);
   border: 1px solid rgba(225, 6, 0, 0.3);
   border-radius: var(--radius-sm);
@@ -1742,6 +1876,21 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.weather-bar__live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: var(--font-size-label);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fff;
+  white-space: nowrap;
 }
 
 .weather-bar__elapsed-capsule {
@@ -1754,6 +1903,7 @@
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 20px;
   padding: 4px 12px;
+  flex-shrink: 0;
 }
 
 .weather-bar__elapsed-icon {
@@ -1771,38 +1921,41 @@
 }
 
 .weather-bar__flag {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   padding: 3px 10px;
   border-radius: var(--radius-full);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
+/* Flag chips: FLAG_COLORS of utils/colors.js (the --flag-* tokens, tested
+   equal to the module), always with their label */
 .weather-bar__flag--green {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--flag-green) 15%, transparent);
+  color: var(--flag-green);
+  border: 1px solid color-mix(in srgb, var(--flag-green) 30%, transparent);
 }
 
 .weather-bar__flag--yellow {
-  background: rgba(250, 204, 21, 0.15);
-  color: #facc15;
-  border: 1px solid rgba(250, 204, 21, 0.3);
+  background: color-mix(in srgb, var(--flag-yellow) 15%, transparent);
+  color: var(--flag-yellow);
+  border: 1px solid color-mix(in srgb, var(--flag-yellow) 30%, transparent);
 }
 
 .weather-bar__flag--sc,
 .weather-bar__flag--vsc {
-  background: rgba(249, 115, 22, 0.15);
-  color: #f97316;
-  border: 1px solid rgba(249, 115, 22, 0.3);
+  background: color-mix(in srgb, var(--flag-sc) 15%, transparent);
+  color: var(--flag-sc);
+  border: 1px solid color-mix(in srgb, var(--flag-sc) 30%, transparent);
 }
 
 .weather-bar__flag--red {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: color-mix(in srgb, var(--flag-red) 15%, transparent);
+  color: var(--flag-red);
+  border: 1px solid color-mix(in srgb, var(--flag-red) 30%, transparent);
 }
 
 /* ==========================================================================
@@ -1813,15 +1966,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 52px;
+  height: var(--bottom-tab-height);
   /* Float as a pill centered above the bottom edge */
   align-self: center;
-  margin: 0 auto 8px;
+  margin: 0 auto var(--dock-margin);
   padding: 0 6px;
   gap: 2px;
-  max-width: calc(100vw - 40px);
-  overflow-x: auto;
-  scrollbar-width: none;    /* Firefox */
+  /* both side gutters stay free: the assistant button sits in the right one */
+  max-width: calc(100vw - 2 * var(--dock-side-gutter));
+  /* Never scrolls: BottomTabBar measures its buttons and moves the ones that
+     do not fit into the overflow (⋯) popover (utils/dockCapacity.js). */
+  overflow: hidden;
   /* Apple Liquid Glass — neutral white refraction, bright top meniscus */
   background: rgba(255, 255, 255, 0.10);
   backdrop-filter: blur(50px) saturate(180%);
@@ -1868,12 +2023,16 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* natural width, never squeezed: BottomTabBar measures the buttons and
+     moves the ones that do not fit into the ⋯ popover */
+  flex-shrink: 0;
+  white-space: nowrap;
   gap: 3px;
   padding: 6px 14px;
   background: transparent;
   border: none;
   border-radius: 18px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--color-text-muted);
   cursor: pointer;
   transition: color 0.2s ease, background 0.2s ease;
   position: relative;
@@ -1910,7 +2069,7 @@
 }
 
 .bottom-tab-bar__label {
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-weight: 600;
   font-family: var(--font-primary);
   text-transform: uppercase;
@@ -1922,7 +2081,7 @@
   position: absolute;
   top: 2px;
   right: 4px;
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-family: var(--rh-font-mono, 'JetBrains Mono', monospace);
   font-weight: 600;
   color: var(--rh-text-dimmed, #444);
@@ -1931,14 +2090,15 @@
   border-radius: var(--rh-radius-xs, 5px);
   padding: 0 4px;
   line-height: 1.4;
-  /* Always faintly visible so users learn the shortcut without having to
-     hover or press `?` (H6/V6.1). Boosts on hover / active. */
-  opacity: 0.35;
-  transition: opacity 0.2s ease;
+  /* Always visible so users learn the shortcut without having to hover or
+     press `?` (H6/V6.1). Full opacity: at 0.35 the key read 1.2:1 (V13);
+     the active tab's key turns accent. */
+  opacity: 1;
+  transition: color 0.2s ease;
 }
 
 .bottom-tab-bar__tab:hover .tab-kbd {
-  opacity: 0.85;
+  color: var(--rh-text-secondary, #B0B0B0);
 }
 
 .bottom-tab-bar__tab--active .tab-kbd {
@@ -1965,7 +2125,7 @@
   justify-content: center;
   cursor: pointer;
   z-index: 2;
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   color: #fff;
   line-height: 1;
@@ -1986,30 +2146,21 @@
   transform: scale(1.15);
 }
 
-/* Overflow (⋯) button — subtler than regular dock tabs */
+/* Overflow (⋯) button: the only way to the dock items that do not fit, so
+   it keeps the full tab colour (no opacity: >= 3:1 as a control, V13) */
 .bottom-tab-bar__tab--overflow {
-  opacity: 0.5;
   padding: 6px 10px;
-  transition: opacity 0.2s ease, color 0.2s ease, background 0.2s ease;
+  transition: color 0.2s ease, background 0.2s ease;
 }
 
-.bottom-tab-bar__tab--overflow:hover { opacity: 1; }
-
 .bottom-tab-bar__tab--overflow.bottom-tab-bar__tab--active {
-  opacity: 1;
   background: rgba(255, 255, 255, 0.10);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* Fixed system buttons (Layouts / ⌘K / Settings) — visually distinct
-   from the reorderable dock items so users don't expect to drag them. */
-.bottom-tab-bar__tab--fixed {
-  opacity: 0.80;
-}
-.bottom-tab-bar__tab--fixed:hover,
-.bottom-tab-bar__tab--fixed.bottom-tab-bar__tab--active {
-  opacity: 1;
-}
+/* Fixed system buttons (Layouts / ⌘K / Settings): set apart from the
+   reorderable dock items by the divider before them, not by a lower
+   opacity (their 10 px labels keep 4.5:1, V13) */
 
 /* Divider between reorderable items and fixed system buttons */
 .bottom-tab-bar__divider {
@@ -2027,9 +2178,9 @@
 }
 
 /* Narrow viewports — hide fixed-button labels to save space (H8/V8.2).
-   Raised to 1440 px so 15-inch HiDPI-scaled laptops (effective CSS
-   viewport 1261 × 933) get the compact mode that reveals Settings.
-   See SCROLL_HEURISTIC_EVALUATION.md S2. */
+   The dock never scrolls: BottomTabBar measures its buttons and moves the
+   items that do not fit into the ⋯ popover (utils/dockCapacity.js), so the
+   fixed buttons (Layouts, ⌘K, Settings) are always on screen. */
 @media (max-width: 1440px) {
   .bottom-tab-bar__tab--fixed .bottom-tab-bar__label { display: none; }
   .bottom-tab-bar__tab--fixed { padding: 6px 10px; }
@@ -2038,9 +2189,11 @@
   .bottom-tab-bar__tab { padding: 6px 10px; }
 }
 
-/* Drag-and-drop states */
+/* Drag-and-drop states: the dragged item is outlined, never faded (its
+   label keeps 4.5:1, V13) */
 .bottom-tab-bar__tab--dragging {
-  opacity: 0.35;
+  outline: 1px dashed rgba(255, 255, 255, 0.45);
+  outline-offset: -2px;
   transform: scale(0.96);
 }
 .bottom-tab-bar__tab--drop-target {
@@ -2069,9 +2222,9 @@
 }
 .dock-ctx-menu__title {
   padding: 4px 8px 6px;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
-  color: rgba(255,255,255,0.38);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -2104,107 +2257,6 @@
 }
 
 /* ==========================================================================
-   Dock add popover (⊕)
-   ========================================================================== */
-.dock-add-popover {
-  /* Apple Liquid Glass */
-  background: rgba(255, 255, 255, 0.10);
-  backdrop-filter: blur(50px) saturate(180%);
-  -webkit-backdrop-filter: blur(50px) saturate(180%);
-  border: 0.5px solid rgba(255, 255, 255, 0.20);
-  border-radius: 14px;
-  display: flex;
-  flex-direction: column;
-  box-shadow:
-    0 20px 56px rgba(0, 0, 0, 0.50),
-    0 4px 16px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
-  overflow: hidden;
-  animation: overlayScaleIn 140ms ease-out;
-}
-.dock-add-popover__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px 6px;
-}
-.dock-add-popover__title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #fff;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.dock-add-popover__close {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.6);
-  border-radius: 6px;
-  width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-.dock-add-popover__close:hover { background: rgba(255,255,255,0.1); color: #fff; }
-.dock-add-popover__search-row {
-  padding: 4px 12px 10px;
-}
-.dock-add-popover__search {
-  width: 100%;
-  padding: 7px 10px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 8px;
-  color: #fff;
-  font-size: 12px;
-  outline: none;
-  transition: border-color 0.12s, background 0.12s;
-}
-.dock-add-popover__search:focus { border-color: rgba(100,196,255,0.4); background: rgba(255,255,255,0.08); }
-.dock-add-popover__body {
-  overflow-y: auto;
-  padding: 4px 8px 10px;
-  flex: 1;
-}
-.dock-add-popover__empty {
-  padding: 20px;
-  text-align: center;
-  color: rgba(255,255,255,0.4);
-  font-size: 11px;
-}
-.dock-add-popover__group { margin: 6px 0; }
-.dock-add-popover__group-label {
-  padding: 6px 6px 4px;
-  font-size: 9px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.35);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-}
-.dock-add-popover__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 8px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: rgba(255,255,255,0.82);
-  font-size: 12px;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.12s ease;
-}
-.dock-add-popover__item:hover:not(:disabled) { background: rgba(255,255,255,0.07); color: #fff; }
-.dock-add-popover__item--disabled,
-.dock-add-popover__item:disabled { opacity: 0.4; cursor: default; }
-.dock-add-popover__icon { flex-shrink: 0; color: rgba(255,255,255,0.6); }
-.dock-add-popover__label { flex: 1; }
-.dock-add-popover__check { color: #6dd46a; font-weight: 700; font-size: 11px; }
-
-/* ==========================================================================
    Dock overflow popover (⋯)
    ========================================================================== */
 .dock-overflow-popover {
@@ -2226,9 +2278,9 @@
 }
 .dock-overflow-popover__title {
   padding: 8px 12px 6px;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
-  color: rgba(255,255,255,0.4);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.09em;
   border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -2254,8 +2306,8 @@
 .dock-overflow-popover__label { flex: 1; }
 .dock-overflow-popover__kbd {
   font-family: var(--rh-font-mono, 'JetBrains Mono', monospace);
-  font-size: 9px;
-  color: rgba(255,255,255,0.5);
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 4px;
@@ -2266,7 +2318,7 @@
    Settings → Dock list
    ========================================================================== */
 .settings-dock__subtitle {
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   color: rgba(255,255,255,0.5);
   text-transform: uppercase;
@@ -2281,9 +2333,9 @@
 }
 .settings-dock__group { margin-top: 4px; }
 .settings-dock__group-label {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
-  color: rgba(255,255,255,0.35);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.09em;
   padding: 6px 4px 4px;
@@ -2300,9 +2352,9 @@
 .settings-dock__icon { flex-shrink: 0; color: rgba(255,255,255,0.6); }
 .settings-dock__label { flex: 1; font-size: 12px; color: rgba(255,255,255,0.9); }
 .settings-dock__cat {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: 700;
-  color: rgba(255,255,255,0.35);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -2346,7 +2398,8 @@
   cursor: pointer;
 }
 .settings-dock__toggle-row .settings-tab__toggle input:checked + .settings-tab__toggle-slider {
-  background: #39B54A;
+  /* "on": the selection accent, not the intermediate-tyre green (V2 r2) */
+  background: var(--color-brush);
 }
 .settings-dock__toggle-row .settings-dock__icon { color: rgba(255,255,255,0.55); }
 
@@ -2355,8 +2408,9 @@
    ========================================================================== */
 .utility-overlay-container {
   position: fixed;
-  /* top: below WeatherBar (44). bottom: reserve BottomTabBar (52+8 margin) + TimelinePlayer collapsed (40) + buffer. */
-  inset: 52px 20px 112px 20px;
+  /* Between the weather bar and the bottom chrome (timeline + dock), from
+     the same tokens as the shell rows, so a panel never covers either */
+  inset: var(--overlay-inset-top) 20px var(--overlay-inset-bottom) 20px;
   z-index: 100; /* above everything except modals */
   display: flex;
   gap: 8px;
@@ -2554,7 +2608,7 @@
 }
 
 .overlay-panel__title {
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   color: rgba(255, 255, 255, 0.7);
@@ -2588,8 +2642,8 @@
 }
 
 .overlay-panel__btn--close:hover {
-  background: rgba(239, 68, 68, 0.25);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--color-accent-danger) 25%, transparent);
+  color: var(--color-accent-danger);
 }
 
 /* Help/info button (H10/V10.1) — opens docs on click, shows summary on hover. */
@@ -2627,7 +2681,7 @@
 .settings-help__empty {
   padding: 16px;
   text-align: center;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--color-text-muted);
   font-size: 11px;
 }
 .settings-help__row {
@@ -2709,7 +2763,7 @@
   border: 1px solid rgba(229, 57, 53, 0.34);
   color: #ff7878;
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.04em;
   border-radius: 5px;
@@ -2724,7 +2778,7 @@
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.78);
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.04em;
   border-radius: 5px;
@@ -2760,7 +2814,7 @@
 }
 .dock-customize-popover__empty {
   text-align: center;
-  color: rgba(255, 255, 255, 0.40);
+  color: var(--color-text-muted);
   font-size: 11px;
   padding: 12px;
 }
@@ -2773,10 +2827,10 @@
 }
 .dock-customize-popover__group-label {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.10em;
-  color: rgba(255, 255, 255, 0.40);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   padding: 4px 4px 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -2807,9 +2861,9 @@
 .dock-customize-popover__row--on .dock-customize-popover__label { color: #fff; }
 .dock-customize-popover__kbd {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--color-text-muted);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 3px;
@@ -2823,8 +2877,8 @@
 .dock-customize-popover__footer {
   padding: 8px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.45);
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
   text-align: center;
 }
 
@@ -2894,11 +2948,11 @@
 
 .help-overlay__eyebrow {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--color-text-muted);
 }
 
 .help-overlay__chart-name {
@@ -2926,7 +2980,7 @@
 }
 .help-overlay__close:hover {
   background: rgba(239, 68, 68, 0.22);
-  color: #ef4444;
+  color: #ffffff;
 }
 
 .help-overlay__body {
@@ -2954,7 +3008,7 @@
 
 .help-overlay__section-title {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.10em;
   text-transform: uppercase;
@@ -3002,7 +3056,7 @@
   color: #d5fd51;
   border-radius: 5px;
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.04em;
   cursor: pointer;
@@ -3073,7 +3127,7 @@
   font-family: var(--font-primary);
   font-size: 12px;
 }
-.retry-panel__icon { color: #ef4444; flex-shrink: 0; }
+.retry-panel__icon { color: var(--flag-red); flex-shrink: 0; }
 .retry-panel__text { flex: 1; min-width: 0; }
 .retry-panel__title {
   font-weight: 700;
@@ -3092,7 +3146,7 @@
   border-radius: 6px;
   background: rgba(239, 68, 68, 0.18);
   border: 1px solid rgba(239, 68, 68, 0.44);
-  color: #ef4444;
+  color: var(--flag-red);
   font-family: var(--rh-font-mono, 'JetBrains Mono', monospace);
   font-size: 11px;
   font-weight: 700;
@@ -3181,7 +3235,7 @@
 }
 
 .speed-ranking-col__title {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   color: var(--color-text-muted);
@@ -3197,7 +3251,7 @@
   align-items: center;
   gap: 6px;
   padding: 2px 0;
-  font-size: 10px;
+  font-size: var(--font-size-data);
 }
 
 .speed-ranking-col__rank {
@@ -3323,7 +3377,7 @@
 
 .analytics-tab__toggle-btn {
   padding: 3px 12px;
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -3347,8 +3401,8 @@
 }
 
 .analytics-tab__toggle-btn--live.active {
-  background: #00e676;
-  border-color: #00e676;
+  background: var(--flag-green);
+  border-color: var(--flag-green);
   color: #000;
 }
 
@@ -3360,7 +3414,7 @@
 
 .situation-focus-ring {
   fill: none;
-  stroke: #ffd700;
+  stroke: var(--color-text-primary);
   stroke-width: 2;
   animation: situation-pulse 2s ease-in-out infinite;
   pointer-events: none;
@@ -3371,7 +3425,7 @@
 }
 
 .situation-label {
-  font-size: 7px;
+  font-size: var(--font-size-data);
   font-weight: 700;
   fill: #fff;
   text-anchor: middle;
@@ -3450,7 +3504,7 @@
 
 .sectors-panel__toggle-btn {
   padding: 4px 14px;
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   text-transform: uppercase;
@@ -3469,9 +3523,9 @@
 }
 
 .sectors-panel__toggle-btn--active {
-  color: var(--color-f1-red);
-  background: rgba(225, 6, 0, 0.12);
-  border-color: rgba(225, 6, 0, 0.35);
+  color: var(--color-f1-red-text);
+  background: color-mix(in srgb, var(--color-f1-red) 12%, transparent);
+  border-color: var(--color-f1-red-text);
 }
 
 .sectors-panel__legend {
@@ -3486,9 +3540,9 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -3565,7 +3619,7 @@
 }
 
 .sectors-panel__col-title {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   color: rgba(255, 255, 255, 0.7);
@@ -3575,7 +3629,7 @@
 
 .sectors-panel__col-best {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   color: var(--sector-purple);
 }
@@ -3602,15 +3656,29 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* Focus + context (SectorsPanel.jsx, every view): a context row (not
+   selected, or another row hovered) keeps its text at full opacity in the
+   muted colour (>= 4.5:1) and fades its marks only; row opacity 0.3 put the
+   text at 1.77-2.69:1 (verifier r2, drawn_colours.txt) */
+.sectors-panel__row--context,
+.sectors-panel__row--context > span {
+  color: var(--color-text-muted) !important;
+}
+
+.sectors-panel__row--context .sectors-panel__team-bar,
+.sectors-panel__row--context .sectors-panel__bar-fill {
+  opacity: 0.35;
+}
+
 .sectors-panel__row--best {
-  background: rgba(168, 85, 247, 0.10);
+  background: color-mix(in srgb, var(--sector-purple) 10%, transparent);
 }
 
 .sectors-panel__rank {
   width: 16px;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-muted);
   flex-shrink: 0;
@@ -3625,7 +3693,7 @@
 
 .sectors-panel__driver {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
   min-width: 30px;
@@ -3633,7 +3701,7 @@
 
 .sectors-panel__time {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
   margin-left: auto;
@@ -3641,7 +3709,7 @@
 
 .sectors-panel__speed-val {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
   margin-left: auto;
@@ -3649,14 +3717,14 @@
 
 .sectors-panel__speed-unit {
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: var(--font-size-data);
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
 .sectors-panel__gap {
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: var(--font-size-data);
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   width: 44px;
@@ -3688,10 +3756,10 @@
   padding: 6px 8px;
   background: rgba(20, 22, 40, 0.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -3741,7 +3809,7 @@
   width: 20px;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-secondary);
   flex-shrink: 0;
@@ -3749,7 +3817,7 @@
 
 .sectors-panel__live-drv {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
   min-width: 36px;
@@ -3760,7 +3828,7 @@
   flex: 1;
   text-align: right;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
   min-width: 56px;
@@ -3768,7 +3836,7 @@
 }
 
 .sectors-panel__live-sec--pending {
-  color: rgba(255, 255, 255, 0.15);
+  color: var(--color-text-muted);
   font-weight: var(--font-weight-normal);
   letter-spacing: 0.15em;
 }
@@ -3863,7 +3931,7 @@
 }
 
 .consistency-card__badge {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   padding: 2px 8px;
@@ -3877,12 +3945,12 @@
    (usually DNFs). Sits inline before the Consistent/Inconsistent badge. */
 .consistency-card__low-data-chip {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #f5a623;
-  background: rgba(245, 166, 35, 0.14);
-  border: 1px solid rgba(245, 166, 35, 0.45);
+  color: var(--status-predicted);
+  background: color-mix(in srgb, var(--status-predicted) 14%, transparent);
+  border: 1px solid var(--status-predicted);
   border-radius: 4px;
   padding: 1px 6px;
   cursor: help;
@@ -3945,7 +4013,7 @@
 /* Smaller & tighter Consistent/Inconsistent badge so the collapsed
    header stays on one line when cells get narrow. */
 .consistency-card__badge {
-  font-size: 8.5px;
+  font-size: var(--font-size-label);
   padding: 1.5px 6px;
   letter-spacing: 0.03em;
 }
@@ -3953,7 +4021,7 @@
 /* Bulk expand/collapse buttons in the panel header */
 .consistency-panel__bulk-btn {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.55);
@@ -3990,15 +4058,15 @@
 }
 
 .consistency-card__badge--consistent {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: color-mix(in srgb, var(--color-better) 15%, transparent);
+  color: var(--color-better);
+  border: 1px solid var(--color-better);
 }
 
 .consistency-card__badge--inconsistent {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: color-mix(in srgb, var(--color-worse) 15%, transparent);
+  color: var(--color-worse);
+  border: 1px solid var(--color-worse);
 }
 
 .consistency-card__cv {
@@ -4018,7 +4086,7 @@
 }
 
 .consistency-card__col-title {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   color: var(--color-text-muted);
@@ -4054,7 +4122,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: var(--font-size-data);
   color: var(--color-text-secondary);
 }
 
@@ -4070,14 +4138,14 @@
   color: var(--color-text-primary);
   min-width: 60px;
   text-transform: uppercase;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   letter-spacing: 0.04em;
 }
 
 .consistency-card__tyre-stat {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 10px;
+  font-size: var(--font-size-data);
 }
 
 /* ==========================================================================
@@ -4092,7 +4160,7 @@
 
 .telem-driver-select {
   padding: 2px 6px;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-family: var(--font-primary);
   font-weight: var(--font-weight-bold);
   background: rgba(255, 255, 255, 0.06);
@@ -4106,7 +4174,7 @@
 }
 
 .telem-driver-select:focus {
-  border-color: rgba(225, 6, 0, 0.5);
+  border-color: var(--color-brush);
 }
 
 .telem-driver-select option {
@@ -4156,7 +4224,8 @@
   position: absolute;
   z-index: 30;
   padding: 6px 10px;
-  background: var(--glass-bg-heavy);
+  /* over the traces: opaque enough to keep its text contrast (tokens.css) */
+  background: var(--glass-bg-opaque);
   backdrop-filter: blur(var(--glass-blur-heavy));
   -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
   border: var(--glass-border);
@@ -4169,7 +4238,7 @@
 
 .telem-crosshair-tooltip__dist {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-muted);
   padding-bottom: 4px;
@@ -4183,7 +4252,7 @@
   gap: 5px;
   padding: 2px 0;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-variant-numeric: tabular-nums;
 }
 
@@ -4199,7 +4268,7 @@
   font-family: var(--font-display);
   color: var(--color-text-primary);
   min-width: 28px;
-  font-size: 10px;
+  font-size: var(--font-size-data);
 }
 
 .telem-crosshair-tooltip__val {
@@ -4210,7 +4279,7 @@
 .telem-crosshair-tooltip__val--dim {
   color: var(--color-text-muted);
   font-weight: var(--font-weight-normal);
-  font-size: 8px;
+  font-size: var(--font-size-data);
 }
 
 /* ==========================================================================
@@ -4430,7 +4499,7 @@
   border: 1px solid rgba(213, 253, 81, 0.40);
   color: #d5fd51;
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 10.5px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   line-height: 1;
 }
@@ -4444,16 +4513,16 @@
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 10.5px;
+  font-size: var(--font-size-label);
   color: rgba(255, 255, 255, 0.48);
   font-family: var(--font-primary);
 }
 .session-screen__shortcut-hints > span:first-child {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--color-text-muted);
   margin-right: 6px;
 }
 .session-screen__shortcut-hints kbd {
@@ -4463,7 +4532,7 @@
   border-radius: 4px;
   padding: 1px 7px;
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  font-size: 10.5px;
+  font-size: var(--font-size-label);
   font-weight: 600;
   color: #d5fd51;
   line-height: 1.5;
@@ -4487,7 +4556,7 @@
 [data-theme="light"] .session-screen__getting-started-steps li { color: rgba(0,0,0,0.78); }
 [data-theme="light"] .session-screen__getting-started-steps strong { color: #111; }
 [data-theme="light"] .session-screen__shortcut-hints { color: rgba(0,0,0,0.55); border-top-color: rgba(0,0,0,0.06); }
-[data-theme="light"] .session-screen__shortcut-hints > span:first-child { color: rgba(0,0,0,0.45); }
+[data-theme="light"] .session-screen__shortcut-hints > span:first-child { color: var(--color-text-muted); }
 [data-theme="light"] .session-screen__shortcut-hints kbd {
   background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.10); color: #2563eb;
 }
@@ -4536,13 +4605,13 @@
 }
 
 .telem-toolbar__btn--active {
-  background: rgba(59, 130, 246, 0.2);
-  color: #3b82f6;
+  background: color-mix(in srgb, var(--color-brush) 20%, transparent);
+  color: var(--color-brush);
 }
 
 .telem-toolbar__btn--active:hover {
-  background: rgba(59, 130, 246, 0.3);
-  color: #60a5fa;
+  background: color-mix(in srgb, var(--color-brush) 30%, transparent);
+  color: var(--color-text-primary);
 }
 
 /* Brush overlay */
@@ -4562,13 +4631,13 @@
   left: 50%;
   transform: translateX(-50%);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
-  color: rgba(59, 130, 246, 0.8);
+  color: var(--color-brush);
   background: var(--glass-bg-heavy);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid var(--color-brush);
   border-radius: var(--radius-full);
   padding: 2px 10px;
   z-index: 25;
@@ -4631,7 +4700,7 @@
 
 .settings-tab__section-header--open .settings-tab__section-chevron {
   transform: rotate(180deg);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
 }
 
 .settings-tab__section-body {
@@ -4639,7 +4708,7 @@
 }
 
 .settings-tab__section-title {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   text-transform: uppercase;
@@ -4666,8 +4735,8 @@
 }
 
 .settings-tab__hint {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
 }
 
@@ -4681,7 +4750,7 @@
 }
 
 .settings-tab__pill {
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   font-family: var(--font-display);
   padding: 4px 12px;
@@ -4705,7 +4774,7 @@
 }
 
 .settings-tab__select {
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-family: var(--font-display);
   font-weight: var(--font-weight-bold);
   padding: 4px 8px;
@@ -4721,7 +4790,7 @@
   width: 100%;
   margin-top: 8px;
   padding: 6px;
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   text-transform: uppercase;
@@ -4755,7 +4824,7 @@
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  font-size: 10px;
+  font-size: var(--font-size-label);
 }
 
 .settings-tab__toggle input {
@@ -4828,7 +4897,7 @@
 }
 
 .settings-tab__about-subtitle {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   color: var(--color-text-muted);
   margin: 0;
   text-transform: uppercase;
@@ -4849,7 +4918,7 @@
 }
 
 .settings-tab__about-key {
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -4867,7 +4936,7 @@
 }
 
 .settings-tab__about-text {
-  font-size: 10px;
+  font-size: var(--font-size-label);
   color: var(--color-text-secondary);
   line-height: 1.5;
   margin: 3px 0 0;
@@ -4881,7 +4950,7 @@
 }
 
 .settings-tab__tech-tag {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   padding: 2px 8px;
   border-radius: var(--radius-full);
@@ -4891,7 +4960,7 @@
 }
 
 .settings-tab__disclaimer {
-  font-size: 8px;
+  font-size: var(--font-size-label);
   color: var(--color-text-muted);
   line-height: 1.5;
   margin: 8px 0 0;
@@ -4934,7 +5003,7 @@
   border-radius: 4px;
   color: var(--color-text-primary);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   padding: 4px 8px;
   cursor: pointer;
 }
@@ -4960,7 +5029,7 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  padding: 10px 16px;
+  padding: 6px 12px;
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -4969,7 +5038,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
+  padding: 4px 10px;
   background: rgba(28, 28, 40, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
@@ -4978,7 +5047,7 @@
 
 .compare-panel__team-bar {
   width: 4px;
-  height: 32px;
+  height: 28px;
   border-radius: 2px;
   flex-shrink: 0;
 }
@@ -4997,13 +5066,18 @@
   letter-spacing: 0.04em;
 }
 
+/* full name and team on one line (ellipsis; both in the tooltip) */
 .compare-panel__driver-name {
-  font-size: 10px;
+  font-size: var(--font-size-data);
   color: var(--color-text-secondary);
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .compare-panel__team-name {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   color: var(--color-text-muted);
 }
 
@@ -5034,27 +5108,83 @@
   border-radius: var(--radius-full);
 }
 
+/* The body's sections flow into columns and pages that fit the pane
+   (utils/views/driverCompare.js comparePages): nothing is cut, nothing
+   scrolls (V13) */
 .compare-panel__body {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
-  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 6px 10px;
+}
+
+.compare-panel__columns {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+}
+
+.compare-panel__column {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* a chart takes what its column leaves (at least COMPARE_CHART_MIN_H) */
+.compare-panel__chart-block {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.compare-panel__chart-block .chart-legend {
+  flex: none;
+  justify-content: center;
 }
 
 .compare-panel__chart-container {
-  height: 200px;
-  flex-shrink: 0;
+  flex: 1 1 0;
+  min-height: 0;
   background: rgba(28, 28, 40, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   overflow: hidden;
 }
 
-.compare-panel__chart-container--small {
-  height: 160px;
+.compare-panel__tyres {
+  flex: none;
+}
+
+.compare-panel__pager {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 22px;
+  font-size: var(--font-size-label);
+  color: var(--color-text-secondary);
+}
+
+.compare-panel__pager button {
+  font-size: var(--font-size-label);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 3px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.compare-panel__pager button:disabled {
+  cursor: default;
+  color: var(--color-text-muted);
 }
 
 .compare-panel__chart-container svg {
@@ -5064,6 +5194,7 @@
 }
 
 .compare-panel__metrics {
+  flex: none;
   display: flex;
   flex-direction: column;
   background: rgba(28, 28, 40, 0.45);
@@ -5073,13 +5204,14 @@
 }
 
 .compare-panel__metrics-title {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   color: rgba(255, 255, 255, 0.7);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 7px 10px;
+  line-height: 1.3;
+  padding: 5px 10px;
   background: rgba(20, 22, 40, 0.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -5087,7 +5219,8 @@
 .compare-panel__metric-row {
   display: flex;
   align-items: center;
-  padding: 5px 10px;
+  line-height: 1.3;
+  padding: 4px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
@@ -5098,7 +5231,7 @@
 .compare-panel__metric-value {
   flex: 1;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
@@ -5114,57 +5247,19 @@
   padding-left: 10px;
 }
 
+/* the better value: the diverging pair's "better" blue with its ▲ glyph,
+   as the legend says (never the personal-best green) */
 .compare-panel__metric-value--winner {
-  color: var(--sector-green);
+  color: var(--color-better);
 }
 
 .compare-panel__metric-label {
   width: 100px;
   text-align: center;
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-secondary);
   flex-shrink: 0;
-}
-
-.compare-panel__stint-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-}
-
-.compare-panel__stint-driver {
-  font-family: var(--font-display);
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  min-width: 36px;
-  flex-shrink: 0;
-  color: var(--color-text-primary);
-}
-
-.compare-panel__stint-bar {
-  flex: 1;
-  display: flex;
-  height: 18px;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.compare-panel__stint-segment {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 8px;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  border-right: 1px solid rgba(0, 0, 0, 0.3);
-}
-
-.compare-panel__stint-segment:last-child {
-  border-right: none;
 }
 
 /* ==========================================================================
@@ -5215,7 +5310,7 @@
 }
 
 .focus-widget__team {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -5237,7 +5332,7 @@
 }
 
 .focus-widget__tyre {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   padding: 2px 6px;
@@ -5256,7 +5351,7 @@
 }
 
 .focus-widget__section-title {
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   text-transform: uppercase;
@@ -5272,13 +5367,14 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #22c55e;
+  background: var(--color-brush);
   animation: focusPulse 1.5s ease-in-out infinite;
 }
 
 @keyframes focusPulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
-  50% { opacity: 0.6; box-shadow: 0 0 0 4px rgba(34, 197, 94, 0); }
+  /* the glow of the brush-blue dot is the same blue (no green) */
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-brush) 50%, transparent); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 4px transparent; }
 }
 
 .focus-widget__stats {
@@ -5294,20 +5390,20 @@
 }
 
 .focus-widget__stat-label {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   color: var(--color-text-secondary);
 }
 
 .focus-widget__stat-value {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
 }
 
 .focus-widget__empty {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   color: var(--color-text-muted);
   font-style: italic;
 }
@@ -5322,7 +5418,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 9px;
+  font-size: var(--font-size-data);
 }
 
 .focus-widget__rival-pos {
@@ -5356,14 +5452,14 @@
 }
 
 .focus-widget__rival-trend {
-  font-size: 10px;
+  font-size: var(--font-size-data);
   flex-shrink: 0;
   width: 12px;
   text-align: center;
 }
 
 .focus-widget__rival-tyre {
-  font-size: 8px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-black);
   font-family: var(--font-display);
   padding: 1px 4px;
@@ -5374,7 +5470,7 @@
 
 .focus-widget__rival-age {
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: var(--font-size-data);
   color: var(--color-text-muted);
   flex-shrink: 0;
   width: 18px;
@@ -5462,7 +5558,7 @@
 }
 
 [data-theme="light"] .sectors-panel__live-sec--pending {
-  color: rgba(0, 0, 0, 0.12);
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .settings-tab__select {
@@ -5657,7 +5753,7 @@
   border-color: rgba(0, 0, 0, 0.08);
   color: #111;
 }
-[data-theme="light"] .toast__close { color: rgba(0, 0, 0, 0.45); }
+[data-theme="light"] .toast__close { color: var(--color-text-muted); }
 [data-theme="light"] .toast__close:hover { color: #111; background: rgba(0, 0, 0, 0.06); }
 
 /* ── Focus Driver Widget ───────────────────────────────────────────── */
@@ -5708,6 +5804,14 @@
 }
 
 /* Light theme bezel — subtle warm gradient */
+[data-theme="light"] .tower-pager { border-top-color: rgba(0, 0, 0, 0.10); }
+[data-theme="light"] .tower-pager__btn { border-color: rgba(0, 0, 0, 0.45); }
+[data-theme="light"] .tower-pager__btn:disabled { border-color: rgba(0, 0, 0, 0.18); }
+[data-theme="light"] .app-sidebar__focus--overlay {
+  border-top-color: rgba(0, 0, 0, 0.45);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.15);
+}
+
 [data-theme="light"] .app-sidebar .panel::after {
   background: linear-gradient(
     180deg,
@@ -5740,7 +5844,7 @@
 [data-theme="light"] .leaderboard-toggle {
   background: rgba(0, 0, 0, 0.06);
   border-color: rgba(0, 0, 0, 0.1);
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .leaderboard-toggle:hover {
@@ -5754,7 +5858,7 @@
 }
 
 [data-theme="light"] .leaderboard-collapsed__label {
-  color: #9CA3AF;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .leaderboard-collapsed__pos:hover {
@@ -5922,7 +6026,7 @@
 }
 
 [data-theme="light"] .timeline-player__legend-item {
-  color: #9CA3AF;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .timeline-player__legend-divider {
@@ -5958,7 +6062,7 @@
 }
 
 [data-theme="light"] .tab-kbd {
-  color: #9CA3AF;
+  color: var(--color-text-muted);
   background: #F3F4F6;
   border-color: #D1D5DB;
 }
@@ -6075,11 +6179,11 @@
 }
 
 [data-theme="light"] .tower-col-value--leader {
-  color: #9CA3AF;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .tower-tyre-age {
-  color: #9CA3AF;
+  color: var(--color-text-muted);
 }
 
 /* ── Overlay Panels ────────────────────────────────────────────────── */
@@ -6337,7 +6441,7 @@
 
 /* ── Settings Tab ──────────────────────────────────────────────────── */
 [data-theme="light"] .settings-tab__hint {
-  color: #9CA3AF;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .settings-tab__section-title {
@@ -6384,7 +6488,7 @@
 }
 
 [data-theme="light"] .settings-tab__about-key {
-  color: #9CA3AF;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .settings-tab__about-val {
@@ -6402,7 +6506,7 @@
 }
 
 [data-theme="light"] .settings-tab__disclaimer {
-  color: #9CA3AF;
+  color: var(--color-text-muted);
 }
 
 /* ── Tyre Degradation / Health / Management Charts ─────────────────── */
@@ -6432,20 +6536,15 @@
    Responsive Breakpoints
    ========================================================================== */
 
-/* Medium screens (laptops, ≤1400px) */
+/* Medium screens (laptops, ≤1400px). The sidebar width follows
+   --app-sidebar-width (240 px at 1280, 256 px at 1366): no step here. */
 @media (max-width: 1400px) {
-  .app-sidebar {
-    width: 220px;
-    min-width: 220px;
-    max-width: 220px;
-  }
-
   .bottom-tab-bar__tab {
     padding: 6px 10px;
   }
 
   .bottom-tab-bar__label {
-    font-size: 7px;
+    font-size: var(--font-size-label);
   }
 
   .overlay-panel {
@@ -6453,18 +6552,11 @@
   }
 }
 
-/* Small screens (≤1280px) */
+/* Small screens (≤1280px, under the supported range) */
 @media (max-width: 1280px) {
-  .app-sidebar {
-    width: 180px;
-    min-width: 180px;
-    max-width: 180px;
-  }
-
   .bottom-tab-bar {
     gap: 1px;
     padding: 0 4px;
-    height: 46px;
   }
 
   .bottom-tab-bar__tab {
@@ -6601,10 +6693,13 @@
 }
 
 /* ==========================================================================
-   Global No-Scroll Policy (VA exam constraint)
-   ALL views overflow:hidden except justified design-constraint exceptions.
-   Justified: RacePaceGrid (archival laps), TimingTower (archival),
-              Gemini chat (message log), utility overlays (settings, menus).
+   Global No-Scroll Policy (VA exam constraint, V5 / V13)
+   The page never scrolls (base.css) and no view scrolls by default: panel
+   content is overflow hidden and adapts to its box. The few areas that keep
+   an internal scroll are each listed, with the design constraint that
+   justifies it, in docs/SCROLL_JUSTIFICATIONS.md; the static inventory
+   notes/experiments/v13_audit/overflow_inventory.mjs checks that every
+   overflow:auto/scroll of the CSS and of inline styles has its row there.
    ========================================================================== */
 
 /* Every flex child in the layout chain needs these */
@@ -6626,24 +6721,12 @@
   overflow: hidden !important;
 }
 
-/* ── JUSTIFIED SCROLLS — the ONLY exceptions ── */
+/* ── Justified scrolls (docs/SCROLL_JUSTIFICATIONS.md) ── */
 
-/* RacePaceGrid: archival lap data, newest always visible at bottom */
-.race-pace-grid__body {
-  overflow-y: auto !important;
-}
+/* Leaderboard rows (.tower-body) do not scroll: they fit the room (28 px
+   down to 18 px) and are paged below that (Leaderboard.jsx fitRows / pageOf) */
 
-/* Gemini chat log — only when in utility overlay */
-.utility-overlay-container .gemini-chat__messages {
-  overflow-y: auto !important;
-}
-
-/* TimingTower body — pit wall archival timing rows */
-.tower-body {
-  overflow-y: auto !important;
-}
-
-/* Timing Sheet (LapTimeChart) body — driver timing rows */
+/* Lap Times timing sheet: one row per selected driver */
 .timing-sheet__body {
   overflow-y: auto !important;
 }
@@ -6660,28 +6743,25 @@
   padding-left: 12px;
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   margin-left: 8px;
-}
-
-.layout-preset-bar__label {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.25);
-  text-transform: uppercase;
-  margin-right: 10px;
   flex-shrink: 0;
 }
 
-.layout-preset-bar__sep {
-  /* kept for future use */
+.layout-preset-bar__label {
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  margin-right: 10px;
+  flex-shrink: 0;
 }
 
 .layout-preset-bar__btn {
   position: relative;
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-data);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -6707,7 +6787,7 @@
 }
 
 .layout-preset-bar__btn:hover {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--color-text-primary);
 }
 
 .layout-preset-bar__btn--active {
@@ -6724,7 +6804,7 @@
 }
 
 [data-theme="light"] .layout-preset-bar__label {
-  color: #9CA3AF;
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .layout-preset-bar__btn {
@@ -6739,10 +6819,67 @@
   color: #111827;
 }
 
-.layout-preset-bar__btn--custom {
-  opacity: 0.85;
+/* Compact trigger: active preset name + chevron, opens .layout-preset-menu */
+.layout-preset-bar__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 13em;
 }
-.layout-preset-bar__btn--custom:hover { opacity: 1; }
+.layout-preset-bar__current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.layout-preset-bar__chevron { flex-shrink: 0; }
+
+/* Preset menu (portal under the trigger) */
+.layout-preset-menu {
+  z-index: 10002;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: rgba(18, 18, 36, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  animation: overlayScaleIn 120ms ease-out;
+}
+.layout-preset-menu__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.layout-preset-menu__item:hover { background: rgba(255, 255, 255, 0.07); }
+.layout-preset-menu__item--active {
+  background: rgba(225, 6, 0, 0.16);
+  border-color: rgba(255, 107, 99, 0.6);
+}
+.layout-preset-menu__name {
+  font-size: var(--font-size-data);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.layout-preset-menu__desc {
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+}
+.layout-preset-menu__divider {
+  height: 1px;
+  margin: 4px 2px;
+  background: rgba(255, 255, 255, 0.10);
+}
 
 /* ==========================================================================
    Layout Builder popover — old-style layout + per-slot chart picker
@@ -6785,9 +6922,9 @@
 }
 .layout-builder__close:hover { color: #fff; background: rgba(255,255,255,0.08); }
 .layout-builder__section-label {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
-  color: rgba(255,255,255,0.45);
+  color: var(--color-text-muted);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   margin-top: 4px;
@@ -6807,7 +6944,7 @@
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 8px;
   color: rgba(255,255,255,0.75);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
@@ -6833,7 +6970,7 @@
 .layout-builder__slot-label {
   flex-shrink: 0;
   width: 56px;
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   color: rgba(255,255,255,0.5);
   letter-spacing: 0.08em;
@@ -6902,9 +7039,9 @@
   gap: 8px;
 }
 .layout-dock-popover__title {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 700;
-  color: rgba(255,255,255,0.4);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: 6px 6px 2px;
@@ -6956,9 +7093,9 @@
   display: block;
 }
 .layout-dock-popover__group-label {
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-weight: 700;
-  color: rgba(255,255,255,0.28);
+  color: var(--color-text-muted);
   padding: 4px 6px 2px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -6985,9 +7122,9 @@
 .layout-dock-popover__icon { color: rgba(255,255,255,0.55); flex-shrink: 0; }
 .layout-dock-popover__label { flex: 1; }
 .layout-dock-popover__kbd {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 600;
-  color: rgba(255,255,255,0.4);
+  color: var(--color-text-muted);
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 3px;
@@ -6995,7 +7132,8 @@
   font-family: 'JetBrains Mono', monospace;
 }
 .layout-dock-popover__check {
-  color: #39B54A;
+  /* the selection accent, not the intermediate-tyre green (V2 r2) */
+  color: var(--color-brush);
   font-weight: 700;
   font-size: 12px;
 }
@@ -7008,20 +7146,450 @@
   border-top: 1px solid rgba(255,255,255,0.06);
 }
 .layout-dock-popover__hint {
-  font-size: 9px;
-  color: rgba(255,255,255,0.28);
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
 }
 .layout-dock-popover__close-all {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
   padding: 3px 10px;
-  font-size: 10px;
+  font-size: var(--font-size-label);
   color: rgba(255,255,255,0.6);
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
 .layout-dock-popover__close-all:hover { background: rgba(225,6,0,0.18); color: #ff8a8a; }
+
+/* ==========================================================================
+   Docked layout (DockedLayout.jsx) — split panes with tabs (V13)
+   Every pane is a share of the app body (percent of its split), so a layout
+   fits the viewport by construction; the views read their pane's size.
+   Labels use the type tokens and the opaque text greys (>= 4.5:1).
+   ========================================================================== */
+.docked-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.docked-layout__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: clamp(24px, 3.2vh, 28px);
+  flex-shrink: 0;
+  padding: 0 8px;
+  background: rgba(15, 15, 35, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.docked-layout__label,
+.docked-layout__count {
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.docked-layout__label { text-transform: uppercase; }
+
+.docked-layout__btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.docked-layout__btn:hover { color: var(--color-text-primary); background: rgba(255, 255, 255, 0.06); }
+.docked-layout__btn--exit:hover { color: var(--color-f1-red-text); }
+
+.docked-layout__tree {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.docked-split {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.docked-split--row { flex-direction: row; }
+.docked-split--column { flex-direction: column; }
+
+.docked-split__child {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.docked-split--row > .docked-split__child { height: 100%; }
+.docked-split--column > .docked-split__child { width: 100%; }
+
+.docked-splitter {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.04);
+  transition: background 0.15s;
+  z-index: 5;
+}
+
+.docked-splitter--col { height: 100%; cursor: col-resize; }
+.docked-splitter--row { width: 100%; cursor: row-resize; }
+.docked-splitter:hover { background: rgba(100, 180, 255, 0.25); }
+
+.docked-pane {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: rgba(10, 10, 20, 0.95);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.docked-pane__tabs {
+  display: flex;
+  align-items: stretch;
+  height: clamp(26px, 3.6vh, 30px);
+  flex-shrink: 0;
+  min-width: 0;
+  background: rgba(20, 20, 40, 0.98);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.docked-pane__tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 1 auto;
+  min-width: 48px;
+  padding: 0 8px 0 10px;
+  cursor: pointer;
+  font-size: var(--font-size-label);
+  font-weight: 400;
+  color: var(--color-text-muted);
+  background: transparent;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 0.12s, background 0.12s;
+}
+
+.docked-pane__tab:hover { color: var(--color-text-primary); }
+
+.docked-pane__tab--active {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom-color: rgba(100, 180, 255, 0.7);
+}
+
+.docked-pane__tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.docked-pane__tab-close {
+  flex-shrink: 0;
+  margin-left: 2px;
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.docked-pane__tab-close:hover { color: var(--color-f1-red-text); }
+
+.docked-pane__spacer { flex: 1 1 0; min-width: 4px; }
+
+.docked-pane__icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+}
+
+.docked-pane__icon-btn:hover { color: var(--color-text-primary); }
+.docked-pane__icon-btn--help:hover { color: #8ab4f8; }
+.docked-pane__icon-btn--close:hover { color: var(--color-f1-red-text); }
+
+.docked-pane__content {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.docked-pane__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* "+" tab picker: a grid of every view not yet docked, no scrollbar */
+.docked-tab-picker {
+  position: fixed;
+  z-index: 10000;
+  display: grid;
+  gap: 0 2px;
+  padding: 4px;
+  background: rgba(25, 25, 50, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+.docked-tab-picker__item {
+  height: 28px;
+  padding: 0 10px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-data);
+  color: var(--color-text-secondary);
+}
+
+.docked-tab-picker__item:hover {
+  background: rgba(100, 180, 255, 0.15);
+  color: var(--color-text-primary);
+}
+
+/* ==========================================================================
+   Pit Wall layout (PitWallLayout.jsx) — fixed viewport (V13)
+   The grid itself (480 px timing column, rows 44 px / 1fr / 35vh, map row
+   1fr 1fr 280 px) is in the component's style objects; every cell there has
+   overflow hidden and min-height 0, so no view grows a row past the window.
+   Here: the timing column's split between the tower and the focus cards.
+   ========================================================================== */
+
+/* The tower takes what the focus cards leave */
+.pitwall-layout__tower {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Focus-driver cards (sector panel, focus widget; each renders only with a
+   focus driver), side by side in the 480 px column. Below 900 px of viewport
+   height they open collapsed to their header lines (PitWallLayout.jsx), so
+   the tower keeps all 20 rows; the toggle shows them in full on demand. */
+.pitwall-layout__focus {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pitwall-layout__focus-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 22px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.pitwall-layout__focus-toggle:hover { color: var(--color-text-primary); background: rgba(255, 255, 255, 0.08); }
+
+/* Pit Wall side column (PitWallLayout.jsx): Weather, Race Control (takes the
+   room left, newest messages first) and the Ask box at the bottom; the
+   answer card is laid over the column above the Ask box (GeminiQuickQuery) */
+.pitwall-quick__input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.04);
+  /* the field's boundary >= 3:1 (UI_COLORS.controlBorder), V13 */
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: var(--color-text-primary);
+  font-family: 'JetBrains Mono', monospace;
+}
+.pitwall-quick__input::placeholder { color: var(--color-text-muted); opacity: 1; }
+.pitwall-quick__input:focus { outline: none; }
+.pitwall-quick__input:focus-visible,
+.pitwall-quick__chip:focus-visible,
+.pitwall-quick__close:focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: 1px;
+}
+.pitwall-quick__chip {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 12px;
+  padding: 2px 10px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pitwall-quick__chip:hover { background: rgba(255, 255, 255, 0.10); color: var(--color-text-primary); }
+.pitwall-quick__close {
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-data);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pitwall-layout__focus-cards {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: stretch;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pitwall-layout__focus-cards > .pitwall-sector-panel {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Collapsed: each card shows its header line only (Pit Wall timing column
+   and the Analyse sidebar, SidebarFocusCards.jsx) */
+.pitwall-layout__focus--collapsed .pitwall-sector-panel > :not(.pitwall-sector-panel__header),
+.pitwall-layout__focus--collapsed .focus-widget > :not(.focus-widget__header),
+.app-sidebar__focus--collapsed .pitwall-sector-panel > :not(.pitwall-sector-panel__header),
+.app-sidebar__focus--collapsed .focus-widget > :not(.focus-widget__header) {
+  display: none;
+}
+
+.pitwall-layout__focus--collapsed .pitwall-sector-panel__header,
+.app-sidebar__focus--collapsed .pitwall-sector-panel__header {
+  margin-bottom: 0;
+}
+
+/* Analyse sidebar: the focus cards under the Leaderboard keep their height,
+   the Leaderboard takes the rest and fits or pages its rows */
+.app-sidebar__focus {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* "Details" on a window under 1200 px high: the cards in full, laid over the
+   bottom of the sidebar (SidebarFocusCards.jsx); the Leaderboard keeps its
+   layout under them and "Less" closes the card */
+.app-sidebar__focus--overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 100%;
+  z-index: 30;
+  background: var(--color-bg-primary);
+  border-top: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* Session bar of the main column (SessionInfoBar.jsx) */
+.session-info-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 100%;
+  min-width: 0;
+  padding: 0 clamp(8px, 1vw, 16px);
+  background: rgba(12, 12, 28, 0.85);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: var(--font-display);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+}
+
+.session-info-bar__event {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+}
+
+.session-info-bar__lap {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: var(--font-size-data);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.session-info-bar__lap strong {
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+}
+
+.session-info-bar__flag {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 3px 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: var(--font-size-label);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 
 /* ==========================================================================
    Pit Wall Sector Panel — Red Bull pit wall style digital display
@@ -7062,9 +7630,9 @@
 }
 
 .pitwall-sector-panel__lap-badge {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--color-text-muted);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 3px;
   padding: 1px 5px;
@@ -7072,7 +7640,7 @@
 }
 
 .pitwall-sector-panel__compound {
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: 900;
   padding: 1px 5px;
   border-radius: 3px;
@@ -7092,9 +7660,9 @@
 }
 
 .pitwall-sector-panel__total-label {
-  font-size: 8px;
+  font-size: var(--font-size-data);
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--color-text-muted);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   margin-bottom: 2px;
@@ -7129,9 +7697,9 @@
 }
 
 .pitwall-sector-panel__sector-label {
-  font-size: 8px;
+  font-size: var(--font-size-data);
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--color-text-muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 2px;
@@ -7147,9 +7715,9 @@
 }
 
 .pitwall-sector-panel__sector-delta {
-  font-size: 8px;
+  font-size: var(--font-size-data);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   margin-top: 2px;
 }
@@ -7162,9 +7730,9 @@
 }
 
 .pitwall-sector-panel__prev-chip {
-  font-size: 8px;
+  font-size: var(--font-size-data);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--color-text-secondary);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 3px;
@@ -7174,8 +7742,8 @@
 }
 
 .pitwall-sector-panel__prev-chip--best {
-  border-color: rgba(34, 197, 94, 0.4);
-  color: #22c55e;
+  border-color: var(--sector-green);
+  color: var(--sector-green);
 }
 
 /* Light theme */

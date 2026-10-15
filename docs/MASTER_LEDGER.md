@@ -17,7 +17,7 @@ Repository: `VA_f1_project_v2` (React 18 + Vite + Zustand + D3 on the front; Fas
 5. [Frontend](#5--frontend)
 6. [State: the Zustand store](#6--state-the-zustand-store)
 7. [Analytics pipelines](#7--analytics-pipelines)
-8. [Visualizations catalogue (27 charts)](#8--visualizations-catalogue-27-charts)
+8. [Visualizations catalogue (29 views: 22 D3 charts, 7 tables)](#8--visualizations-catalogue-29-views-22-d3-charts-7-tables)
 9. [Bidirectional coordination graph](#9--bidirectional-coordination-graph)
 10. [Three rendering modes + docked layout engine](#10--three-rendering-modes--docked-layout-engine)
 11. [Customizable bottom dock](#11--customizable-bottom-dock)
@@ -82,7 +82,7 @@ The full persona, goals, and tasks are in [`INTENDED_USER.md`](INTENDED_USER.md)
 │  React 18 + Vite 5 + Zustand 4 + D3.js 7                              │
 │                                                                       │
 │   3 rendering modes ── Pit Wall | Docked | Floating Overlays          │
-│   27 D3 visualizations ── bidirectional via Zustand                   │
+│   29 views (22 drawn with D3, 7 HTML tables) ── linked via Zustand    │
 │   Command palette · Keyboard shortcuts · Auto-hide dock               │
 └───────────────┬──────────────────────────────────────────────────────┘
                 │   axios (REST)  +  WebSocket (live timing)
@@ -92,7 +92,7 @@ The full persona, goals, and tasks are in [`INTENDED_USER.md`](INTENDED_USER.md)
 │                                                                       │
 │  Routers: predictions, gemini, analytics, live, replay                │
 │  Extractors: FastF1Extractor (thread-locked, disk + memory cache)    │
-│  Processors: feature_engineering, tsne_features, tsne_compute         │
+│  Processors: feature_engineering, pca_compute, degradation, stints    │
 │  Model: PyTorch LSTM 64→32→Dense (lap time + pit probability)        │
 │  Live: SignalR client, OpenF1 poller, mock replay                    │
 └───────────────┬──────────────────────────────────────────────────────┘
@@ -113,7 +113,7 @@ Vite dev server proxies `/api` to `http://localhost:8000`. CORS allows all origi
 ## 4 · Backend
 
 ### 4.1 Stack
-`FastAPI` for the HTTP API, `uvicorn` as the ASGI server, `FastF1` for authoritative F1 session data, `scikit-learn >= 1.5` for scaling / PCA / t-SNE, `PyTorch` for the LSTM, `numpy` + `pandas` for everything in between. `google-genai` is optional — the app degrades gracefully if missing.
+`FastAPI` for the HTTP API, `uvicorn` as the ASGI server, `FastF1` for authoritative F1 session data, `scikit-learn >= 1.5` for scaling / PCA, `PyTorch` for the LSTM, `numpy` + `pandas` for everything in between. `google-genai` is optional — the app degrades gracefully if missing.
 
 ### 4.2 Entry point: `backend/api/main.py`
 
@@ -143,10 +143,10 @@ Key design decisions:
 | `/api/frames/{year}/{round}` | GET | Frame-based replay data |
 | `/api/weather/{year}/{round}` | GET | Weather timeseries |
 | `/api/championship/{year}` | GET | Full season cumulative standings + weighted prediction |
-| `/api/tsne/embeddings` | GET | Pre-computed 2D t-SNE points |
+| `/api/tsne/embeddings` | GET | Former route name: alias of `/api/pca/embeddings` without parameters (the t-SNE projection was removed) |
 | `/api/pca/embeddings` | GET | PCA points + loadings + explained variance + auto axis labels; `?year&round&session_now`: that race's rows at the replay clock, axes fitted without it |
 | `/api/pca/analyze-selection` | POST | Descriptive analysis of selected point IDs (Hedges' g, 95% interval, N, random baseline; optional year / round / session_now); `/api/tsne/analyze-selection` is an alias |
-| `/api/tsne/point-features/{id}` | GET | Raw features of a specific embedding point |
+| `/api/tsne/point-features/{id}` | GET | Former route name: alias of `/api/pca/point-features/{id}`, the raw features of a biplot point |
 | `/api/predict/lstm` | POST | LSTM next-5-laps + pit probability |
 | `/api/predict/degradation` | POST | Linear regression on brushed lap range |
 | `/api/gemini/strategy` | POST | Gemini AI call with structured race context |
@@ -171,7 +171,7 @@ Key design decisions:
 
 - **`data/extractors/fastf1_extractor.py`** — 12+ extraction methods. Handles DNS/DNF (no laps), classified-position fallback via `race_results`, pit in/out detection, sector time conversion, and track-coordinate sanitization (numpy → float).
 - **`data/processors/feature_engineering.py`** — derived metrics: pace delta vs leader, degradation rate per stint (linear regression slope %/lap), stint number, tyre life.
-- **`data/processors/pca_compute.py`** — per-(driver, race) feature matrix (534 rows × 12 features from 30 cached races, `notes/experiments/phase67/pca_rebuild.txt`), `StandardScaler` + `PCA(n_components=2)` saved as `pca_embeddings.json` (`points`, `loadings`, `explained_variance`, axis labels from the top-2 loadings), the replay-clock biplot (`pca_embeddings_at`), the lasso analysis (`analyze_selection`), and the t-SNE of the same matrix (`/api/tsne/embeddings`).
+- **`data/processors/pca_compute.py`** — per-(driver, race) feature matrix (534 rows × 12 features from 30 cached races, `notes/experiments/phase67/pca_rebuild.txt`), `StandardScaler` + `PCA(n_components=2)` saved as `pca_embeddings.json` (`points`, `loadings`, `explained_variance`, axis labels from the top-2 loadings), the replay-clock biplot (`pca_embeddings_at`), and the lasso analysis (`analyze_selection`); the `/api/tsne/...` paths are aliases of the PCA routes.
 
 ### 4.6 Feature set (12 features)
 
@@ -233,7 +233,7 @@ frontend/src/
 │   │   ├── DetailPanel.jsx
 │   │   └── PanelToggleBar.jsx
 │   │
-│   ├── visualizations/        ── 27 D3 charts (see §8)
+│   ├── visualizations/        ── 29 views: 22 D3 charts, 7 tables (see §8)
 │   │
 │   ├── ui/                    ── 18 generic UI components
 │   │   ├── BottomTabBar.jsx       ── The customizable dock
@@ -302,8 +302,8 @@ frontend/src/
 - **Session:** `year, round, sessionType, sessionData, drivers, driversInfo, schedule, isLoading`.
 - **Replay:** `currentLap, maxLap, currentFrameIndex, totalFrames, currentTime, isPlaying, playSpeed, frameData`.
 - **Selection:** `selectedDrivers, focusDriver, highlightedDriver, comparisonDriver, compareDrivers, compareMode`.
-- **Selection (projections):** `selectedTSNEPoints, selectedPCAPoints, tsneStrategyAnalysis, projectionMode` (`'tsne' | 'pca'`).
-- **Lap range:** `brushLapRange, selectedLapRange` (the former is an in-progress brush, the latter a committed selection).
+- **Selection (projection):** `selectedPCAPoints, pcaStrategyAnalysis` (the PCA is the one projection; the t-SNE projection and its store fields were removed).
+- **Lap range:** `brushLapRange, selectedLapRange`: one lap range under two names, always equal (every lap-range action sets both; `docs/COORDINATION_GRAPH.md` section 2).
 - **Predictions:** `lstmPredictions, degradationRegression, raceProjection`.
 - **Live:** `isLiveMode, liveSnapshot, liveSessionInfo`.
 - **Layout:** `activeTab, openOverlays, overlayTiles, dockedLayout, overlayVizMapping, dockItems, showDashboard, leaderboardCollapsed, trackRotation`.
@@ -340,12 +340,9 @@ Five distinct analytical methods, each coupled to a visualization.
 - Biplot encoding: driver dots colored by team, loading arrows from origin, arrow length ∝ combined magnitude, label on arrow tip.
 - **Methodology doc:** `docs/PCA_METHODOLOGY.md`. Features and selection rationale: `docs/pca_features.md`.
 
-### 7.2 t-SNE (legacy projection, toggleable in the store)
+### 7.2 t-SNE (removed)
 
-- `TSNE(n_components=2, perplexity=min(15, n-1), init='pca', learning_rate='auto', max_iter=1000)`.
-- Uses `inspect.signature` to detect sklearn 1.5 renaming of `n_iter → max_iter`.
-- Kept alongside PCA because non-linear structure (e.g., "aggressive 2-stop strategies" vs "defensive 1-stop") often separates better in t-SNE, while PCA remains interpretable via loadings.
-- Switch between modes via `projectionMode` store field — both share `selectedTSNEPoints` IDs.
+- The t-SNE projection was removed: the PCA is the dashboard's one projection (`docs/PCA_METHODOLOGY.md`, section 2 "Why PCA and not t-SNE"). The backend keeps the three former `/api/tsne/...` paths only as aliases of the `/api/pca/...` routes (`backend/api/main.py`); no store field, view or embedding file of t-SNE is left.
 
 ### 7.3 Lasso-triggered selection analysis
 
@@ -370,74 +367,73 @@ When the user lassos a region of the PCA biplot:
 - The Strategy Simulator's marks follow the same rule (`whatIfMarks`, chained over the recomputes of the same plan): the verdict PLACES GAINED / LOST and the colour of each difference only when the interval of the run-by-run difference of the two runs (common random numbers) excludes 0, otherwise NO CLEAR CHANGE; each card's P label is its median finishing position, and with the model's stops as the baseline the baseline card is the Race Prediction panel's P label of that driver (the same run: `whatIfMarks` `stopModel` / `panelMode`); a mark kept only within the error yields to one beyond it when they contradict each other (`whatIfContradiction`: the plan's card, then a saved plan's card, moves within its error, `shownPositionRange`; a verdict held only by hysteresis becomes NO CLEAR CHANGE); measured, with the contradictions left and the baseline-card / panel agreement, in `notes/experiments/phase45c/whatif_stability.txt` (`frontend/scripts/whatif_stability.mjs`).
 - The assistant's strategy cards (`backend/api/routers/gemini.py` heuristic fallback, `_projected_position`) read the panel's P label (`medianPos` in the store's context), not the rounded Monte Carlo mean, so they hold on a reseed of the same state: `notes/experiments/phase45c/repair_r2/s4_assistant_cards.txt` (`backend/scripts/s4_assistant_cards.py` on the contexts of `frontend/scripts/s4_assistant_contexts.mjs`).
 - `extractRaceParams` measures pit loss (`utils/pitLoss.js`), tyre degradation per compound (`raceDegradation`: fits long enough, combined with the cached races' prior) and race-pace noise (`lapNoiseFromFits`: the pooled residual sigma of the race's per-stint fits at the clock, no floor and no prior mixed in, lead decision D1; the cached races' dry / wet value only before the first fit); see `notes/experiments/degradation_in_race.txt` (degradation) and `notes/experiments/phase45c/s2_lap_noise_monza.txt` (lap noise).
-- Output fed to Leaderboard → overtake probability badge (next driver ahead), coloured by the battle badge level of the store (green below 30 %, amber at least 30 %, red at least 60 %, each changing only when the 95 % Wilson interval clears the threshold).
+- Output fed to Leaderboard → overtake probability badge (next driver ahead), coloured by the battle badge level of the store (grey below 30 %, yellow at least 30 %, orange at least 60 %, with the ⇅ glyph and the percentage, each changing only when the 95 % Wilson interval clears the threshold; never green / red, `docs/COLOR_ENCODING.md`).
 
 ### 7.6 Linear regression for degradation (brush-triggered)
 
-- Brush a lap range on `LapTimeChart` (D3 brush) → `brushLapRange` in the store.
+- Set a lap range in any view (the Position Tracker's D3 brush, the Timing Sheet's lap-range bar, a stint on the Strategy Timeline, a pit window, a race event) → the one lap range (`brushLapRange` = `selectedLapRange`) in the store.
 - `TireDegradation` subscribes, calls `/api/predict/degradation` with the range.
 - Backend: least-squares slope + intercept per driver; slope reported in s/lap and %/lap.
 - Rendered as a trendline overlay plus a regression card ("+0.12 s/lap over laps 18-26").
 
 ---
 
-## 8 · Visualizations catalogue (27 charts)
+## 8 · Visualizations catalogue (29 views: 22 D3 charts, 7 tables)
 
-Every chart is a React component in `src/components/visualizations/` that renders an SVG (or DOM grid), owns a D3 scale + selection, and reads/writes the Zustand store. Common contract: a title-bearing `<Panel>` shell, a `Legend` in the panel controls slot, and responsive resize via `ResizeObserver`.
+Every view is a React component in `src/components/visualizations/` that reads and writes the Zustand store inside a title-bearing `<Panel>` shell with a legend of its marks. Twenty-two of them draw SVG with D3 (`d3.select` in the component, or a drawing helper of `src/utils/views/`: `stintStripChart`, `positionRangeChart`, `sectorDeltaWaterfallChart`, `undercutSweepChart`, `effectBarsChart`, `pcaForestChart`, `pcaBiplot`); seven are HTML tables, grids or cards and are described as such below: Leaderboard, Timing Tower, Race Pace Grid (its cell colour comes from a d3 threshold scale), Sectors panel, Consistency panel, Race Control and Tyre Silhouette (`node notes/experiments/phase9/repair3/v6_catalogue.mjs`, output `v6_catalogue.txt`). Charts read their box (`utils/views/chartBox.js` useBoxSize) and tables fit or page their rows (`docs/SCROLL_JUSTIFICATIONS.md`).
 
 ### 8.1 Position & timing
-| Chart | File | Encoding | Analytics coupling |
-|---|---|---|---|
-| Track Map | `TrackMap.jsx` | Animated car dots on circuit SVG (zoom/pan/rotate). Sector heatmap, DRS zones, corner labels, channel overlay (speed/throttle/brake via `d3.interpolateTurbo`). | Focus-driver telemetry caching, auto-fetch on channel toggle. |
-| Leaderboard | `Leaderboard.jsx` | F1 TV broadcast-style tower. Position, abbr, team bar, tyre compound dot, gap/interval/life, fastest-lap FL badge, overtake-probability `⇅ XX%` badge (Monte Carlo). | LSTM prediction arrow, `cycleLeaderboardColumn()` for INT / GAP / TYRE. |
-| Timing Tower (pit-wall) | `TimingTower.jsx` | Same data, higher-density, classified-position fallback for DNF/DNS from `race_results`. | — |
-| Position Tracker | `PositionByLap.jsx` | Lap × position line grid (F1 stacked line). | `brushLapRange` → degradation. |
-| Track Position / Race Situation | `RaceSituationMap.jsx` | Live PCA of the race-situation features, refitted every lap and turned onto the previous lap's axes (`livePCA.js`; during a replay the axes of a replay from the first lap, `raceSituationReference.js`); each dot drawn at its score, one loading arrow per input. Lasso. Team-colored dots. | Lasso → StrategyAnalysis. |
+| View | File | Drawn as | Encoding | Analytics coupling |
+|---|---|---|---|---|
+| Track Map | `TrackMap.jsx` | D3 | Animated car dots on the circuit (d3.zoom pan / zoom, rotation). Sectors in `SECTOR_COLORS` with their S1-S3 legend, DRS zones, corner labels, channel overlay (speed on cividis from `SPEED_RAMP_START`, throttle / brake from the lifted track grey `CHANNEL_RAMP_LOW` to their Okabe-Ito channel colours, sky blue / orange; ramp ends >= 3:1, `notes/experiments/phase9/repair2_contrast.txt`). | Focus-driver telemetry caching, auto-fetch on channel toggle. |
+| Leaderboard | `Leaderboard.jsx` | HTML table | F1 TV broadcast-style tower: position, code, team bar, tyre compound letter, gap / interval / tyre / pits column, fastest-lap FL badge, overtake-probability `⇅ XX%` badge (Monte Carlo, its three levels in the legend). The rows fit the sidebar (28 down to 18 px) and are paged below that. | `cycleLeaderboardColumn()` for INT / GAP / TYRE / PIT; a double-click asks the forecast. |
+| Timing Tower (Pit Wall) | `TimingTower.jsx` | HTML table | Same data, higher density, classified-position fallback for DNF / DNS from `race_results`. | — |
+| Position Tracker | `PositionByLap.jsx` | D3 | Lap × position lines, pit-window band, position trend; a D3 brush on the lap axis. | Sets and draws the one lap range. |
+| Track Position / Race Situation | `RaceSituationMap.jsx` | D3 | Live PCA of the race-situation features, refitted every lap and turned onto the previous lap's axes (`livePCA.js`; during a replay the axes of a replay from the first lap, `raceSituationReference.js`); each dot drawn at its score, one loading arrow per input. Lasso. Team-coloured dots. | Lasso → StrategyAnalysis. |
+| Circle of Doom | `CircleOfDoom.jsx` | D3 | The cars on a circle of one lap in seconds, the focus driver's pit-loss arc and rejoin point. | — |
 
 ### 8.2 Lap times & pace
-| Chart | File | Encoding | Analytics |
-|---|---|---|---|
-| Lap Time Chart | `LapTimeChart.jsx` | Multi-line. Color = driver (team color). F1 TV timing colors: overall-best purple `#A020F0`, personal-best green `#00FF00`, yellow slow, magenta pit lap. D3 brush across lap axis. | Brush → degradation regression. |
-| Lap Delta Chart | `LapDeltaChart.jsx` | Cumulative gap delta vs reference driver. | `selectedDrivers` ↔ `focusDriver`. |
-| Race Pace Grid | `RacePaceGrid.jsx` | Grid (driver × lap) median-classified (fast / medium / slow). | — |
-| Sector Delta Waterfall | `SectorDeltaWaterfall.jsx` | Diverging bars S1/S2/S3 for 12 recent laps focus vs reference. Cumulative column + AVG row. | `comparisonDriver` store field, bidirectional with Undercut + StrategyAnalysis. |
-| Sectors panel | `SectorsPanel.jsx` | Ranked best-sector table with SB/PB coloring. | — |
-| Speed panel | `SpeedPanel.jsx` | Speed rankings (top speeds by sector trap). | — |
-| Consistency panel | `ConsistencyPanel.jsx` | Population σ of lap times per driver, bar chart. | — |
+| View | File | Drawn as | Encoding | Analytics |
+|---|---|---|---|---|
+| Lap Times (Timing Sheet) | `LapTimeChart.jsx` | HTML table + D3 forecast chart | A timing sheet: one row per driver (the whole field), each with the latest lap inside the lap range, its sectors, gap and tyre, in the F1 TV timing convention with the palette's `STATUS_COLORS` (`utils/colors.js`): overall best purple `#C084FC` with ◆, personal best green `#34D399` with ●, pit lap pink `#F472B6` with the text PIT; the colour is never the only cue. An HTML lap-range bar under the sheet sets the lap range. With a focus driver's forecast: the forecast rows and a D3 mini-chart of the recent laps and the forecast. | Sets and shows the one lap range. |
+| Lap Delta Chart | `LapDeltaChart.jsx` | D3 | Cumulative gap delta vs the reference driver, shaded in the diverging pair with its sign. | `selectedDrivers` ↔ `focusDriver`. |
+| Race Pace Grid | `RacePaceGrid.jsx` | HTML grid | Driver × lap cells classified against the driver's pace (fast / slower / much slower; bests and pit laps with their glyph). | — |
+| Sector Delta Waterfall | `SectorDeltaWaterfall.jsx` | D3 | Diverging bars S1 / S2 / S3 of the focus driver against the rival for the most recent laps its width holds, with axes, a zero line and a legend; cumulative column and an average row. | `comparisonDriver` store field, shared with Undercut and StrategyAnalysis. |
+| Sectors panel | `SectorsPanel.jsx` | HTML tables | Three views: the live sector times of the lap in progress, the ranked best sectors (SB / PB colours with their glyphs) and the speed-trap rankings (there is no separate speed panel). | — |
+| Consistency panel | `ConsistencyPanel.jsx` | HTML cards | One card per driver: the residual σ of the per-stint fits (`consistencySigma`), against the field's median σ. | — |
 
 ### 8.3 Strategy
-| Chart | File | Encoding | Analytics |
-|---|---|---|---|
-| Strategy Timeline | `StrategyTimeline.jsx` | Gantt. Each driver row = stacked segments colored by tyre compound, pit-stop glyphs, predicted / ghost / Gemini overlays. | Click segment → filter lap range. |
-| Tyre Degradation | `TireDegradation.jsx` | Scatter of tyre life vs lap time + per-stint linear regression trendline. | `brushLapRange` → regression fetch. |
-| Tyre Health | `TyreHealth.jsx` | Horizontal health bar 0-100 %. Age decay: `100·(1 - (age/maxLife)^1.6)`. Pace penalty: `deviation·80`. Constants calibrated against 24 cached sessions, Pirelli briefings. | — |
-| Tyre Management | `TyreManagement.jsx` | Pace-retention view: normalized pace vs stint age. | — |
-| Tyre Silhouette | `TireSilhouette.jsx` | Compound indicator icon. | — |
-| Strategy Simulator | `StrategySimulator.jsx` | Interactive stint-editor + Monte Carlo position-outcome bars. Playhead marker absolute inside bar (no margin hack). `minWidth: 0` + label-hide below 6 % segment width. | Monte Carlo (`utils/raceSimulation.js`). |
-| Strategy Analysis | `StrategyAnalysis.jsx` | Tabbed insights after lasso selection. Battle rows clickable → `selectPair`. | Hedges' g + random baseline + patterns. |
-| Strategy Briefing | `StrategyBriefing.jsx` | Text summary card. | — |
-| Undercut Calculator | `UndercutCalculator.jsx` | Compact FOCUS / RIVAL chips, compound abbreviated `S·L12`, KPI grid with `minmax(0, 1fr)` + ellipsis, sweep table by pit-lap with ±gap; legend green/red = ahead/behind. | `comparisonDriver` shared. |
+| View | File | Drawn as | Encoding | Analytics |
+|---|---|---|---|---|
+| Strategy Timeline | `StrategyTimeline.jsx` | D3 | Gantt: each driver row = stint segments in the tyre compound colour with the compound letter, pit-stop glyphs, predicted / ghost / assistant overlays; the lap range as a band. | A stint click sets the one lap range. |
+| Tyre Degradation | `TireDegradation.jsx` | D3 | Scatter of tyre life vs lap time + per-stint linear regression line. | Lap range → regression fetch. |
+| Tyre Health | `TyreHealth.jsx` | D3 | Horizontal health bar 0-100 %. Age decay: `100·(1 - (age/maxLife)^1.6)`. Pace penalty: `deviation·80`. Constants calibrated against 24 cached sessions, Pirelli briefings. | — |
+| Tyre Management | `TyreManagement.jsx` | D3 | Pace-retention view: normalized pace vs stint age. | — |
+| Tyre Silhouette | `TireSilhouette.jsx` | HTML | Compound indicator icon. | — |
+| Strategy Simulator | `StrategySimulator.jsx` | D3 + table | Three tabs: Plan (the custom plan and the actual strategy as D3 stint strips on a lap axis, the stint editor), Result (cards and the two finishing-position distributions on one D3 position axis, `positionRangeChart`), Compare (the saved plans as a table with D3 strips, paged). | Monte Carlo (`utils/raceSimulation.js`). |
+| Race Analysis | `StrategyAnalysis.jsx` | D3 + text | Tabbed insights after a lasso selection; the field's tyre mix as D3 stint strips and the cluster differences as D3 effect bars. Battle rows clickable → `selectPair`. | Hedges' g + random baseline + patterns. |
+| Undercut Calculator | `UndercutCalculator.jsx` | D3 | FOCUS / RIVAL chips, KPI grid, and the gap after the stops for every candidate pit lap as a D3 sweep chart in the diverging pair (blue / orange = ahead / behind), always with the sign. | `comparisonDriver` shared. |
+| Race Control | `RaceControlPanel.jsx` | HTML lists | Race-control messages and events, newest first, paged. | — |
 
 ### 8.4 Telemetry
-| Chart | File | Encoding |
-|---|---|---|
-| Telemetry Strip | `TelemetryStrip.jsx` | Six mini charts: speed, delta, throttle, brake, gear, RPM. X-axis toggles between Distance (m) and Lap time (s) — TIME mode uses swap-trick (remap `Distance ← Time` on a per-trace copy, keep original as `_origDistance` for playhead lookups). Tick formatter `xTickFormat(mode)` renders `1.2k` (meters) or `12s` (seconds). |
-| Speed Trace | part of `TrackMap.jsx` channel overlay | — (moved from `LapTimeChart`) |
+| View | File | Drawn as | Encoding |
+|---|---|---|---|
+| Telemetry Strip | `TelemetryStrip.jsx` | D3 | Six mini charts: speed, delta, throttle, brake, gear, RPM. X-axis toggles between Distance (m) and Lap time (s) — TIME mode uses swap-trick (remap `Distance ← Time` on a per-trace copy, keep original as `_origDistance` for playhead lookups). Tick formatter `xTickFormat(mode)` renders `1.2k` (meters) or `12s` (seconds). |
+| Speed trace | part of the `TrackMap.jsx` channel overlay | D3 | — |
 
 ### 8.5 Projections & predictions
-| Chart | File | Encoding |
-|---|---|---|
-| PCA Biplot | `PCABiplot.jsx` | Scatter + loading arrows from origin. Axes auto-labeled via top loadings. D3 lasso (`utils/lasso.js`). Clear-N-selected button. |
-| PCA Analysis | `PCAAnalysisPanel.jsx` | Tabbed: Summary / Patterns / Features / Details. Radar chart for top features. |
-| t-SNE Scatterplot | `TSNEScatterplot.jsx` | Scatter. Hover-to-expand labels. Lasso. |
-| Race Prediction | `RacePredictionPanel.jsx` | LSTM + Monte Carlo outcome display. |
-| Driver Compare | `DriverComparePanel.jsx` | Head-to-head panels for 2 drivers. |
+| View | File | Drawn as | Encoding |
+|---|---|---|---|
+| PCA Biplot | `PCABiplot.jsx` | D3 | Scatter + loading arrows from the origin. Axes labelled by their top loadings. D3 lasso (`utils/lasso.js`). Clear-N-selected button. |
+| Cross-Race Analysis | `PCAAnalysisPanel.jsx` | D3 + text | Tabs Summary / Patterns / Differences / Details (each shown when the selection has it): the selection's strategy patterns as D3 stint strips, the feature differences as a D3 forest plot (Hedges' g with its interval, `pcaForestChart`), and pit windows that set the lap range. |
+| Race Prediction | `RacePredictionPanel.jsx` | Table + D3 | One table row per driver (median position P label, change, podium share) beside a D3 position-range chart of the Monte Carlo outcome (share of runs per position, P5-P95, the P3 / P10 limits, a legend). |
+| Driver Compare | `DriverComparePanel.jsx` | D3 + tables | Head-to-head of two drivers: D3 gap and lap-time charts, metric tables (sectors, top speeds, race summary) and the two tyre strategies as D3 stint strips, laid in columns and pages that fit the pane. |
 
 ### 8.6 Championship
-| Chart | File | Encoding |
-|---|---|---|
-| Championship Chart | `ChampionshipChart.jsx` | Cumulative line, one per driver/constructor. Prediction dashed continuation when `showPredictions`. |
-| Championship Standings | `ChampionshipStandings.jsx` | Table with points, predicted total, best/worst case. |
+| View | File | Drawn as | Encoding |
+|---|---|---|---|
+| Championship Chart | `ChampionshipChart.jsx` | D3 | Cumulative points line per driver / constructor (teammates tinted and dashed, a third driver dash-dot), round dots, dotted predicted-total continuation when `showPredictions`, legend. |
+| Championship Standings | `ChampionshipStandings.jsx` | D3 | Horizontal bars of the points so far at the loaded round in the team colours of the chart (a teammate's bar carries the teammate dash), the gap to the leader in the label, a legend of the teams and patterns. No predicted total. |
 
 ### 8.7 AI
 | Chart | File | Encoding |
@@ -465,13 +461,14 @@ comparisonDriver ─── SectorDeltaWaterfall (as 'reference'),
                       UndercutCalculator (as 'rival')
                       (both panels default to car ahead of focus on mount)
 
-selectedTSNEPoints / selectedPCAPoints ── PCABiplot ring,
-                      TSNEScatterplot ring, StrategyAnalysis patterns
+selectedPCAPoints ── PCABiplot ring, Cross-Race Analysis,
+                      StrategyAnalysis patterns
                       (drives the analyze-selection backend call)
 
-brushLapRange / selectedLapRange ── LapTimeChart range highlight,
-                      TireDegradation regression fetch,
-                      PositionByLap filter
+brushLapRange = selectedLapRange ── the one lap range: Timing Sheet bar
+                      and rows, Position Tracker brush, Strategy Timeline
+                      band, TireDegradation regression fetch
+                      (docs/COORDINATION_GRAPH.md, generated from the code)
 
 battles (Monte Carlo) ── Leaderboard overtake badge
 
@@ -728,14 +725,14 @@ Driver → team color map hard-coded for 2024/2025 grid (VER, PER, LEC, SAI, BEA
 
 Short labels: `S / M / H / I / W`. Undercut uses abbreviated `{letter}·L{tyreLife}` (e.g., `S·L12`) to prevent wrapping on narrow panels.
 
-### 15.3 Sector timing (F1 TV convention)
-- **Purple `#A020F0`** — overall best sector in the session.
-- **Green `#00FF00`** — personal best for the driver.
-- **Yellow `#FFD700`** — significantly slower.
-- **Magenta `#e040fb`** — pit in/out lap.
+### 15.3 Sector timing (F1 TV convention, `STATUS_COLORS` of `utils/colors.js`)
+- **Purple `#C084FC` with ◆** — overall best sector in the session.
+- **Green `#34D399` with ●** — personal best for the driver.
+- **Yellow `#FDE047`** — more than 0.3 s (sector) / 0.5 s (lap) over the reference; **orange `#F0883E`** — more than 1.0 s / 2.0 s over it (`TIMING_BANDS`: one ordered scale in the Timing Tower, the Pit Wall sector panel and the Race Pace Grid).
+- **Pink `#F472B6` with P / O** — pit in / out lap.
 
 ### 15.4 State flags
-`--state-green-flag: #00ff00`, `--state-yellow-flag: #ffcc00`, `--state-red-flag: #ff0000`, `--state-safety-car: #ffcc00`, `--state-in-pit: #00bfff`.
+`FLAG_COLORS` of `utils/colors.js`, mirrored as `--flag-*` in `tokens.css`: green `#34D399`, yellow `#FACC15`, safety car `#F59E0B`, red `#F87171`, blue `#60A5FA`; always with their label. Pit: `--status-pit` `#F472B6`. The old `--state-*` tokens (`#00ff00`, `#ff0000`, `#00bfff`) are gone.
 
 Timeline player band alphas: SC 0.12 · VSC 0.12 (orange-tinted) · Red Flag 0.15 · Yellow Flag 0.08.
 
@@ -824,10 +821,10 @@ Connecting after a session finishes only gives a state snapshot — no lap histo
 |---|---|
 | **Overview first, zoom / filter, details on demand** (Shneiderman 1996) | SessionSelectorScreen → Pit Wall / Analysis overview → docked or floating workspace → brush / lasso / click → tooltip and StrategyAnalysis detail panel. |
 | **Coupled visualization + analytics** | Lasso triggers a descriptive comparison (Hedges' g, random baseline); brush triggers linear regression; double-click triggers LSTM; click battle triggers Monte Carlo route. |
-| **Multiple coordinated views** | 27 charts, one store, bidirectional routing (§9). |
-| **Interpretable dimensionality reduction** | PCA with loadings arrows + auto-labeled axes; t-SNE kept for non-linear structure. |
+| **Multiple coordinated views** | 29 views (22 D3 charts, 7 tables), one store, bidirectional routing (§9). |
+| **Interpretable dimensionality reduction** | PCA with loadings arrows + auto-labeled axes (the one projection; t-SNE was removed, `docs/PCA_METHODOLOGY.md`). |
 | **Prediction with uncertainty** | LSTM point forecasts + Monte Carlo distribution bands + best/worst/avg position cards in Strategy Simulator. |
-| **Preservation of domain conventions** | F1 TV broadcast colors (purple = overall best, tyre compound colors), team colors for 2024 grid, pit-lane magenta, race-control flag states. |
+| **Preservation of domain conventions** | F1 TV broadcast colors (purple = overall best, green = personal best, each with its glyph; tyre compound colors with their letter), team colors for 2024 grid, the pit colour with P / O, race-control flag states with their label. |
 | **Explanatory AI** | Gemini prompt cites numbers; CRITICAL RULES forbid hallucination; every suggestion carries `is_mock` transparency. |
 | **No-scroll, glanceable layout** | 1920 × 1080 hard cap, overflow hidden, auto-hide dock, JetBrains-style splits with a strict 4-pane cap. |
 
@@ -837,9 +834,9 @@ Connecting after a session finishes only gives a state snapshot — no lap histo
 
 - **Memory + disk + FastF1** triple cache on the backend. Disk reads ~5 ms vs. ~30 s cold FastF1 session.
 - **Background raw-session prefetch** — disk-hit triggers a daemon thread to load the raw FastF1 session so telemetry is ready without a user-visible pause.
-- **Pre-computed embeddings** — `tsne_features.py` + `tsne_compute.py` save a CSV + JSON so PCA/t-SNE is instant at request time.
+- **Pre-computed embeddings** — `python -m scripts.pca_rebuild` (from `backend/`, through `data/processors/pca_compute.py`) saves `data/processed/pca_feature_matrix.csv` and `pca_embeddings.json`, so the PCA is instant at request time (the t-SNE pre-compute modules were removed with the t-SNE projection).
 - **Compact JSON on disk** (`separators=(',', ':')`) — ~50 % smaller files, same parse speed.
-- **Tile / brush on-demand** — degradation regression only runs when the user brushes.
+- **Tile / brush on-demand** — degradation regression only runs when the user sets a lap range.
 - **RAF-driven playback** — single loop, no intervals, no jitter.
 - **Live PCA in `livePCA.js`** — refitted every lap (current means, SDs, eigenvectors), its axes turned inside the PC1-PC2 plane onto the previous lap's (orthogonal Procrustes, `LIVE_PCA_ALIGN`), so the points do not jump when two components swap or rotate; during a replay the previous lap's axes are those of a replay from the first lap (`raceSituationReference.js`), so a rewind, a step back or a seek draws a lap as playing drew it (`notes/experiments/phase67/live_pca_rewind.txt`); dots, arrows (one per input) and crosshair share one basis (`notes/experiments/phase67/pca_repair_check.txt`).
 - **Max 4 docked panes** with round-robin tab distribution keeps rendering bounded.
@@ -863,8 +860,7 @@ npm run dev            # :5173, HMR, /api proxied to :8000
 
 ### 22.2 Pre-computing data (optional but recommended)
 ```bash
-python -m data.processors.tsne_features
-python -m data.processors.tsne_compute
+python -m scripts.pca_rebuild        # PCA feature matrix + embeddings
 python -m model.prepare_data
 python -m model.train
 ```

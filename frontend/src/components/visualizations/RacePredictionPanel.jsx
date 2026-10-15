@@ -1,6 +1,10 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
+import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
+import {
+  driverStyle, tyreColor, tyreLetter, withAlpha, markColor, textColor, CHART_FONT, chartFontPx,
+  TEXT_COLORS, GRID_COLORS, SURFACES,
+} from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import {
   causalKey, pitLossDisplay, viewSessionType, isRaceSession,
@@ -13,6 +17,13 @@ import {
   focusForecast, forecastPoints, forecastPit, forecastMethodLabel, forecastHeldOutText, forecastHeldOutMae,
   FORECAST_LAPS,
 } from '../../utils/forecast';
+import { drawPositionRanges, positionRangeRow, POSITION_AXIS_H } from '../../utils/views/positionRangeChart';
+import { drawLegend } from '../../utils/views/d3Legend';
+import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
+import {
+  placesMark, severityOf, levelMark, PODIUM_COLOR, CHART_COLORS, chipStyle, UP, DOWN,
+} from '../../utils/views/strategyMarks';
+import { useDemoMode, BACKEND_ONLY_TEXT, BACKEND_ONLY_FEATURES } from '../../utils/demoMode';
 import Panel from '../ui/Panel';
 
 // Badge rule shown in the tooltips (utils/simulationClient.js projectionBadges)
@@ -25,10 +36,34 @@ const positionRule = `It moves only when the median lies beyond the Monte Carlo 
   + 'intervals of the cumulative shares, taken together over every row of the table; inside the error the '
   + 'previous position is kept.';
 
+// Rows of the projection table: height range (px) and the pager's height
+const ROW_MIN = 16;
+const ROW_MAX = 26;
+const ROW_DEFAULT = 20;
+const PAGER_H = 22;
+// Text columns beside the chart: P label, gain / loss, driver, now, podium
+const TABLE_COLUMNS = '30px 30px 38px 54px 60px';
+
+// Colours of the D3 position-range chart and its legend
+const RANGE_COLORS = {
+  bars: TEXT_COLORS.muted,
+  range: TEXT_COLORS.secondary,
+  shown: TEXT_COLORS.primary,
+  shownStroke: SURFACES.page,
+  now: TEXT_COLORS.primary,
+  text: TEXT_COLORS.primary,
+  rule: GRID_COLORS.rule,
+  axis: GRID_COLORS.axis,
+};
+
+const muted = { color: CHART_COLORS.secondary };
+
 export default function RacePredictionPanel() {
   const raceSituationData = useF1Store((s) => s.raceSituationData);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const predictionLoading = useF1Store((s) => s.predictionLoading);
+  // Static demo (no backend): the forecast is model-only, its tab says so
+  const demoActive = useDemoMode((s) => s.active);
   const lastPredictionTrigger = useF1Store((s) => s.lastPredictionTrigger);
   const focusDriver = useF1Store((s) => s.focusDriver);
   // The focus driver's lap-time forecast (double-click a driver), utils/forecast.js
@@ -59,8 +94,6 @@ export default function RacePredictionPanel() {
   );
 
   const [activeTab, setActiveTab] = useState('projections');
-  const tabContentRef = useRef(null);
-  const [contentHeight, setContentHeight] = useState(400);
   const effectiveMaxLap = totalRaceLaps || maxLap;
 
   // ── Monte Carlo race projection (all drivers, real data) ──
@@ -79,36 +112,15 @@ export default function RacePredictionPanel() {
   const scEstimate = raceParams?.estimates?.safetyCar;
   const lapNoiseEstimate = raceParams?.estimates?.lapNoise;
   const numSims = raceProjection?.numSimulations;
-  const badges = raceProjection?.badges;
   // Battles listed: the store's list (it changes only on evidence beyond the
   // Monte Carlo error, utils/simulationClient.js listedBattles)
   const battles = useMemo(() => listedBattles(raceProjection), [raceProjection]);
   // Risk rows: the store's (judged beyond the Monte Carlo error, chained)
   const risks = useMemo(() => projectionRisks(raceProjection), [raceProjection]);
 
-  // Measure tab content area for dynamic row sizing
-  useEffect(() => {
-    if (!tabContentRef.current) return;
-    const obs = new ResizeObserver((entries) => {
-      const h = entries[0].contentRect.height;
-      if (h > 0) setContentHeight(h);
-    });
-    obs.observe(tabContentRef.current);
-    return () => obs.disconnect();
-  }, []);
-
   const lapsRemaining = effectiveMaxLap - currentLap;
   const raceProgress = effectiveMaxLap > 0 ? currentLap / effectiveMaxLap : 0;
-  const numDrivers = raceSituationData?.driverAbbrs?.length || 20;
-
-  // Dynamic row sizing for projections table
-  const projCount = raceProjection?.projections?.length || 20;
-  const legendH = 24; // legend row height
-  const availableForRows = contentHeight - legendH;
-  const rowBudget = projCount > 0 ? availableForRows / projCount : 36;
-  // compact: hide probability bar when rows are very tight
-  const compactRows = rowBudget < 28;
-  const rowPadV = Math.max(1, Math.min(5, Math.floor((rowBudget - (compactRows ? 14 : 22)) / 2)));
+  const numDrivers = raceSituationData?.driverAbbrs?.length || raceProjection?.projections?.length || 20;
 
   const predTabs = useMemo(() => {
     if (!raceProjection) return [];
@@ -117,17 +129,17 @@ export default function RacePredictionPanel() {
       tabs.push({ id: 'battles', label: `Battles (${battles.length})` });
     if (risks.length > 0)
       tabs.push({ id: 'risks', label: `Risks (${risks.length})` });
-    if (forecast) tabs.push({ id: 'lstm', label: 'Forecast' });
+    if (forecast || demoActive) tabs.push({ id: 'lstm', label: 'Forecast' });
     return tabs;
-  }, [raceProjection, battles, risks, forecast]);
+  }, [raceProjection, battles, risks, forecast, demoActive]);
   // A tab that has gone (no listed battle any more) falls back to the projections
   const shownTab = predTabs.some((t) => t.id === activeTab) ? activeTab : 'projections';
 
   const tabPillStyle = (active) => ({
-    padding: '3px 8px', fontSize: '9px', fontWeight: 600,
-    borderRadius: 4, border: 'none', cursor: 'pointer',
-    background: active ? 'rgba(0,230,118,0.15)' : 'transparent',
-    color: active ? '#fff' : 'rgba(255,255,255,0.45)',
+    padding: '3px 8px', fontSize: CHART_FONT.label, fontWeight: 700,
+    borderRadius: 4, border: `1px solid ${active ? CHART_COLORS.secondary : 'transparent'}`, cursor: 'pointer',
+    background: active ? withAlpha(TEXT_COLORS.primary, 0.1) : 'transparent',
+    color: active ? CHART_COLORS.text : CHART_COLORS.secondary,
     transition: 'background 0.12s, color 0.12s',
   });
 
@@ -140,26 +152,32 @@ export default function RacePredictionPanel() {
           <>
             {/* Race progress header — always visible */}
             <div style={{
-              background: 'linear-gradient(135deg, rgba(0,230,118,0.10) 0%, rgba(0,230,118,0.02) 100%)',
-              borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm) var(--spacing-md)',
-              borderLeft: '3px solid #00e676', flexShrink: 0, margin: '0 var(--spacing-sm)',
+              background: CHART_COLORS.surface,
+              borderRadius: 'var(--radius-md)', padding: '4px var(--spacing-md)',
+              borderLeft: `3px solid ${CHART_COLORS.secondary}`, flexShrink: 0, margin: '0 var(--spacing-sm)',
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: '#00e676', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3, gap: 8 }}>
+                <span style={{ fontSize: CHART_FONT.data, fontWeight: 700, color: CHART_COLORS.text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Monte Carlo Projection
                 </span>
-                <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>
+                <span style={{ fontSize: CHART_FONT.label, ...muted }}>
                   Lap {currentLap}/{effectiveMaxLap} &middot; {lapsRemaining} to go
                 </span>
               </div>
-              <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', marginBottom: 6 }}>
+              <div
+                role="progressbar"
+                aria-valuenow={currentLap}
+                aria-valuemin={0}
+                aria-valuemax={effectiveMaxLap}
+                style={{ height: 3, borderRadius: 2, background: GRID_COLORS.axis, overflow: 'hidden', marginBottom: 4 }}
+              >
                 <div style={{
-                  height: '100%', borderRadius: 2, backgroundColor: '#00e676',
+                  height: '100%', borderRadius: 2, backgroundColor: CHART_COLORS.secondary,
                   width: `${Math.min(100, raceProgress * 100)}%`, transition: 'width 0.5s ease',
                 }} />
               </div>
               {raceParams && (
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '8px', color: 'var(--color-text-muted)' }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: CHART_FONT.label, ...muted }}>
                   <span title={pitLossInfo.isFallback
                     ? 'No valid green-flag stop yet: fallback value (an assumption, not data)'
                     : `Median of ${pitLossInfo.n} green-flag stops in this race (in-lap + out-lap - 2 x the driver's green-flag median lap). Each simulated stop draws its loss around this median.`}
@@ -168,7 +186,7 @@ export default function RacePredictionPanel() {
                     {pitLossInfo.isFallback
                       ? ' fallback'
                       : ` median, race${pitLossInfo.p10 != null && pitLossInfo.p90 != null
-                        ? ` (P10\u2013P90 ${pitLossInfo.p10.toFixed(1)}\u2013${pitLossInfo.p90.toFixed(1)}s, n=${pitLossInfo.n})`
+                        ? ` (P10–P90 ${pitLossInfo.p10.toFixed(1)}–${pitLossInfo.p90.toFixed(1)}s, n=${pitLossInfo.n})`
                         : ` (n=${pitLossInfo.n})`}`}
                   </span>
                   <span title={lapNoiseEstimate?.source === 'race'
@@ -177,7 +195,7 @@ export default function RacePredictionPanel() {
                       + ' around each stint\'s tyre-age line. Few stints early in the race give a rough value: n is shown next to it.'
                     : `No fitted stint in this race yet: the value of the cached ${lapNoiseEstimate?.prior?.kind || 'dry'} races`}
                   >
-                    Lap noise: {'\u00B1'}{raceParams.lapNoise.toFixed(2)}s{lapNoiseEstimate?.source ? ` ${lapNoiseEstimate.source}` : ''}
+                    Lap noise: {'±'}{raceParams.lapNoise.toFixed(2)}s{lapNoiseEstimate?.source ? ` ${lapNoiseEstimate.source}` : ''}
                     {lapNoiseEstimate ? ` (n=${lapNoiseEstimate.laps ?? 0} laps)` : ''}
                   </span>
                   <span title={scEstimate
@@ -201,8 +219,8 @@ export default function RacePredictionPanel() {
             {/* Tab pills */}
             {predTabs.length > 1 && (
               <div style={{
-                display: 'flex', gap: 4, padding: '4px 8px', flexShrink: 0,
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex', gap: 4, padding: '4px 8px', flexShrink: 0, flexWrap: 'wrap',
+                borderBottom: `1px solid ${GRID_COLORS.grid}`,
               }}>
                 {predTabs.map(t => (
                   <button key={t.id} onClick={() => setActiveTab(t.id)} style={tabPillStyle(shownTab === t.id)}>
@@ -212,229 +230,62 @@ export default function RacePredictionPanel() {
               </div>
             )}
 
-            {/* Tab content */}
-            <div ref={tabContentRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: 'var(--spacing-sm)' }}>
+            {/* Tab content: every tab fits its box (rows paged, never scrolled) */}
+            <div style={{
+              flex: 1, minHeight: 0, overflow: 'hidden', padding: 'var(--spacing-sm)', display: 'flex', flexDirection: 'column',
+            }}>
 
               {shownTab === 'projections' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
-                  {/* Compact Legend */}
-                  <div style={{
-                    display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '8px', color: 'var(--color-text-muted)',
-                  }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', border: '1px solid rgba(0,0,0,0.3)', flexShrink: 0 }} />
-                      Expected
-                    </span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                      <span style={{ width: 0, height: 0, borderLeft: '3px solid transparent', borderRight: '3px solid transparent', borderTop: '4px solid var(--color-text-muted)', flexShrink: 0 }} />
-                      Current
-                    </span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                      <span style={{ width: 8, height: 4, borderRadius: 1, background: '#00e676', flexShrink: 0 }} />
-                      Gain
-                    </span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                      <span style={{ width: 8, height: 4, borderRadius: 1, background: '#e10600', flexShrink: 0 }} />
-                      Loss
-                    </span>
-                  </div>
-
-                  {/* Position probability table: rows by the position shown, then the
-                      current race position (never a raw Monte Carlo statistic) */}
-                  <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm)' }}>
-                    {orderedProjections(raceProjection).map((p) => {
-                // Finishing position shown: the store's median (it changes only beyond the
-                // Monte Carlo error of the whole column); its colour and the arrow follow it
-                const shownPos = modePosition(raceProjection, p);
-                const change = positionChange(raceProjection, p) ?? 0;
-                const deltaColor = change > 0 ? '#00e676' : change < 0 ? '#e10600' : 'var(--color-text-muted)';
-                const isSelected = selectedDrivers.includes(p.driver);
-
-                // Build probability bar segments
-                const barSegments = [];
-                const sortedPositions = Object.entries(p.posDistribution)
-                  .map(([pos, pct]) => [parseInt(pos), pct])
-                  .sort((a, b) => a[0] - b[0]);
-
-                for (const [pos, pct] of sortedPositions) {
-                  if (pct < 3) continue;
-                  const hue = pos <= 3 ? 140 : pos <= 10 ? 45 : 0;
-                  const sat = Math.min(100, pct * 2);
-                  barSegments.push({ pos, pct, color: `hsl(${hue}, ${sat}%, ${40 + pct * 0.3}%)` });
-                }
-
-                return (
-                  <div key={p.driver} style={{
-                    padding: `${rowPadV}px 6px`,
-                    borderRadius: 4,
-                    background: isSelected ? 'rgba(255,255,255,0.04)' : 'transparent',
-                    borderLeft: isSelected ? '2px solid ' + getDriverColor(p.driver) : '2px solid transparent',
-                    marginBottom: 0,
-                  }}>
-                    {/* Row 1: Position, driver, delta, podium/pts */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: compactRows ? 0 : 3 }}>
-                      {/* Position */}
-                      <span
-                        title={`Median finishing position: half of the simulations finish P${shownPos} or better `
-                          + `(${p.posDistribution?.[shownPos] ?? 0}% exactly P${shownPos}; expected ${p.expectedPos}). ${positionRule} `
-                          + `Gold = a podium place, i.e. a podium in at least ${PODIUM_BADGE_PCT} % of the simulations.`}
-                        style={{
-                          fontWeight: 900, fontSize: 'var(--font-size-sm)', minWidth: 26,
-                          color: shownPos <= 3 ? '#ffd700' : shownPos <= 10 ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                        }}
-                      >
-                        P{shownPos}
-                      </span>
-
-                      {/* Gain / loss arrow: current position against the position shown */}
-                      {change !== 0 ? (
-                        <span
-                          title={`P${p.currentPos} now, P${shownPos} shown: ${change > 0 ? 'gains' : 'loses'} ${Math.abs(change)} place${Math.abs(change) === 1 ? '' : 's'}`}
-                          style={{
-                            fontSize: '8px', color: deltaColor, fontWeight: 700,
-                            minWidth: 18, textAlign: 'center',
-                          }}
-                        >
-                          {change > 0 ? '\u25B2' : '\u25BC'}{Math.abs(change)}
-                        </span>
-                      ) : (
-                        <span style={{ minWidth: 18, textAlign: 'center', fontSize: '8px', color: 'var(--color-text-muted)' }}>
-                          {'\u2022'}
-                        </span>
-                      )}
-
-                      {/* Driver name */}
-                      <span style={{
-                        fontWeight: 700, fontSize: 'var(--font-size-xs)',
-                        color: getDriverColor(p.driver), minWidth: 32,
-                      }}>
-                        {p.driver}
-                      </span>
-
-                      {/* Current position */}
-                      <span style={{ fontSize: '8px', color: 'var(--color-text-muted)' }}>
-                        now P{p.currentPos}
-                      </span>
-
-                      {/* Spacer */}
-                      <span style={{ flex: 1 }} />
-
-                      {/* Range */}
-                      <span style={{ fontSize: '8px', color: 'var(--color-text-muted)' }}>
-                        P{p.posRange[0]}{'\u2013'}P{p.posRange[1]}
-                      </span>
-
-                      {/* Podium / Points: gold = podium badge (Wilson interval + hysteresis).
-                          On every row, 0 % included: a chip hidden at 0 % appeared and
-                          disappeared on Monte Carlo noise alone (D5) */}
-                      <span
-                        title={`Podium in ${p.podiumProb}% of the simulations. Gold = at least ${PODIUM_BADGE_PCT} %, `
-                          + `the same statement as a gold P label (P1-P3: the median finishing position). ${positionRule}`}
-                        style={{
-                          fontSize: '8px', fontWeight: 700, minWidth: 28, textAlign: 'right',
-                          color: (badges ? badges.podium?.[p.driver] : p.podiumProb >= PODIUM_BADGE_PCT) ? '#ffd700' : 'var(--color-text-muted)',
-                        }}
-                      >
-                        {p.podiumProb}%
-                        <span style={{ fontWeight: 400, fontSize: '7px' }}> pod</span>
-                      </span>
-                    </div>
-
-                    {/* Row 2: Probability bar (hidden in compact mode) */}
-                    {!compactRows && (
-                    <div style={{ position: 'relative', height: 8, marginLeft: 2, marginRight: 2 }}>
-                      {/* Full range track */}
-                      <div style={{
-                        position: 'absolute', top: 2, left: 0, right: 0, height: 4,
-                        borderRadius: 2, background: 'rgba(255,255,255,0.04)',
-                      }} />
-                      {/* P5-P95 range band */}
-                      <div style={{
-                        position: 'absolute', top: 2, height: 4, borderRadius: 2,
-                        background: 'rgba(255,255,255,0.10)',
-                        left: `${((p.posRange[0] - 1) / numDrivers) * 100}%`,
-                        width: `${(Math.max(1, p.posRange[1] - p.posRange[0] + 1) / numDrivers) * 100}%`,
-                      }} />
-                      {/* Probability segments */}
-                      {barSegments.map((seg) => (
-                        <div key={seg.pos} style={{
-                          position: 'absolute', top: 0, height: 8, borderRadius: 2,
-                          backgroundColor: seg.color,
-                          opacity: Math.min(1, seg.pct / 25),
-                          left: `${((seg.pos - 1) / numDrivers) * 100}%`,
-                          width: `${Math.max(4, (1 / numDrivers) * 100)}%`,
-                        }} />
-                      ))}
-                      {/* Current position marker (small triangle) */}
-                      <div style={{
-                        position: 'absolute', top: -1,
-                        left: `${((p.currentPos - 1) / numDrivers) * 100}%`,
-                        transform: 'translateX(-2px)',
-                        width: 0, height: 0,
-                        borderLeft: '2px solid transparent',
-                        borderRight: '2px solid transparent',
-                        borderTop: '3px solid var(--color-text-muted)',
-                      }} />
-                      {/* Expected position dot */}
-                      <div style={{
-                        position: 'absolute', top: 1,
-                        left: `${((p.expectedPos - 1) / numDrivers) * 100}%`,
-                        transform: 'translateX(-3px)',
-                        width: 6, height: 6, borderRadius: '50%',
-                        backgroundColor: '#fff', border: '1px solid rgba(0,0,0,0.3)',
-                      }} />
-                    </div>
-                    )}
-                  </div>
-                );
-              })}
-                  </div>
-                </div>
+                <ProjectionTable
+                  projection={raceProjection}
+                  selectedDrivers={selectedDrivers}
+                  numDrivers={numDrivers}
+                />
               )}
 
               {shownTab === 'battles' && battles.length > 0 && (
-                <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                  <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                <div style={{ background: CHART_COLORS.surface, borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm) var(--spacing-md)' }}>
+                  <h6 style={{ color: CHART_COLORS.secondary, margin: '0 0 6px', fontSize: CHART_FONT.data, textTransform: 'uppercase', fontWeight: 700 }}>
                     Overtake Probabilities
                   </h6>
+                  {/* A table of the listed pairs (at most BATTLE_LIST_SIZE rows): the share and its badge level */}
                   {battles.map((b) => {
-                    // Colour = battle badge level (Wilson interval + hysteresis, store)
-                    const { level } = b;
-                    const probColor = level >= 2 ? '#00e676' : level === 1 ? '#ffd700' : '#64C4FF';
+                    // Badge level (Wilson interval + hysteresis, store): colour and glyph
+                    const lv = levelMark(b.level);
+                    const behind = driverStyle(b.behind);
+                    const ahead = driverStyle(b.ahead);
                     return (
-                      <div key={battleKey(b)} style={{
-                        display: 'flex', alignItems: 'center', gap: 6, marginBottom: compactRows ? 2 : 8,
-                        fontSize: 'var(--font-size-xs)',
+                      <div key={battleKey(b)} className="mcr-battle" style={{
+                        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6,
+                        fontSize: CHART_FONT.data,
                       }}>
                         <span
                           title={`${b.behind} finishes ahead of ${b.ahead} in ${b.prob}% of the simulations. `
-                            + `Gold = at least ${BATTLE_BADGE_PCT[0]} %, green = at least ${BATTLE_BADGE_PCT[1]} %. `
+                            + `● = at least ${BATTLE_BADGE_PCT[0]} %, ●● = at least ${BATTLE_BADGE_PCT[1]} %. `
                             + `Listed: the pairs within 4 positions that are, beyond the Monte Carlo error, among the ${BATTLE_LIST_SIZE} `
                             + `most likely: a pair enters when fewer than ${BATTLE_LIST_SIZE} other pairs could be as likely (their `
                             + `intervals reach its interval) and stays until ${BATTLE_LIST_SIZE} other pairs are surely more likely; `
                             + 'while pairs are too close to call the list holds fewer rows. '
-                            + `Order: green, gold, then the others, each in race order. ${badgeRule(numSims)}`}
+                            + `Order: two badges, one badge, then the others, each in race order. ${badgeRule(numSims)}`}
                           style={{
-                            flexShrink: 0, minWidth: 36, textAlign: 'center',
-                            fontWeight: 900, fontSize: compactRows ? 'var(--font-size-xs)' : 'var(--font-size-sm)', color: probColor,
+                            flexShrink: 0, minWidth: 64, display: 'inline-flex', gap: 4, alignItems: 'baseline',
+                            fontWeight: 900, color: lv.color, fontVariantNumeric: 'tabular-nums',
                           }}
                         >
+                          <span aria-label={lv.word} style={{ minWidth: 18 }}>{lv.glyph}</span>
                           {b.prob}%
                         </span>
-                        <div style={{ flex: 1, lineHeight: 1.4 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <strong style={{ color: getDriverColor(b.behind) }}>{b.behind}</strong>
-                            <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>P{b.behindCurrentPos}</span>
-                            <span style={{ color: probColor, fontSize: '10px' }}>{'\u2192'}</span>
-                            <strong style={{ color: getDriverColor(b.ahead) }}>{b.ahead}</strong>
-                            <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>P{b.aheadCurrentPos}</span>
+                        <div style={{ flex: 1, lineHeight: 1.35, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                            <strong style={{ color: behind.text }}>{b.behind}</strong>
+                            <span style={muted}>P{b.behindCurrentPos}</span>
+                            <span style={muted}>{'→'}</span>
+                            <strong style={{ color: ahead.text }}>{b.ahead}</strong>
+                            <span style={muted}>P{b.aheadCurrentPos}</span>
                           </div>
-                          <div style={{ fontSize: '8px', color: 'var(--color-text-muted)' }}>
+                          <div style={{ fontSize: CHART_FONT.label, ...muted }}>
                             {b.behind} on {b.behindCompound} &middot; {b.ahead} on {b.aheadCompound}
                           </div>
-                        </div>
-                        <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', flexShrink: 0 }}>
-                          <div style={{ height: '100%', borderRadius: 2, backgroundColor: probColor, width: `${b.prob}%` }} />
                         </div>
                       </div>
                     );
@@ -443,29 +294,33 @@ export default function RacePredictionPanel() {
               )}
 
               {shownTab === 'risks' && risks.length > 0 && (
-                <div style={{ background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-md)' }}>
-                  <h6 style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-sm)', fontSize: 'var(--font-size-xs)', textTransform: 'uppercase', fontWeight: 700 }}>
+                <div style={{ background: CHART_COLORS.surface, borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm) var(--spacing-md)' }}>
+                  <h6 style={{ color: CHART_COLORS.secondary, margin: '0 0 6px', fontSize: CHART_FONT.data, textTransform: 'uppercase', fontWeight: 700 }}>
                     Risk Factors
                   </h6>
                   {risks.map((r, i) => {
-                    const sevColor = r.severity === 'high' ? '#e10600' : r.severity === 'medium' ? '#ffd700' : '#64C4FF';
+                    const sev = severityOf(r.severity);
                     return (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: compactRows ? 2 : 6,
-                        fontSize: 'var(--font-size-xs)', lineHeight: compactRows ? 1.2 : 1.5,
+                      <div key={i} className="mcr-risk" style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 4,
+                        fontSize: CHART_FONT.data, lineHeight: 1.35,
                       }}>
-                        <span style={{
-                          flexShrink: 0, width: 18, height: 18, borderRadius: 3,
-                          backgroundColor: sevColor, color: '#000', fontWeight: 900,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px',
-                        }}>{r.severity === 'high' ? '!!' : '!'}</span>
+                        <span
+                          title={`Severity ${sev.word}`}
+                          style={{
+                            flexShrink: 0, minWidth: 20, height: 18, borderRadius: 3, padding: '0 3px',
+                            border: `1.5px solid ${sev.color}`, color: sev.color, fontWeight: 900,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: CHART_FONT.data,
+                          }}
+                        >
+                          {sev.glyph}
+                        </span>
                         <div>
                           <span style={{
-                            fontSize: '7px', fontWeight: 700, padding: '1px 4px',
-                            borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.06)',
-                            color: sevColor, marginRight: 4,
+                            fontSize: CHART_FONT.label, fontWeight: 700, padding: '1px 4px',
+                            borderRadius: 2, ...chipStyle(sev.color, 0.12), marginRight: 4,
                           }}>{r.type}</span>
-                          <span style={{ color: 'var(--color-text-primary)' }}>{r.description}</span>
+                          <span style={{ color: CHART_COLORS.text }}>{r.description}</span>
                         </div>
                       </div>
                     );
@@ -473,14 +328,22 @@ export default function RacePredictionPanel() {
                 </div>
               )}
 
+              {shownTab === 'lstm' && !forecast && demoActive && (
+                <div className="mcr-backend-only" style={{
+                  fontSize: CHART_FONT.data, color: TEXT_COLORS.secondary, lineHeight: 1.5,
+                  padding: 'var(--spacing-sm) var(--spacing-md)',
+                }}>
+                  {BACKEND_ONLY_TEXT}: {BACKEND_ONLY_FEATURES.forecast}.
+                </div>
+              )}
               {shownTab === 'lstm' && forecast && (
                 <div style={{
-                  background: 'linear-gradient(135deg, rgba(168,85,247,0.10) 0%, rgba(168,85,247,0.02) 100%)',
+                  background: CHART_COLORS.surface,
                   borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm) var(--spacing-md)',
-                  borderLeft: '3px solid #a855f7',
+                  borderLeft: `3px solid ${CHART_COLORS.secondary}`,
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: CHART_FONT.data, fontWeight: 700, color: CHART_COLORS.text, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       Lap-time forecast
                       {/* The method served (response method_label): chosen on
                           the validation races; the LSTM is named only when it
@@ -489,11 +352,8 @@ export default function RacePredictionPanel() {
                         <span
                           title={[forecast.lstm_note, forecast.method_note].filter(Boolean).join(' ') || undefined}
                           style={{
-                            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
-                            padding: '1px 6px', borderRadius: 4,
-                            color: forecast.method === 'lstm' ? '#d5fd51' : '#f5a623',
-                            background: forecast.method === 'lstm' ? 'rgba(213, 253, 81, 0.14)' : 'rgba(245, 166, 35, 0.14)',
-                            border: `1px solid ${forecast.method === 'lstm' ? 'rgba(213, 253, 81, 0.45)' : 'rgba(245, 166, 35, 0.45)'}`,
+                            fontFamily: 'var(--font-mono)', fontSize: CHART_FONT.label, fontWeight: 700, letterSpacing: '0.04em',
+                            padding: '1px 6px', borderRadius: 4, ...chipStyle(TEXT_COLORS.secondary, 0.1),
                             cursor: 'help', textTransform: 'none',
                           }}>{forecastMethodLabel(forecast)}</span>
                       )}
@@ -503,18 +363,17 @@ export default function RacePredictionPanel() {
                             + `on the ${forecast.held_out?.selected_on || 'held-out'} races `
                             + '(notes/experiments/phase6/evaluate_forecast.txt).'}
                           style={{
-                            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
-                            padding: '1px 6px', borderRadius: 4, color: 'rgba(255,255,255,0.85)',
-                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.25)',
+                            fontFamily: 'var(--font-mono)', fontSize: CHART_FONT.label, fontWeight: 700, letterSpacing: '0.04em',
+                            padding: '1px 6px', borderRadius: 4, ...chipStyle(TEXT_COLORS.muted, 0.08),
                             cursor: 'help', textTransform: 'none',
                           }}>{forecastHeldOutText(forecast)}</span>
                       )}
                     </span>
                     {predictionLoading && (
-                      <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>Loading...</span>
+                      <span style={{ fontSize: CHART_FONT.label, ...muted }}>Loading...</span>
                     )}
                     {lastPredictionTrigger && (
-                      <span style={{ fontSize: '9px', color: 'var(--color-text-muted)' }}>
+                      <span style={{ fontSize: CHART_FONT.label, ...muted }}>
                         {lastPredictionTrigger.driver} @ L{lastPredictionTrigger.lap}
                       </span>
                     )}
@@ -529,13 +388,13 @@ export default function RacePredictionPanel() {
         {/* ── Early-race state: collecting data (or the first run still in the worker) ── */}
         {isRace && !raceProjection && raceSituationData && currentLap >= 3 && (
           <div style={{
-            background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)',
+            background: CHART_COLORS.surface, borderRadius: 'var(--radius-md)',
             padding: 'var(--spacing-md)', textAlign: 'center',
           }}>
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+            <div style={{ fontSize: CHART_FONT.data, ...muted, lineHeight: 1.6 }}>
               {currentLap < 5 ? (
                 <>
-                  Monte Carlo simulation available after <strong style={{ color: '#00e676' }}>lap 5</strong>.
+                  Monte Carlo simulation available after <strong style={{ color: CHART_COLORS.text }}>lap 5</strong>.
                   <br />
                   Collecting real pace data, pit stops, and tyre degradation to calibrate...
                 </>
@@ -551,7 +410,7 @@ export default function RacePredictionPanel() {
         {/* ── Not a race session: no race projection ── */}
         {!isRace && (
           <div className="loading-placeholder" style={{ padding: '20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
+            <div style={{ fontSize: 'var(--font-size-sm)', color: CHART_COLORS.secondary, lineHeight: 1.8 }}>
               Race prediction applies to race sessions only (race or sprint).
             </div>
           </div>
@@ -560,8 +419,8 @@ export default function RacePredictionPanel() {
         {/* ── Empty state: no replay running ── */}
         {isRace && !raceProjection && !raceSituationData && (
           <div className="loading-placeholder" style={{ padding: '20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
-              <strong style={{ color: '#00e676', display: 'block', marginBottom: 8, fontSize: 'var(--font-size-md)' }}>
+            <div style={{ fontSize: 'var(--font-size-sm)', color: CHART_COLORS.secondary, lineHeight: 1.8 }}>
+              <strong style={{ color: CHART_COLORS.text, display: 'block', marginBottom: 8, fontSize: 'var(--font-size-md)' }}>
                 Monte Carlo Race Prediction
               </strong>
               Start the race replay to activate predictions.
@@ -574,19 +433,190 @@ export default function RacePredictionPanel() {
 }
 
 /**
+ * The Projections tab: a table (median P label, places gained / lost, driver,
+ * current position, podium share) beside a D3 chart of each driver's
+ * finishing positions (utils/views/positionRangeChart.js), on rows of one
+ * height; rows fitted to the box, paged when they do not fit (no scroll).
+ */
+function ProjectionTable({ projection, selectedDrivers, numDrivers }) {
+  const rowsBoxRef = useRef(null);
+  const chartBoxRef = useRef(null);
+  const svgRef = useRef(null);
+  const legendRef = useRef(null);
+  const rowsBox = useBoxSize(rowsBoxRef);
+  const chartBox = useBoxSize(chartBoxRef);
+  const [page, setPage] = useState(0);
+  const badges = projection?.badges;
+
+  // Rows by the position shown, then the current race position (never a raw Monte Carlo statistic)
+  const ordered = useMemo(() => orderedProjections(projection), [projection]);
+  const fit = fitRows(rowsBox.height > 0 ? rowsBox.height - POSITION_AXIS_H : 0, ordered.length, {
+    rowMin: ROW_MIN, rowMax: ROW_MAX, rowDefault: ROW_DEFAULT, pagerH: PAGER_H,
+  });
+  const pg = pageOf(ordered, page, fit.perPage);
+  const rows = pg.rows.map((p) => ({
+    p,
+    // Finishing position shown: the store's median (it changes only beyond the
+    // Monte Carlo error of the whole column); its colour and the arrow follow it
+    shownPos: modePosition(projection, p),
+    change: positionChange(projection, p) ?? 0,
+  }));
+  const chartRows = rows.map(({ p, shownPos }) => positionRangeRow(p, {
+    key: p.driver, label: p.driver, shown: shownPos, current: p.currentPos,
+  }));
+
+  useEffect(() => {
+    if (!legendRef.current) return;
+    const width = rowsBox.width > 0 ? rowsBox.width : 600;
+    const g = d3.select(legendRef.current).selectAll('g.mcr-legend').data([0]).join('g').attr('class', 'mcr-legend chart-legend');
+    const h = drawLegend(g, [
+      { key: 'bars', label: 'share of runs per position', shape: 'rect', color: RANGE_COLORS.bars },
+      { key: 'range', label: 'P5–P95', shape: 'line', color: RANGE_COLORS.range },
+      { key: 'shown', label: 'P label (median)', shape: 'diamond', color: RANGE_COLORS.shown, stroke: RANGE_COLORS.shownStroke },
+      { key: 'now', label: 'now', shape: 'triangle-down', color: RANGE_COLORS.now, hollow: true },
+      { key: 'limits', label: 'podium | points limit', shape: 'dash', color: RANGE_COLORS.rule },
+      { key: 'gain', label: `${UP} places gained`, shape: 'rect', color: CHART_COLORS.better },
+      { key: 'loss', label: `${DOWN} places lost`, shape: 'rect', color: CHART_COLORS.worse },
+      // the gold of the P label and of the "pod" share (V4 r2: only in tooltips)
+      { key: 'podium', label: `gold P / pod: a podium (in >= ${PODIUM_BADGE_PCT} % of runs)`, shape: 'rect', color: PODIUM_COLOR },
+    ], {
+      font: CHART_FONT.data, fontPx: chartFontPx('data'), maxWidth: width - 8, textColor: RANGE_COLORS.text,
+    });
+    d3.select(legendRef.current).attr('width', width).attr('height', h + 2);
+  }, [rowsBox.width]);
+
+  useEffect(() => {
+    if (!svgRef.current) return;
+    drawPositionRanges(svgRef.current, {
+      rows: chartRows,
+      positions: numDrivers,
+      width: chartBox.width > 0 ? chartBox.width : 160,
+      rowH: fit.rowH,
+      colors: RANGE_COLORS,
+      font: CHART_FONT.data,
+    });
+  });
+
+  const head = { fontSize: CHART_FONT.label, color: CHART_COLORS.secondary, fontWeight: 700 };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: 4 }}>
+      <svg ref={legendRef} className="mcr-legend-svg" style={{ display: 'block', flexShrink: 0, maxWidth: '100%' }} />
+      <div ref={rowsBoxRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div className="mcr-table" style={{ display: 'flex', alignItems: 'flex-start' }}>
+          {/* Text columns: a table, one row per driver, the same height as the chart's rows */}
+          <div role="table" aria-label="Monte Carlo projected finish" style={{ flexShrink: 0 }}>
+            <div role="row" style={{
+              display: 'grid', gridTemplateColumns: TABLE_COLUMNS, gap: 4, height: POSITION_AXIS_H, alignItems: 'end',
+            }}>
+              <span role="columnheader" style={head} title="Median finishing position">P</span>
+              <span role="columnheader" style={head} title="Places gained (▲) or lost (▼) from the current position to the P label">+/−</span>
+              <span role="columnheader" style={head}>Driver</span>
+              <span role="columnheader" style={head}>Now</span>
+              <span role="columnheader" style={{ ...head, textAlign: 'right' }}>Podium</span>
+            </div>
+            {rows.map(({ p, shownPos, change }) => {
+              const isSelected = selectedDrivers.includes(p.driver);
+              const style = driverStyle(p.driver);
+              const mark = placesMark(change);
+              const podiumBadge = badges ? badges.podium?.[p.driver] : p.podiumProb >= PODIUM_BADGE_PCT;
+              return (
+                <div key={p.driver} role="row" className="mcr-row-text" style={{
+                  display: 'grid', gridTemplateColumns: TABLE_COLUMNS, gap: 4, alignItems: 'center',
+                  height: fit.rowH, fontSize: CHART_FONT.data, lineHeight: 1,
+                  background: isSelected ? withAlpha(TEXT_COLORS.primary, 0.06) : 'transparent',
+                  boxShadow: isSelected ? `inset 2px 0 0 ${style.mark}` : 'none',
+                }}>
+                  {/* Position */}
+                  <span
+                    role="cell"
+                    title={`Median finishing position: half of the simulations finish P${shownPos} or better `
+                      + `(${p.posDistribution?.[shownPos] ?? 0}% exactly P${shownPos}; expected ${p.expectedPos}). ${positionRule} `
+                      + `Gold = a podium place, i.e. a podium in at least ${PODIUM_BADGE_PCT} % of the simulations.`}
+                    style={{
+                      fontWeight: 900, paddingLeft: 4,
+                      color: shownPos <= 3 ? PODIUM_COLOR : shownPos <= 10 ? CHART_COLORS.text : CHART_COLORS.secondary,
+                    }}
+                  >
+                    P{shownPos}
+                  </span>
+
+                  {/* Gain / loss arrow: current position against the position shown */}
+                  <span
+                    role="cell"
+                    title={change !== 0
+                      ? `P${p.currentPos} now, P${shownPos} shown: ${change > 0 ? 'gains' : 'loses'} ${Math.abs(change)} place${Math.abs(change) === 1 ? '' : 's'}`
+                      : `P${p.currentPos} now, P${shownPos} shown: no change`}
+                    style={{ color: mark.color, fontWeight: 700, textAlign: 'center' }}
+                  >
+                    {change !== 0 ? `${mark.glyph}${Math.abs(change)}` : mark.glyph}
+                  </span>
+
+                  {/* Driver name */}
+                  <span role="cell" style={{ fontWeight: 700, color: style.text }}>
+                    {p.driver}
+                  </span>
+
+                  {/* Current position */}
+                  <span role="cell" style={muted}>
+                    now P{p.currentPos}
+                  </span>
+
+                  {/* Podium share: gold = podium badge (Wilson interval + hysteresis).
+                      On every row, 0 % included: a chip hidden at 0 % appeared and
+                      disappeared on Monte Carlo noise alone (D5) */}
+                  <span
+                    role="cell"
+                    title={`Podium in ${p.podiumProb}% of the simulations. Gold = at least ${PODIUM_BADGE_PCT} %, `
+                      + `the same statement as a gold P label (P1-P3: the median finishing position). ${positionRule}`}
+                    style={{
+                      fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap',
+                      color: podiumBadge ? PODIUM_COLOR : CHART_COLORS.secondary,
+                    }}
+                  >
+                    {p.podiumProb}% pod
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {/* The D3 chart column: the position axis, then one row per table row */}
+          <div ref={chartBoxRef} style={{ flex: 1, minWidth: 80, marginLeft: 6 }}>
+            <svg ref={svgRef} className="mcr-svg" style={{ display: 'block' }} />
+          </div>
+        </div>
+        {fit.paged && (
+          <div className="mcr-pager" style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, height: PAGER_H,
+            fontSize: CHART_FONT.label, ...muted, flexShrink: 0,
+          }}
+          >
+            <button type="button" aria-label="Previous rows" disabled={pg.page === 0} onClick={() => setPage(pg.page - 1)} style={pagerButton}>{'◀'}</button>
+            <span>rows {pg.first}{'–'}{pg.last} of {ordered.length}</span>
+            <button type="button" aria-label="Next rows" disabled={pg.page >= pg.pages - 1} onClick={() => setPage(pg.page + 1)} style={pagerButton}>{'▶'}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const pagerButton = {
+  fontSize: CHART_FONT.label,
+  color: TEXT_COLORS.primary,
+  background: 'transparent',
+  border: `1px solid ${GRID_COLORS.rule}`,
+  borderRadius: 3,
+  padding: '0 6px',
+  cursor: 'pointer',
+};
+
+/**
  * The focus driver's lap-time forecast (store.lstmPredictions entry,
  * utils/forecast.js): each predicted time at its target lap, the pit
  * probability with the method behind it, the projected pit lap and stints,
  * and the response's notes (lstm_note says when the LSTM loses; reason when
  * there is no forecast).
  */
-const COMPOUND_LETTER = {
-  SOFT: 'S', MEDIUM: 'M', HARD: 'H', INTERMEDIATE: 'I', WET: 'W', UNKNOWN: '?',
-};
-const COMPOUND_HEX = {
-  SOFT: '#FF3333', MEDIUM: '#FFC300', HARD: '#EEEEEE',
-  INTERMEDIATE: '#39B54A', WET: '#00AAFF', UNKNOWN: '#888',
-};
 function ForecastRow({ pred }) {
   const driver = pred.driver;
   const points = forecastPoints(pred);
@@ -596,36 +626,34 @@ function ForecastRow({ pred }) {
   const summary = typeof pred.summary === 'string' ? pred.summary : null;
   const notes = [pred.lstm_note, pred.method_note, pred.pit_note, pred.pit_projection_reason].filter(Boolean);
 
-  // Pit-probability colour: green < 30%, amber 30-60%, red ≥ 60%
+  // Pit-probability emphasis: the severity scheme (glyph and word in the
+  // tooltip): high >= 60 %, medium 30-60 %, low < 30 %
   const pitPct = pit.probability != null ? Math.round(pit.probability * 100) : null;
-  const pitColor = pitPct == null ? 'rgba(255,255,255,0.5)'
-    : pitPct >= 60 ? '#ef4444'
-    : pitPct >= 30 ? '#f5a623'
-    : '#22c55e';
+  const pitSev = pitPct == null ? null : severityOf(pitPct >= 60 ? 'high' : pitPct >= 30 ? 'medium' : 'low');
 
   return (
     <div style={{
       padding: '6px 4px',
-      borderBottom: '1px solid rgba(255,255,255,0.05)',
-      fontSize: 'var(--font-size-xs)',
+      borderBottom: `1px solid ${GRID_COLORS.grid}`,
+      fontSize: CHART_FONT.data,
       display: 'flex',
       flexDirection: 'column',
       gap: 4,
     }}>
       {/* Header: driver, origin lap, pit probability */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontWeight: 800, color: getDriverColor(driver), letterSpacing: '0.04em' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 800, color: driverStyle(driver).text, letterSpacing: '0.04em' }}>
           {driver}
         </span>
         {Number.isFinite(pred.lap) && (
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)' }}>from lap {pred.lap}</span>
+          <span style={muted}>from lap {pred.lap}</span>
         )}
         {pitPct != null && (
           <span
-            title={`Pit stop within ${FORECAST_LAPS} laps${pit.label ? `, by the ${pit.label}` : ''}.`}
-            style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.55)' }}
+            title={`Pit stop within ${FORECAST_LAPS} laps${pit.label ? `, by the ${pit.label}` : ''} (${pitSev.word}: ${pitSev.glyph}).`}
+            style={{ marginLeft: 'auto', ...muted }}
           >
-            pit{pit.label ? ` (${pit.label})` : ''}: <strong style={{ color: pitColor, fontFamily: 'var(--font-mono)' }}>{pitPct}%</strong>
+            pit{pit.label ? ` (${pit.label})` : ''}: <strong style={{ color: pitSev.color, fontFamily: 'var(--font-mono)' }}>{pitPct}%</strong>
           </span>
         )}
       </div>
@@ -636,12 +664,11 @@ function ForecastRow({ pred }) {
           {points.map(({ lap, time }) => (
             <span key={lap} style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 10.5,
               padding: '1px 5px',
               borderRadius: 3,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: 'rgba(255,255,255,0.85)',
+              background: withAlpha(TEXT_COLORS.primary, 0.04),
+              border: `1px solid ${GRID_COLORS.axis}`,
+              color: CHART_COLORS.text,
             }}>
               L{lap} {time.toFixed(2)}s
             </span>
@@ -651,26 +678,25 @@ function ForecastRow({ pred }) {
 
       {/* Projected pit lap + predicted stints */}
       {(optimal != null || stints.length > 0) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {optimal != null && (
-            <span style={{ color: 'rgba(255,255,255,0.55)' }}>
-              optimal pit: <strong style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>L{optimal}</strong>
+            <span style={muted}>
+              optimal pit: <strong style={{ color: CHART_COLORS.text, fontFamily: 'var(--font-mono)' }}>L{optimal}</strong>
             </span>
           )}
           {stints.length > 0 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'rgba(255,255,255,0.55)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, ...muted }}>
               stints:
               {stints.map((s, i) => {
-                const letter = COMPOUND_LETTER[s.compound] || '?';
-                const hex = COMPOUND_HEX[s.compound] || '#888';
+                const hex = tyreColor(s.compound);
                 return (
-                  <span key={i} style={{
+                  <span key={i} title={s.compound} style={{
                     display: 'inline-flex', alignItems: 'center', gap: 3,
                     padding: '0 5px', borderRadius: 3,
-                    background: `${hex}22`, border: `1px solid ${hex}55`,
-                    color: hex, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                    background: withAlpha(hex, 0.13), border: `1px solid ${markColor(hex)}`,
+                    color: textColor(hex), fontFamily: 'var(--font-mono)', fontWeight: 700,
                   }}>
-                    {letter} × {s.length || '?'}
+                    {tyreLetter(s.compound)} × {s.length || '?'}
                   </span>
                 );
               })}
@@ -681,17 +707,17 @@ function ForecastRow({ pred }) {
 
       {/* The response's summary and notes (which method, why, held-out standing) */}
       {summary && (
-        <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.6)' }}>
+        <div style={{ fontSize: CHART_FONT.label, ...muted }}>
           {summary}
         </div>
       )}
       {notes.map((n) => (
-        <div key={n} style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.6)' }}>{n}</div>
+        <div key={n} style={{ fontSize: CHART_FONT.label, ...muted }}>{n}</div>
       ))}
 
       {/* No forecast (fewer than 3 clean laps at the clock): the reason */}
       {points.length === 0 && (
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
+        <div style={muted}>
           {pred.reason || 'No forecast for this lap.'}
         </div>
       )}

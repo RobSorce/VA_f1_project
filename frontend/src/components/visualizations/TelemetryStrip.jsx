@@ -1,7 +1,13 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store, sessionScopeOf, telemetryKeySuffix } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  getDriverColor, getDriverDash, markColor, textColor, tyreColor, tyreLetter, contrastText, withAlpha,
+  SERIES_COLORS, CHANNEL_COLORS, DIVERGING, STATUS_COLORS, STATUS_GLYPHS, TEXT_COLORS, GRID_COLORS, UI_COLORS, SURFACES,
+  CHART_FONT, chartFontPx,
+} from '../../utils/colors';
+import Legend from '../ui/Legend';
+import { useDemoMode, BACKEND_ONLY_TEXT, BACKEND_ONLY_FEATURES } from '../../utils/demoMode';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { stintsByDriver } from '../../utils/stints';
 import { causalKey } from '../../utils/strategyViews';
@@ -9,8 +15,18 @@ import { isLapCompleted } from '../../utils/raceTime';
 import {
   telemetryReferenceLap, telemetryTargets, traceSamplesAt, revealPoint, inDomain, telemetryCards,
 } from '../../utils/views/telemetryStrip';
+import { defineDeltaHatches, deltaHatchCss } from '../../utils/views/deltaHatch';
 
-const LAP_COLORS = ['#a855f7', '#22c55e', '#ff8000', '#e10600'];
+// Laps mode: the comparison series of utils/colors.js (Okabe-Ito, >= 4.73:1,
+// CIEDE2000 >= 11.1 apart under every vision type); the laps after the first
+// are dashed too
+const LAP_COLORS = SERIES_COLORS;
+// Drivers mode: the driver's colour (teammate tint) as a mark on the panel
+const driverTrace = (abbr) => markColor(getDriverColor(abbr), SURFACES.panel);
+// Dash of a comparison lap (laps mode)
+const LAP_DASH = '6,3';
+// Playhead of the replay clock: white line, white bubble with dark text
+const PLAYHEAD = TEXT_COLORS.primary;
 
 function formatLapTime(seconds) {
   if (!seconds || seconds <= 0) return '--:--.---';
@@ -67,6 +83,8 @@ export default function TelemetryStrip({ embedded = false }) {
   const telemetryCompareLaps = useF1Store((s) => s.telemetryCompareLaps);
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
   const telemetryLoading = useF1Store((s) => s.telemetryLoading);
+  // Static demo (no backend): car telemetry is model-side data, the strip says so
+  const demoActive = useDemoMode((s) => s.active);
   const fetchDriverTelemetry = useF1Store((s) => s.fetchDriverTelemetry);
   const setTelemetryCompareMode = useF1Store((s) => s.setTelemetryCompareMode);
   const setTelemetryCompareLaps = useF1Store((s) => s.setTelemetryCompareLaps);
@@ -273,8 +291,10 @@ export default function TelemetryStrip({ embedded = false }) {
         if (!samples[i]) return null;
         const { key, data, extent, domainLimit } = samples[i];
         const color = telemetryCompareMode === 'drivers'
-          ? getDriverColor(driver)
-          : (LAP_COLORS[i] || '#888');
+          ? driverTrace(driver)
+          : (LAP_COLORS[i] || TEXT_COLORS.muted);
+        // the second driver of a team dashed (V3); a comparison lap dashed below
+        const dash = telemetryCompareMode === 'drivers' ? getDriverDash(driver) : null;
         const isFocus = telemetryCompareMode === 'drivers'
           ? driver === focusDriver
           : i === 0;
@@ -294,7 +314,7 @@ export default function TelemetryStrip({ embedded = false }) {
           && (telemetryCompareMode === 'drivers' ? driver === presetDriver : i === 0);
         return {
           driver, lap, data, extent, domainLimit, color, isFocus, isDimmed, isReference, lapOpacity,
-          lapDashed, key, followsNow,
+          lapDashed, dash, key, followsNow,
         };
       })
       .filter(Boolean);
@@ -323,7 +343,7 @@ export default function TelemetryStrip({ embedded = false }) {
         driver: focusDriver,
         lap: lapNum,
         data: ghostData,
-        color: '#888',
+        color: TEXT_COLORS.muted,
         isFocus: false,
         isDimmed: true,
         isReference: false,
@@ -382,7 +402,7 @@ export default function TelemetryStrip({ embedded = false }) {
     const y = ph.yScale(dPoint.Speed);
     ph.line.attr('x1', x).attr('x2', x);
     ph.circle.attr('cx', x).attr('cy', y);
-    const bw = 46;
+    const bw = Math.ceil(chartFontPx('data') * 4.6);
     const [xMin, xMax] = xScale.range();
     const cx = Math.max(xMin + bw / 2, Math.min(xMax - bw / 2, x));
     ph.bubbleBg.attr('x', cx - bw / 2).attr('width', bw);
@@ -550,8 +570,8 @@ export default function TelemetryStrip({ embedded = false }) {
       .map((card, i) => ({
         ...card,
         color: telemetryCompareMode === 'drivers'
-          ? getDriverColor(card.driver)
-          : (LAP_COLORS[i] || '#888'),
+          ? driverTrace(card.driver)
+          : (LAP_COLORS[i] || TEXT_COLORS.muted),
       }));
   }, [fetchTargets, sessionData, telemetryCompareMode, sessionNow]);
 
@@ -653,8 +673,8 @@ export default function TelemetryStrip({ embedded = false }) {
 
     // Style the brush selection
     d3svg.select('.selection')
-      .attr('fill', 'rgba(59, 130, 246, 0.2)')
-      .attr('stroke', 'rgba(59, 130, 246, 0.6)')
+      .attr('fill', UI_COLORS.brushFill)
+      .attr('stroke', UI_COLORS.brush)
       .attr('stroke-width', 1);
   }, [dims]);
 
@@ -679,10 +699,7 @@ export default function TelemetryStrip({ embedded = false }) {
     xScaleRef.current = xScale;
 
     // Sort traces: dimmed first, then non-focus, then focus on top
-    const sorted = [...traces].sort((a, b) => {
-      if (a.isDimmed !== b.isDimmed) return a.isDimmed ? -1 : 1;
-      return (a.isFocus ? 1 : 0) - (b.isFocus ? 1 : 0);
-    });
+    const sorted = drawOrder(traces);
 
     renderSpeedChart(speedRef.current, sorted, xScale, margin, sectorBoundaries, trackLength, playheadRef, xAxisMode);
     renderDeltaChart(deltaRef.current, sorted, xScale, margin, sectorBoundaries, xAxisMode);
@@ -850,14 +867,15 @@ export default function TelemetryStrip({ embedded = false }) {
 
           {/* Driver comparison cards — F1 TV MFD style */}
           {driverCards.map((card, cardIdx) => {
-            const tyreColor = TYRE_COLORS[card.compound] || TYRE_COLORS.UNKNOWN;
-            const isDarkTyre = card.compound === 'HARD' || card.compound === 'MEDIUM';
-            // Sector color: personal best = green, else default
+            const cardTyre = tyreColor(card.compound);
+            // Sector colour: the driver's personal best in the timing green
+            // with its glyph (●), else the normal text colour
+            const isPb = (val, best) => !!(val > 0 && best && Math.abs(val - best) < 0.002);
             const sectorColor = (val, best) => {
-              if (!val || val <= 0) return 'rgba(255,255,255,0.3)';
-              if (best && Math.abs(val - best) < 0.002) return '#a855f7';
-              return 'rgba(255,255,255,0.85)';
+              if (!val || val <= 0) return TEXT_COLORS.muted;
+              return isPb(val, best) ? STATUS_COLORS.personalBest : TEXT_COLORS.primary;
             };
+            const pbGlyph = (val, best) => (isPb(val, best) ? `${STATUS_GLYPHS.personalBest} ` : '');
             const isHighlighted = highlightedDriver === card.driver;
             const isLapsMode = telemetryCompareMode === 'laps';
             const isRef = isLapsMode && cardIdx === 0;
@@ -871,7 +889,7 @@ export default function TelemetryStrip({ embedded = false }) {
                 style={{
                   cursor: isLapsMode ? 'default' : 'pointer',
                   outline: isHighlighted ? `1px solid ${card.color}` : undefined,
-                  boxShadow: isHighlighted ? `0 0 8px ${card.color}40` : undefined,
+                  boxShadow: isHighlighted ? `0 0 8px ${withAlpha(card.color, 0.25)}` : undefined,
                   borderLeft: `3px solid ${card.color}`,
                 }}
               >
@@ -901,8 +919,8 @@ export default function TelemetryStrip({ embedded = false }) {
                     <div className="telem-mfd-card__driver">
                       <span className="telem-mfd-card__bar" style={{ background: card.color }} />
                       <span className="telem-mfd-card__abbr">{card.driver}</span>
-                      <span style={{ fontSize: 9, color: card.color, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>L{card.lap}</span>
-                      {isRef && <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.35)', marginLeft: 2 }}>REF</span>}
+                      <span style={{ fontSize: CHART_FONT.data, color: textColor(card.color), fontWeight: 700, fontFamily: 'var(--font-mono)' }}>L{card.lap}</span>
+                      {isRef && <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, marginLeft: 2 }}>REF</span>}
                     </div>
                   ) : (
                     <div className="telem-mfd-card__driver">
@@ -910,8 +928,8 @@ export default function TelemetryStrip({ embedded = false }) {
                       <span className="telem-mfd-card__abbr">{card.driver}</span>
                     </div>
                   )}
-                  <span className="telem-mfd-card__tyre" style={{ background: tyreColor, color: isDarkTyre ? '#000' : '#fff' }}>
-                    {card.compound?.[0] || '?'}
+                  <span className="telem-mfd-card__tyre" style={{ background: cardTyre, color: contrastText(cardTyre) }}>
+                    {tyreLetter(card.compound)}
                   </span>
                   {!isLapsMode && (
                     <span className="telem-mfd-card__lap-badge" style={{ borderColor: card.color }}>
@@ -932,19 +950,19 @@ export default function TelemetryStrip({ embedded = false }) {
                     <span className="telem-mfd-card__sector">
                       <span className="telem-mfd-card__sector-label">S1</span>
                       <span className="telem-mfd-card__sector-val" style={{ color: sectorColor(card.s1, card.bestS1) }}>
-                        {card.s1.toFixed(3)}
+                        {pbGlyph(card.s1, card.bestS1)}{card.s1.toFixed(3)}
                       </span>
                     </span>
                     <span className="telem-mfd-card__sector">
                       <span className="telem-mfd-card__sector-label">S2</span>
                       <span className="telem-mfd-card__sector-val" style={{ color: sectorColor(card.s2, card.bestS2) }}>
-                        {card.s2?.toFixed(3) || '—'}
+                        {pbGlyph(card.s2, card.bestS2)}{card.s2?.toFixed(3) || '—'}
                       </span>
                     </span>
                     <span className="telem-mfd-card__sector">
                       <span className="telem-mfd-card__sector-label">S3</span>
                       <span className="telem-mfd-card__sector-val" style={{ color: sectorColor(card.s3, card.bestS3) }}>
-                        {card.s3?.toFixed(3) || '—'}
+                        {pbGlyph(card.s3, card.bestS3)}{card.s3?.toFixed(3) || '—'}
                       </span>
                     </span>
                   </div>
@@ -1005,7 +1023,7 @@ export default function TelemetryStrip({ embedded = false }) {
                 <span
                   key={lap}
                   className="telem-lap-chip telem-lap-chip--active"
-                  style={{ borderColor: LAP_COLORS[i + 1] || '#888', color: LAP_COLORS[i + 1] || '#888' }}
+                  style={{ borderColor: LAP_COLORS[i + 1] || TEXT_COLORS.muted, color: LAP_COLORS[i + 1] || TEXT_COLORS.muted }}
                   onClick={() => handleRemoveLap(lap)}
                   title={`Remove lap ${lap}`}
                 >
@@ -1062,7 +1080,7 @@ export default function TelemetryStrip({ embedded = false }) {
               width: 22, height: 22, borderRadius: 4,
               border: '1px solid rgba(255,255,255,0.10)',
               background: 'transparent',
-              color: 'rgba(255,255,255,0.55)', cursor: 'pointer',
+              color: TEXT_COLORS.muted, cursor: 'pointer',
               fontSize: '12px', padding: 0, flexShrink: 0,
               marginLeft: 6,
             }}
@@ -1076,27 +1094,33 @@ export default function TelemetryStrip({ embedded = false }) {
         </div>
       </div>
 
-      {/* Channel legend */}
+      {/* Legend (V4): one line per trace as drawn (driver colour with the
+          teammate dash, or the lap series with its dash), the focus driver's
+          throttle / brake channels, the replay playhead */}
       <div style={{
-        display: 'flex', gap: 10, padding: '4px 8px', flexShrink: 0,
+        display: 'flex', gap: 10, padding: '2px 8px', flexShrink: 0,
         borderBottom: '1px solid rgba(255,255,255,0.06)',
-        fontSize: 8, color: 'rgba(255,255,255,0.5)', alignItems: 'center',
+        fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, alignItems: 'center',
       }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <span style={{
-            width: 12, height: 2,
-            background: 'linear-gradient(90deg, #e10600 0%, #00d2be 50%, #0600ef 100%)',
-            display: 'inline-block',
-          }} /> Lines colored by team
-        </span>
-        <span style={{ opacity: 0.4 }}>|</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <span style={{ width: 12, height: 2, background: '#00e676', display: 'inline-block' }} /> Focus throttle
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <span style={{ width: 12, height: 2, background: '#e10600', display: 'inline-block' }} /> Focus brake
-        </span>
-        <span style={{ marginLeft: 'auto', fontSize: 7, opacity: 0.5 }}>
+        <Legend items={[
+          ...traces.filter((t) => !t.isGhost).map((t) => ({
+            label: telemetryCompareMode === 'laps' ? `${t.driver} L${t.lap}` : t.driver,
+            color: t.color, shape: 'line', dash: t.lapDashed ? LAP_DASH : t.dash,
+          })),
+          // the GAP chart's areas, against its reference (the first trace drawn)
+          ...(traces.length >= 2 ? (() => {
+            const ref = drawOrder(traces)[0];
+            const name = telemetryCompareMode === 'laps' ? `${ref.driver} L${ref.lap}` : ref.driver;
+            return [
+              { label: `+ behind ${name}`, color: DIVERGING.worse, shape: 'band', fill: deltaHatchCss('worse'), title: `GAP chart: behind ${name}` },
+              { label: `− ahead of ${name}`, color: DIVERGING.better, shape: 'band', fill: deltaHatchCss('better'), title: `GAP chart: ahead of ${name}` },
+            ];
+          })() : []),
+          { label: 'Focus throttle', color: CHANNEL_COLORS.throttle, shape: 'band' },
+          { label: 'Focus brake', color: CHANNEL_COLORS.brake, shape: 'band' },
+          { label: 'Replay clock', color: PLAYHEAD, shape: 'line', dash: '3,2', strokeWidth: 1.5 },
+        ]} />
+        <span style={{ marginLeft: 'auto', fontSize: CHART_FONT.label, color: TEXT_COLORS.muted }}>
           Shift+drag to brush distance
         </span>
       </div>
@@ -1111,6 +1135,8 @@ export default function TelemetryStrip({ embedded = false }) {
       >
         {showEmpty ? (
           <div className="telemetry-strip__empty">Select a focus driver or click drivers in the leaderboard</div>
+        ) : demoActive && !hasData ? (
+          <div className="telemetry-strip__empty">{BACKEND_ONLY_TEXT}: {BACKEND_ONLY_FEATURES.telemetry}.</div>
         ) : telemetryLoading && !hasData ? (
           <div className="telemetry-strip__loading">Loading telemetry...</div>
         ) : (
@@ -1151,10 +1177,10 @@ export default function TelemetryStrip({ embedded = false }) {
                     title="X axis: track distance (m)"
                     style={{
                       padding: '2px 7px',
-                      fontSize: 9,
+                      fontSize: CHART_FONT.label,
                       fontWeight: 700,
-                      color: xAxisMode === 'distance' ? '#fff' : 'rgba(255,255,255,0.45)',
-                      background: xAxisMode === 'distance' ? 'rgba(59,130,246,0.35)' : 'transparent',
+                      color: xAxisMode === 'distance' ? TEXT_COLORS.primary : TEXT_COLORS.muted,
+                      background: xAxisMode === 'distance' ? withAlpha(UI_COLORS.brush, 0.35) : 'transparent',
                       border: 'none',
                       borderRadius: 3,
                     }}
@@ -1165,10 +1191,10 @@ export default function TelemetryStrip({ embedded = false }) {
                     title="X axis: lap time (s)"
                     style={{
                       padding: '2px 7px',
-                      fontSize: 9,
+                      fontSize: CHART_FONT.label,
                       fontWeight: 700,
-                      color: xAxisMode === 'time' ? '#fff' : 'rgba(255,255,255,0.45)',
-                      background: xAxisMode === 'time' ? 'rgba(59,130,246,0.35)' : 'transparent',
+                      color: xAxisMode === 'time' ? TEXT_COLORS.primary : TEXT_COLORS.muted,
+                      background: xAxisMode === 'time' ? withAlpha(UI_COLORS.brush, 0.35) : 'transparent',
                       border: 'none',
                       borderRadius: 3,
                     }}
@@ -1180,10 +1206,10 @@ export default function TelemetryStrip({ embedded = false }) {
                   title={`${showGhosts ? 'Hide' : 'Show'} ghost reference laps (dimmed traces from focus driver's other cached laps)`}
                   style={{
                     padding: '2px 7px',
-                    fontSize: 9,
+                    fontSize: CHART_FONT.label,
                     fontWeight: 700,
-                    color: showGhosts ? '#fff' : 'rgba(255,255,255,0.45)',
-                    background: showGhosts ? 'rgba(168,85,247,0.35)' : 'rgba(255,255,255,0.04)',
+                    color: showGhosts ? TEXT_COLORS.primary : TEXT_COLORS.muted,
+                    background: showGhosts ? withAlpha(UI_COLORS.brush, 0.35) : 'rgba(255,255,255,0.04)',
                     borderRadius: 3,
                     marginRight: 4,
                   }}
@@ -1267,10 +1293,10 @@ export default function TelemetryStrip({ embedded = false }) {
                     <span className="telem-crosshair-tooltip__val">
                       {v.speed != null ? `${Math.round(v.speed)} kph` : '—'}
                     </span>
-                    <span className="telem-crosshair-tooltip__val telem-crosshair-tooltip__val--dim" style={{ color: '#00e676' }}>
+                    <span className="telem-crosshair-tooltip__val telem-crosshair-tooltip__val--dim" style={{ color: CHANNEL_COLORS.throttle }}>
                       {v.throttle != null ? `${Math.round(v.throttle)}%T` : ''}
                     </span>
-                    <span className="telem-crosshair-tooltip__val telem-crosshair-tooltip__val--dim" style={{ color: '#e10600' }}>
+                    <span className="telem-crosshair-tooltip__val telem-crosshair-tooltip__val--dim" style={{ color: CHANNEL_COLORS.brake }}>
                       {v.brake != null ? `${Math.round(typeof v.brake === 'boolean' ? (v.brake ? 100 : 0) : v.brake)}%B` : ''}
                     </span>
                     <span className="telem-crosshair-tooltip__val telem-crosshair-tooltip__val--dim">
@@ -1483,7 +1509,8 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
       .attr('d', line).attr('stroke', t.color)
       .attr('opacity', opacity)
       .attr('stroke-width', t.lapDashed ? 1.2 : null);
-    if (t.lapDashed) path.attr('stroke-dasharray', '6,3');
+    if (t.lapDashed) path.attr('stroke-dasharray', LAP_DASH);
+    else if (t.dash) path.attr('stroke-dasharray', t.dash);
 
     // Lap label at end of trace in laps mode
     if (t.lapDashed != null && traces.length > 1) {
@@ -1492,8 +1519,8 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
         g.append('text')
           .attr('x', xScale(lastPt.Distance) + 3)
           .attr('y', yScale(lastPt.Speed))
-          .attr('fill', t.color)
-          .attr('font-size', '8px')
+          .attr('fill', textColor(t.color, SURFACES.panel))
+          .style('font-size', CHART_FONT.data)
           .attr('font-weight', 600)
           .attr('dominant-baseline', 'middle')
           .attr('opacity', opacity)
@@ -1507,19 +1534,20 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
   const annots = findSpeedAnnotations(traces, xScale, yScale, width, m);
   annots.forEach((a) => {
     const yOff = a.isMax ? -8 : 12;
+    const fpx = chartFontPx('data');
     annotsG.append('rect')
       .attr('class', 'telem-annot-bg')
-      .attr('x', a.px - 14)
-      .attr('y', a.py + yOff - 9)
-      .attr('width', 28)
-      .attr('height', 12)
+      .attr('x', a.px - fpx * 1.4)
+      .attr('y', a.py + yOff - fpx * 0.85)
+      .attr('width', fpx * 2.8)
+      .attr('height', fpx * 1.15)
       .attr('rx', 2);
     annotsG.append('text')
       .attr('class', 'telem-annot-text')
       .attr('x', a.px)
       .attr('y', a.py + yOff)
       .attr('text-anchor', 'middle')
-      .attr('fill', a.color)
+      .attr('fill', textColor(a.color, SURFACES.page))
       .text(a.speed);
   });
 
@@ -1537,25 +1565,26 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
     const phLine = phGroup.append('line')
       .attr('y1', m.top)
       .attr('y2', height - m.bottom)
-      .attr('stroke', '#fbbf24')
+      .attr('stroke', PLAYHEAD)
       .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', '3,2')
-      .attr('opacity', 0.85);
+      .attr('stroke-dasharray', '3,2');
     const phCircle = phGroup.append('circle')
       .attr('r', 3.5)
-      .attr('fill', '#fbbf24')
-      .attr('stroke', '#0a0a0a')
+      .attr('fill', PLAYHEAD)
+      .attr('stroke', SURFACES.page)
       .attr('stroke-width', 1);
+    const bubbleH = Math.ceil(chartFontPx('data') + 3);
     const phBubbleBg = phGroup.append('rect')
       .attr('y', m.top + 1)
-      .attr('height', 13)
+      .attr('height', bubbleH)
       .attr('rx', 3)
-      .attr('fill', '#fbbf24');
+      .attr('fill', PLAYHEAD);
     const phBubbleText = phGroup.append('text')
-      .attr('y', m.top + 10)
+      .attr('y', m.top + 1 + bubbleH / 2)
+      .attr('dominant-baseline', 'central')
       .attr('text-anchor', 'middle')
-      .attr('fill', '#0a0a0a')
-      .attr('font-size', '9px')
+      .attr('fill', contrastText(PLAYHEAD))
+      .style('font-size', CHART_FONT.data)
       .attr('font-weight', 700)
       .style('pointer-events', 'none');
 
@@ -1572,10 +1601,22 @@ function renderSpeedChart(svgEl, traces, xScale, margin, sectorBoundaries, track
   }
 }
 
+// Drawing order of the traces: dimmed first, then non-focus, then the focus
+// on top; the first one is the GAP chart's reference
+function drawOrder(traces) {
+  return [...traces].sort((a, b) => {
+    if (a.isDimmed !== b.isDimmed) return a.isDimmed ? -1 : 1;
+    return (a.isFocus ? 1 : 0) - (b.isFocus ? 1 : 0);
+  });
+}
+
 function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisMode) {
   const ctx = prepSvg(svgEl);
   if (!ctx) return;
   const { g, width, height } = ctx;
+  // the shaded areas: a tint and full-strength hatch lines, rising for behind,
+  // falling for ahead (utils/views/deltaHatch.js, V1; the CSS classes carry no fill)
+  const hatch = defineDeltaHatches(ctx.svg.insert('defs', ':first-child'), 'telem-delta-hatch');
   const m = { ...margin, bottom: 14 };
 
   if (traces.length < 2) {
@@ -1592,7 +1633,7 @@ function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxis
     if (delta.length > 0) {
       // the gap is known up to where both laps are recorded by now
       const domainLimit = Math.min(refTrace.domainLimit ?? Infinity, traces[i].domainLimit ?? Infinity);
-      deltaTraces.push({ data: delta, color: traces[i].color, driver: traces[i].driver, domainLimit });
+      deltaTraces.push({ data: delta, color: traces[i].color, dash: traces[i].lapDashed ? LAP_DASH : traces[i].dash, driver: traces[i].driver, domainLimit });
     }
   }
 
@@ -1650,7 +1691,8 @@ function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxis
 
     g.append('path').datum(dt.data)
       .attr('class', 'telem-delta-area telem-delta-area--positive')
-      .attr('d', areaPos);
+      .attr('d', areaPos)
+      .attr('fill', hatch.worse);
 
     const areaNeg = d3.area()
       .x((d) => xScale(d.distance))
@@ -1660,7 +1702,8 @@ function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxis
 
     g.append('path').datum(dt.data)
       .attr('class', 'telem-delta-area telem-delta-area--negative')
-      .attr('d', areaNeg);
+      .attr('d', areaNeg)
+      .attr('fill', hatch.better);
 
     const line = d3.line()
       .x((d) => xScale(d.distance))
@@ -1670,7 +1713,8 @@ function renderDeltaChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxis
     g.append('path').datum(dt.data)
       .attr('class', 'telem-delta-line')
       .attr('d', line)
-      .attr('stroke', dt.color);
+      .attr('stroke', dt.color)
+      .attr('stroke-dasharray', dt.dash || null);
   });
 }
 
@@ -1694,7 +1738,7 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
   g.append('line')
     .attr('x1', m.left).attr('x2', width - m.right)
     .attr('y1', midY).attr('y2', midY)
-    .attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 0.5);
+    .attr('stroke', GRID_COLORS.rule).attr('stroke-width', 0.5);
 
   // Y axis — throttle side (upward: 0 → 100%)
   g.append('g').attr('class', 'telem-axis')
@@ -1759,8 +1803,10 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
 
   traces.forEach((t) => {
     const opacity = t.isDimmed ? 0.15 : (t.lapOpacity || 1);
-    const throttleColor = t.isFocus && !t.lapDashed ? '#00e676' : t.color;
-    const brakeColor = t.isFocus && !t.lapDashed ? '#e10600' : t.color;
+    // the focus driver's channels in the Okabe-Ito pair (throttle sky blue,
+    // brake orange: not green / red); other traces in their own colour
+    const throttleColor = t.isFocus && !t.lapDashed ? CHANNEL_COLORS.throttle : t.color;
+    const brakeColor = t.isFocus && !t.lapDashed ? CHANNEL_COLORS.brake : t.color;
 
     // Area fill only for focus/reference (not dashed comparison laps)
     if (!t.lapDashed) {
@@ -1783,14 +1829,16 @@ function renderThrottleBrakeChart(svgEl, traces, xScale, margin, sectorBoundarie
       .attr('d', throttleLine)
       .attr('stroke', throttleColor)
       .attr('opacity', opacity);
-    if (t.lapDashed) tLine.attr('stroke-dasharray', '6,3').attr('stroke-width', 1.2);
+    if (t.lapDashed) tLine.attr('stroke-dasharray', LAP_DASH).attr('stroke-width', 1.2);
+    else if (t.dash && !t.isFocus) tLine.attr('stroke-dasharray', t.dash);
 
     const bLine = g.append('path').datum(t.data)
       .attr('class', t.isFocus ? 'telem-brake-line telem-brake-line--focus' : 'telem-brake-line')
       .attr('d', brakeLine)
       .attr('stroke', brakeColor)
       .attr('opacity', opacity);
-    if (t.lapDashed) bLine.attr('stroke-dasharray', '6,3').attr('stroke-width', 1.2);
+    if (t.lapDashed) bLine.attr('stroke-dasharray', LAP_DASH).attr('stroke-width', 1.2);
+    else if (t.dash && !t.isFocus) bLine.attr('stroke-dasharray', t.dash);
   });
 }
 
@@ -1831,7 +1879,8 @@ function renderGearChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisM
       .attr('class', t.isFocus ? 'telem-gear-line telem-gear-line--focus' : 'telem-gear-line')
       .attr('d', line).attr('stroke', t.color)
       .attr('opacity', opacity);
-    if (t.lapDashed) path.attr('stroke-dasharray', '6,3').attr('stroke-width', 1.2);
+    if (t.lapDashed) path.attr('stroke-dasharray', LAP_DASH).attr('stroke-width', 1.2);
+    else if (t.dash) path.attr('stroke-dasharray', t.dash);
   });
 }
 
@@ -1909,6 +1958,7 @@ function renderRPMChart(svgEl, traces, xScale, margin, sectorBoundaries, xAxisMo
       .attr('class', t.isFocus ? 'telem-rpm-line telem-rpm-line--focus' : 'telem-rpm-line')
       .attr('d', line).attr('stroke', t.color)
       .attr('opacity', opacity);
-    if (t.lapDashed) path.attr('stroke-dasharray', '6,3').attr('stroke-width', 1.2);
+    if (t.lapDashed) path.attr('stroke-dasharray', LAP_DASH).attr('stroke-width', 1.2);
+    else if (t.dash) path.attr('stroke-dasharray', t.dash);
   });
 }

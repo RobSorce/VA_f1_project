@@ -1,7 +1,11 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, getTeamColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  getDriverColor, TYRE_COLORS, TYRE_LABELS, tyreColor, tyreLetter, contrastText, markColor, textColor, withAlpha,
+  TEXT_COLORS, GRID_COLORS, UI_COLORS, SURFACES, CHART_FONT, chartFontPx,
+} from '../../utils/colors';
+import { teamPairLegend } from '../../utils/views/teamLegend';
 import { attachLasso } from '../../utils/lasso';
 import {
   advanceDisplay, fieldMean, biplotArrows, axisTitles,
@@ -9,14 +13,12 @@ import {
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
-const COMPOUND_COLORS = {
-  SOFT: TYRE_COLORS?.SOFT || '#e10600',
-  MEDIUM: TYRE_COLORS?.MEDIUM || '#ffd700',
-  HARD: TYRE_COLORS?.HARD || '#FFFFFF',
-  INTERMEDIATE: TYRE_COLORS?.INTERMEDIATE || '#00e676',
-  WET: TYRE_COLORS?.WET || '#2196f3',
-  UNKNOWN: '#888',
-};
+// Driver dot radius and the compound badge under it (letter in contrastText)
+const POINT_R = 11;
+const POINT_R_HOVER = 14;
+const tyreBadgeR = () => Math.max(6, Math.ceil(chartFontPx('label') * 0.65));
+// Driver colour of a point / trail on the panel (teammate tint, >= 3:1)
+const driverMark = (abbr) => markColor(getDriverColor(abbr), SURFACES.panel);
 
 export default function RaceSituationMap() {
   const svgRef = useRef(null);
@@ -40,6 +42,15 @@ export default function RaceSituationMap() {
 
   // Toggle for axis chrome (gridlines + crosshair + loading arrows).
   const [showAxes, setShowAxes] = useState(true);
+
+  // Reset the trajectory when the session changes. Declared before the effect
+  // that advances the display: effects run in declaration order, so on mount
+  // (the tab opened mid-race) the reset comes first and the first advance
+  // keeps its trail (minor backlog P13)
+  const sessionKey = useF1Store((s) => s.sessionData?.session_info?.year + '-' + s.sessionData?.session_info?.round);
+  useEffect(() => {
+    displayRef.current = null;
+  }, [sessionKey]);
 
   // Trigger computation on mount + lap changes
   useEffect(() => {
@@ -100,7 +111,7 @@ export default function RaceSituationMap() {
         .attr('markerWidth', 5).attr('markerHeight', 5)
         .attr('orient', 'auto-start-reverse')
         .append('path').attr('d', 'M 0 2 L 8 5 L 0 8 Z')
-        .attr('fill', 'rgba(100,200,255,0.55)');
+        .attr('fill', TEXT_COLORS.muted);
 
       g = svg.append('g')
         .attr('class', 'situation-main')
@@ -152,12 +163,12 @@ export default function RaceSituationMap() {
       gridLayer.append('g').attr('class', 'x-grid')
         .attr('transform', `translate(0,${innerH})`)
         .call(d3.axisBottom(x).ticks(5).tickSize(-innerH).tickFormat(''))
-        .call((el) => el.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
+        .call((el) => el.selectAll('.tick line').attr('stroke', GRID_COLORS.grid))
         .call((el) => el.select('.domain').remove());
 
       gridLayer.append('g').attr('class', 'y-grid')
         .call(d3.axisLeft(y).ticks(5).tickSize(-innerW).tickFormat(''))
-        .call((el) => el.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
+        .call((el) => el.selectAll('.tick line').attr('stroke', GRID_COLORS.grid))
         .call((el) => el.select('.domain').remove());
     }
 
@@ -168,11 +179,11 @@ export default function RaceSituationMap() {
     const ox = x(mean.x), oy = y(mean.y);
     if (showAxes && ox > 0 && ox < innerW && oy > 0 && oy < innerH) {
       crosshairLayer.append('line').attr('x1', ox).attr('y1', 0).attr('x2', ox).attr('y2', innerH)
-        .attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-dasharray', '3,5');
+        .attr('stroke', GRID_COLORS.axis).attr('stroke-dasharray', '3,5');
       crosshairLayer.append('line').attr('x1', 0).attr('y1', oy).attr('x2', innerW).attr('y2', oy)
-        .attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-dasharray', '3,5');
+        .attr('stroke', GRID_COLORS.axis).attr('stroke-dasharray', '3,5');
       crosshairLayer.append('text').attr('x', ox + 4).attr('y', oy - 6)
-        .attr('fill', 'rgba(255,255,255,0.2)').attr('font-size', '8px')
+        .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
         .attr('font-style', 'italic').text('field avg');
     }
 
@@ -197,7 +208,7 @@ export default function RaceSituationMap() {
 
       arrowsLayer.append('line')
         .attr('x1', ox).attr('y1', oy).attr('x2', endX).attr('y2', endY)
-        .attr('stroke', 'rgba(100,200,255,0.35)').attr('stroke-width', 1.2)
+        .attr('stroke', TEXT_COLORS.muted).attr('stroke-width', 1.2)
         .attr('marker-end', 'url(#sit-arrow)');
 
       const labelX = endX + (dx > 0 ? 5 : -5);
@@ -208,8 +219,8 @@ export default function RaceSituationMap() {
       arrowsLayer.append('text')
         .attr('x', labelX).attr('y', labelY)
         .attr('text-anchor', labelAnchor)
-        .attr('fill', 'rgba(100,200,255,0.7)')
-        .attr('font-size', '8.5px').attr('font-weight', 600)
+        .attr('fill', TEXT_COLORS.secondary)
+        .style('font-size', CHART_FONT.data).attr('font-weight', 600)
         .attr('paint-order', 'stroke')
         .attr('stroke', 'rgba(0,0,0,0.6)').attr('stroke-width', 3)
         .attr('stroke-linejoin', 'round')
@@ -243,7 +254,7 @@ export default function RaceSituationMap() {
       const selected = isSelected(d);
       const dimmed = isDimmed(d);
       const highlighted = d.abbr === highlightedDriver || d.abbr === focusDriver;
-      const driverColor = getDriverColor(d.abbr);
+      const driverColor = driverMark(d.abbr);
       const showFull = selected || highlighted;
       const showMinimal = dimmed;
 
@@ -295,9 +306,8 @@ export default function RaceSituationMap() {
             trailsLayer.append('text')
               .attr('x', x(pt.x)).attr('y', y(pt.y) - dotR - 3)
               .attr('text-anchor', 'middle')
-              .attr('font-size', '6px').attr('font-weight', 600)
-              .attr('fill', driverColor)
-              .attr('opacity', 0.3 + progress * 0.5)
+              .style('font-size', CHART_FONT.label).attr('font-weight', 600)
+              .attr('fill', textColor(driverColor, SURFACES.panel))
               .attr('pointer-events', 'none')
               .attr('paint-order', 'stroke')
               .attr('stroke', 'rgba(0,0,0,0.6)').attr('stroke-width', 2)
@@ -334,20 +344,31 @@ export default function RaceSituationMap() {
       .join(
         (enter) => enter.append('circle')
           .attr('class', 'tyre-dot')
-          .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y) + 14)
+          .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y) + POINT_R + tyreBadgeR())
           .attr('r', 0)
-          .attr('fill', (d) => COMPOUND_COLORS[d.compoundName] || '#888')
-          .attr('stroke', 'rgba(0,0,0,0.4)').attr('stroke-width', 0.5)
+          .attr('fill', (d) => tyreColor(d.compoundName))
+          .attr('stroke', SURFACES.page).attr('stroke-width', 1)
           .attr('opacity', (d) => isDimmed(d) ? 0.25 : 1)
           .attr('pointer-events', 'none')
-          .call((e) => e.transition(t).attr('r', 3.5)),
+          .call((e) => e.transition(t).attr('r', tyreBadgeR())),
         (update) => update
           .call((u) => u.transition(t)
-            .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y) + 14)
-            .attr('fill', (d) => COMPOUND_COLORS[d.compoundName] || '#888')
+            .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y) + POINT_R + tyreBadgeR())
+            .attr('fill', (d) => tyreColor(d.compoundName))
             .attr('opacity', (d) => isDimmed(d) ? 0.25 : 1)),
         (exit) => exit.transition(t).attr('r', 0).remove()
       );
+    // the compound letter on its badge (the FIA colour is never alone)
+    tyreLayer.selectAll('.tyre-letter').data(pointData, (d) => d.abbr)
+      .join('text')
+      .attr('class', 'tyre-letter')
+      .attr('x', (d) => x(d.x)).attr('y', (d) => y(d.y) + POINT_R + tyreBadgeR())
+      .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+      .attr('fill', (d) => contrastText(tyreColor(d.compoundName)))
+      .style('font-size', CHART_FONT.label).attr('font-weight', 800)
+      .attr('opacity', (d) => isDimmed(d) ? 0.25 : 1)
+      .attr('pointer-events', 'none')
+      .text((d) => tyreLetter(d.compoundName));
 
     // ── Main driver circles — animated with D3 join ──
     const pointsLayer = g.select('.points-layer');
@@ -357,23 +378,24 @@ export default function RaceSituationMap() {
           .attr('class', 'driver-point')
           .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y))
           .attr('r', 0)
-          .attr('fill', (d) => getDriverColor(d.abbr))
-          .attr('stroke', (d) => isSelected(d) ? '#fff' : 'rgba(0,0,0,0.3)')
+          .attr('fill', (d) => driverMark(d.abbr))
+          .attr('stroke', (d) => isSelected(d) ? TEXT_COLORS.primary : 'rgba(0,0,0,0.3)')
           .attr('stroke-width', (d) => isSelected(d) ? 2 : 1)
           .attr('opacity', (d) => isDimmed(d) ? 0.3 : 1)
           .attr('cursor', 'pointer')
-          .call((e) => e.transition(t).attr('r', 10)),
+          .call((e) => e.transition(t).attr('r', POINT_R)),
         (update) => update
           .call((u) => u.transition(t)
             .attr('cx', (d) => x(d.x)).attr('cy', (d) => y(d.y))
-            .attr('stroke', (d) => isSelected(d) ? '#fff' : 'rgba(0,0,0,0.3)')
+            .attr('fill', (d) => driverMark(d.abbr))
+            .attr('stroke', (d) => isSelected(d) ? TEXT_COLORS.primary : 'rgba(0,0,0,0.3)')
             .attr('stroke-width', (d) => isSelected(d) ? 2 : 1)
             .attr('opacity', (d) => isDimmed(d) ? 0.3 : 1)),
         (exit) => exit.transition(t).attr('r', 0).remove()
       )
       .on('mouseenter', function (event, d) {
         setHighlightedDriver(d.abbr);
-        d3.select(this).transition().duration(150).attr('r', 13);
+        d3.select(this).transition().duration(150).attr('r', POINT_R_HOVER);
 
         const tooltip = d3.select('body').selectAll('.situation-tooltip').data([0]).join('div')
           .attr('class', 'tooltip situation-tooltip');
@@ -384,7 +406,7 @@ export default function RaceSituationMap() {
         const trailLen = history[d.abbr]?.length || 0;
 
         tooltip.html(
-          `<div class="tooltip-title" style="color:${getDriverColor(d.abbr)}">` +
+          `<div class="tooltip-title" style="color:${textColor(getDriverColor(d.abbr), SURFACES.elevated)}">` +
           `${d.abbr} — P${d.position}</div>` +
           `<div class="tooltip-row"><span class="tooltip-label">Team</span><span class="tooltip-value">${d.teamName}</span></div>` +
           `<div class="tooltip-row"><span class="tooltip-label">Pace</span><span class="tooltip-value">${d.recentPace?.toFixed(1)}s</span></div>` +
@@ -400,7 +422,7 @@ export default function RaceSituationMap() {
       })
       .on('mouseleave', function () {
         setHighlightedDriver(null);
-        d3.select(this).transition().duration(150).attr('r', 10);
+        d3.select(this).transition().duration(150).attr('r', POINT_R);
         d3.select('.situation-tooltip').classed('visible', false).style('opacity', 0);
       })
       .on('click', (event, d) => {
@@ -448,12 +470,13 @@ export default function RaceSituationMap() {
           .attr('class', 'situation-label')
           .attr('x', (d) => d.lx).attr('y', (d) => d.ly)
           .text((d) => d.abbr)
-          .attr('font-size', '7.5px').attr('font-weight', 700)
-          .attr('fill', '#fff').attr('text-anchor', (d) => d.anchor)
+          // white with a dark halo: readable on any team colour and the panel
+          .style('font-size', CHART_FONT.data).attr('font-weight', 700)
+          .attr('fill', TEXT_COLORS.primary).attr('text-anchor', (d) => d.anchor)
           .attr('dominant-baseline', 'central')
           .attr('pointer-events', 'none')
           .attr('paint-order', 'stroke')
-          .attr('stroke', 'rgba(0,0,0,0.7)').attr('stroke-width', 2.5)
+          .attr('stroke', 'rgba(0,0,0,0.85)').attr('stroke-width', 3)
           .attr('stroke-linejoin', 'round')
           .attr('opacity', 0)
           .call((e) => e.transition(t).attr('opacity', (d) => {
@@ -489,8 +512,8 @@ export default function RaceSituationMap() {
         ringsLayer.append('circle').attr('class', 'situation-highlight-ring')
           .attr('cx', x(hd.x)).attr('cy', y(hd.y))
           .attr('r', 14).attr('fill', 'none')
-          .attr('stroke', '#fff').attr('stroke-width', 1.5)
-          .attr('stroke-dasharray', '3,2').attr('opacity', 0.7)
+          .attr('stroke', TEXT_COLORS.primary).attr('stroke-width', 1.5)
+          .attr('stroke-dasharray', '3,2')
           .attr('pointer-events', 'none');
       }
     }
@@ -506,47 +529,49 @@ export default function RaceSituationMap() {
     infoLayer.append('text').attr('class', 'axis-label-x')
       .attr('x', innerW / 2).attr('y', innerH + 34)
       .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.5)')
-      .attr('font-size', '10px').attr('font-weight', 600)
+      .attr('fill', TEXT_COLORS.muted)
+      .style('font-size', CHART_FONT.label).attr('font-weight', 600)
       .text(titles.x);
 
     infoLayer.append('text').attr('class', 'axis-label-y')
       .attr('transform', `translate(-38, ${innerH / 2}) rotate(-90)`)
       .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.5)')
-      .attr('font-size', '10px').attr('font-weight', 600)
+      .attr('fill', TEXT_COLORS.muted)
+      .style('font-size', CHART_FONT.label).attr('font-weight', 600)
       .text(titles.y);
 
     infoLayer.append('text')
       .attr('x', innerW / 2).attr('y', innerH + 20)
       .attr('text-anchor', 'middle')
-      .attr('fill', 'var(--color-text-muted)').attr('font-size', 8)
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
       .text('Click driver to select | Shift+drag to lasso | Dbl-click to focus');
 
+    // info lines on the right, one data-font line apart
+    const lineH = Math.ceil(chartFontPx('data') * 1.25);
     if (data.paceInPca === false) {
       infoLayer.append('text').attr('class', 'pace-note')
         .attr('x', 4).attr('y', 12)
-        .attr('fill', 'var(--color-text-muted)').attr('font-size', '9px')
+        .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
         .text('Pace left out until every driver has 2 green laps');
     }
 
     infoLayer.append('text').attr('class', 'lap-indicator')
       .attr('x', innerW - 4).attr('y', 12)
       .attr('text-anchor', 'end')
-      .attr('fill', '#00e676').attr('font-size', '10px').attr('font-weight', 700)
+      .attr('fill', TEXT_COLORS.primary).style('font-size', CHART_FONT.data).attr('font-weight', 700)
       .text(`Lap ${computedAtLap}`);
 
     infoLayer.append('text').attr('class', 'plane-label')
-      .attr('x', innerW - 4).attr('y', 25)
+      .attr('x', innerW - 4).attr('y', 12 + lineH)
       .attr('text-anchor', 'end')
-      .attr('fill', 'var(--color-text-secondary)').attr('font-size', '9px')
+      .attr('fill', TEXT_COLORS.secondary).style('font-size', CHART_FONT.label)
       .text(titles.plane);
 
     if (selectedDrivers.length > 0) {
       infoLayer.append('text').attr('class', 'sel-count')
-        .attr('x', innerW - 4).attr('y', 38)
+        .attr('x', innerW - 4).attr('y', 12 + 2 * lineH)
         .attr('text-anchor', 'end')
-        .attr('fill', 'var(--color-f1-red)').attr('font-size', '9px').attr('font-weight', 700)
+        .attr('fill', TEXT_COLORS.primary).style('font-size', CHART_FONT.label).attr('font-weight', 700)
         .text(`${selectedDrivers.length} selected`);
     }
 
@@ -565,32 +590,22 @@ export default function RaceSituationMap() {
   // Cleanup on unmount
   useEffect(() => () => { if (cleanupRef.current) cleanupRef.current(); }, []);
 
-  // Reset trajectory when session changes
-  const sessionKey = useF1Store((s) => s.sessionData?.session_info?.year + '-' + s.sessionData?.session_info?.round);
-  useEffect(() => {
-    displayRef.current = null;
-  }, [sessionKey]);
 
-  // Build team legend from current drivers (matches primary dot encoding)
-  const teamLegend = useMemo(() => {
-    if (!driversInfo || driversInfo.length === 0) return [];
-    const seen = new Set();
-    const items = [];
-    for (const d of driversInfo) {
-      const team = d.TeamName;
-      if (!team || seen.has(team)) continue;
-      seen.add(team);
-      items.push({ label: team, color: getTeamColor(team) });
-    }
-    return items;
-  }, [driversInfo]);
+  // Legend (V3 / V4): one row per team with its two driver colours (team
+  // colour, teammate tint: the dots' encoding), then the compound badges
+  const teamLegend = useMemo(() => [
+    ...teamPairLegend(driversInfo, SURFACES.panel),
+    ...['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'].map((c) => ({
+      label: '', title: `${c} tyre (badge under the dot)`, color: TYRE_COLORS[c], glyph: TYRE_LABELS[c], shape: 'badge',
+    })),
+  ], [driversInfo]);
 
   const axesToggleStyle = {
-    padding: '2px 8px', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+    padding: '2px 8px', fontSize: CHART_FONT.label, fontWeight: 700, letterSpacing: '0.05em',
     border: '1px solid', borderRadius: 4, cursor: 'pointer',
-    background: showAxes ? 'rgba(138,180,248,0.14)' : 'transparent',
-    borderColor: showAxes ? 'rgba(138,180,248,0.40)' : 'rgba(255,255,255,0.14)',
-    color: showAxes ? '#8ab4f8' : 'rgba(255,255,255,0.55)',
+    background: showAxes ? withAlpha(UI_COLORS.brush, 0.14) : 'transparent',
+    borderColor: showAxes ? UI_COLORS.brush : 'rgba(255,255,255,0.30)',
+    color: showAxes ? UI_COLORS.brush : TEXT_COLORS.secondary,
     transition: 'all 0.12s',
   };
 
@@ -607,7 +622,7 @@ export default function RaceSituationMap() {
           >
             {showAxes ? 'AXES ON' : 'AXES OFF'}
           </button>
-          <Legend items={teamLegend} shape="circle" />
+          <Legend items={teamLegend} />
         </span>
       )}
     >
@@ -620,9 +635,9 @@ export default function RaceSituationMap() {
                 onClick={() => setSelectedDrivers([])}
                 style={{
                   position: 'absolute', top: 6, left: 6,
-                  background: 'rgba(225, 6, 0, 0.15)', border: '1px solid rgba(225, 6, 0, 0.4)',
-                  borderRadius: 4, padding: '2px 8px', fontSize: '9px', fontWeight: 600,
-                  color: 'rgba(255,255,255,0.8)', cursor: 'pointer', zIndex: 2,
+                  background: withAlpha(UI_COLORS.brush, 0.15), border: `1px solid ${UI_COLORS.brush}`,
+                  borderRadius: 4, padding: '2px 8px', fontSize: CHART_FONT.label, fontWeight: 600,
+                  color: TEXT_COLORS.primary, cursor: 'pointer', zIndex: 2,
                   backdropFilter: 'blur(8px)',
                 }}
               >
@@ -632,7 +647,7 @@ export default function RaceSituationMap() {
           </>
         ) : currentLap < 3 ? (
           <div className="loading-placeholder">
-            <span style={{ color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
+            <span style={{ color: TEXT_COLORS.muted, textAlign: 'center', lineHeight: 1.6 }}>
               Waiting for lap 3 to build race situation map...
             </span>
           </div>

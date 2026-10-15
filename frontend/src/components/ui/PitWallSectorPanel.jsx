@@ -1,8 +1,13 @@
 import React, { useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  getDriverColor, markColor, tyreColor, contrastText, signedDelta, STATUS_COLORS,
+} from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { pitWallSectorData } from '../../utils/views/pitWallSectorPanel';
+import {
+  pitWallSectorData, pitWallTimingCue, pitWallDeltaColor, pitWallLegend,
+} from '../../utils/views/pitWallSectorPanel';
+import Legend from './Legend';
 
 function fmtLap(s) {
   if (!s || s <= 0 || !isFinite(s)) return '\u2014';
@@ -16,29 +21,14 @@ function fmtSector(s) {
   return s.toFixed(3);
 }
 
+// Delta to the personal best, the sign always shown (true minus sign)
 function fmtDelta(delta) {
   if (delta == null || !isFinite(delta)) return '';
-  const sign = delta >= 0 ? '+' : '';
-  return `${sign}${delta.toFixed(3)}`;
+  return signedDelta(delta);
 }
 
-function getSectorColor(time, personalBest, sessionBest) {
-  if (!time || time <= 0 || !isFinite(time)) return 'rgba(255,255,255,0.85)';
-  if (sessionBest && Math.abs(time - sessionBest) <= 0.010) return '#b146f5';
-  if (personalBest && Math.abs(time - personalBest) <= 0.010) return '#22c55e';
-  if (personalBest && time - personalBest <= 0.3) return '#facc15';
-  if (personalBest && time - personalBest > 1.0) return '#ef4444';
-  return 'rgba(255,255,255,0.85)';
-}
-
-function getLapColor(time, personalBest, sessionBest) {
-  if (!time || time <= 0 || !isFinite(time)) return 'rgba(255,255,255,0.92)';
-  if (sessionBest && Math.abs(time - sessionBest) <= 0.010) return '#b146f5';
-  if (personalBest && Math.abs(time - personalBest) <= 0.010) return '#22c55e';
-  if (personalBest && time - personalBest <= 0.5) return '#facc15';
-  if (personalBest && time - personalBest > 2.0) return '#ef4444';
-  return 'rgba(255,255,255,0.92)';
-}
+// The running chrono: neutral and italic (not a timing colour)
+const RUNNING = { color: STATUS_COLORS.running, fontStyle: 'italic' };
 
 const COMPOUND_NAMES = { 0: 'UNKNOWN', 1: 'SOFT', 2: 'MEDIUM', 3: 'HARD', 4: 'INTER', 5: 'WET' };
 
@@ -90,13 +80,15 @@ export default function PitWallSectorPanel() {
     { label: 'S3', time: s3, best: data.bestS3, sessBest: data.sessBestS3, sectorNum: 3 },
   ];
 
-  const compoundColor = compound ? (TYRE_COLORS[compound] || '#888') : '#888';
-  const compoundTextColor = (compound === 'MEDIUM' || compound === 'HARD') ? '#000' : '#fff';
+  // FIA compound badge (its name is the text): black or white by contrast
+  const compoundColor = tyreColor(compound);
+  const compoundTextColor = contrastText(compoundColor);
+  const lapCue = pitWallTimingCue(lapTime, data.bestLap, data.sessBestLap, 'lap');
 
   return (
     <div className="pitwall-sector-panel">
       <div className="pitwall-sector-panel__header">
-        <div className="pitwall-sector-panel__team-bar" style={{ background: color }} />
+        <div className="pitwall-sector-panel__team-bar" style={{ background: markColor(color) }} />
         <span className="pitwall-sector-panel__abbr">{focusDriver}</span>
         <span className="pitwall-sector-panel__lap-badge">LAP {data.lapNumber}</span>
         {compound && compound !== 'UNKNOWN' && (
@@ -114,12 +106,11 @@ export default function PitWallSectorPanel() {
         <span
           className="pitwall-sector-panel__total-value"
           style={{
-            color: inProg
-              ? '#fbbf24'
-              : getLapColor(lapTime, data.bestLap, data.sessBestLap),
+            ...(inProg ? RUNNING : { color: lapCue.color }),
             fontVariantNumeric: 'tabular-nums',
           }}
         >
+          {!inProg && lapCue.glyph && <span className="timing-glyph">{lapCue.glyph} </span>}
           {inProg && data.liveLapChrono != null
             ? fmtLap(data.liveLapChrono)
             : fmtLap(lapTime)}
@@ -129,13 +120,9 @@ export default function PitWallSectorPanel() {
       <div className="pitwall-sector-panel__sectors">
         {sectors.map((sec) => {
           const isActive = inProg && data.activeSector === sec.sectorNum;
-          const sColor = isActive
-            ? '#fbbf24'
-            : getSectorColor(sec.time, sec.best, sec.sessBest);
+          const cue = pitWallTimingCue(sec.time, sec.best, sec.sessBest, 'sector');
           const delta = (sec.time && sec.time > 0 && sec.best) ? sec.time - sec.best : null;
-          const deltaColor = delta != null
-            ? (delta <= 0 ? '#22c55e' : delta > 0.3 ? '#ef4444' : 'rgba(255,255,255,0.4)')
-            : 'rgba(255,255,255,0.3)';
+          const deltaColor = pitWallDeltaColor(delta);
           // For the active (in-progress) sector, show a running counter
           const displayVal = isActive && data.liveLapChrono != null
             ? (() => {
@@ -153,8 +140,9 @@ export default function PitWallSectorPanel() {
               <span className="pitwall-sector-panel__sector-label">{sec.label}</span>
               <span
                 className="pitwall-sector-panel__sector-value"
-                style={{ color: sColor, fontVariantNumeric: 'tabular-nums' }}
+                style={{ ...(isActive ? RUNNING : { color: cue.color }), fontVariantNumeric: 'tabular-nums' }}
               >
+                {!isActive && cue.glyph && <span className="timing-glyph">{cue.glyph} </span>}
                 {displayVal}
               </span>
               <span className="pitwall-sector-panel__sector-delta" style={{ color: deltaColor }}>
@@ -164,6 +152,9 @@ export default function PitWallSectorPanel() {
           );
         })}
       </div>
+
+      {/* Timing colours with their glyph / sign (V4) */}
+      <Legend items={pitWallLegend()} shape="glyph" />
 
       {data.prevLaps.length > 0 && (
         <div className="pitwall-sector-panel__prev">

@@ -1,7 +1,11 @@
-import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  getDriverColor, TYRE_COLORS, TYRE_LABELS, tyreColor, tyreLetter, contrastText, markColor, textColor,
+  withAlpha, TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT, chartFontPx, UI_COLORS,
+} from '../../utils/colors';
+import Legend from '../ui/Legend';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { completedLaps, isLapCompleted } from '../../utils/raceTime';
 import { causalKey } from '../../utils/strategyViews';
@@ -9,6 +13,8 @@ import { positionPitMarkers } from '../../utils/views/positionByLap';
 import Panel from '../ui/Panel';
 
 const MARGIN = { top: 28, right: 90, bottom: 32, left: 36 };
+// Dash of the position-trend projection (legend and line)
+const PROJECTION_DASH = '6 4';
 
 /* ── Stint builder ─────────────────────────────────────────────── */
 function buildStints(driverLaps) {
@@ -181,7 +187,7 @@ export default function PositionByLap() {
       .join('line')
       .attr('x1', MARGIN.left).attr('x2', width - MARGIN.right)
       .attr('y1', d => yScale(d)).attr('y2', d => yScale(d))
-      .attr('stroke', d => d === 1 ? 'rgba(255,215,0,0.12)' : 'rgba(255,255,255,0.04)')
+      .attr('stroke', d => d === 1 ? GRID_COLORS.axis : GRID_COLORS.grid)
       .attr('stroke-dasharray', '2 4');
 
     /* ── Layer 2: Compound-colored lines ───────────────────────── */
@@ -196,15 +202,17 @@ export default function PositionByLap() {
       const isSelected = selectedDrivers.includes(driver);
       const isDimmed = focusDriver && !isFocus && !isSelected;
 
+      // No focus: every line at 0.8 (marks >= 3:1 on the panel); with a focus
+      // the others are context, faded on purpose (focus + context)
       let sw, op;
       if (isFocus) { sw = 3; op = 1; }
-      else if (isSelected) { sw = 2; op = 0.75; }
+      else if (isSelected) { sw = 2; op = 0.85; }
       else if (isDimmed) { sw = 1.5; op = 0.12; }
-      else { sw = 1.5; op = 0.25; }
+      else { sw = 1.5; op = 0.8; }
 
       stints.forEach(stint => {
         if (stint.laps.length < 2) return;
-        const color = TYRE_COLORS[stint.compound] || TYRE_COLORS.UNKNOWN;
+        const color = tyreColor(stint.compound);
         linesG.append('path')
           .datum(stint.laps)
           .attr('d', lineGen)
@@ -239,7 +247,7 @@ export default function PositionByLap() {
         const color = getDriverColor(d.driver);
         tip.style.display = 'block';
         tip.innerHTML = `
-          <div class="pos-chart-tooltip__driver" style="color:${color}">${d.driver}</div>
+          <div class="pos-chart-tooltip__driver" style="color:${textColor(color, SURFACES.elevated)}">${d.driver}</div>
           <div class="pos-chart-tooltip__row"><span>Position</span><span>P${lastLap.Position}</span></div>
           <div class="pos-chart-tooltip__row"><span>Lap</span><span>${lastLap.LapNumber}</span></div>
           <div class="pos-chart-tooltip__row"><span>Tyre</span><span>${lastLap.Compound || '—'}</span></div>
@@ -258,26 +266,41 @@ export default function PositionByLap() {
       });
 
     /* ── Layer 3: Pit stop markers ─────────────────────────────── */
-    // One per tyre change visible at sessionNow (positionPitMarkers, utils/views)
+    // One per tyre change visible at sessionNow (positionPitMarkers, utils/views):
+    // a tick in the driver's colour and a badge of the NEW compound with its
+    // letter (FIA colour never alone: S M H I W in contrastText)
+    const badgeR = Math.ceil(chartFontPx('label') * 0.65);
+    const compoundBadge = (parent, cx, cy, compound) => {
+      parent.append('circle')
+        .attr('class', 'pos-compound-badge')
+        .attr('cx', cx).attr('cy', cy).attr('r', badgeR)
+        .attr('fill', tyreColor(compound)).attr('stroke', SURFACES.page).attr('stroke-width', 1);
+      parent.append('text')
+        .attr('class', 'pos-compound-letter')
+        .attr('x', cx).attr('y', cy).attr('dy', '0.35em')
+        .attr('text-anchor', 'middle')
+        .attr('fill', contrastText(tyreColor(compound)))
+        .style('font-size', CHART_FONT.label).attr('font-weight', 800)
+        .style('pointer-events', 'none')
+        .text(tyreLetter(compound));
+    };
     pitMarkers.forEach(({ driver, lap, position, fromCompound, toCompound, tyreAge }) => {
       const color = getDriverColor(driver);
       const isDimmed = focusDriver && driver !== focusDriver && !selectedDrivers.includes(driver);
       const cx = xScale(lap);
       const cy = yScale(position);
 
-      const g = pitG.append('g').attr('opacity', isDimmed ? 0.12 : 0.9);
+      const g = pitG.append('g').attr('opacity', isDimmed ? 0.12 : 1);
 
       // Vertical tick
       g.append('line')
         .attr('x1', cx).attr('x2', cx)
         .attr('y1', cy - yScale(0.7) + yScale(1))
         .attr('y2', cy + yScale(0.7) - yScale(1))
-        .attr('stroke', color).attr('stroke-width', 2);
+        .attr('stroke', markColor(color)).attr('stroke-width', 2);
 
-      // Circle
-      g.append('circle')
-        .attr('cx', cx).attr('cy', cy).attr('r', 4)
-        .attr('fill', color).attr('stroke', 'rgba(0,0,0,0.5)').attr('stroke-width', 1);
+      // Badge of the compound fitted at this stop
+      compoundBadge(g, cx, cy, toCompound);
 
       // Pit tooltip on hover
       g.style('cursor', 'default')
@@ -286,7 +309,7 @@ export default function PositionByLap() {
           if (!tip) return;
           tip.style.display = 'block';
           tip.innerHTML = `
-            <div class="pos-chart-tooltip__driver" style="color:${color}">${driver} — LAP ${lap}</div>
+            <div class="pos-chart-tooltip__driver" style="color:${textColor(color, SURFACES.elevated)}">${driver} — LAP ${lap}</div>
             <div class="pos-chart-tooltip__row"><span>Strategy</span><span>${fromCompound || '?'} → ${toCompound || '?'}</span></div>
             <div class="pos-chart-tooltip__row"><span>Tyre age</span><span>${tyreAge ?? '?'} laps</span></div>
           `;
@@ -297,6 +320,15 @@ export default function PositionByLap() {
           const tip = tooltipRef.current;
           if (tip) tip.style.display = 'none';
         });
+    });
+
+    // Starting compound of every driver: the same badge on his first lap
+    allDrivers.forEach(driver => {
+      const first = driverLapMap[driver]?.[0];
+      if (!first?.Compound) return;
+      const isDimmed = focusDriver && driver !== focusDriver && !selectedDrivers.includes(driver);
+      const g = pitG.append('g').attr('class', 'pos-start-compound').attr('opacity', isDimmed ? 0.12 : 1);
+      compoundBadge(g, xScale(first.LapNumber), yScale(first.Position), first.Compound);
     });
 
     /* ── Layer 4: Undercut band ────────────────────────────────── */
@@ -315,14 +347,16 @@ export default function PositionByLap() {
           .attr('class', 'pos-undercut-band')
           .attr('x', x0).attr('y', y0)
           .attr('width', x1 - x0).attr('height', y1 - y0)
-          .attr('fill', 'rgba(34,197,94,0.08)')
-          .attr('stroke', 'rgba(34,197,94,0.3)')
+          // the pit window colour of every view (UI_COLORS.pitWindow), with its label
+          .attr('fill', withAlpha(UI_COLORS.pitWindow, 0.12))
+          .attr('stroke', UI_COLORS.pitWindow)
           .attr('stroke-width', 1)
           .attr('stroke-dasharray', '4 3');
 
         undercutG.append('text')
           .attr('class', 'pos-undercut-label')
-          .attr('x', x0 + 4).attr('y', y0 + 10)
+          .attr('fill', UI_COLORS.pitWindowText)
+          .attr('x', x0 + 4).attr('y', y0 + chartFontPx('data'))
           .text(`⬇ PIT WINDOW (vs ${uc.targetDriver})`);
       }
     }
@@ -337,7 +371,7 @@ export default function PositionByLap() {
         const focusCurrent = focusLaps[focusLaps.length - 1];
         const anchorLap = focusCurrent.LapNumber;
         const focusCurrentPos = focusCurrent.Position;
-        const color = getDriverColor(focusDriver);
+        const color = markColor(getDriverColor(focusDriver));
 
         // Compute trend from the last 5 completed laps
         const last5 = focusLaps
@@ -365,21 +399,20 @@ export default function PositionByLap() {
             .attr('fill', 'none')
             .attr('stroke', color)
             .attr('stroke-width', 2)
-            .attr('stroke-dasharray', '6 4')
-            .attr('opacity', 0.65);
+            .attr('stroke-dasharray', PROJECTION_DASH);
 
           const lastPt = projectedPoints[projectedPoints.length - 1];
           projG.append('circle')
             .attr('cx', xScale(lastPt.LapNumber))
             .attr('cy', yScale(lastPt.Position))
             .attr('r', 3)
-            .attr('fill', color).attr('opacity', 0.7);
+            .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5);
 
           projG.append('text')
             .attr('class', 'pos-projection-label')
             .attr('x', xScale(lastPt.LapNumber) + 6)
             .attr('y', yScale(lastPt.Position) + 3)
-            .attr('fill', color).attr('opacity', 0.7)
+            .attr('fill', textColor(color))
             .text(`P${Math.round(lastPt.Position)}?`);
         }
       }
@@ -390,7 +423,7 @@ export default function PositionByLap() {
       curLapG.append('line')
         .attr('x1', xScale(currentLap)).attr('x2', xScale(currentLap))
         .attr('y1', MARGIN.top).attr('y2', height - MARGIN.bottom)
-        .attr('stroke', 'rgba(255,255,255,0.2)')
+        .attr('stroke', GRID_COLORS.rule)
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '2 3');
 
@@ -398,8 +431,8 @@ export default function PositionByLap() {
         .attr('x', xScale(currentLap))
         .attr('y', MARGIN.top - 6)
         .attr('text-anchor', 'middle')
-        .attr('fill', 'rgba(255,255,255,0.4)')
-        .attr('font-size', '8px')
+        .attr('fill', TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.label)
         .text(`LAP ${currentLap}`);
     }
 
@@ -419,9 +452,9 @@ export default function PositionByLap() {
         .attr('class', 'pos-driver-label')
         .attr('x', xScale(lap) + 6)
         .attr('y', yScale(pos) + 3)
-        .attr('fill', color)
+        .attr('fill', textColor(color))
         .attr('opacity', isDimmed ? 0.3 : 1)
-        .attr('font-size', isFocus ? '10px' : '9px')
+        .style('font-size', CHART_FONT.data)
         .attr('font-weight', isFocus ? 800 : 700)
         .style('filter', isFocus ? `drop-shadow(0 0 2px ${color})` : null)
         .text(driver);
@@ -438,8 +471,8 @@ export default function PositionByLap() {
         .tickSize(0))
       .call(g => g.select('.domain').remove())
       .call(g => g.selectAll('text')
-        .attr('fill', 'rgba(255,255,255,0.4)')
-        .attr('font-size', '9px'));
+        .attr('fill', TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.data));
 
     // X axis
     axesG.append('g')
@@ -450,8 +483,8 @@ export default function PositionByLap() {
         .tickSize(0))
       .call(g => g.select('.domain').remove())
       .call(g => g.selectAll('text')
-        .attr('fill', 'rgba(255,255,255,0.4)')
-        .attr('font-size', '9px'));
+        .attr('fill', TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.data));
 
     /* ── Layer 8: D3 Brush ─────────────────────────────────────── */
     const brush = d3.brushX()
@@ -482,13 +515,17 @@ export default function PositionByLap() {
       numDrivers, showProjection, showUndercut, replayActive, driverLapMap,
       allDrivers, brushLapRange, setBrushLapRange, setFocusDriver, pitMarkers]);
 
-  /* ── Legend items ─────────────────────────────────────────────── */
+  /* ── Legend items: every mark of the chart (V4) ────────────────── */
   const legendItems = useMemo(() => {
+    // line colour = compound (stint), the badge carries its letter at the
+    // start and at each stop; end label = driver (team colour, teammate tint)
     const items = compoundsUsed
       .filter(c => TYRE_COLORS[c])
-      .map(c => ({ type: 'dot', color: TYRE_COLORS[c], label: c }));
-    if (showProjection) items.push({ type: 'dash', color: getDriverColor(focusDriver) || '#888', label: 'POSITION TREND' });
-    if (showUndercut) items.push({ type: 'band', color: '#22c55e', label: 'PIT WINDOW' });
+      .map(c => ({ shape: 'badge', color: TYRE_COLORS[c], glyph: TYRE_LABELS[c] || tyreLetter(c), label: c }));
+    if (showProjection && focusDriver) {
+      items.push({ shape: 'line', dash: PROJECTION_DASH, color: markColor(getDriverColor(focusDriver)), label: 'POSITION TREND' });
+    }
+    if (showUndercut) items.push({ shape: 'band', color: UI_COLORS.pitWindow, label: 'PIT WINDOW' });
     return items;
   }, [compoundsUsed, showProjection, showUndercut, focusDriver]);
 
@@ -496,14 +533,7 @@ export default function PositionByLap() {
   const controls = (
     <>
       <div className="pos-chart-legend">
-        {legendItems.map((item, i) => (
-          <div key={i} className="pos-chart-legend__item">
-            {item.type === 'dot' && <span className="pos-chart-legend__dot" style={{ background: item.color }} />}
-            {item.type === 'dash' && <span className="pos-chart-legend__dash" style={{ borderColor: item.color }} />}
-            {item.type === 'band' && <span style={{ width: 14, height: 8, background: 'rgba(34,197,94,0.15)', border: `1px solid ${item.color}`, borderRadius: 2, flexShrink: 0 }} />}
-            {item.label}
-          </div>
-        ))}
+        <Legend items={legendItems} title="Stint compound" />
       </div>
       <button
         className={`pos-chart-toggle${showProjection ? ' pos-chart-toggle--active' : ''}`}

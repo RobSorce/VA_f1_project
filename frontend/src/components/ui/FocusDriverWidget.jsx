@@ -1,7 +1,10 @@
 import React, { useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { activeSegmentWindow } from '../../utils/raceTime';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  getDriverColor, tyreColor, tyreLetter, contrastText, markColor, textColor, withAlpha, DIVERGING, TEXT_COLORS,
+  UNKNOWN_TEAM_COLOR,
+} from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { focusDriverStatus, qualifyingPositionAt } from '../../utils/views/focusDriverWidget';
 import { focusForecast, forecastPoints, forecastPit, forecastMethodText } from '../../utils/forecast';
@@ -13,8 +16,13 @@ function fmtTime(s) {
   return min > 0 ? `${min}:${sec.padStart(6, '0')}` : sec;
 }
 
+// Gap trend: the arrow is the cue, the colour the diverging pair (V1: blue /
+// orange, never red / green): closing = worse, opening = better
 const TREND_ARROWS = { closing: '\u2191', opening: '\u2193', stable: '\u2194' };
-const TREND_COLORS = { closing: '#ef4444', opening: '#22c55e', stable: 'rgba(255,255,255,0.4)' };
+const TREND_COLORS = { closing: DIVERGING.worse, opening: DIVERGING.better, stable: TEXT_COLORS.muted };
+
+// FIA compound badge: colour + letter, text black or white by contrast
+const tyreBadge = (compound) => ({ backgroundColor: tyreColor(compound), color: contrastText(tyreColor(compound)) });
 
 export default function FocusDriverWidget() {
   const focusDriver = useF1Store((s) => s.focusDriver);
@@ -33,7 +41,7 @@ export default function FocusDriverWidget() {
     return drivers.find((d) => d.Abbreviation === focusDriver);
   }, [focusDriver, drivers]);
 
-  const color = focusDriver ? getDriverColor(focusDriver) : '#888';
+  const color = focusDriver ? getDriverColor(focusDriver) : UNKNOWN_TEAM_COLOR;
 
   const isQualifyingReplay = useF1Store((s) => s.isQualifyingReplay);
   // The active qualifying segment's laps only (its window's start)
@@ -90,19 +98,19 @@ export default function FocusDriverWidget() {
   const hasPredictions = pred != null;
 
   return (
-    <div className="focus-widget" style={{ borderColor: `${color}44` }}>
+    <div className="focus-widget" style={{ borderColor: withAlpha(color, 0.27) }}>
       {/* Driver identity */}
-      <div className="focus-widget__header" style={{ background: `linear-gradient(135deg, ${color}18, transparent)` }}>
-        <span className="focus-widget__team-bar" style={{ backgroundColor: color }} />
+      <div className="focus-widget__header" style={{ background: `linear-gradient(135deg, ${withAlpha(color, 0.09)}, transparent)` }}>
+        <span className="focus-widget__team-bar" style={{ backgroundColor: markColor(color) }} />
         <div className="focus-widget__identity">
-          <span className="focus-widget__abbr" style={{ color }}>{focusDriver}</span>
+          <span className="focus-widget__abbr" style={{ color: textColor(color) }}>{focusDriver}</span>
           <span className="focus-widget__team">{driverInfo?.TeamName || ''}</span>
         </div>
         <div className="focus-widget__status">
           {currentPos && <span className="focus-widget__pos">P{currentPos}</span>}
           {tyreInfo && (
-            <span className="focus-widget__tyre" style={{ backgroundColor: TYRE_COLORS[tyreInfo.compound] || '#888', color: tyreInfo.compound === 'HARD' || tyreInfo.compound === 'MEDIUM' ? '#000' : '#fff' }}>
-              {tyreInfo.compound[0]}{tyreInfo.age != null ? ` ${tyreInfo.age}` : ''}
+            <span className="focus-widget__tyre" style={tyreBadge(tyreInfo.compound)}>
+              {tyreLetter(tyreInfo.compound)}{tyreInfo.age != null ? ` ${tyreInfo.age}` : ''}
             </span>
           )}
         </div>
@@ -146,16 +154,17 @@ export default function FocusDriverWidget() {
               return (
                 <div key={r.driver} className="focus-widget__rival-row">
                   <span className="focus-widget__rival-pos">P{r.position}</span>
-                  <span className="focus-widget__rival-bar" style={{ backgroundColor: rColor }} />
+                  <span className="focus-widget__rival-bar" style={{ backgroundColor: markColor(rColor) }} />
                   <span className="focus-widget__rival-name">{r.driver}</span>
-                  <span className="focus-widget__rival-gap" style={{ color: r.gap != null && r.gap > 0 ? '#22c55e' : '#ef4444' }}>
+                  {/* + = the rival is behind (better for the focus driver): blue; − ahead: orange; the sign is shown */}
+                  <span className="focus-widget__rival-gap" style={{ color: r.gap == null ? TEXT_COLORS.muted : r.gap > 0 ? DIVERGING.better : DIVERGING.worse }}>
                     {r.gap != null ? `${r.gap > 0 ? '+' : ''}${r.gap.toFixed(1)}s` : '—'}
                   </span>
                   <span className="focus-widget__rival-trend" style={{ color: TREND_COLORS[r.gapTrend] }}>
                     {TREND_ARROWS[r.gapTrend]}
                   </span>
-                  <span className="focus-widget__rival-tyre" style={{ backgroundColor: TYRE_COLORS[r.compound] || '#888', color: r.compound === 'HARD' || r.compound === 'MEDIUM' ? '#000' : '#fff' }}>
-                    {r.compound[0]}
+                  <span className="focus-widget__rival-tyre" style={tyreBadge(r.compound)}>
+                    {tyreLetter(r.compound)}
                   </span>
                   <span className="focus-widget__rival-age">{r.tyreAge}L</span>
                 </div>

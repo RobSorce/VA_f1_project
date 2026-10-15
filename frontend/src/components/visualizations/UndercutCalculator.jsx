@@ -12,9 +12,12 @@
  * in the rival's past or the rival has changed tyres since (D4). This file
  * only draws it; no model value lives here.
  */
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  driverStyle, tyreColor, tyreLetter, textColor, CHART_FONT, chartFontPx, TEXT_COLORS, GRID_COLORS, STATUS_COLORS,
+  withAlpha,
+} from '../../utils/colors';
 import { extractRaceParams } from '../../utils/raceSimulation';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { FALLBACK_PIT_LOSS, estimatePitLoss } from '../../utils/pitLoss';
@@ -23,8 +26,16 @@ import { undercutSweep } from '../../utils/undercut';
 import {
   causalKey, completedStints, pitLossDisplay, viewSessionType, isRaceSession,
 } from '../../utils/strategyViews';
+import { drawUndercutSweep } from '../../utils/views/undercutSweepChart';
+import { useBoxSize } from '../../utils/views/chartBox';
+import { CHART_COLORS, gapColor, chipStyle as tintChip, MINUS } from '../../utils/views/strategyMarks';
 
-const MINUS = '−';
+// Text of the panel: the palette's neutrals (utils/colors.js), sizes at the
+// CSS font tokens (data >= 11 px, labels >= 10 px)
+const muted = { color: TEXT_COLORS.secondary };
+const label = { color: TEXT_COLORS.secondary, fontWeight: 700, fontSize: CHART_FONT.label };
+// Colour of the pit-loss value and of a model caveat (the predicted accent)
+const NOTE_COLOR = STATUS_COLORS.predicted;
 
 /** Signed seconds, '+1.24s' / '−2.71s'. */
 function fmt(s, digits = 2) {
@@ -164,65 +175,67 @@ export default function UndercutCalculator() {
 
   if (!isRace) {
     return (
-      <div style={{ padding: 20, color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
+      <div style={{ padding: 20, ...muted, fontSize: CHART_FONT.data }}>
         The undercut calculator applies to race sessions only (race or sprint).
       </div>
     );
   }
   if (!effectiveFocus || !rival) {
     return (
-      <div style={{ padding: 20, color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
+      <div style={{ padding: 20, ...muted, fontSize: CHART_FONT.data }}>
         Select a focus driver. Need at least two drivers with data.
       </div>
     );
   }
 
-  const focusColor = getDriverColor(effectiveFocus);
-  const rivalColor = getDriverColor(rival);
+  const focusStyle = driverStyle(effectiveFocus);
+  const rivalStyle = driverStyle(rival);
   const pitLossInfo = pitLossDisplay(pitLoss);
 
-  const chipStyle = (color) => ({
+  const chipStyle = (mark) => ({
     display: 'inline-flex', alignItems: 'center', gap: 4,
     padding: '2px 6px', borderRadius: 4,
-    background: 'rgba(255,255,255,0.06)',
-    border: `1px solid ${color}55`,
+    background: withAlpha(TEXT_COLORS.primary, 0.06),
+    border: `1px solid ${mark}`,
   });
-  // The set on the car now (driverStateAt, R6: the new set from the pit exit)
+  // The set on the car now (driverStateAt, R6: the new set from the pit exit):
+  // the compound letter (the colour is never the only cue), tyre age
   const tyreTag = (tyre) => (tyre?.current ? (
     <span
       title={`${tyre.current.compound}${tyre.current.tyreLife != null ? `, tyre age ${tyre.current.tyreLife}` : ''}`}
-      style={{ fontSize: 9, color: TYRE_COLORS[tyre.current.compound] || '#888', fontWeight: 700 }}
+      style={{ fontSize: CHART_FONT.data, color: textColor(tyreColor(tyre.current.compound)), fontWeight: 700 }}
     >
-      {tyre.current.compound[0]}·L{tyre.current.tyreLife ?? '?'}
+      {tyreLetter(tyre.current.compound)}·L{tyre.current.tyreLife ?? '?'}
     </span>
   ) : null);
 
   const header = (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-      <div style={chipStyle(focusColor)}>
-        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 9, fontWeight: 700 }}>FOCUS</span>
-        <span style={{ fontWeight: 800, color: focusColor, fontSize: 11 }}>{effectiveFocus}</span>
+      <div style={chipStyle(focusStyle.mark)}>
+        <span style={label}>FOCUS</span>
+        <span style={{ fontWeight: 800, color: focusStyle.text, fontSize: CHART_FONT.data }}>{effectiveFocus}</span>
         {tyreTag(analysis?.focusTyre)}
       </div>
-      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>vs</span>
-      <div style={chipStyle(rivalColor)}>
-        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 9, fontWeight: 700 }}>RIVAL</span>
+      <span style={{ ...muted, fontSize: CHART_FONT.label }}>vs</span>
+      <div style={chipStyle(rivalStyle.mark)}>
+        <span style={label}>RIVAL</span>
         <select
           value={rival}
           onChange={(e) => setComparisonDriver(e.target.value)}
+          aria-label="Rival driver"
           style={{
-            background: 'transparent',
-            color: rivalColor,
+            background: CHART_COLORS.surface,
+            color: rivalStyle.text,
             border: 'none',
             borderRadius: 3,
             fontWeight: 800,
-            fontSize: 11,
+            fontSize: CHART_FONT.data,
             padding: '0 2px',
             cursor: 'pointer',
           }}
         >
           {driverList.filter((d) => d !== effectiveFocus).map((d) => (
-            <option key={d} value={d} style={{ color: '#000' }}>{d}</option>
+            <option key={d} value={d} style={{ background: CHART_COLORS.surface, color: CHART_COLORS.text }}>{d}</option>
           ))}
         </select>
         {tyreTag(analysis?.rivalTyre)}
@@ -233,34 +246,35 @@ export default function UndercutCalculator() {
   // PIT LOSS cell: the race estimator's median, or the labelled fallback
   const pitLossCell = (
     <div style={{ minWidth: 0 }}>
-      <div style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700, whiteSpace: 'nowrap' }} title="Time lost entering and exiting the pits">PIT LOSS</div>
+      <div style={{ ...label, whiteSpace: 'nowrap' }} title="Time lost entering and exiting the pits">PIT LOSS</div>
       <div
         title={pitLossInfo.isFallback
           ? `No valid green-flag stop yet: ${FALLBACK_PIT_LOSS.median} s fallback (an assumption, not data)`
           : `Median of ${pitLossInfo.n} green-flag stops in this race: in-lap + out-lap - 2 x the driver's green-flag median lap`}
-        style={{ color: '#f5a623', fontWeight: 800, fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+        style={{ color: NOTE_COLOR, fontWeight: 800, fontSize: CHART_FONT.data, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
       >
         {pitLossInfo.value != null ? `${pitLossInfo.value.toFixed(1)}s` : '—'}
         {pitLossInfo.isFallback && (
-          <span style={{ marginLeft: 3, fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.55)' }}>fallback</span>
+          <span style={{ marginLeft: 3, fontSize: CHART_FONT.label, fontWeight: 700, ...muted }}>fallback</span>
         )}
       </div>
     </div>
   );
 
+  const kpiGrid = {
+    display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, padding: '4px 8px',
+    background: withAlpha(TEXT_COLORS.primary, 0.04), borderRadius: 4, marginBottom: 6,
+  };
+
   if (!analysis?.available) {
     const reason = analysis?.reason;
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, padding: '8px 10px', fontSize: 11 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, padding: '8px 10px', fontSize: CHART_FONT.data }}>
         {header}
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, padding: '6px 8px',
-          background: 'rgba(255,255,255,0.04)', borderRadius: 4, marginBottom: 8, fontSize: 9,
-        }}
-        >
+        <div style={kpiGrid}>
           {pitLossCell}
         </div>
-        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
+        <div style={{ ...muted, fontSize: CHART_FONT.data }}>
           {UNAVAILABLE[reason] || 'Not enough data to project yet.'}
         </div>
       </div>
@@ -274,8 +288,8 @@ export default function UndercutCalculator() {
   const horizonText = atFlag ? `the flag (end of L${best.horizonLap})` : `the end of L${best.horizonLap}`;
   const stopsText = (list) => list.map((x) => `L${x.lap} (${x.compound})`).join(', ');
   const lapsRemaining = Math.max(0, (totalRaceLaps || maxLap) - currentLap);
-  const maxAbsGap = Math.max(...rows.map((r) => Math.abs(r.gap)), 1);
   const ahead = best.gap > 0;
+  const verdictColor = gapColor(best.gap);
   const rivalStopText = rivalStop.inLap != null && rivalStop.inRace
     ? `L${rivalStop.inLap}`
     : 'no stop before the flag';
@@ -283,35 +297,40 @@ export default function UndercutCalculator() {
   const freshText = freshDeltaInfo
     ? `${perLap(freshDeltaInfo.value)} s (${freshDeltaInfo.source === 'race' ? `${freshDeltaInfo.n} stints of this race` : 'prior of the cached races'}${freshDeltaInfo.clamped ? ', measured slower: 0' : ''})`
     : perLap(analysis.freshDelta);
+  const quantilePct = Math.round((feasibility?.quantile ?? 0) * 100);
   // The rival's stop laps the select offers: its lap in progress to the flag
   const nr = state.cars.find((c) => c.driver === rival)?.lapsCompleted ?? currentLap;
   const raceLaps = totalRaceLaps || maxLap || 0;
   const stopChoices = [];
   for (let l = nr + 1; l < raceLaps; l++) stopChoices.push(l);
 
+  // The sweep's columns: x label ("NOW", "L23"), the lap with "+n" when the
+  // plan is charged extra stops, the gap and its tooltip
+  const sweepRows = rows.map((r) => ({
+    key: String(r.inLap),
+    label: r.k === 0 ? 'NOW' : `L${r.inLap}`,
+    lapText: `${r.k === 0 ? 'NOW' : `L${r.inLap}`}${r.extraStops?.length ? ` +${r.extraStops.length}` : ''}`,
+    gap: r.gap,
+    extra: r.extraStops?.length || 0,
+    title: `${effectiveFocus} in-lap L${r.inLap}${r.extraStops?.length ? ` plus an extra stop at ${stopsText(r.extraStops)} (a stint past its P${quantilePct} length)` : ''}, `
+      + `${rival} ${rivalStop.inRace ? `in-lap L${rivalStop.inLap}` : 'no stop'}: `
+      + `${effectiveFocus} ${r.gap > 0 ? 'ahead' : 'behind'} by ${Math.abs(r.gap).toFixed(2)} s at the end of L${r.horizonLap}`,
+  }));
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, padding: '8px 10px', fontSize: 11, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, padding: '8px 10px', fontSize: CHART_FONT.data, overflow: 'hidden' }}>
       {header}
 
       {/* Inputs summary — 4 KPI cells.
           minWidth:0 on cells lets overflowing text get truncated instead of
           forcing the grid wider than the panel. */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-        gap: 6,
-        padding: '6px 8px',
-        background: 'rgba(255,255,255,0.04)',
-        borderRadius: 4,
-        marginBottom: 8,
-        fontSize: 9,
-      }}>
+      <div style={kpiGrid}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title="Gap to the rival on the latest lap both have completed (+ = focus ahead)">GAP NOW</div>
+          <div style={{ ...label, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title="Gap to the rival on the latest lap both have completed (+ = focus ahead)">GAP NOW</div>
           <div
             title={currentGap == null ? 'no lap completed by both yet'
               : `${effectiveFocus} ${currentGap >= 0 ? 'ahead' : 'behind'} by ${Math.abs(currentGap).toFixed(2)} s`}
-            style={{ color: currentGap >= 0 ? '#22c55e' : '#ef4444', fontWeight: 800, fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+            style={{ color: gapColor(currentGap), fontWeight: 800, fontSize: CHART_FONT.data, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
           >
             {fmt(currentGap)}
           </div>
@@ -319,36 +338,35 @@ export default function UndercutCalculator() {
         {pitLossCell}
         <div style={{ minWidth: 0 }}>
           <div
-            style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+            style={{ ...label, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
             title="New-tyre gain: the focus driver's first flying lap on a new set (pitting now) against the same lap on the current set, from the lap model. + = the new set is faster; − = the model makes the new set slower (negative degradation fits so far)"
           >
             NEW-TYRE GAIN
           </div>
-          <div style={{ color: freshGain >= 0 ? '#22c55e' : '#ef4444', fontWeight: 800, fontSize: 11 }}>
+          <div style={{ color: gapColor(freshGain), fontWeight: 800, fontSize: CHART_FONT.data }}>
             {perLap(freshGain)}s
           </div>
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 700, whiteSpace: 'nowrap' }} title="Laps remaining in the race">LAPS LEFT</div>
-          <div style={{ color: '#fff', fontWeight: 800, fontSize: 11 }}>{lapsRemaining}</div>
+          <div style={{ ...label, whiteSpace: 'nowrap' }} title="Laps remaining in the race">LAPS LEFT</div>
+          <div style={{ color: CHART_COLORS.text, fontWeight: 800, fontSize: CHART_FONT.data }}>{lapsRemaining}</div>
         </div>
       </div>
 
-      {/* Verdict */}
+      {/* Verdict: the words, the check / cross and the sign carry it; the colour repeats it */}
       <div style={{
-        padding: '6px 10px',
-        background: ahead ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-        border: `1px solid ${ahead ? '#22c55e55' : '#ef444455'}`,
+        padding: '4px 10px',
+        ...tintChip(verdictColor, 0.1),
         borderRadius: 4,
-        marginBottom: 6,
-        fontSize: 10,
+        marginBottom: 4,
+        fontSize: CHART_FONT.data,
       }}>
-        <div style={{ color: ahead ? '#22c55e' : '#ef4444', fontWeight: 800, marginBottom: 2 }}>
+        <div style={{ fontWeight: 800, marginBottom: 2 }}>
           {ahead ? '✓ AHEAD AFTER BOTH STOPS' : '✗ BEHIND AFTER BOTH STOPS'}
         </div>
-        <div style={{ color: 'rgba(255,255,255,0.7)' }}>
-          Best pit lap: <b style={{ color: '#fff' }}>L{best.inLap}</b> → {effectiveFocus}{' '}
-          <b style={{ color: ahead ? '#22c55e' : '#ef4444' }}>
+        <div style={{ color: TEXT_COLORS.secondary }}>
+          Best pit lap: <b style={{ color: CHART_COLORS.text }}>L{best.inLap}</b> → {effectiveFocus}{' '}
+          <b style={{ color: CHART_COLORS.text }}>
             {ahead ? 'ahead' : 'behind'} by {Math.abs(best.gap).toFixed(2)}s
           </b>
           {' '}at {horizonText} ({best.change >= 0 ? 'gains' : 'loses'} {Math.abs(best.change ?? 0).toFixed(2)}s on now)
@@ -357,7 +375,7 @@ export default function UndercutCalculator() {
       </div>
 
       {/* Rival's stop: likely (survival) or chosen */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: 9, color: 'rgba(255,255,255,0.55)', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontSize: CHART_FONT.label, ...muted, flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 700, letterSpacing: '0.05em' }}>RIVAL STOPS</span>
         <select
           value={rivalChoice?.lap ?? ''}
@@ -365,105 +383,98 @@ export default function UndercutCalculator() {
             ? null
             : { lap: Number(e.target.value), stints: analysis.rivalTyre?.stints ?? null })}
           disabled={rivalStop.source === 'in progress'}
+          aria-label="Rival's in-lap"
           title="The rival's in-lap, in every row: its likely stop (the lap its set reaches the median life of its compound given the age it has reached) or a lap chosen here (dropped once the rival has passed that lap or changed tyres)"
           style={{
-            background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 3, fontSize: 9, padding: '0 2px',
+            background: CHART_COLORS.surface, color: CHART_COLORS.text, border: `1px solid ${GRID_COLORS.rule}`,
+            borderRadius: 3, fontSize: CHART_FONT.label, padding: '0 2px',
           }}
         >
-          <option value="" style={{ color: '#000' }}>likely</option>
-          {stopChoices.map((l) => <option key={l} value={l} style={{ color: '#000' }}>L{l}</option>)}
+          <option value="" style={{ background: CHART_COLORS.surface, color: CHART_COLORS.text }}>likely</option>
+          {stopChoices.map((l) => <option key={l} value={l} style={{ background: CHART_COLORS.surface, color: CHART_COLORS.text }}>L{l}</option>)}
         </select>
         <span title={`Source: ${STOP_SOURCE[rivalStop.source] || rivalStop.source}`}>
           {rivalStopText} · {STOP_SOURCE[rivalStop.source] || rivalStop.source}
-          {rivalStop.extraStops?.length ? ` · extra stop ${stopsText(rivalStop.extraStops)} (stint past P${Math.round((feasibility?.quantile ?? 0) * 100)})` : ''}
+          {rivalStop.extraStops?.length ? ` · extra stop ${stopsText(rivalStop.extraStops)} (stint past P${quantilePct})` : ''}
         </span>
       </div>
 
-      {/* Sweep table header + legend */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        gap: 8, marginBottom: 4, flexWrap: 'wrap',
-      }}>
-        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', fontWeight: 700, letterSpacing: '0.05em' }}>
-          PIT-LAP SWEEP · gap at {horizonText}, both plans to the finish
-        </span>
-        <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: '#22c55e' }} />
-            focus ahead
-          </span>
-          <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: '#ef4444' }} />
-            focus behind
-          </span>
-        </span>
+      {/* Sweep header; the D3 column chart below has its own axes and legend */}
+      <div style={{ fontSize: CHART_FONT.label, ...muted, fontWeight: 700, letterSpacing: '0.05em', marginBottom: 2 }}>
+        PIT-LAP SWEEP · gap at {horizonText}, both plans to the finish
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {rows.map((r) => {
-          const isBest = r.inLap === best.inLap;
-          const pct = (Math.abs(r.gap) / maxAbsGap) * 50;
-          const color = r.gap > 0 ? '#22c55e' : '#ef4444';
-          return (
-            <div
-              key={r.inLap}
-              data-inlap={r.inLap}
-              title={`${effectiveFocus} in-lap L${r.inLap}${r.extraStops?.length ? ` plus an extra stop at ${stopsText(r.extraStops)} (a stint past its P${Math.round((feasibility?.quantile ?? 0) * 100)} length)` : ''}, `
-                + `${rival} ${rivalStop.inRace ? `in-lap L${rivalStop.inLap}` : 'no stop'}: `
-                + `${effectiveFocus} ${r.gap > 0 ? 'ahead' : 'behind'} by ${Math.abs(r.gap).toFixed(2)} s at the end of L${r.horizonLap}`}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '56px 1fr 70px',
-                gap: 6,
-                padding: '3px 4px',
-                alignItems: 'center',
-                background: isBest ? 'rgba(34,197,94,0.08)' : undefined,
-                borderRadius: 3,
-                marginBottom: 1,
-              }}
-            >
-              <span style={{ fontWeight: isBest ? 800 : 600, color: isBest ? '#22c55e' : 'rgba(255,255,255,0.75)', fontSize: 10 }}>
-                {r.k === 0 ? 'NOW' : `L${r.inLap}`}
-                {r.extraStops?.length ? <span style={{ fontSize: 8, fontWeight: 700, color: '#f5a623' }}>{` +${r.extraStops.length}`}</span> : null}
-              </span>
-              <div style={{ position: 'relative', height: 12 }}>
-                <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.15)' }} />
-                <div style={{
-                  position: 'absolute',
-                  top: 1,
-                  bottom: 1,
-                  left: r.gap > 0 ? '50%' : `${50 - pct}%`,
-                  width: `${pct}%`,
-                  background: color,
-                  borderRadius: 2,
-                  opacity: isBest ? 1 : 0.75,
-                }} />
-              </div>
-              <span style={{ fontWeight: 800, fontSize: 10, textAlign: 'right', color }}>
-                {fmt(r.gap)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+      <SweepChart rows={sweepRows} bestKey={String(best.inLap)} focus={effectiveFocus} />
 
-      <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', marginTop: 6, lineHeight: 1.4 }}>
+      <div style={{ fontSize: CHART_FONT.label, ...muted, marginTop: 4, lineHeight: 1.35 }}>
         {negativeDeg && (
-          <div style={{ color: '#f5a623' }}>
+          <div style={{ color: NOTE_COLOR }}>
             {degradation.focus.source === 'race' ? 'This race\'s' : 'The prior\'s'} {analysis.focusTyre.compound} degradation is
             {' '}{perLap(degradation.focus.mean)} s/lap so far (fuel-corrected): the model makes a new set slower than the current one.
           </div>
         )}
-        Lap model of the race simulation: {analysis.focusTyre.compound} {perLap(degradation.focus.mean)} s/lap
-        ({degradation.focus.source === 'race' ? `${degradation.focus.n} stints of this race` : 'prior'}),
-        new set {analysis.nextCompound}, fresh-tyre delta {freshText} on the first flying lap; paces and pit
-        loss of the Circle of Doom pit window. Every row is read at {horizonText}, so the two cars' pace
-        difference counts the same in every row and the rows differ only by the tyres; with no traffic the best
-        lap is the one that balances the wear of the two sets over the rest of the race. A stint longer than the
-        P{Math.round((feasibility?.quantile ?? 0) * 100)} stint length of its compound
-        ({analysis.focusTyre.compound} {feasibility?.focus?.current} laps, {analysis.nextCompound} {feasibility?.focus?.next})
-        is charged an extra stop (+n on the row). No traffic, no safety car; the rival stops as shown.
+        <span title={'Paces and pit loss of the Circle of Doom pit window. Every column is read at the same lap, so the two cars\' pace '
+          + 'difference counts the same in every column and the columns differ only by the tyres; with no traffic the best '
+          + 'lap is the one that balances the wear of the two sets over the rest of the race.'}
+        >
+          Lap model of the race simulation: {analysis.focusTyre.compound} {perLap(degradation.focus.mean)} s/lap
+          ({degradation.focus.source === 'race' ? `${degradation.focus.n} stints of this race` : 'prior'}),
+          new set {analysis.nextCompound}, fresh-tyre delta {freshText} on the first flying lap. A stint longer than the
+          P{quantilePct} stint length of its compound
+          ({analysis.focusTyre.compound} {feasibility?.focus?.current} laps, {analysis.nextCompound} {feasibility?.focus?.next})
+          is charged an extra stop (+n on the column). No traffic, no safety car; the rival stops as shown.
+        </span>
       </div>
     </div>
   );
 }
+
+/**
+ * The pit-lap sweep as a D3 column chart (utils/views/undercutSweepChart.js)
+ * filling the space left in the panel: every candidate lap is a column, so
+ * nothing scrolls. The columns are also listed for assistive technology (the
+ * chart is an image with a label).
+ */
+function SweepChart({ rows, bestKey, focus }) {
+  const boxRef = useRef(null);
+  const svgRef = useRef(null);
+  const box = useBoxSize(boxRef);
+  useEffect(() => {
+    if (!svgRef.current || box.width <= 0 || box.height <= 0) return;
+    drawUndercutSweep(svgRef.current, {
+      rows,
+      bestKey,
+      width: box.width,
+      height: box.height,
+      focus,
+      colors: {
+        ahead: CHART_COLORS.better,
+        behind: CHART_COLORS.worse,
+        even: CHART_COLORS.neutral,
+        text: CHART_COLORS.text,
+        muted: CHART_COLORS.muted,
+        grid: CHART_COLORS.grid,
+        axis: CHART_COLORS.axis,
+      },
+      font: CHART_FONT.data,
+      fontPx: chartFontPx('data'),
+      legendFont: CHART_FONT.data,
+      legendFontPx: chartFontPx('data'),
+    });
+  }, [rows, bestKey, focus, box.width, box.height]);
+  return (
+    <div ref={boxRef} className="ucs-chart" style={{ flex: 1, minHeight: 90, position: 'relative', overflow: 'hidden' }}>
+      <svg ref={svgRef} className="ucs-svg" style={{ display: 'block' }} />
+      <ul className="ucs-rows" style={VISUALLY_HIDDEN}>
+        {rows.map((r) => (
+          <li key={r.key} data-inlap={r.key}>{r.lapText}: {fmt(r.gap)}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Present to assistive technology, not drawn
+const VISUALLY_HIDDEN = {
+  position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden',
+  clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0,
+};

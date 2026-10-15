@@ -1,14 +1,26 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor } from '../../utils/colors';
+import {
+  getDriverColor, getDriverDash, markColor, textColor, signedDelta, TEXT_COLORS,
+  GRID_COLORS, SURFACES, CHART_FONT, chartFontPx,
+} from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { causalKey } from '../../utils/strategyViews';
-import { cumulativeLapTimes } from '../../utils/views/lapDeltaChart';
+import { cumulativeLapTimes, lapDeltaLegend, BASE_LINE_DASH } from '../../utils/views/lapDeltaChart';
+import { defineDeltaHatches } from '../../utils/views/deltaHatch';
 import Panel from '../ui/Panel';
+import Legend from '../ui/Legend';
+
+// Ids of the hatch patterns of each mounted chart (unique in the document)
+let hatchSeq = 0;
 
 export default function LapDeltaChart() {
   const svgRef = useRef(null);
+  const [hatchId] = useState(() => {
+    hatchSeq += 1;
+    return `lap-delta-hatch-${hatchSeq}`;
+  });
   const sessionData = useF1Store((s) => s.sessionData);
   const lapDeltaBaseDriver = useF1Store((s) => s.lapDeltaBaseDriver);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -59,6 +71,9 @@ export default function LapDeltaChart() {
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
     svg.attr('viewBox', `0 0 ${width} ${height}`);
+    // the shaded areas: a tint and full-strength hatch lines, rising for
+    // behind, falling for ahead (utils/views/deltaHatch.js, V1)
+    const hatch = defineDeltaHatches(svg.append('defs'), hatchId);
 
     const baseCum = driverCumTimes[baseDriver];
     if (!baseCum?.length) return;
@@ -91,7 +106,10 @@ export default function LapDeltaChart() {
         }
       }
       if (driverDeltas.length > 0) {
-        deltaData.push({ driver, deltas: driverDeltas, color: getDriverColor(driver) });
+        // mark >= 3:1 on the panel (markColor), teammate tint and dash (V3)
+        deltaData.push({
+          driver, deltas: driverDeltas, color: markColor(getDriverColor(driver)), dash: getDriverDash(driver),
+        });
       }
     });
 
@@ -99,7 +117,7 @@ export default function LapDeltaChart() {
       svg.append('text')
         .attr('x', width / 2).attr('y', height / 2)
         .attr('text-anchor', 'middle')
-        .attr('fill', 'var(--color-text-muted)').attr('font-size', 12)
+        .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data)
         .text('No delta data available');
       return;
     }
@@ -108,10 +126,10 @@ export default function LapDeltaChart() {
     const labelTexts = [baseDriver];
     deltaData.forEach(({ driver, deltas }) => {
       const last = deltas[deltas.length - 1];
-      if (last) labelTexts.push(`${driver} ${last.delta > 0 ? '+' : ''}${last.delta.toFixed(1)}s`);
+      if (last) labelTexts.push(`${driver} ${signedDelta(last.delta, 1)}s`);
     });
     const probe = svg.append('text')
-      .attr('font-size', '10px').attr('font-weight', '800')
+      .style('font-size', CHART_FONT.data).attr('font-weight', '800')
       .attr('font-family', 'var(--font-display)')
       .style('visibility', 'hidden');
     let maxLabelPx = 0;
@@ -140,17 +158,16 @@ export default function LapDeltaChart() {
       .append('line')
       .attr('x1', 0).attr('x2', innerW)
       .attr('y1', (d) => y(d)).attr('y2', (d) => y(d))
-      .attr('stroke', 'rgba(255,255,255,0.06)')
+      .attr('stroke', GRID_COLORS.grid)
       .attr('stroke-dasharray', '2,4');
 
-    // Zero line (base driver)
+    // Zero line (base driver): dashed, in the base driver's colour
     g.append('line')
       .attr('x1', 0).attr('x2', innerW)
       .attr('y1', y(0)).attr('y2', y(0))
-      .attr('stroke', getDriverColor(baseDriver))
+      .attr('stroke', markColor(getDriverColor(baseDriver)))
       .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', '6,3')
-      .attr('opacity', 0.6);
+      .attr('stroke-dasharray', BASE_LINE_DASH);
 
     // Collect all end-labels for collision resolution
     const labelEntries = [
@@ -159,20 +176,22 @@ export default function LapDeltaChart() {
 
     // Axes
     g.append('g').attr('class', 'axis').attr('transform', `translate(0,${innerH})`)
-      .call(d3.axisBottom(x).ticks(Math.min(12, maxVisibleLap)).tickFormat(d3.format('d')));
+      .call(d3.axisBottom(x).ticks(Math.min(12, maxVisibleLap)).tickFormat(d3.format('d')))
+      .selectAll('text').style('font-size', CHART_FONT.data);
     g.append('g').attr('class', 'axis')
-      .call(d3.axisLeft(y).ticks(6).tickFormat((d) => `${d > 0 ? '+' : ''}${d.toFixed(1)}s`));
+      .call(d3.axisLeft(y).ticks(6).tickFormat((d) => `${signedDelta(d, 1)}s`))
+      .selectAll('text').style('font-size', CHART_FONT.data);
 
     // Axis labels
     g.append('text').attr('text-anchor', 'middle')
       .attr('x', innerW / 2).attr('y', innerH + margin.bottom - 4)
-      .attr('fill', 'rgba(255,255,255,0.4)').attr('font-size', '9px')
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
       .attr('font-weight', 600).text('Lap');
     g.append('text').attr('text-anchor', 'middle')
       .attr('transform', `rotate(-90)`)
       .attr('x', -innerH / 2).attr('y', -margin.left + 12)
-      .attr('fill', 'rgba(255,255,255,0.4)').attr('font-size', '9px')
-      .attr('font-weight', 600).text('Delta (s)');
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
+      .attr('font-weight', 600).text('Delta (s), + behind');
 
     // Area + Line per driver
     const areaAbove = d3.area()
@@ -192,26 +211,24 @@ export default function LapDeltaChart() {
       .y((d) => y(d.delta))
       .curve(d3.curveMonotoneX);
 
-    deltaData.forEach(({ driver, deltas, color }) => {
-      // Red fill where behind (delta > 0)
+    deltaData.forEach(({ driver, deltas, color, dash }) => {
+      // Orange hatch where behind the base (delta > 0, the + side)
       g.append('path')
         .datum(deltas)
         .attr('class', 'delta-area')
         .attr('data-driver', driver)
         .attr('d', areaAbove)
-        .attr('fill', 'rgba(239, 68, 68, 0.18)')
-        .attr('opacity', 0.8);
+        .attr('fill', hatch.worse);
 
-      // Green fill where ahead (delta < 0)
+      // Blue hatch where ahead (delta < 0, the − side)
       g.append('path')
         .datum(deltas)
         .attr('class', 'delta-area')
         .attr('data-driver', driver)
         .attr('d', areaBelow)
-        .attr('fill', 'rgba(34, 197, 94, 0.18)')
-        .attr('opacity', 0.8);
+        .attr('fill', hatch.better);
 
-      // Line
+      // Line: team colour, teammate dashed (V3)
       g.append('path')
         .datum(deltas)
         .attr('class', 'delta-line')
@@ -220,21 +237,21 @@ export default function LapDeltaChart() {
         .attr('fill', 'none')
         .attr('stroke', color)
         .attr('stroke-width', 2)
-        .attr('opacity', 0.85);
+        .attr('stroke-dasharray', dash);
 
       // Collect end label
       const last = deltas[deltas.length - 1];
       if (last) {
         labelEntries.push({
           driver, yPos: y(last.delta),
-          text: `${driver} ${last.delta > 0 ? '+' : ''}${last.delta.toFixed(1)}s`,
+          text: `${driver} ${signedDelta(last.delta, 1)}s`,
           color,
         });
       }
     });
 
     // Resolve label overlaps: iterative relaxation
-    const minGap = 13;
+    const minGap = Math.ceil(chartFontPx('data') * 1.2);
     labelEntries.sort((a, b) => a.yPos - b.yPos);
     for (let pass = 0; pass < 10; pass++) {
       let moved = false;
@@ -259,8 +276,8 @@ export default function LapDeltaChart() {
       g.append('text')
         .attr('x', innerW + 4)
         .attr('y', l.yPos)
-        .attr('fill', l.color)
-        .attr('font-size', '10px')
+        .attr('fill', textColor(l.color))
+        .style('font-size', CHART_FONT.data)
         .attr('font-weight', '800')
         .attr('dominant-baseline', 'middle')
         .attr('font-family', 'var(--font-display)')
@@ -270,7 +287,7 @@ export default function LapDeltaChart() {
     // Tooltip overlay
     const tooltipLine = g.append('line')
       .attr('y1', 0).attr('y2', innerH)
-      .attr('stroke', 'rgba(255,255,255,0.3)')
+      .attr('stroke', GRID_COLORS.rule)
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', '3,3')
       .style('display', 'none');
@@ -292,7 +309,7 @@ export default function LapDeltaChart() {
         deltaData.forEach(({ driver, deltas, color }) => {
           const d = deltas.find((p) => p.lap === lap);
           if (d) {
-            html += `<div style="display:flex;gap:6px;align-items:center"><span style="width:6px;height:6px;border-radius:50%;background:${color}"></span><span style="color:${color};font-weight:700">${driver}</span><span>${d.delta > 0 ? '+' : ''}${d.delta.toFixed(3)}s</span></div>`;
+            html += `<div style="display:flex;gap:6px;align-items:center"><span style="width:6px;height:6px;border-radius:50%;background:${color}"></span><span style="color:${textColor(color, SURFACES.elevated)};font-weight:700">${driver}</span><span>${signedDelta(d.delta)}s</span></div>`;
           }
         });
 
@@ -307,7 +324,7 @@ export default function LapDeltaChart() {
       });
 
     return () => { d3.selectAll('.delta-tooltip').remove(); };
-  }, [baseDriver, displayDrivers, driverCumTimes]);
+  }, [baseDriver, displayDrivers, driverCumTimes, hatchId]);
 
   // Lightweight highlight effect — updates opacity/stroke without full redraw
   useEffect(() => {
@@ -318,14 +335,14 @@ export default function LapDeltaChart() {
       const driver = el.attr('data-driver');
       const isHl = highlightedDriver && driver === highlightedDriver;
       const isDimmed = highlightedDriver && driver !== highlightedDriver;
-      el.attr('opacity', isDimmed ? 0.25 : isHl ? 1 : 0.85)
+      el.attr('opacity', isDimmed ? 0.25 : 1)
         .attr('stroke-width', isHl ? 3 : 2);
     });
     svg.selectAll('.delta-area').each(function () {
       const el = d3.select(this);
       const driver = el.attr('data-driver');
       const isDimmed = highlightedDriver && driver !== highlightedDriver;
-      el.attr('opacity', isDimmed ? 0.1 : 0.8);
+      el.attr('opacity', isDimmed ? 0.1 : 1);
     });
   }, [highlightedDriver]);
 
@@ -341,8 +358,12 @@ export default function LapDeltaChart() {
 
   return (
     <Panel title={`Lap Delta vs ${baseDriver}`}>
-      <div className="viz-container">
-        <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        {/* Every mark of the chart: zero line, driver lines (teammate dashed), ± areas */}
+        <Legend items={lapDeltaLegend(baseDriver, displayDrivers.filter((d) => driverCumTimes[d]))} />
+        <div className="viz-container" style={{ flex: 1, minHeight: 0 }}>
+          <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+        </div>
       </div>
     </Panel>
   );

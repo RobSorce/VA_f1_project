@@ -5,8 +5,8 @@ went into them.
 Run from backend/:
     python -m scripts.pca_rebuild [--out REPORT.txt]
 
-Writes data/processed/pca_feature_matrix.csv, pca_embeddings.json and
-tsne_embeddings.json (data/processors/pca_compute.py), then prints:
+Writes data/processed/pca_feature_matrix.csv and pca_embeddings.json
+(data/processors/pca_compute.py), then prints:
 - rows, races, and the (driver, race) pairs left out by the eligibility rule
   (MIN_LAP_SHARE of the leader's laps, MIN_CLEAN_LAPS clean laps);
 - explained variance and eta^2(race) of PC1 / PC2 (share of the PC variance
@@ -36,7 +36,6 @@ def run(out=None):
 
     df = pc.build_feature_matrix_from_cache()
     pca = pc.compute_pca(df)
-    tsne = pc.compute_tsne(df)
 
     excluded, drivers, stops, stops_pit_in = [], 0, 0, 0
     for sf in sorted(pc.CACHE_DIR.glob('session_*_R.json')):
@@ -74,7 +73,6 @@ def run(out=None):
     emit('loadings (PC1, PC2):')
     for l in pca['loadings']:
         emit(f'  {l["feature"]:<23s} {l["pc1"]:7.3f} {l["pc2"]:7.3f}')
-    emit(f't-SNE points: {tsne["n_points"]}')
     emit(f'R2 stops (stint boundaries): {stops}; in-lap carries PitInTime: {stops_pit_in} '
          f'({stops_pit_in / stops:.1%})' if stops else 'R2 stops: 0')
     if out:

@@ -1,26 +1,30 @@
 import React, { useState } from 'react';
 import TyreHealth from '../visualizations/TyreHealth';
 import TyreManagement from '../visualizations/TyreManagement';
+import { CHART_FONT, TEXT_COLORS, tintedChip, TYRE_COLORS, SURFACES } from '../../utils/colors';
 
 const TABS = [
   { id: 'health', label: 'Tyre Health' },
   { id: 'pace', label: 'Pace Retention' },
 ];
 
+// Active pill: a tint of the medium-compound yellow, its text lifted to
+// 4.5:1 on that tint (tintedChip)
+const ACTIVE = tintedChip(TYRE_COLORS.MEDIUM, 0.15, SURFACES.panel);
 const tabPillStyle = (active) => ({
-  padding: '3px 8px', fontSize: '9px', fontWeight: 600,
+  padding: '3px 8px', fontSize: CHART_FONT.label, fontWeight: 600,
   borderRadius: 4, border: 'none', cursor: 'pointer',
-  background: active ? 'rgba(255,195,0,0.15)' : 'transparent',
-  color: active ? '#FFC300' : 'rgba(255,255,255,0.45)',
+  background: active ? ACTIVE.background : 'transparent',
+  color: active ? ACTIVE.color : TEXT_COLORS.muted,
   transition: 'background 0.12s, color 0.12s',
 });
 
 const splitBtnStyle = (active) => ({
-  padding: '3px 6px', fontSize: '9px', fontWeight: 600,
+  padding: '3px 6px', fontSize: CHART_FONT.label, fontWeight: 600,
   borderRadius: 4, border: 'none', cursor: 'pointer',
   marginLeft: 'auto',
-  background: active ? 'rgba(255,195,0,0.12)' : 'transparent',
-  color: active ? '#FFC300' : 'rgba(255,255,255,0.3)',
+  background: active ? ACTIVE.background : 'transparent',
+  color: active ? ACTIVE.color : TEXT_COLORS.muted,
   transition: 'background 0.12s, color 0.12s',
   display: 'inline-flex', alignItems: 'center', gap: 3,
 });

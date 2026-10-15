@@ -2,7 +2,12 @@ import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import * as d3 from 'd3';
 import { useF1Store, sessionScopeOf, telemetryKeySuffix } from '../../store/useF1Store';
 import { seasonHasDrs, sessionSeasonOf } from '../../utils/seasons';
-import { getDriverColor } from '../../utils/colors';
+import {
+  getDriverColor, markColor, textColor, withAlpha, tyreColor, tyreLetter, contrastText,
+  TRACK_STATUS_STYLES, FLAG_COLORS as FLAG_PALETTE, SECTOR_COLORS, CHANNEL_COLORS, TRACK_COLORS,
+  CHANNEL_RAMP_LOW, SPEED_RAMP_START,
+  TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT,
+} from '../../utils/colors';
 import { estimateFromFramePositions } from '../../utils/trackPositionEstimator';
 import { leaderLapEndTime } from '../../utils/raceTime';
 import { causalKey, viewSessionType, isRaceSession } from '../../utils/strategyViews';
@@ -10,14 +15,11 @@ import { trackMapDriverStatus, trackMapSessionNow } from '../../utils/views/trac
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
-// Flag status → color mapping (from reference project)
+// Flag status → track border colour: the FIA flag colours of utils/colors.js
+// (always with their label, FLAG_LABELS); green = the normal grey border
 const FLAG_COLORS = {
-  '1': 'rgba(255,255,255,0.4)',   // Green flag - normal track border
-  '2': '#FFCC00',                  // Yellow flag
-  '4': '#FF8C00',                  // Safety Car (orange)
-  '5': '#FF0000',                  // Red flag
-  '6': '#FF8C00',                  // VSC
-  '7': '#FF8C00',                  // VSC
+  '1': 'rgba(255,255,255,0.4)',
+  ...Object.fromEntries(Object.entries(TRACK_STATUS_STYLES).filter(([k]) => k !== '1').map(([k, s]) => [k, s.color])),
 };
 
 const FLAG_LABELS = {
@@ -29,17 +31,46 @@ const FLAG_LABELS = {
   '7': 'VIRTUAL SAFETY CAR',
 };
 
-const FLAG_LABEL_COLORS = {
-  '2': '#FFCC00',
-  '4': '#FF8C00',
-  '5': '#FF0000',
-  '6': '#FF8C00',
-  '7': '#FF8C00',
+const FLAG_LABEL_COLORS = Object.fromEntries(
+  Object.entries(TRACK_STATUS_STYLES).filter(([k]) => k !== '1').map(([k, s]) => [k, s.color]),
+);
+
+// Sectors: the Okabe-Ito sector colours of utils/colors.js (labelled S1-S3)
+// Sector paths: drawn (on) at full opacity in SECTOR_COLORS, as the legend
+// swatches; a sector the user switches off stays as a faint trace
+const SECTOR_OPACITY = { on: 1, off: 0.1 };
+
+const COMPOUND_NAMES = { 0: 'UNK', 1: 'SOFT', 2: 'MED', 3: 'HARD', 4: 'INTER', 5: 'WET' };
+const COMPOUND_KEYS = { 0: 'UNKNOWN', 1: 'SOFT', 2: 'MEDIUM', 3: 'HARD', 4: 'INTERMEDIATE', 5: 'WET' };
+const COMPOUND_COLORS = Object.fromEntries(Object.entries(COMPOUND_KEYS).map(([k, c]) => [k, tyreColor(c)]));
+// Car dots and labels on the map: driver colour (teammate tint) as a mark / text
+const carMark = (abbr) => markColor(getDriverColor(abbr), SURFACES.panel);
+const carText = (abbr) => textColor(getDriverColor(abbr), SURFACES.panel);
+// Font sizes of text inside the zoomed group: divided by the zoom factor
+const ZOOMED_FONT = {
+  data: `calc(${CHART_FONT.data} / var(--map-zoom, 1))`,
+  label: `calc(${CHART_FONT.label} / var(--map-zoom, 1))`,
 };
 
-const SECTOR_COLORS = { 1: '#e10600', 2: '#ffd700', 3: '#0090ff' };
-const COMPOUND_NAMES = { 0: 'UNK', 1: 'SOFT', 2: 'MED', 3: 'HARD', 4: 'INTER', 5: 'WET' };
-const COMPOUND_COLORS = { 0: '#888', 1: '#FF3333', 2: '#FFC300', 3: '#EEEEEE', 4: '#39B54A', 5: '#00AAFF' };
+// Channel overlay ramps: throttle / brake from the track grey (lifted to 3:1,
+// CHANNEL_RAMP_LOW) to their Okabe-Ito channel colour (sky blue / orange,
+// never green / red); speed on cividis from SPEED_RAMP_START (sequential,
+// readable under every colour-vision deficiency, its low end at 3:1)
+function channelRamp(kind) {
+  if (kind === 'speed') return (t) => d3.interpolateCividis(SPEED_RAMP_START + (1 - SPEED_RAMP_START) * t);
+  return (t) => d3.interpolateRgb(CHANNEL_RAMP_LOW, CHANNEL_COLORS[kind])(t);
+}
+// Legend rows of the overlay: its low (the true low end), middle and high colour
+function channelLegend(mode) {
+  const ramp = channelRamp(mode);
+  const name = { speed: 'Speed', throttle: 'Throttle', brake: 'Brake' }[mode] || mode;
+  const ends = mode === 'speed' ? ['slow', 'fast'] : ['0 %', '100 %'];
+  return [
+    { label: `${name} ${ends[0]}`, color: d3.color(ramp(0)).formatHex(), shape: 'square' },
+    { label: '', color: d3.color(ramp(0.6)).formatHex(), shape: 'square' },
+    { label: ends[1], color: d3.color(ramp(1)).formatHex(), shape: 'square' },
+  ];
+}
 
 // Race control overlay for live mode (when car positions are unavailable)
 function LiveRaceControlOverlay() {
@@ -62,7 +93,7 @@ function LiveRaceControlOverlay() {
       items.push({
         type: msg.category || 'RC',
         text: msg.message || '',
-        color: msg.flag === 'YELLOW' ? '#eab308' : msg.flag === 'RED' ? '#ef4444' : '#7a7f9a',
+        color: msg.flag === 'YELLOW' ? FLAG_PALETTE.yellow : msg.flag === 'RED' ? FLAG_PALETTE.red : TEXT_COLORS.muted,
         time: msg.timestamp,
         lap: msg.lap,
       });
@@ -83,32 +114,32 @@ function LiveRaceControlOverlay() {
         padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: '#e0e0e0', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <span style={{ fontSize: CHART_FONT.label, fontWeight: 700, color: TEXT_COLORS.primary, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           Race Control
         </span>
-        <span style={{ fontSize: 9, color: '#555', fontFamily: 'var(--font-mono)' }}>
+        <span style={{ fontSize: CHART_FONT.data, color: TEXT_COLORS.muted, fontFamily: 'var(--font-mono)' }}>
           Lap {currentLap}/{totalRaceLaps || '?'}
         </span>
       </div>
       <div style={{ flex: 1, overflow: 'hidden', padding: '4px 0' }}>
         {messages.length === 0 ? (
-          <div style={{ padding: '12px 10px', fontSize: 9, color: '#555', textAlign: 'center' }}>
+          <div style={{ padding: '12px 10px', fontSize: CHART_FONT.data, color: TEXT_COLORS.muted, textAlign: 'center' }}>
             No race control messages yet
           </div>
         ) : messages.map((msg, i) => (
           <div key={i} style={{
-            padding: '4px 10px', fontSize: 9, color: '#bbb',
+            padding: '4px 10px', fontSize: CHART_FONT.data, color: TEXT_COLORS.secondary,
             borderLeft: `2px solid ${msg.color}`,
             marginLeft: 4, marginBottom: 2,
           }}>
-            {msg.lap && <span style={{ color: '#555', marginRight: 4, fontFamily: 'var(--font-mono)' }}>L{msg.lap}</span>}
-            <span style={{ color: msg.color, fontWeight: 600 }}>{msg.text}</span>
+            {msg.lap && <span style={{ color: TEXT_COLORS.muted, marginRight: 4, fontFamily: 'var(--font-mono)' }}>L{msg.lap}</span>}
+            <span style={{ color: textColor(msg.color, SURFACES.page), fontWeight: 600 }}>{msg.text}</span>
           </div>
         ))}
       </div>
       <div style={{
         padding: '4px 10px', borderTop: '1px solid rgba(255,255,255,0.06)',
-        fontSize: 8, color: '#555', textAlign: 'center',
+        fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, textAlign: 'center',
       }}>
         Positions via OpenF1 (when available)
       </div>
@@ -116,14 +147,7 @@ function LiveRaceControlOverlay() {
   );
 }
 
-const FLAG_COLORS_MAP = {
-  '1': { label: 'Green Flag', color: '#22c55e' },
-  '2': { label: 'Yellow Flag', color: '#eab308' },
-  '4': { label: 'Safety Car', color: '#f59e0b' },
-  '5': { label: 'Red Flag', color: '#ef4444' },
-  '6': { label: 'Virtual Safety Car', color: '#f97316' },
-  '7': { label: 'Virtual Safety Car', color: '#f97316' },
-};
+const FLAG_COLORS_MAP = TRACK_STATUS_STYLES;
 
 // Trail configuration for driver glow effect
 const TRAIL_CONFIG = [
@@ -331,7 +355,7 @@ export default function TrackMap({ compact = false }) {
         .attr('orient', 'auto')
         .append('path')
         .attr('d', 'M 0 0 L 10 5 L 0 10 z')
-        .attr('fill', '#00ff00');
+        .attr('fill', TRACK_COLORS.drs);
 
       defs.append('marker')
         .attr('id', 'direction-arrow')
@@ -360,9 +384,16 @@ export default function TrackMap({ compact = false }) {
     g.append('g').attr('class', 'cars-layer');
     g.append('g').attr('class', 'flag-label-layer');
 
+    // The map's text keeps its size on screen at any zoom (semantic zoom):
+    // --map-zoom divides the font size of every label drawn in the group
+    // (visualizations.css .car-label, .corner-label; the inline sizes below),
+    // so an 11 px label never renders at 5.5 px when zoomed out (V13)
     const zoom = d3.zoom()
       .scaleExtent([0.5, 8])
-      .on('zoom', (event) => g.attr('transform', event.transform));
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform);
+        svg.node().style.setProperty('--map-zoom', String(event.transform.k));
+      });
     svg.call(zoom);
     zoomRef.current = zoom;
 
@@ -509,6 +540,10 @@ export default function TrackMap({ compact = false }) {
       .attr('d', line(coords));
 
     // ── Sectors ──
+    // Drawn in SECTOR_COLORS at full opacity, the exact colours of the S1-S3
+    // legend and toggles (V4 r2: a CSS rule .sector-N { stroke } used to beat
+    // this presentation attribute, so the track was drawn in other colours,
+    // 1.44-2.48:1 on the panel); every sector colour >= 3:1 on the panel
     const sectorLayer = g.select('.sector-layer');
     sectorLayer.selectAll('*').remove();
 
@@ -519,17 +554,17 @@ export default function TrackMap({ compact = false }) {
           .attr('class', `sector-path sector-${sector}`)
           .attr('d', line(pts))
           .attr('fill', 'none')
-          .attr('stroke', SECTOR_COLORS[sector] || '#4A5568')
+          .attr('stroke', SECTOR_COLORS[sector] || TRACK_COLORS.surface)
           .attr('stroke-width', 16)
           .attr('stroke-linecap', 'round')
           .attr('stroke-linejoin', 'round')
-          .attr('opacity', 0.7);
+          .attr('opacity', SECTOR_OPACITY.on);
       });
     } else {
       sectorLayer.append('path')
         .attr('d', line(coords))
         .attr('fill', 'none')
-        .attr('stroke', '#4A5568')
+        .attr('stroke', TRACK_COLORS.surface)
         .attr('stroke-width', 16)
         .attr('stroke-linecap', 'round')
         .attr('stroke-linejoin', 'round');
@@ -569,22 +604,20 @@ export default function TrackMap({ compact = false }) {
           drsOuterLayer.append('path')
             .attr('class', 'drs-zone-fill')
             .attr('d', line(polygonPts) + 'Z')
-            .attr('fill', 'rgba(0, 200, 0, 0.18)')
+            .attr('fill', TRACK_COLORS.drsFill)
             .attr('stroke', 'none');
 
           // Thin edge lines on both sides
           drsOuterLayer.append('path')
             .attr('d', line(leftPts))
             .attr('fill', 'none')
-            .attr('stroke', '#00cc00')
-            .attr('stroke-width', 1.5)
-            .attr('opacity', 0.6);
+            .attr('stroke', TRACK_COLORS.drs)
+            .attr('stroke-width', 1.5);
           drsOuterLayer.append('path')
             .attr('d', line(rightPts))
             .attr('fill', 'none')
-            .attr('stroke', '#00cc00')
-            .attr('stroke-width', 1.5)
-            .attr('opacity', 0.6);
+            .attr('stroke', TRACK_COLORS.drs)
+            .attr('stroke-width', 1.5);
 
           // Tick marks at start and end boundaries
           [startIdx, endIdx].forEach(idx => {
@@ -594,9 +627,8 @@ export default function TrackMap({ compact = false }) {
                 .attr('y1', yScale(leftEdge[idx].Y))
                 .attr('x2', xScale(rightEdge[idx].X))
                 .attr('y2', yScale(rightEdge[idx].Y))
-                .attr('stroke', '#00cc00')
-                .attr('stroke-width', 2)
-                .attr('opacity', 0.8);
+                .attr('stroke', TRACK_COLORS.drs)
+                .attr('stroke-width', 2);
             }
           });
 
@@ -608,13 +640,12 @@ export default function TrackMap({ compact = false }) {
             drsOuterLayer.append('text')
               .attr('x', xScale(labelPt.X + tangents[midIdx].nx * labelOffset))
               .attr('y', yScale(labelPt.Y + tangents[midIdx].ny * labelOffset))
-              .attr('fill', '#00cc00')
-              .attr('font-size', '8px')
+              .attr('fill', TRACK_COLORS.drs)
+              .style('font-size', ZOOMED_FONT.label)
               .attr('font-weight', '700')
               .attr('font-family', "'Space Grotesk', sans-serif")
               .attr('text-anchor', 'middle')
               .attr('dominant-baseline', 'central')
-              .attr('opacity', 0.8)
               .text('DRS');
           }
         }
@@ -626,10 +657,9 @@ export default function TrackMap({ compact = false }) {
             .attr('y1', yScale(leftEdge[detIdx].Y))
             .attr('x2', xScale(rightEdge[detIdx].X))
             .attr('y2', yScale(rightEdge[detIdx].Y))
-            .attr('stroke', '#00bcd4')
+            .attr('stroke', TRACK_COLORS.drsDetection)
             .attr('stroke-width', 1.5)
-            .attr('stroke-dasharray', '3,2')
-            .attr('opacity', 0.6);
+            .attr('stroke-dasharray', '3,2');
         }
       });
     }
@@ -734,9 +764,9 @@ export default function TrackMap({ compact = false }) {
   useEffect(() => {
     if (!gRef.current) return;
     const sectorLayer = gRef.current.select('.sector-layer');
-    sectorLayer.select('.sector-1').attr('opacity', showSector1 ? 0.7 : 0.1);
-    sectorLayer.select('.sector-2').attr('opacity', showSector2 ? 0.7 : 0.1);
-    sectorLayer.select('.sector-3').attr('opacity', showSector3 ? 0.7 : 0.1);
+    sectorLayer.select('.sector-1').attr('opacity', showSector1 ? SECTOR_OPACITY.on : SECTOR_OPACITY.off);
+    sectorLayer.select('.sector-2').attr('opacity', showSector2 ? SECTOR_OPACITY.on : SECTOR_OPACITY.off);
+    sectorLayer.select('.sector-3').attr('opacity', showSector3 ? SECTOR_OPACITY.on : SECTOR_OPACITY.off);
   }, [showSector1, showSector2, showSector3]);
 
   useEffect(() => {
@@ -831,14 +861,13 @@ export default function TrackMap({ compact = false }) {
     if (channelMode === 'speed') {
       const vMin = Math.min(...values);
       const vMax = Math.max(...values);
-      colorScale = d3.scaleSequential(d3.interpolateTurbo).domain([vMin, vMax]);
+      // cividis: sequential, readable under every colour-vision deficiency
+      colorScale = d3.scaleSequential(channelRamp('speed')).domain([vMin, vMax]);
     } else if (channelMode === 'throttle') {
-      colorScale = d3.scaleSequential((t) => d3.interpolateRgb('#2a2a2a', '#22c55e')(t))
-        .domain([0, 100]);
+      colorScale = d3.scaleSequential(channelRamp('throttle')).domain([0, 100]);
     } else {
       // Brake — binary or 0..100
-      colorScale = d3.scaleSequential((t) => d3.interpolateRgb('#2a2a2a', '#ef4444')(t))
-        .domain([0, 100]);
+      colorScale = d3.scaleSequential(channelRamp('brake')).domain([0, 100]);
     }
 
     const rotatePt = (x, y) => ({
@@ -898,14 +927,14 @@ export default function TrackMap({ compact = false }) {
         .attr('height', 24)
         .attr('rx', 4)
         .attr('fill', 'rgba(0,0,0,0.85)')
-        .attr('stroke', FLAG_LABEL_COLORS[currentFlagStatus] || '#fff')
+        .attr('stroke', FLAG_LABEL_COLORS[currentFlagStatus] || TEXT_COLORS.primary)
         .attr('stroke-width', 1.5);
       labelLayer.append('text')
         .attr('x', vb[2] / 2)
         .attr('y', 22)
         .attr('text-anchor', 'middle')
-        .attr('fill', FLAG_LABEL_COLORS[currentFlagStatus] || '#fff')
-        .attr('font-size', '11px')
+        .attr('fill', textColor(FLAG_LABEL_COLORS[currentFlagStatus] || TEXT_COLORS.primary, SURFACES.page))
+        .style('font-size', ZOOMED_FONT.data)
         .attr('font-weight', '700')
         .attr('font-family', "'Titillium Web', sans-serif")
         .text(label);
@@ -945,7 +974,7 @@ export default function TrackMap({ compact = false }) {
           y: positions[i].y,
           radius: TRAIL_CONFIG[i].radius,
           opacity: TRAIL_CONFIG[i].opacity,
-          color: getDriverColor(abbr),
+          color: carMark(abbr),
         });
       }
     }
@@ -1015,7 +1044,7 @@ export default function TrackMap({ compact = false }) {
       else if (drs === 10 || drs === 12 || drs === 14) { drsText = 'ACTIVE'; drsClass = 'drs-on'; }
 
       return `
-        <div class="tooltip-title" style="color:${getDriverColor(abbr)}">${abbr}</div>
+        <div class="tooltip-title" style="color:${textColor(getDriverColor(abbr), SURFACES.elevated)}">${abbr}</div>
         <div class="tooltip-team">${team}</div>
         <div class="tooltip-divider"></div>
         ${gridPos != null ? `<div class="tooltip-row"><span class="tooltip-label">Grid</span><span class="tooltip-value">P${gridPos}</span></div>` : ''}
@@ -1148,8 +1177,8 @@ export default function TrackMap({ compact = false }) {
         .attr('class', 'car-grid-pos')
         .attr('dx', -12).attr('dy', 4)
         .attr('text-anchor', 'end')
-        .attr('fill', 'rgba(255,255,255,0.6)')
-        .attr('font-size', '8px')
+        .attr('fill', TEXT_COLORS.secondary)
+        .style('font-size', ZOOMED_FONT.label)
         .attr('font-weight', '700')
         .attr('font-family', "'JetBrains Mono', monospace");
     }
@@ -1184,12 +1213,16 @@ export default function TrackMap({ compact = false }) {
       .classed('highlighted', (d) => d[0] === highlightedDriver)
       .classed('car-marker--focused', (d) => d[0] === focusDriver)
       .classed('car-marker--retired', (d) => isDriverRetired(d[0]))
-      .style('color', (d) => getDriverColor(d[0]))
-      .style('opacity', (d) => getDimmedOpacity(d[0]));
+      // dot >= 3:1, glow in the driver colour (currentColor); a context car
+      // (not selected / not the focus) fades its dot only, its label turns to
+      // the muted text colour (.car-marker--context, still >= 4.5:1)
+      .classed('car-marker--context', (d) => getDimmedOpacity(d[0]) < 1)
+      .style('color', (d) => carText(d[0]));
 
     merged.select('.car-dot')
-      .attr('fill', (d) => getDriverColor(d[0]))
-      .attr('r', (d) => getCarDotRadius(d[0]));
+      .attr('fill', (d) => carMark(d[0]))
+      .attr('r', (d) => getCarDotRadius(d[0]))
+      .attr('opacity', (d) => getDimmedOpacity(d[0]));
 
     merged.select('.car-glow')
       .attr('r', (d) => getGlowRadius(d[0]))
@@ -1283,14 +1316,15 @@ export default function TrackMap({ compact = false }) {
           return {
             driver: drv,
             isFocused: drv === focusDriver,
-            color: getDriverColor(drv),
+            color: carMark(drv),
             speed: typeof d.speed === 'number' ? d.speed.toFixed(0) : '—',
             throttle: typeof d.throttle === 'number' ? d.throttle.toFixed(0) : '—',
             brake: typeof d.brake === 'number' ? d.brake.toFixed(0) : '—',
             gear: typeof d.gear === 'number' ? Math.round(d.gear) : '—',
             drsText, drsClass,
             compound: COMPOUND_NAMES[tyreInt] || 'UNK',
-            compoundColor: COMPOUND_COLORS[tyreInt] || '#888',
+            compoundColor: COMPOUND_COLORS[tyreInt] || COMPOUND_COLORS[0],
+            compoundKey: COMPOUND_KEYS[tyreInt] || 'UNKNOWN',
             tyreLife: tyreLife != null ? Math.round(tyreLife) : '—',
             lap: d.lap != null ? d.lap : '—',
           };
@@ -1310,13 +1344,13 @@ export default function TrackMap({ compact = false }) {
         return {
           driver: drv,
           isFocused: drv === focusDriver,
-          color: getDriverColor(drv),
+          color: carMark(drv),
           speed: typeof t.speed === 'number' ? t.speed.toFixed(0) : '—',
           throttle: typeof t.throttle === 'number' ? t.throttle.toFixed(0) : '—',
           brake: typeof t.brake === 'number' ? t.brake.toFixed(0) : '—',
           gear: typeof t.gear === 'number' ? Math.round(t.gear) : '—',
           drsText, drsClass,
-          compound: '—', compoundColor: '#888',
+          compound: '—', compoundColor: COMPOUND_COLORS[0], compoundKey: 'UNKNOWN',
           tyreLife: '—',
           lap: currentLap || '—',
         };
@@ -1334,21 +1368,23 @@ export default function TrackMap({ compact = false }) {
       : driverList.slice(0, 10);
     return displayDrivers.map((d) => ({
       label: d.Abbreviation,
-      color: getDriverColor(d.Abbreviation),
+      color: carMark(d.Abbreviation),
       shape: 'circle',
       active: selectedDrivers.length === 0 || selectedDrivers.includes(d.Abbreviation),
       onClick: () => toggleDriver(d.Abbreviation),
     }));
   }, [sessionData, selectedDrivers, toggleDriver]);
 
+  // Toggle: active = its colour as border and text (>= 4.5:1) on a tint;
+  // inactive = muted text, a >= 3:1 grey border
   const toggleBtnStyle = (active, color) => ({
     padding: '2px 8px',
-    fontSize: '10px',
+    fontSize: CHART_FONT.label,
     fontWeight: 700,
-    border: `1.5px solid ${active ? color : 'rgba(255,255,255,0.2)'}`,
+    border: `1.5px solid ${active ? color : GRID_COLORS.rule}`,
     borderRadius: '4px',
-    background: active ? `${color}22` : 'transparent',
-    color: active ? color : 'rgba(255,255,255,0.4)',
+    background: active ? withAlpha(color, 0.13) : 'transparent',
+    color: active ? textColor(color, SURFACES.panel) : TEXT_COLORS.muted,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
     fontFamily: "'Titillium Web', sans-serif",
@@ -1363,10 +1399,10 @@ export default function TrackMap({ compact = false }) {
     width: 24,
     height: 24,
     padding: 0,
-    border: '1.5px solid rgba(255,255,255,0.2)',
+    border: `1.5px solid ${GRID_COLORS.rule}`,
     borderRadius: '4px',
     background: 'transparent',
-    color: 'rgba(255,255,255,0.5)',
+    color: TEXT_COLORS.muted,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
   };
@@ -1398,7 +1434,7 @@ export default function TrackMap({ compact = false }) {
     try {
       const totalLen = pathEl.getTotalLength();
       const pt = pathEl.getPointAtLength(trackProgress * totalLen);
-      const color = getDriverColor(focusDriverForTrack);
+      const color = carMark(focusDriverForTrack);
 
       const markerG = g.append('g').attr('class', 'track-progress-marker');
 
@@ -1414,9 +1450,8 @@ export default function TrackMap({ compact = false }) {
         .attr('cx', pt.x).attr('cy', pt.y)
         .attr('r', 5)
         .attr('fill', color)
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 1.5)
-        .attr('opacity', 0.9);
+        .attr('stroke', TEXT_COLORS.primary)
+        .attr('stroke-width', 1.5);
     } catch {
       // Path not ready yet
     }
@@ -1448,25 +1483,34 @@ export default function TrackMap({ compact = false }) {
       <button style={toggleBtnStyle(showSector2, SECTOR_COLORS[2])} onClick={() => setShowSector2(!showSector2)}>S2</button>
       <button style={toggleBtnStyle(showSector3, SECTOR_COLORS[3])} onClick={() => setShowSector3(!showSector3)}>S3</button>
       {seasonDrs && (
-        <button style={toggleBtnStyle(showDRS, '#00cc00')} onClick={() => setShowDRS(!showDRS)}>DRS</button>
+        <button style={toggleBtnStyle(showDRS, TRACK_COLORS.drs)} onClick={() => setShowDRS(!showDRS)}>DRS</button>
       )}
-      <button style={toggleBtnStyle(showCorners, '#aaa')} onClick={() => setShowCorners(!showCorners)}>Corners</button>
+      <button style={toggleBtnStyle(showCorners, TEXT_COLORS.secondary)} onClick={() => setShowCorners(!showCorners)}>Corners</button>
       <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
       <button
-        style={toggleBtnStyle(channelMode === 'speed', '#fbbf24')}
+        style={toggleBtnStyle(channelMode === 'speed', CHANNEL_COLORS.speed)}
         onClick={() => setChannelMode(channelMode === 'speed' ? null : 'speed')}
         title={focusDriver ? `Speed overlay (${focusDriver})` : 'Select a focus driver first'}
       >SPD</button>
       <button
-        style={toggleBtnStyle(channelMode === 'throttle', '#22c55e')}
+        style={toggleBtnStyle(channelMode === 'throttle', CHANNEL_COLORS.throttle)}
         onClick={() => setChannelMode(channelMode === 'throttle' ? null : 'throttle')}
         title={focusDriver ? `Throttle overlay (${focusDriver})` : 'Select a focus driver first'}
       >THR</button>
       <button
-        style={toggleBtnStyle(channelMode === 'brake', '#ef4444')}
+        style={toggleBtnStyle(channelMode === 'brake', CHANNEL_COLORS.brake)}
         onClick={() => setChannelMode(channelMode === 'brake' ? null : 'brake')}
         title={focusDriver ? `Brake overlay (${focusDriver})` : 'Select a focus driver first'}
       >BRK</button>
+      {/* Legend (V4): sectors, DRS, the channel overlay's ramp, the cars */}
+      <div style={{ marginLeft: 8, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
+        <Legend items={[
+          ...[1, 2, 3].filter((s) => [showSector1, showSector2, showSector3][s - 1])
+            .map((s) => ({ label: `S${s}`, color: SECTOR_COLORS[s], shape: 'line', strokeWidth: 5 })),
+          ...(seasonDrs && showDRS ? [{ label: 'DRS zone', color: TRACK_COLORS.drs, shape: 'band', fill: TRACK_COLORS.drsFill }] : []),
+          ...(channelMode ? channelLegend(channelMode) : []),
+        ]} />
+      </div>
       {driverLegendItems.length > 0 && (
         <div style={{ marginLeft: 8, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
           <Legend items={driverLegendItems} shape="circle" />
@@ -1492,7 +1536,7 @@ export default function TrackMap({ compact = false }) {
           <div style={{
             position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)',
             zIndex: 10, padding: '2px 8px', borderRadius: 3,
-            background: 'rgba(0,0,0,0.6)', fontSize: 8, color: '#777', whiteSpace: 'nowrap',
+            background: 'rgba(0,0,0,0.6)', fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, whiteSpace: 'nowrap',
           }}>
             No live positions
           </div>
@@ -1528,21 +1572,21 @@ export default function TrackMap({ compact = false }) {
     ? {
         '--hazard-color': winnerColor,
         '--hazard-color-bright': winnerColor,
-        '--hazard-color-dim': `${winnerColor}44`,
+        '--hazard-color-dim': withAlpha(winnerColor, 0.27),
         border: `3px solid ${winnerColor}`,
-        boxShadow: `0 0 20px ${winnerColor}55`,
+        boxShadow: `0 0 20px ${withAlpha(winnerColor, 0.33)}`,
         animation: 'hazard-border-pulse 2s ease-in-out infinite',
         transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
       }
     : {
         '--hazard-color': hazardColor,
         '--hazard-color-bright': hazardColor,
-        '--hazard-color-dim': `${hazardColor}44`,
+        '--hazard-color-dim': withAlpha(hazardColor, 0.27),
         border: isHazardActive
           ? `3px solid ${hazardColor}`
           : '2px solid rgba(255, 255, 255, 0.12)',
         boxShadow: isHazardActive
-          ? `0 0 16px ${hazardColor}44`
+          ? `0 0 16px ${withAlpha(hazardColor, 0.27)}`
           : '0 4px 30px rgba(0, 0, 0, 0.3)',
         transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
         animation: isHazardActive ? 'hazard-border-pulse 1.2s ease-in-out infinite' : 'none',
@@ -1578,23 +1622,23 @@ export default function TrackMap({ compact = false }) {
             padding: '6px 16px',
             background: 'rgba(10, 10, 20, 0.85)',
             backdropFilter: 'blur(8px)',
-            border: `2px solid ${winnerColor}88`,
+            border: `2px solid ${withAlpha(winnerColor, 0.53)}`,
             borderRadius: 8,
-            boxShadow: `0 0 16px ${winnerColor}33`,
+            boxShadow: `0 0 16px ${withAlpha(winnerColor, 0.2)}`,
             animation: 'winner-banner-glow 2s ease-in-out infinite',
           }}>
             <span style={{
               width: 4,
               height: 20,
               borderRadius: 2,
-              background: winnerColor,
+              background: markColor(winnerColor, SURFACES.page),
             }} />
             <span style={{
               fontFamily: "'Formula1', 'Titillium Web', sans-serif",
               fontWeight: 900,
               fontSize: '13px',
               letterSpacing: '0.15em',
-              color: '#fff',
+              color: TEXT_COLORS.primary,
             }}>
               CHEQUERED FLAG
             </span>
@@ -1602,7 +1646,7 @@ export default function TrackMap({ compact = false }) {
               fontFamily: "'Formula1', 'Titillium Web', sans-serif",
               fontWeight: 900,
               fontSize: '14px',
-              color: winnerColor,
+              color: textColor(winnerColor, SURFACES.page),
               letterSpacing: '0.08em',
             }}>
               {(() => {
@@ -1625,10 +1669,10 @@ export default function TrackMap({ compact = false }) {
               <div
                 key={hud.driver}
                 className={`track-telemetry-hud ${hud.isFocused ? 'track-telemetry-hud--focused' : ''}`}
-                style={{ borderColor: `${hud.color}88`, boxShadow: `0 0 8px ${hud.color}22` }}
+                style={{ borderColor: withAlpha(hud.color, 0.53), boxShadow: `0 0 8px ${withAlpha(hud.color, 0.13)}` }}
               >
                 <div className="track-telemetry-hud__header">
-                  <span className="track-telemetry-hud__driver" style={{ color: hud.color }}>
+                  <span className="track-telemetry-hud__driver" style={{ color: textColor(hud.color, SURFACES.page) }}>
                     {hud.driver}
                   </span>
                   <span className="track-telemetry-hud__lap">L{hud.lap}</span>
@@ -1668,7 +1712,15 @@ export default function TrackMap({ compact = false }) {
                 <div className="track-telemetry-hud__row">
                   <span className="track-telemetry-hud__label">TYRE</span>
                   <span className="track-telemetry-hud__value">
-                    <span className="track-telemetry-hud__tyre-dot" style={{ background: hud.compoundColor }} />
+                    {/* compound badge: FIA colour + letter in contrastText */}
+                    <span
+                      className="track-telemetry-hud__tyre-dot"
+                      style={{
+                        background: hud.compoundColor, color: contrastText(hud.compoundColor),
+                        width: 'auto', height: 'auto', minWidth: 13, lineHeight: '13px', textAlign: 'center',
+                        fontSize: CHART_FONT.label, fontWeight: 800,
+                      }}
+                    >{tyreLetter(hud.compoundKey)}</span>
                     {hud.compound}
                     <span className="track-telemetry-hud__tyre-life">L{hud.tyreLife}</span>
                   </span>
@@ -1690,18 +1742,18 @@ function CompassRose({ trackRotationOffset, circuitRotation, onClickCardinal }) 
   const compassAngle = -totalRotation;
 
   const cardinals = [
-    { label: 'N', angle: 0, color: '#e10600' },
-    { label: 'E', angle: 90, color: 'rgba(255,255,255,0.45)' },
-    { label: 'S', angle: 180, color: 'rgba(255,255,255,0.45)' },
-    { label: 'W', angle: 270, color: 'rgba(255,255,255,0.45)' },
+    { label: 'N', angle: 0, color: TRACK_COLORS.north },
+    { label: 'E', angle: 90, color: TEXT_COLORS.secondary },
+    { label: 'S', angle: 180, color: TEXT_COLORS.secondary },
+    { label: 'W', angle: 270, color: TEXT_COLORS.secondary },
   ];
 
   return (
     <svg
-      viewBox="-28 -28 56 56"
+      viewBox="-32 -32 64 64"
       style={{
         position: 'absolute', bottom: 8, right: 8, zIndex: 10,
-        width: 56, height: 56, maxWidth: 56, maxHeight: 56,
+        width: 64, height: 64, maxWidth: 64, maxHeight: 64,
         pointerEvents: 'auto', cursor: 'default',
         filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))',
       }}
@@ -1712,7 +1764,7 @@ function CompassRose({ trackRotationOffset, circuitRotation, onClickCardinal }) 
       {/* Needle group: rotates to always point north */}
       <g transform={`rotate(${compassAngle})`}>
         {/* North arrow (red) */}
-        <path d="M0,-15 L-3.5,0 L3.5,0 Z" fill="#e10600" opacity="0.9" />
+        <path d="M0,-15 L-3.5,0 L3.5,0 Z" fill={TRACK_COLORS.north} />
         {/* South arrow (dim) */}
         <path d="M0,15 L-3.5,0 L3.5,0 Z" fill="rgba(255,255,255,0.2)" />
       </g>
@@ -1730,9 +1782,8 @@ function CompassRose({ trackRotationOffset, circuitRotation, onClickCardinal }) 
             textAnchor="middle"
             dominantBaseline="central"
             fill={color}
-            fontSize="8"
             fontWeight="700"
-            style={{ cursor: 'pointer', userSelect: 'none' }}
+            style={{ cursor: 'pointer', userSelect: 'none', fontSize: CHART_FONT.label }}
             onClick={() => onClickCardinal(angle)}
           >
             {label}

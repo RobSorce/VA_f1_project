@@ -3,6 +3,7 @@ import { useF1Store } from '../../store/useF1Store';
 import { yearOptions } from '../../utils/seasons';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 import { CHART_HELP_LIST } from '../../utils/chartHelp';
+import { publicAsset } from '../../utils/publicAsset';
 
 const SESSION_TYPES = [
   { value: 'R', label: 'Race' },
@@ -353,7 +354,7 @@ export default function SettingsTabContent() {
         {openSection === 'about' && (
           <div className="settings-tab__section-body">
             <div className="settings-tab__about-header">
-              <img src="/f1-logo.png" alt="F1" className="settings-tab__about-logo" />
+              <img src={publicAsset('f1-logo.png')} alt="F1" className="settings-tab__about-logo" />
               <div>
                 <h2 className="settings-tab__about-title">F1 Race Control</h2>
                 <p className="settings-tab__about-subtitle">F1 Grand-Prix Analysis</p>

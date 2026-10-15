@@ -2,9 +2,33 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import * as d3 from 'd3';
 import { useReplayEngine, trackStatusBandLaps } from '../../hooks/useReplayEngine';
 import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
-import { TYRE_COLORS, getDriverColor } from '../../utils/colors';
+import {
+  CHART_FONT, DIVERGING, FLAG_COLORS, STATUS_COLORS, STATUS_GLYPHS, TRACK_STATUS_STYLES, UI_COLORS,
+  chartFontPx, contrastText, getDriverColor, markColor, withAlpha,
+} from '../../utils/colors';
 
 const SPEED_OPTIONS = [0.5, 1, 2, 5, 10, 20, 50];
+
+// Track-status events of the timeline: FIA colour (utils/colors.js) and the
+// letter drawn in the marker and in the legend, so the colour is never the
+// only cue (SC and VSC share the safety-car amber, told apart by SC / V).
+const EVENT_STYLES = {
+  GREEN_FLAG: { color: FLAG_COLORS.green, glyph: 'G', label: 'Start' },
+  YELLOW_FLAG: { color: FLAG_COLORS.yellow, glyph: 'Y', label: 'Yellow' },
+  SAFETY_CAR: { color: FLAG_COLORS.safetyCar, glyph: 'SC', label: 'SC' },
+  VSC: { color: FLAG_COLORS.safetyCar, glyph: 'V', label: 'VSC' },
+  RED_FLAG: { color: FLAG_COLORS.red, glyph: 'R', label: 'Red' },
+};
+const LEGEND_EVENTS = ['GREEN_FLAG', 'YELLOW_FLAG', 'SAFETY_CAR', 'VSC', 'RED_FLAG'];
+// Event marker radius (px): room for a two-letter glyph at the label size
+const MARKER_R = 8;
+// Neutral strokes of the timeline (not data): track, minor / major ticks
+const TRACK_FILL = 'rgba(255, 255, 255, 0.08)';
+const TICK_MINOR = 'rgba(255,255,255,0.25)';
+const TICK_MAJOR = 'rgba(255,255,255,0.5)';
+// A position change marker gains when the event says so (change > 0, or
+// "gained" in its description for events without the number)
+const isPositionGain = (evt) => (evt.change != null ? evt.change > 0 : / gained /.test(evt.description || ''));
 
 /**
  * Collapsible timeline player rendered at the bottom of the dashboard.
@@ -118,17 +142,21 @@ export default function TimelinePlayer() {
     const containerEl = svgRef.current.parentElement;
     const width = containerEl.clientWidth;
     const hasDriverSelection = selectedDrivers?.length > 0;
-    const height = hasDriverSelection ? 78 : 68;
+    // Geometry from the type tokens: tick labels at the data size, marker
+    // letters at the label size (utils/colors.js CHART_FONT, >= 11 / 10 px)
+    const tickPx = chartFontPx('data');
+    const margin = { left: 12, right: 12, top: 2 * MARKER_R + 2, bottom: 4 };
+    const trackY = margin.top + 2;
+    const trackHeight = 6;
+    const tickLabelY = trackY + trackHeight + 2 + 8 + tickPx;
+    // Layer 3 markers go below tick labels (only used when drivers are selected)
+    const layer3Y = tickLabelY + 10;
+    const height = hasDriverSelection ? layer3Y + 8 : tickLabelY + margin.bottom;
 
     svg.attr('width', width).attr('height', height);
     svg.selectAll('*').remove();
 
-    const margin = { left: 12, right: 12, top: 14, bottom: 14 };
-    const trackY = margin.top + 12;
-    const trackHeight = 6;
     const innerWidth = width - margin.left - margin.right;
-    // Layer 3 markers go below tick labels (only used when drivers are selected)
-    const layer3Y = trackY + trackHeight + 22;
 
     const xScale = d3.scaleLinear().domain([1, maxLap]).range([margin.left, margin.left + innerWidth]);
 
@@ -152,7 +180,7 @@ export default function TimelinePlayer() {
       .attr('width', innerWidth)
       .attr('height', trackHeight)
       .attr('rx', 3)
-      .attr('fill', 'rgba(255, 255, 255, 0.08)');
+      .attr('fill', TRACK_FILL);
 
     // Progress fill (drawn BEFORE event bands so events render on top)
     const progressWidth = xScale(currentLap) - margin.left;
@@ -162,7 +190,7 @@ export default function TimelinePlayer() {
       .attr('width', Math.max(0, progressWidth))
       .attr('height', trackHeight)
       .attr('rx', 3)
-      .attr('fill', '#e10600');
+      .attr('fill', UI_COLORS.accent);
 
     // Safety Car / VSC / Red Flag / Yellow Flag bands (rendered ON TOP of progress fill).
     // Causal: only periods started at the replay's now, a running one ending
@@ -175,11 +203,9 @@ export default function TimelinePlayer() {
       const bandW = Math.max(x2Raw - x1Raw, 6);
       // A minimum-width band on the last lap stays inside the track
       const x1 = Math.min(x1Raw, margin.left + innerWidth - bandW);
-      // Full-height background band
-      const bgFill = evt.type === 'VSC' ? 'rgba(255, 140, 0, 0.12)'
-        : evt.type === 'RED_FLAG' ? 'rgba(255, 0, 0, 0.15)'
-        : evt.type === 'YELLOW_FLAG' ? 'rgba(255, 204, 0, 0.08)'
-        : 'rgba(255, 204, 0, 0.12)';
+      // Full-height background band, a tint of the status colour
+      const st = EVENT_STYLES[evt.type];
+      const bgFill = withAlpha(st.color, evt.type === 'YELLOW_FLAG' ? 0.08 : 0.14);
       g.append('rect')
         .attr('x', x1)
         .attr('y', 2)
@@ -194,8 +220,8 @@ export default function TimelinePlayer() {
         .attr('width', bandW)
         .attr('height', trackHeight + 2)
         .attr('rx', 2)
-        .attr('fill', evt.color)
-        .attr('opacity', 0.5);
+        .attr('fill', st.color)
+        .attr('opacity', 0.6);
     }
 
     // Lap tick marks
@@ -209,17 +235,17 @@ export default function TimelinePlayer() {
         .attr('x2', x)
         .attr('y1', trackY + trackHeight + 2)
         .attr('y2', trackY + trackHeight + 2 + tickH)
-        .attr('stroke', isMain ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)')
+        .attr('stroke', isMain ? TICK_MAJOR : TICK_MINOR)
         .attr('stroke-width', isMain ? 1 : 0.5);
 
       if (isMain) {
         g.append('text')
           .attr('x', x)
-          .attr('y', trackY + trackHeight + 2 + tickH + 9)
+          .attr('y', tickLabelY)
           .attr('text-anchor', 'middle')
-          .attr('fill', 'rgba(255,255,255,0.35)')
-          .attr('font-size', '8px')
-          .attr('font-family', 'var(--font-mono)')
+          .style('fill', 'var(--color-text-muted)')
+          .style('font-size', CHART_FONT.data)
+          .style('font-family', 'var(--font-mono)')
           .text(lap);
       }
     }
@@ -256,27 +282,42 @@ export default function TimelinePlayer() {
     const selSet = new Set(selectedDrivers || []);
     const hasSelection = selSet.size > 0;
 
+    // A track-status marker: the status colour with its letter (EVENT_STYLES)
+    const statusMarker = (x, y, type) => {
+      const st = EVENT_STYLES[type];
+      const mG = markersG.append('g')
+        .attr('transform', `translate(${x}, ${y})`)
+        .style('cursor', 'pointer');
+      mG.append('circle')
+        .attr('r', MARKER_R)
+        .attr('fill', st.color)
+        .attr('stroke', 'rgba(0,0,0,0.6)')
+        .attr('stroke-width', 1);
+      mG.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', contrastText(st.color))
+        .style('font-size', CHART_FONT.label)
+        .attr('font-weight', '900')
+        .text(st.glyph);
+      return mG;
+    };
+
     for (const evt of raceEvents) {
       const x = eventX(evt, 'start');
-      const markerY = trackY - 7;
+      const markerY = trackY - MARKER_R - 1;
 
       // ── Layer 1: Green Flag ──
       if (evt.type === 'GREEN_FLAG') {
-        const marker = markersG.append('circle')
-          .attr('cx', x).attr('cy', markerY)
-          .attr('r', 4)
-          .attr('fill', evt.color)
-          .attr('stroke', 'rgba(0,0,0,0.5)')
-          .attr('stroke-width', 1)
-          .style('cursor', 'pointer');
+        const marker = statusMarker(x, markerY, evt.type);
         marker
           .on('mouseenter', (event) => {
-            d3.select(event.target).attr('r', 6);
+            marker.select('circle').attr('r', MARKER_R + 2);
             setTooltipData({ x: event.clientX, y: event.clientY, text: evt.description });
             interactingRef.current = true;
           })
-          .on('mouseleave', (event) => {
-            d3.select(event.target).attr('r', 4);
+          .on('mouseleave', () => {
+            marker.select('circle').attr('r', MARKER_R);
             setTooltipData(null);
             interactingRef.current = false;
           })
@@ -284,29 +325,15 @@ export default function TimelinePlayer() {
 
       // ── Layer 1: SC / VSC / Red Flag / Yellow Flag markers ──
       } else if (evt.type === 'SAFETY_CAR' || evt.type === 'VSC' || evt.type === 'RED_FLAG' || evt.type === 'YELLOW_FLAG') {
-        const scG = markersG.append('g')
-          .attr('transform', `translate(${x}, ${markerY})`)
-          .style('cursor', 'pointer');
-        scG.append('circle')
-          .attr('r', 5)
-          .attr('fill', evt.color)
-          .attr('stroke', 'rgba(0,0,0,0.5)')
-          .attr('stroke-width', 1);
-        scG.append('text')
-          .attr('text-anchor', 'middle')
-          .attr('dominant-baseline', 'central')
-          .attr('fill', '#000')
-          .attr('font-size', '6px')
-          .attr('font-weight', '900')
-          .text(evt.type === 'VSC' ? 'V' : evt.type === 'RED_FLAG' ? 'R' : evt.type === 'YELLOW_FLAG' ? 'Y' : 'SC');
+        const scG = statusMarker(x, markerY, evt.type);
         scG
           .on('mouseenter', (event) => {
-            scG.select('circle').attr('r', 7);
+            scG.select('circle').attr('r', MARKER_R + 2);
             setTooltipData({ x: event.clientX, y: event.clientY, text: evt.description });
             interactingRef.current = true;
           })
           .on('mouseleave', () => {
-            scG.select('circle').attr('r', 5);
+            scG.select('circle').attr('r', MARKER_R);
             setTooltipData(null);
             interactingRef.current = false;
           })
@@ -321,17 +348,17 @@ export default function TimelinePlayer() {
 
       // ── Layer 1: Chequered Flag ──
       } else if (evt.type === 'CHEQUERED_FLAG') {
-        const size = 8;
-        const sq = 2;
+        const size = 12;
+        const sq = 3;
         const flagG = markersG.append('g').attr('transform', `translate(${x - size / 2}, ${markerY - size / 2})`);
-        flagG.append('rect').attr('width', size).attr('height', size).attr('fill', '#ffffff').attr('rx', 1);
+        flagG.append('rect').attr('width', size).attr('height', size).attr('fill', FLAG_COLORS.chequered).attr('rx', 1);
         for (let row = 0; row < size / sq; row++) {
           for (let col = 0; col < size / sq; col++) {
             if ((row + col) % 2 === 0) {
               flagG.append('rect')
                 .attr('x', col * sq).attr('y', row * sq)
                 .attr('width', sq).attr('height', sq)
-                .attr('fill', '#000000');
+                .attr('fill', contrastText(FLAG_COLORS.chequered));
             }
           }
         }
@@ -347,19 +374,20 @@ export default function TimelinePlayer() {
         const pitG = markersG.append('g')
           .attr('transform', `translate(${x}, ${markerY})`)
           .style('cursor', 'pointer');
-        const r = evt.count > 3 ? 6 : 5;
+        // Pit stops: the timing pit colour, the number of stops (or P) inside
+        const r = MARKER_R;
         pitG.append('circle')
           .attr('r', r)
-          .attr('fill', 'rgba(0, 191, 255, 0.15)')
-          .attr('stroke', '#00bfff')
+          .attr('fill', STATUS_COLORS.pit)
+          .attr('stroke', 'rgba(0,0,0,0.6)')
           .attr('stroke-width', 1);
         pitG.append('text')
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
-          .attr('fill', '#00bfff')
-          .attr('font-size', '7px')
+          .attr('fill', contrastText(STATUS_COLORS.pit))
+          .style('font-size', CHART_FONT.label)
           .attr('font-weight', '900')
-          .text(evt.count || 'P');
+          .text(evt.count || STATUS_GLYPHS.pit);
         pitG
           .on('mouseenter', (event) => {
             pitG.select('circle').attr('r', r + 2);
@@ -382,20 +410,20 @@ export default function TimelinePlayer() {
         const flG = markersG.append('g')
           .attr('transform', `translate(${x}, ${markerY})`)
           .style('cursor', 'pointer');
+        // Fastest lap: the overall-best diamond of the timing views
         flG.append('path')
-          .attr('d', 'M0,-5 L4,0 L0,5 L-4,0 Z')
-          .attr('fill', '#a855f7')
-          .attr('stroke', 'rgba(168,85,247,0.5)')
-          .attr('stroke-width', 0.5)
-          .attr('filter', 'drop-shadow(0 0 3px rgba(168,85,247,0.6))');
+          .attr('d', 'M0,-7 L6,0 L0,7 L-6,0 Z')
+          .attr('fill', STATUS_COLORS.overallBest)
+          .attr('stroke', 'rgba(0,0,0,0.6)')
+          .attr('stroke-width', 1);
         flG
           .on('mouseenter', (event) => {
-            flG.select('path').attr('d', 'M0,-7 L5,0 L0,7 L-5,0 Z');
+            flG.select('path').attr('d', 'M0,-9 L7,0 L0,9 L-7,0 Z');
             setTooltipData({ x: event.clientX, y: event.clientY, text: evt.description });
             interactingRef.current = true;
           })
           .on('mouseleave', () => {
-            flG.select('path').attr('d', 'M0,-5 L4,0 L0,5 L-4,0 Z');
+            flG.select('path').attr('d', 'M0,-7 L6,0 L0,7 L-6,0 Z');
             setTooltipData(null);
             interactingRef.current = false;
           })
@@ -406,34 +434,33 @@ export default function TimelinePlayer() {
 
       // ── Layer 3: Driver pit stop (only for selected drivers) ──
       } else if (evt.type === 'DRIVER_PIT' && hasSelection && selSet.has(evt.driver)) {
-        const drvColor = getDriverColor(evt.driver);
+        const drvColor = markColor(getDriverColor(evt.driver));
         const dpG = markersG.append('g')
           .attr('transform', `translate(${x}, ${layer3Y})`)
           .style('cursor', 'pointer');
         dpG.append('rect')
-          .attr('x', -5).attr('y', -5)
-          .attr('width', 10).attr('height', 10)
+          .attr('x', -7).attr('y', -7)
+          .attr('width', 14).attr('height', 14)
           .attr('rx', 2)
           .attr('fill', drvColor)
-          .attr('opacity', 0.9)
-          .attr('stroke', 'rgba(255,255,255,0.3)')
-          .attr('stroke-width', 0.5);
+          .attr('stroke', 'rgba(0,0,0,0.6)')
+          .attr('stroke-width', 1);
         dpG.append('text')
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
-          .attr('fill', '#000')
-          .attr('font-size', '6px')
+          .attr('fill', contrastText(drvColor))
+          .style('font-size', CHART_FONT.label)
           .attr('font-weight', '900')
-          .text('P');
+          .text(STATUS_GLYPHS.pit);
         dpG
           .on('mouseenter', (event) => {
-            dpG.select('rect').attr('x', -6).attr('y', -6).attr('width', 12).attr('height', 12);
+            dpG.select('rect').attr('x', -8).attr('y', -8).attr('width', 16).attr('height', 16);
             setTooltipData({ x: event.clientX, y: event.clientY, text: evt.description });
             interactingRef.current = true;
             setHighlightedDriver(evt.driver);
           })
           .on('mouseleave', () => {
-            dpG.select('rect').attr('x', -5).attr('y', -5).attr('width', 10).attr('height', 10);
+            dpG.select('rect').attr('x', -7).attr('y', -7).attr('width', 14).attr('height', 14);
             setTooltipData(null);
             interactingRef.current = false;
             setHighlightedDriver(null);
@@ -445,17 +472,18 @@ export default function TimelinePlayer() {
 
       // ── Layer 3: Position change (only for selected drivers) ──
       } else if (evt.type === 'POSITION_CHANGE' && hasSelection && selSet.has(evt.driver)) {
-        const drvColor = getDriverColor(evt.driver);
-        const isGain = evt.color === '#22c55e';
+        // Up triangle = places gained, down = lost (the shape is the cue;
+        // the outline repeats it in the diverging blue / orange)
+        const drvColor = markColor(getDriverColor(evt.driver));
+        const isGain = isPositionGain(evt);
         const pcG = markersG.append('g')
           .attr('transform', `translate(${x}, ${layer3Y})`)
           .style('cursor', 'pointer');
         pcG.append('path')
-          .attr('d', isGain ? 'M0,-5 L5,5 L-5,5 Z' : 'M0,5 L5,-5 L-5,-5 Z')
+          .attr('d', isGain ? 'M0,-6 L6,6 L-6,6 Z' : 'M0,6 L6,-6 L-6,-6 Z')
           .attr('fill', drvColor)
-          .attr('stroke', isGain ? '#22c55e' : '#ef4444')
-          .attr('stroke-width', 1)
-          .attr('opacity', 0.9);
+          .attr('stroke', isGain ? DIVERGING.better : DIVERGING.worse)
+          .attr('stroke-width', 1.5);
         pcG
           .on('mouseenter', (event) => {
             setTooltipData({ x: event.clientX, y: event.clientY, text: evt.description });
@@ -481,7 +509,7 @@ export default function TimelinePlayer() {
       .attr('x2', playheadX)
       .attr('y1', trackY - 10)
       .attr('y2', trackY + trackHeight + 2)
-      .attr('stroke', '#ffffff')
+      .attr('stroke', UI_COLORS.focusRing)
       .attr('stroke-width', 2)
       .attr('stroke-linecap', 'round');
 
@@ -489,8 +517,8 @@ export default function TimelinePlayer() {
       .attr('cx', playheadX)
       .attr('cy', trackY + trackHeight / 2)
       .attr('r', 5)
-      .attr('fill', '#e10600')
-      .attr('stroke', '#ffffff')
+      .attr('fill', UI_COLORS.accent)
+      .attr('stroke', UI_COLORS.focusRing)
       .attr('stroke-width', 1.5);
 
     // Drag handlers for the hit area
@@ -550,14 +578,16 @@ export default function TimelinePlayer() {
     const svg = d3.select(qualiSvgRef.current);
     const containerEl = qualiSvgRef.current.parentElement;
     const width = containerEl.clientWidth;
-    const height = 68;
+    const tickPx = chartFontPx('data');
+    const margin = { left: 12, right: 12, top: tickPx + 6, bottom: 4 };
+    const trackY = margin.top + 4;
+    const trackHeight = 6;
+    const tickLabelY = trackY + trackHeight + 2 + 8 + tickPx;
+    const height = tickLabelY + margin.bottom;
 
     svg.attr('width', width).attr('height', height);
     svg.selectAll('*').remove();
 
-    const margin = { left: 12, right: 12, top: 14, bottom: 14 };
-    const trackY = margin.top + 12;
-    const trackHeight = 6;
     const innerWidth = width - margin.left - margin.right;
 
     const frames = frameData.frames;
@@ -573,7 +603,7 @@ export default function TimelinePlayer() {
       .attr('width', innerWidth)
       .attr('height', trackHeight)
       .attr('rx', 3)
-      .attr('fill', 'rgba(255, 255, 255, 0.08)');
+      .attr('fill', TRACK_FILL);
 
     // Progress fill
     const currentTime = frames[Math.min(currentFrameIndex, frames.length - 1)]?.t || 0;
@@ -584,7 +614,7 @@ export default function TimelinePlayer() {
       .attr('width', Math.max(0, progressWidth))
       .attr('height', trackHeight)
       .attr('rx', 3)
-      .attr('fill', '#e10600');
+      .attr('fill', UI_COLORS.accent);
 
     // Time tick marks (every 60 seconds)
     const tickIntervalSec = maxTime <= 120 ? 30 : maxTime <= 300 ? 60 : 120;
@@ -596,7 +626,7 @@ export default function TimelinePlayer() {
         .attr('x1', x).attr('x2', x)
         .attr('y1', trackY + trackHeight + 2)
         .attr('y2', trackY + trackHeight + 2 + tickH)
-        .attr('stroke', isMain ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)')
+        .attr('stroke', isMain ? TICK_MAJOR : TICK_MINOR)
         .attr('stroke-width', isMain ? 1 : 0.5);
 
       if (isMain) {
@@ -604,11 +634,11 @@ export default function TimelinePlayer() {
         const secs = Math.floor(t % 60);
         g.append('text')
           .attr('x', x)
-          .attr('y', trackY + trackHeight + 2 + tickH + 9)
+          .attr('y', tickLabelY)
           .attr('text-anchor', 'middle')
-          .attr('fill', 'rgba(255,255,255,0.35)')
-          .attr('font-size', '8px')
-          .attr('font-family', 'var(--font-mono)')
+          .style('fill', 'var(--color-text-muted)')
+          .style('font-size', CHART_FONT.data)
+          .style('font-family', 'var(--font-mono)')
           .text(`${mins}:${String(secs).padStart(2, '0')}`);
       }
     }
@@ -616,38 +646,38 @@ export default function TimelinePlayer() {
     // Segment label
     g.append('text')
       .attr('x', margin.left + 4)
-      .attr('y', trackY - 4)
-      .attr('fill', 'rgba(255,255,255,0.6)')
-      .attr('font-size', '9px')
+      .attr('y', trackY - 5)
+      .style('fill', 'var(--color-text-secondary)')
+      .style('font-size', CHART_FONT.data)
       .attr('font-weight', '700')
-      .attr('font-family', 'var(--font-mono)')
+      .style('font-family', 'var(--font-mono)')
       .text(qualiSegment);
 
     // Frame count
     g.append('text')
       .attr('x', margin.left + innerWidth - 4)
-      .attr('y', trackY - 4)
+      .attr('y', trackY - 5)
       .attr('text-anchor', 'end')
-      .attr('fill', 'rgba(255,255,255,0.3)')
-      .attr('font-size', '8px')
-      .attr('font-family', 'var(--font-mono)')
+      .style('fill', 'var(--color-text-muted)')
+      .style('font-size', CHART_FONT.data)
+      .style('font-family', 'var(--font-mono)')
       .text(`Frame ${currentFrameIndex + 1}/${totalFrames}`);
 
     // Playhead
     const playheadX = xScale(currentTime);
     g.append('line')
       .attr('x1', playheadX).attr('x2', playheadX)
-      .attr('y1', trackY - 10)
+      .attr('y1', trackY - 4)
       .attr('y2', trackY + trackHeight + 2)
-      .attr('stroke', '#ffffff')
+      .attr('stroke', UI_COLORS.focusRing)
       .attr('stroke-width', 2)
       .attr('stroke-linecap', 'round');
     g.append('circle')
       .attr('cx', playheadX)
       .attr('cy', trackY + trackHeight / 2)
       .attr('r', 5)
-      .attr('fill', '#e10600')
-      .attr('stroke', '#ffffff')
+      .attr('fill', UI_COLORS.accent)
+      .attr('stroke', UI_COLORS.focusRing)
       .attr('stroke-width', 1.5);
 
     // Click-to-seek hit area
@@ -698,7 +728,8 @@ export default function TimelinePlayer() {
     const liveConnected = useF1Store.getState().liveConnected;
     const exitLiveMode = useF1Store.getState().exitLiveMode;
     const flagStatus = useF1Store.getState().currentFlagStatus;
-    const flagColors = { '1': '#00ff00', '2': '#ffcc00', '4': '#ffcc00', '5': '#ff0000', '6': '#ff8c00', '7': '#ff8c00' };
+    // Track status: FIA colour dot with its label (never the colour alone)
+    const flag = TRACK_STATUS_STYLES[flagStatus] || TRACK_STATUS_STYLES['1'];
     return (
       <div className="timeline-player collapsed timeline-player--live">
         <div className="timeline-player__collapsed-row">
@@ -707,8 +738,10 @@ export default function TimelinePlayer() {
             <span className="live-badge">LIVE</span>
             <span
               className="timeline-player__flag-dot"
-              style={{ backgroundColor: flagColors[flagStatus] || '#00ff00' }}
+              style={{ backgroundColor: flag.color }}
+              aria-hidden="true"
             />
+            <span className="timeline-player__flag-label">{flag.short}</span>
           </div>
           <div className="timeline-player__progress-track" style={{ pointerEvents: 'none' }}>
             <div
@@ -725,15 +758,9 @@ export default function TimelinePlayer() {
               {liveSessionInfo?.event_name ? ` — ${liveSessionInfo.event_name}` : ''}
             </span>
             <button
+              type="button"
               onClick={exitLiveMode}
-              style={{
-                marginLeft: 8, padding: '3px 10px', borderRadius: 4,
-                border: '1px solid rgba(239,68,68,0.3)',
-                background: 'rgba(239,68,68,0.1)',
-                color: '#f87171', fontSize: 9, fontWeight: 700,
-                letterSpacing: '0.06em', cursor: 'pointer',
-                fontFamily: "'Formula1', 'Titillium Web', sans-serif",
-              }}
+              className="timeline-player__disconnect"
             >
               DISCONNECT
             </button>
@@ -845,47 +872,56 @@ export default function TimelinePlayer() {
                 <div className="timeline-player__timeline-wrapper">
                   <svg ref={svgRef} className="timeline-player__svg" />
                 </div>
-                {/* ── Legend below SVG ── */}
+                {/* ── Legend below SVG: the markers as drawn ── */}
                 <div className="timeline-player__legend">
-                  <span className="timeline-player__legend-item">
-                    <span className="timeline-player__legend-dot" style={{ backgroundColor: '#00ff00' }} />
-                    Start
-                  </span>
-                  <span className="timeline-player__legend-item">
-                    <span className="timeline-player__legend-dot" style={{ backgroundColor: '#ffcc00' }} />
-                    SC
-                  </span>
-                  <span className="timeline-player__legend-item">
-                    <span className="timeline-player__legend-dot" style={{ backgroundColor: '#ff8c00' }} />
-                    VSC
-                  </span>
-                  <span className="timeline-player__legend-item">
-                    <span className="timeline-player__legend-dot" style={{ backgroundColor: '#ff0000' }} />
-                    Red
-                  </span>
+                  {LEGEND_EVENTS.map((type) => {
+                    const st = EVENT_STYLES[type];
+                    return (
+                      <span key={type} className="timeline-player__legend-item">
+                        <svg className="timeline-player__legend-mark" width="18" height="18" viewBox="-9 -9 18 18" aria-hidden="true">
+                          <circle r={MARKER_R} fill={st.color} />
+                          <text textAnchor="middle" dominantBaseline="central" fill={contrastText(st.color)}
+                                fontWeight="900" style={{ fontSize: CHART_FONT.label }}>{st.glyph}</text>
+                        </svg>
+                        {st.label}
+                      </span>
+                    );
+                  })}
                   <span className="timeline-player__legend-divider" />
                   <span className="timeline-player__legend-item">
-                    <span className="timeline-player__legend-dot" style={{ backgroundColor: '#00bfff', borderRadius: '50%', border: '1px solid #00bfff' }} />
-                    Pits
+                    <svg className="timeline-player__legend-mark" width="18" height="18" viewBox="-9 -9 18 18" aria-hidden="true">
+                      <circle r={MARKER_R} fill={STATUS_COLORS.pit} />
+                      <text textAnchor="middle" dominantBaseline="central" fill={contrastText(STATUS_COLORS.pit)}
+                            fontWeight="900" style={{ fontSize: CHART_FONT.label }}>{STATUS_GLYPHS.pit}</text>
+                    </svg>
+                    Pit stops
                   </span>
                   <span className="timeline-player__legend-item">
-                    <svg width="7" height="7" style={{ flexShrink: 0 }}><path d="M3.5,0 L7,3.5 L3.5,7 L0,3.5 Z" fill="#a855f7" /></svg>
-                    FL
+                    <svg className="timeline-player__legend-mark" width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true">
+                      <path d="M0,-7 L6,0 L0,7 L-6,0 Z" fill={STATUS_COLORS.overallBest} />
+                    </svg>
+                    Fastest lap
                   </span>
                   {selectedDrivers?.length > 0 && (
                     <>
                       <span className="timeline-player__legend-divider" />
                       <span className="timeline-player__legend-item timeline-player__legend-item--driver">
-                        <svg width="7" height="7" style={{ flexShrink: 0 }}>
-                          <rect width="7" height="7" rx="1.5" fill="rgba(255,255,255,0.5)" />
+                        <svg className="timeline-player__legend-mark" width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true">
+                          <rect x="-6" y="-6" width="12" height="12" rx="2" style={{ fill: 'var(--color-text-secondary)' }} />
                         </svg>
-                        Pit
+                        Driver pit
                       </span>
                       <span className="timeline-player__legend-item timeline-player__legend-item--driver">
-                        <svg width="7" height="7" style={{ flexShrink: 0 }}>
-                          <path d="M3.5,0 L7,7 L0,7 Z" fill="rgba(255,255,255,0.5)" stroke="#22c55e" strokeWidth="1" />
+                        <svg className="timeline-player__legend-mark" width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true">
+                          <path d="M0,-6 L6,6 L-6,6 Z" style={{ fill: 'var(--color-text-secondary)' }} stroke={DIVERGING.better} strokeWidth="1.5" />
                         </svg>
-                        Move
+                        Gained 3+
+                      </span>
+                      <span className="timeline-player__legend-item timeline-player__legend-item--driver">
+                        <svg className="timeline-player__legend-mark" width="14" height="14" viewBox="-7 -7 14 14" aria-hidden="true">
+                          <path d="M0,6 L6,-6 L-6,-6 Z" style={{ fill: 'var(--color-text-secondary)' }} stroke={DIVERGING.worse} strokeWidth="1.5" />
+                        </svg>
+                        Lost 3+
                       </span>
                     </>
                   )}

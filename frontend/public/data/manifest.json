@@ -1,0 +1,150 @@
+{
+ "description": "Static demo data of the GitHub Pages build (backend/scripts/export_demo_data.py)",
+ "seasons": [
+  2025,
+  2024
+ ],
+ "races": [
+  {
+   "year": 2024,
+   "round": 16,
+   "session_type": "R",
+   "race_name": "Italian Grand Prix",
+   "why": "reference race of the methodology documents",
+   "frames_in_backend": 11406,
+   "frames_in_demo": 5703,
+   "laps": 53,
+   "drivers": 20,
+   "safety_car_periods": 0,
+   "virtual_safety_car_periods": 0,
+   "wet_tyre_laps": 0,
+   "lap_rows": 1008,
+   "rain_samples": 0,
+   "weather_samples": 133
+  },
+  {
+   "year": 2024,
+   "round": 5,
+   "session_type": "R",
+   "race_name": "Chinese Grand Prix",
+   "why": "safety-car race",
+   "frames_in_backend": 15345,
+   "frames_in_demo": 7673,
+   "laps": 56,
+   "drivers": 20,
+   "safety_car_periods": 2,
+   "virtual_safety_car_periods": 1,
+   "wet_tyre_laps": 0,
+   "lap_rows": 1032,
+   "rain_samples": 0,
+   "weather_samples": 165
+  },
+  {
+   "year": 2025,
+   "round": 1,
+   "session_type": "R",
+   "race_name": "Australian Grand Prix",
+   "why": "wet race",
+   "frames_in_backend": 15418,
+   "frames_in_demo": 7709,
+   "laps": 57,
+   "drivers": 20,
+   "safety_car_periods": 3,
+   "virtual_safety_car_periods": 0,
+   "wet_tyre_laps": 750,
+   "lap_rows": 927,
+   "rain_samples": 58,
+   "weather_samples": 178
+  }
+ ],
+ "frame_step": 2,
+ "frame_dt_s": 0.8,
+ "backend_only": [
+  "forecast",
+  "gemini",
+  "telemetry",
+  "live",
+  "other_sessions"
+ ],
+ "nan_written_as_null": 0,
+ "files": {
+  "2024_16_R/analytics.json.gz": {
+   "bytes": 3123,
+   "json_bytes": 17768
+  },
+  "2024_16_R/frames.json.gz": {
+   "bytes": 1429646,
+   "json_bytes": 12639489
+  },
+  "2024_16_R/session.json.gz": {
+   "bytes": 114760,
+   "json_bytes": 917454
+  },
+  "2024_5_R/analytics.json.gz": {
+   "bytes": 3184,
+   "json_bytes": 17789
+  },
+  "2024_5_R/frames.json.gz": {
+   "bytes": 1893657,
+   "json_bytes": 16341520
+  },
+  "2024_5_R/session.json.gz": {
+   "bytes": 124308,
+   "json_bytes": 956347
+  },
+  "2025_1_R/analytics.json.gz": {
+   "bytes": 2481,
+   "json_bytes": 13912
+  },
+  "2025_1_R/frames.json.gz": {
+   "bytes": 1699563,
+   "json_bytes": 14444393
+  },
+  "2025_1_R/session.json.gz": {
+   "bytes": 116675,
+   "json_bytes": 868526
+  },
+  "championship_2024.json.gz": {
+   "bytes": 5322,
+   "json_bytes": 55967
+  },
+  "championship_2025.json.gz": {
+   "bytes": 2531,
+   "json_bytes": 19777
+  },
+  "pca/embeddings.json.gz": {
+   "bytes": 20570,
+   "json_bytes": 135367
+  },
+  "pca/fit_without_2024_16.json.gz": {
+   "bytes": 20444,
+   "json_bytes": 132231
+  },
+  "pca/fit_without_2024_5.json.gz": {
+   "bytes": 20579,
+   "json_bytes": 132787
+  },
+  "pca/fit_without_2025_1.json.gz": {
+   "bytes": 20679,
+   "json_bytes": 133491
+  },
+  "pca/matrix.json.gz": {
+   "bytes": 45105,
+   "json_bytes": 120298
+  },
+  "pca/strategies.json.gz": {
+   "bytes": 9289,
+   "json_bytes": 144085
+  },
+  "schedule_2024.json.gz": {
+   "bytes": 206,
+   "json_bytes": 335
+  },
+  "schedule_2025.json.gz": {
+   "bytes": 164,
+   "json_bytes": 186
+  }
+ },
+ "total_bytes": 5532286,
+ "budget_bytes": 20000000
+}

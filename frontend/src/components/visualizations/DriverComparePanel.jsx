@@ -1,7 +1,25 @@
-import React, { useMemo, useRef, useEffect, useCallback } from 'react';
+import React, {
+  useMemo, useRef, useEffect, useCallback, useState,
+} from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS, TYRE_LABELS, getTyreTextColor } from '../../utils/colors';
+import {
+  getDriverColor, getDriverDash, TYRE_COLORS, TYRE_LABELS, markColor, textColor,
+  signedDelta, DIVERGING, TEXT_COLORS, GRID_COLORS, CHART_FONT, chartFontPx,
+} from '../../utils/colors';
+import Legend from '../ui/Legend';
+import { useBoxSize } from '../../utils/views/chartBox';
+import { compareSections, comparePages, COMPARE_GAP } from '../../utils/views/driverCompare';
+import { drawStintStrips, lapTicks } from '../../utils/views/stintStripChart';
+
+// Glyph next to the better of the two values of a metric row (with the
+// diverging pair's "better" blue): the colour is never the only cue
+const WINNER_GLYPH = '▲';
+const FORECAST_DASH = '2,3';
+// Pager text: the sections on the page
+const SECTION_TITLES = {
+  gap: 'Gap', laps: 'Lap times', sectors: 'Sectors', speeds: 'Top speeds', summary: 'Summary', tyres: 'Tyres',
+};
 import { exportAsPng } from '../../utils/exportChart';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { stintsByDriver, pitStops } from '../../utils/stints';
@@ -23,11 +41,15 @@ function formatTime(seconds) {
 function DriverCard({ abbr, info, color }) {
   return (
     <div className="compare-panel__driver-card">
-      <span className="compare-panel__team-bar" style={{ backgroundColor: color }} />
+      <span className="compare-panel__team-bar" style={{ backgroundColor: markColor(color) }} />
       <div className="compare-panel__driver-info">
         <span className="compare-panel__driver-abbr">{abbr}</span>
-        {info && <span className="compare-panel__driver-name">{info.FullName}</span>}
-        {info && <span className="compare-panel__team-name">{info.TeamName}</span>}
+        {info && (
+          <span className="compare-panel__driver-name" title={`${info.FullName} · ${info.TeamName}`}>
+            {info.FullName}
+            <span className="compare-panel__team-name"> · {info.TeamName}</span>
+          </span>
+        )}
       </div>
     </div>
   );
@@ -41,11 +63,13 @@ function MetricsTable({ title, rows, driverA, driverB }) {
       {rows.map((r) => (
         <div key={r.label} className="compare-panel__metric-row">
           <span className={`compare-panel__metric-value compare-panel__metric-value--left${r.winner === 'A' ? ' compare-panel__metric-value--winner' : ''}`}>
+            {r.winner === 'A' && <span className="timing-glyph" aria-label="better">{WINNER_GLYPH} </span>}
             {r.valueA}
           </span>
           <span className="compare-panel__metric-label">{r.label}</span>
           <span className={`compare-panel__metric-value compare-panel__metric-value--right${r.winner === 'B' ? ' compare-panel__metric-value--winner' : ''}`}>
             {r.valueB}
+            {r.winner === 'B' && <span className="timing-glyph" aria-label="better"> {WINNER_GLYPH}</span>}
           </span>
         </div>
       ))}
@@ -54,42 +78,58 @@ function MetricsTable({ title, rows, driverA, driverB }) {
 }
 
 // stintsA / stintsB: deriveStints rows at sessionNow (causal: the ongoing
-// stint already ends at the driver's last completed lap)
+// stint already ends at the driver's last completed lap). Drawn as the D3
+// stint strips of the other strategy views (utils/views/stintStripChart.js):
+// one row per driver on one lap axis, each stint in its FIA compound colour
+// with its letter and length, the lap in progress as a marker (V6 r2: this
+// section was a div bar chart of percentage widths)
 function StrategyComparison({ driverA, driverB, stintsA, stintsB, currentLap, maxLap }) {
+  const boxRef = useRef(null);
+  const svgRef = useRef(null);
+  const box = useBoxSize(boxRef);
   const totalLaps = maxLap || currentLap || 1;
-  if (stintsA.length === 0 && stintsB.length === 0) return null;
+  const hasStints = stintsA.length > 0 || stintsB.length > 0;
 
-  const renderBar = (stints, driver) => (
-    <div className="compare-panel__stint-row">
-      <span className="compare-panel__stint-driver">{driver}</span>
-      <div className="compare-panel__stint-bar">
-        {stints.map((s, i) => {
-          const start = s.StartLap;
-          const end = s.EndLap;
-          // A stint just begun (pit exit passed, no lap completed) has 0 laps
-          const width = (Math.max(0, end - start + 1) / totalLaps) * 100;
-          const bg = TYRE_COLORS[s.Compound] || TYRE_COLORS.UNKNOWN;
-          const textColor = getTyreTextColor(s.Compound);
-          return (
-            <span
-              key={i}
-              className="compare-panel__stint-segment"
-              style={{ width: `${Math.max(width, 2)}%`, backgroundColor: bg, color: textColor }}
-              title={`${s.Compound}: laps ${stintLapsText(s)}`}
-            >
-              {width > 8 ? `${TYRE_LABELS[s.Compound] || '?'} ${end - start + 1}L` : TYRE_LABELS[s.Compound] || '?'}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
+  useEffect(() => {
+    if (!svgRef.current || !hasStints) return;
+    const segments = (stints) => stints.map((s, i) => ({
+      key: `${i}`,
+      start: s.StartLap,
+      // a stint just begun (pit exit passed, no lap completed) has 0 laps
+      length: Math.max(0, s.EndLap - s.StartLap + 1),
+      compound: s.Compound || 'UNKNOWN',
+      title: `${s.Compound}: laps ${stintLapsText(s)}`,
+    }));
+    const fontPx = chartFontPx('data');
+    drawStintStrips(svgRef.current, {
+      rows: [
+        { key: 'A', label: driverA, segments: segments(stintsA) },
+        { key: 'B', label: driverB, segments: segments(stintsB) },
+      ],
+      domain: [1, totalLaps + 1],
+      width: box.width > 0 ? box.width : 300,
+      rowH: Math.max(18, Math.round(fontPx * 1.6)),
+      labelW: Math.ceil(3 * 0.62 * fontPx) + 2,
+      axis: { ticks: lapTicks(totalLaps), format: (v) => `L${v}` },
+      marker: currentLap ? { value: currentLap + 0.5, title: `Lap ${currentLap}` } : null,
+      font: CHART_FONT.data,
+      fontPx,
+    });
+  });
 
+  if (!hasStints) return null;
   return (
     <div className="compare-panel__metrics">
       <div className="compare-panel__metrics-title">Tyre Strategy</div>
-      {renderBar(stintsA, driverA)}
-      {renderBar(stintsB, driverB)}
+      <div ref={boxRef} style={{ minWidth: 0, margin: '4px 10px 6px' }}>
+        <svg ref={svgRef} className="compare-panel__stints-svg" style={{ display: 'block', maxWidth: '100%' }} />
+      </div>
+      {/* the stints as text for screen readers (the strips are drawn after mount) */}
+      <p className="sr-only">
+        {[[driverA, stintsA], [driverB, stintsB]]
+          .map(([d, list]) => `${d}: ${list.map((st) => `${st.Compound}: laps ${stintLapsText(st)}`).join('; ')}`)
+          .join('. ')}
+      </p>
     </div>
   );
 }
@@ -111,6 +151,11 @@ export default function DriverComparePanel() {
   const panelRef = useRef(null);
   const gapChartRef = useRef(null);
   const lapChartRef = useRef(null);
+  // The body's box: its sections flow into columns and pages that fit it
+  // (utils/views/driverCompare.js; V13: nothing cut, no scroll)
+  const bodyRef = useRef(null);
+  const bodyBox = useBoxSize(bodyRef);
+  const [page, setPage] = useState(0);
 
   const handleExport = useCallback(() => {
     if (!panelRef.current) return;
@@ -331,11 +376,26 @@ export default function DriverComparePanel() {
     return { winsA, winsB };
   }, [sectorComparison, speedComparison, summaryStats]);
 
+  // Columns and pages of the sections in the body (charts >= 140 px tall)
+  const hasStints = (stintsMap[driverA] || []).length > 0 || (stintsMap[driverB] || []).length > 0;
+  const layout = useMemo(() => comparePages(bodyBox, compareSections({
+    sectors: sectorComparison.length,
+    speeds: speedComparison.length,
+    summary: summaryStats.length,
+    tyres: hasStints,
+  }, chartFontPx('data'))), [bodyBox, sectorComparison, speedComparison, summaryStats, hasStints]);
+  const pageIndex = Math.min(page, layout.pages.length - 1);
+  const columns = layout.pages[pageIndex] || [];
+  // Charts redraw when their box changes (page, column, panel size)
+  const layoutKey = `${bodyBox.width}x${bodyBox.height}:${pageIndex}:${columns.map((c) => c.join('+')).join('|')}`;
+
   // ── D3: Gap evolution chart ──
   useEffect(() => {
     if (!gapChartRef.current || gapData.length < 2) return;
     const container = gapChartRef.current.parentElement;
     const { width: W, height: H } = container.getBoundingClientRect();
+    // not laid out yet (or a pane too small to draw in): nothing to draw
+    if (W < 80 || H < 70) return;
     const margin = { top: 20, right: 16, bottom: 28, left: 50 };
     const w = W - margin.left - margin.right;
     const h = H - margin.top - margin.bottom;
@@ -353,13 +413,14 @@ export default function DriverComparePanel() {
     // Grid
     g.append('g').attr('class', 'grid').attr('transform', `translate(0,${h})`).call(
       d3.axisBottom(x).ticks(Math.min(gapData.length, 10)).tickSize(-h).tickFormat('')
-    ).selectAll('line').attr('stroke', 'rgba(255,255,255,0.05)');
+    ).selectAll('line').attr('stroke', GRID_COLORS.grid);
 
     // Zero line
     g.append('line').attr('x1', 0).attr('x2', w).attr('y1', y(0)).attr('y2', y(0))
-      .attr('stroke', 'rgba(255,255,255,0.3)').attr('stroke-dasharray', '4,3');
+      .attr('stroke', GRID_COLORS.rule).attr('stroke-dasharray', '4,3');
 
-    // Area: positive (A ahead) = green, negative (B ahead) = red
+    // Area: positive (A ahead) in A's colour, negative (B ahead) in B's,
+    // each side labelled with its driver ("A ahead" / "B ahead")
     const areaAbove = d3.area()
       .x((d) => x(d.lap))
       .y0(y(0))
@@ -379,46 +440,47 @@ export default function DriverComparePanel() {
     // Line
     const line = d3.line().x((d) => x(d.lap)).y((d) => y(d.gap)).curve(d3.curveMonotoneX);
     g.append('path').datum(gapData).attr('d', line)
-      .attr('fill', 'none').attr('stroke', 'rgba(255,255,255,0.8)').attr('stroke-width', 1.5);
+      .attr('fill', 'none').attr('stroke', TEXT_COLORS.primary).attr('stroke-width', 1.5);
 
     // Axes
     g.append('g').attr('transform', `translate(0,${h})`).call(d3.axisBottom(x).ticks(Math.min(gapData.length, 10)).tickFormat(d3.format('d')))
-      .selectAll('text').attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', '9px');
-    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat((d) => `${d > 0 ? '+' : ''}${d.toFixed(1)}s`))
-      .selectAll('text').attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', '9px');
+      .selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data);
+    g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat((d) => `${signedDelta(d, 1)}s`))
+      .selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data);
 
-    // Driver labels on Y axis
+    // Driver labels on Y axis (the cue of each side's colour)
     g.append('text').attr('x', -8).attr('y', y(maxGap * 0.7))
-      .attr('fill', colorA).attr('font-size', '9px').attr('font-weight', '700')
+      .attr('fill', textColor(colorA)).style('font-size', CHART_FONT.data).attr('font-weight', '700')
       .attr('text-anchor', 'end').text(`${driverA} ahead`);
     g.append('text').attr('x', -8).attr('y', y(-maxGap * 0.7))
-      .attr('fill', colorB).attr('font-size', '9px').attr('font-weight', '700')
+      .attr('fill', textColor(colorB)).style('font-size', CHART_FONT.data).attr('font-weight', '700')
       .attr('text-anchor', 'end').text(`${driverB} ahead`);
 
     // Title
     g.append('text').attr('x', w / 2).attr('y', -6)
-      .attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', '10px')
+      .attr('fill', TEXT_COLORS.secondary).style('font-size', CHART_FONT.label)
       .attr('text-anchor', 'middle').attr('font-weight', '600').text('Gap Evolution');
     // Axis labels
     g.append('text').attr('text-anchor', 'middle')
       .attr('x', w / 2).attr('y', h + 24)
-      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
       .attr('font-weight', 600).text('Lap');
     g.append('text').attr('text-anchor', 'middle')
       .attr('transform', 'rotate(-90)').attr('x', -h / 2).attr('y', -40)
-      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
       .attr('font-weight', 600).text('Gap (s)');
 
     // Clean up axis lines
-    svg.selectAll('.domain').attr('stroke', 'rgba(255,255,255,0.1)');
-    svg.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.08)');
-  }, [gapData, driverA, driverB, colorA, colorB]);
+    svg.selectAll('.domain').attr('stroke', GRID_COLORS.axis);
+    svg.selectAll('.tick line').attr('stroke', GRID_COLORS.axis);
+  }, [gapData, driverA, driverB, colorA, colorB, layoutKey]);
 
   // ── D3: Lap times overlay ──
   useEffect(() => {
     if (!lapChartRef.current || racingA.length < 2 || racingB.length < 2) return;
     const container = lapChartRef.current.parentElement;
     const { width: W, height: H } = container.getBoundingClientRect();
+    if (W < 80 || H < 70) return;
     const margin = { top: 20, right: 16, bottom: 28, left: 50 };
     const w = W - margin.left - margin.right;
     const h = H - margin.top - margin.bottom;
@@ -442,30 +504,32 @@ export default function DriverComparePanel() {
     // Grid
     g.append('g').attr('transform', `translate(0,${h})`).call(
       d3.axisBottom(x).ticks(Math.min(currentLap, 10)).tickSize(-h).tickFormat('')
-    ).selectAll('line').attr('stroke', 'rgba(255,255,255,0.05)');
+    ).selectAll('line').attr('stroke', GRID_COLORS.grid);
 
-    // Lines
+    // Lines: each driver's colour (>= 3:1), the teammate's dashed (V3)
+    const markA = markColor(colorA);
+    const markB = markColor(colorB);
     const line = d3.line().x((d) => x(d.LapNumber)).y((d) => y(d.LapTimeSeconds)).curve(d3.curveMonotoneX);
     g.append('path').datum(racingA).attr('d', line)
-      .attr('fill', 'none').attr('stroke', colorA).attr('stroke-width', 2).attr('opacity', 0.9);
+      .attr('fill', 'none').attr('stroke', markA).attr('stroke-width', 2).attr('stroke-dasharray', getDriverDash(driverA));
     g.append('path').datum(racingB).attr('d', line)
-      .attr('fill', 'none').attr('stroke', colorB).attr('stroke-width', 2).attr('opacity', 0.9);
+      .attr('fill', 'none').attr('stroke', markB).attr('stroke-width', 2).attr('stroke-dasharray', getDriverDash(driverB));
 
     // Pit markers (in-laps of the pit stops visible at sessionNow)
     pitLapsA.forEach((l) => {
       g.append('circle').attr('cx', x(l.LapNumber)).attr('cy', y(l.LapTimeSeconds))
-        .attr('r', 3).attr('fill', colorA).attr('stroke', '#fff').attr('stroke-width', 1);
+        .attr('r', 3).attr('fill', markA).attr('stroke', TEXT_COLORS.primary).attr('stroke-width', 1);
     });
     pitLapsB.forEach((l) => {
       g.append('circle').attr('cx', x(l.LapNumber)).attr('cy', y(l.LapTimeSeconds))
-        .attr('r', 3).attr('fill', colorB).attr('stroke', '#fff').attr('stroke-width', 1);
+        .attr('r', 3).attr('fill', markB).attr('stroke', TEXT_COLORS.primary).attr('stroke-width', 1);
     });
 
     // Forecast overlay of a driver who has one (the focus driver's, asked by
     // a double-click): dashed line over its first 3 target laps, from the
     // forecast's origin lap (target_laps, never the last racing lap + i)
-    [{ drv: driverA, color: colorA, laps: racingA },
-     { drv: driverB, color: colorB, laps: racingB }].forEach(({ drv, color, laps }) => {
+    [{ drv: driverA, color: markA, laps: racingA },
+     { drv: driverB, color: markB, laps: racingB }].forEach(({ drv, color, laps }) => {
       const pred = focusForecast(lstmPredictions, drv);
       const points = forecastPoints(pred).slice(0, 3);
       if (!points.length || laps.length === 0) return;
@@ -476,47 +540,37 @@ export default function DriverComparePanel() {
         const predLine = d3.line().x((d) => x(d.LapNumber)).y((d) => y(d.LapTimeSeconds)).curve(d3.curveMonotoneX);
         g.append('path').datum(predPoints).attr('d', predLine)
           .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5)
-          .attr('stroke-dasharray', '4,3').attr('opacity', 0.6);
+          .attr('stroke-linecap', 'round').attr('stroke-dasharray', FORECAST_DASH);
         predPoints.slice(1).forEach((pt) => {
           g.append('circle').attr('cx', x(pt.LapNumber)).attr('cy', y(pt.LapTimeSeconds))
-            .attr('r', 2).attr('fill', color).attr('opacity', 0.5).attr('stroke', 'none');
+            .attr('r', 2.5).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.2);
         });
       }
     });
 
     // Axes
     g.append('g').attr('transform', `translate(0,${h})`).call(d3.axisBottom(x).ticks(Math.min(currentLap, 10)).tickFormat(d3.format('d')))
-      .selectAll('text').attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', '9px');
+      .selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data);
     g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat((d) => formatTime(d)))
-      .selectAll('text').attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', '9px');
-
-    // Legend
-    const legend = g.append('g').attr('transform', `translate(${w - 120}, -6)`);
-    [{ abbr: driverA, color: colorA }, { abbr: driverB, color: colorB }].forEach((d, i) => {
-      const lg = legend.append('g').attr('transform', `translate(${i * 60}, 0)`);
-      lg.append('line').attr('x1', 0).attr('x2', 14).attr('y1', 0).attr('y2', 0)
-        .attr('stroke', d.color).attr('stroke-width', 2);
-      lg.append('text').attr('x', 18).attr('y', 3)
-        .attr('fill', d.color).attr('font-size', '9px').attr('font-weight', '700').text(d.abbr);
-    });
+      .selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data);
 
     // Title
     g.append('text').attr('x', w / 2).attr('y', -6)
-      .attr('fill', 'rgba(255,255,255,0.5)').attr('font-size', '10px')
+      .attr('fill', TEXT_COLORS.secondary).style('font-size', CHART_FONT.label)
       .attr('text-anchor', 'middle').attr('font-weight', '600').text('Lap Times');
     // Axis labels
     g.append('text').attr('text-anchor', 'middle')
       .attr('x', w / 2).attr('y', h + 24)
-      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
       .attr('font-weight', 600).text('Lap');
     g.append('text').attr('text-anchor', 'middle')
       .attr('transform', 'rotate(-90)').attr('x', -h / 2).attr('y', -40)
-      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
       .attr('font-weight', 600).text('Time (s)');
 
-    svg.selectAll('.domain').attr('stroke', 'rgba(255,255,255,0.1)');
-    svg.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.08)');
-  }, [racingA, racingB, pitLapsA, pitLapsB, driverA, driverB, colorA, colorB, currentLap, lstmPredictions]);
+    svg.selectAll('.domain').attr('stroke', GRID_COLORS.axis);
+    svg.selectAll('.tick line').attr('stroke', GRID_COLORS.axis);
+  }, [racingA, racingB, pitLapsA, pitLapsB, driverA, driverB, colorA, colorB, currentLap, lstmPredictions, layoutKey]);
 
   // ── Empty state ──
   if (!driverA || !driverB) {
@@ -536,7 +590,7 @@ export default function DriverComparePanel() {
               <option key={d.Abbreviation} value={d.Abbreviation}>{d.Abbreviation} — {d.FullName}</option>
             ))}
           </select>
-          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px' }}>vs</span>
+          <span style={{ color: TEXT_COLORS.muted, fontSize: CHART_FONT.data }}>vs</span>
           <select
             className="compare-panel__driver-select"
             value={compareDrivers[1] || ''}
@@ -550,12 +604,69 @@ export default function DriverComparePanel() {
             ))}
           </select>
         </div>
-        <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
+        <div style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, marginTop: 4 }}>
           Tip: select drivers from the leaderboard, then open this panel
         </div>
       </div>
     );
   }
+
+  // One section of the body; a chart takes what its column leaves (the
+  // layout gives it >= COMPARE_CHART_MIN_H px wherever the pane allows)
+  const sectionView = (key) => {
+    switch (key) {
+      case 'gap':
+        return (
+          <div key="gap" className="compare-panel__chart-container">
+            <svg ref={gapChartRef} />
+          </div>
+        );
+      case 'laps':
+        // Lap Times Overlay, its legend: the two drivers' lines (teammate
+        // dashed), pit in-laps, the dotted forecast
+        return (
+          <div key="laps" className="compare-panel__chart-block">
+            <Legend items={[
+              { label: driverA, color: markColor(colorA), shape: 'line', dash: getDriverDash(driverA) },
+              { label: driverB, color: markColor(colorB), shape: 'line', dash: getDriverDash(driverB) },
+              { label: 'Pit in-lap', color: TEXT_COLORS.primary, glyph: '\u25CF', shape: 'glyph' },
+              { label: 'Forecast', color: TEXT_COLORS.secondary, shape: 'line', dash: FORECAST_DASH },
+              { label: 'Better value', color: DIVERGING.better, glyph: WINNER_GLYPH, shape: 'glyph' },
+            ]} />
+            <div className="compare-panel__chart-container">
+              <svg ref={lapChartRef} />
+            </div>
+          </div>
+        );
+      case 'sectors':
+        return <MetricsTable key="sectors" title="Best Sector Times" rows={sectorComparison} driverA={driverA} driverB={driverB} />;
+      case 'speeds':
+        return <MetricsTable key="speeds" title="Top Speeds" rows={speedComparison} driverA={driverA} driverB={driverB} />;
+      case 'summary':
+        return <MetricsTable key="summary" title="Race Summary" rows={summaryStats} driverA={driverA} driverB={driverB} />;
+      case 'tyres':
+        return (
+          <div key="tyres" className="compare-panel__tyres">
+            <StrategyComparison
+              driverA={driverA}
+              driverB={driverB}
+              stintsA={stintsMap[driverA] || []}
+              stintsB={stintsMap[driverB] || []}
+              currentLap={currentLap}
+              maxLap={maxLap}
+            />
+            {/* Compound legend: FIA colour with its letter, as in the stint bars */}
+            <div className="sectors-panel__legend" style={{ padding: '4px 0 0', justifyContent: 'center' }}>
+              <Legend items={['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'].map((c) => ({
+                label: c[0] + c.slice(1).toLowerCase(), color: TYRE_COLORS[c], glyph: TYRE_LABELS[c], shape: 'badge',
+              }))} />
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div ref={panelRef} className="compare-panel">
@@ -575,7 +686,7 @@ export default function DriverComparePanel() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 22, height: 22, borderRadius: 4,
             border: 'none', background: 'transparent',
-            color: 'rgba(255,255,255,0.3)', cursor: 'pointer',
+            color: TEXT_COLORS.muted, cursor: 'pointer',
             fontSize: '12px', padding: 0, flexShrink: 0,
           }}
         >
@@ -587,46 +698,22 @@ export default function DriverComparePanel() {
         </button>
       </div>
 
-      {/* Scrollable body */}
-      <div className="compare-panel__body">
-        {/* Gap Evolution */}
-        <div className="compare-panel__chart-container">
-          <svg ref={gapChartRef} />
-        </div>
-
-        {/* Lap Times Overlay */}
-        <div className="compare-panel__chart-container compare-panel__chart-container--small">
-          <svg ref={lapChartRef} />
-        </div>
-
-        {/* Sector Times */}
-        <MetricsTable title="Best Sector Times" rows={sectorComparison} driverA={driverA} driverB={driverB} />
-
-        {/* Top Speeds */}
-        <MetricsTable title="Top Speeds" rows={speedComparison} driverA={driverA} driverB={driverB} />
-
-        {/* Summary */}
-        <MetricsTable title="Race Summary" rows={summaryStats} driverA={driverA} driverB={driverB} />
-
-        {/* Tyre Strategy */}
-        <StrategyComparison
-          driverA={driverA}
-          driverB={driverB}
-          stintsA={stintsMap[driverA] || []}
-          stintsB={stintsMap[driverB] || []}
-          currentLap={currentLap}
-          maxLap={maxLap}
-        />
-
-        {/* Compound Legend */}
-        <div className="sectors-panel__legend" style={{ padding: '6px 0 4px', justifyContent: 'center' }}>
-          {['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'].map((c) => (
-            <span key={c} className="sectors-panel__legend-item">
-              <span className="sectors-panel__legend-dot" style={{ background: TYRE_COLORS[c] }} />
-              {TYRE_LABELS[c]}
-            </span>
+      {/* Body: the sections in columns and pages that fit the pane (no scroll) */}
+      <div ref={bodyRef} className="compare-panel__body">
+        <div className="compare-panel__columns" style={{ gap: COMPARE_GAP }}>
+          {columns.map((col) => (
+            <div key={col.join('+')} className="compare-panel__column" style={{ gap: COMPARE_GAP }}>
+              {col.map((key) => sectionView(key))}
+            </div>
           ))}
         </div>
+        {layout.pages.length > 1 && (
+          <div className="compare-panel__pager">
+            <button type="button" aria-label="Previous sections" disabled={pageIndex === 0} onClick={() => setPage(pageIndex - 1)}>{'\u25C0'}</button>
+            <span>{pageIndex + 1} / {layout.pages.length}: {columns.flat().map((k) => SECTION_TITLES[k]).join(', ')}</span>
+            <button type="button" aria-label="Next sections" disabled={pageIndex >= layout.pages.length - 1} onClick={() => setPage(pageIndex + 1)}>{'\u25B6'}</button>
+          </div>
+        )}
       </div>
     </div>
   );

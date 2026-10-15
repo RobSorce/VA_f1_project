@@ -231,7 +231,7 @@
 }
 
 [data-theme="light"] .search-bar__icon {
-  color: rgba(0, 0, 0, 0.3);
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .search-bar__input {
@@ -239,13 +239,13 @@
 }
 
 [data-theme="light"] .search-bar__input::placeholder {
-  color: rgba(0, 0, 0, 0.3);
+  color: var(--color-text-muted);
 }
 
 [data-theme="light"] .search-bar__kbd {
   background: rgba(0, 0, 0, 0.05);
   border-color: rgba(0, 0, 0, 0.1);
-  color: rgba(0, 0, 0, 0.35);
+  color: var(--color-text-muted);
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05);
 }
 

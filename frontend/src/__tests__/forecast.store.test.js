@@ -280,6 +280,28 @@ describe('L3: one trigger, one shape, never another driver\'s forecast', () => {
     expect(store().lstmPredictions.AAA.askedLap).toBe(20);
   });
 
+  it('clearSelection drops the focus driver\'s forecast and its request in flight (backlog L3)', async () => {
+    fx.predictLSTM = async (b) => answer(b);
+    await doubleClick('AAA', 20);
+    expect(store().lstmPredictions?.AAA).toBeTruthy();
+    store().clearSelection();
+    expect(store().focusDriver).toBeNull();
+    expect(store().lstmPredictions).toBeNull();
+    expect(store().lastPredictionTrigger).toBeNull();
+    // a request still in flight when the selection is cleared lands nowhere
+    const pending = deferred();
+    fx.predictLSTM = (b) => pending.promise.then(() => answer(b));
+    const req = doubleClick('BBB', 20);
+    expect(store().predictionLoading).toBe(true);
+    store().clearSelection();
+    expect(store().predictionLoading).toBe(false);
+    pending.resolve();
+    await req;
+    await settle();
+    expect(store().lstmPredictions).toBeNull();
+    expect(store().predictionLoading).toBe(false);
+  });
+
   it('a response tagged with another driver is not kept', async () => {
     fx.predictLSTM = async (b) => ({ ...answer(b), driver: 'ZZZ' });
     await doubleClick('AAA', 20);
@@ -356,5 +378,23 @@ describe('L3: one trigger, one shape, never another driver\'s forecast', () => {
     });
     expect('lstm_predictions' in body).toBe(false);
     expect(FORECAST_LAPS).toBe(5);
+  });
+
+  it('the assistant context gives the Simulator cards\' P labels (medians), the means under their own names (backlog S4)', async () => {
+    const marks = { verdict: 1, shown: { custom: 3, baseline: 4 }, podium: 0, points: 0 };
+    useF1Store.setState({
+      simulatorResult: {
+        simProjection: { driver: 'AAA', expectedPos: 3.62 },
+        baselineProjection: { driver: 'AAA', expectedPos: 3.41 },
+        delta: { position: -0.21 },
+        marks,
+      },
+    });
+    let body = null;
+    api.queryGemini.mockImplementationOnce(async (b) => { body = b; return { response: 'ok' }; });
+    await store().sendGeminiQuery('plan?');
+    expect(body.race_context.simulator).toEqual({
+      customPos: 3, baselinePos: 4, customMeanPos: 3.62, baselineMeanPos: 3.41, delta: { position: -0.21 },
+    });
   });
 });

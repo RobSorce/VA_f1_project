@@ -1,6 +1,10 @@
 import React, { useMemo, useRef, useCallback, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor } from '../../utils/colors';
+import {
+  getDriverColor, markColor, contrastText, tyreColor, tyreLetter, deltaColor, DIVERGING, TEXT_COLORS,
+  TYRE_COLORS, TYRE_LABELS,
+} from '../../utils/colors';
+import Legend from '../ui/Legend';
 import { exportAsPng } from '../../utils/exportChart';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { causalKey } from '../../utils/strategyViews';
@@ -19,13 +23,15 @@ function formatTime(seconds) {
   return mins > 0 ? `${mins}:${secs.padStart(6, '0')}` : secs;
 }
 
-const COMPOUND_COLORS = {
-  SOFT: 'var(--tyre-soft)',
-  MEDIUM: 'var(--tyre-medium)',
-  HARD: 'var(--tyre-hard)',
-  INTERMEDIATE: 'var(--tyre-intermediate)',
-  WET: 'var(--tyre-wet)',
-};
+// Legend (V4): the dry compounds of the tyre rows (FIA colour + letter) and
+// the consistency badge (blue / orange of the diverging pair, with its word)
+const CONSISTENCY_LEGEND = [
+  ...['SOFT', 'MEDIUM', 'HARD'].map((c) => ({
+    label: c[0] + c.slice(1).toLowerCase(), color: TYRE_COLORS[c], glyph: TYRE_LABELS[c], shape: 'badge',
+  })),
+  { label: 'Consistent: σ ≤ field median', color: DIVERGING.better, shape: 'square', title: "σ at or below the field's median σ" },
+  { label: 'Inconsistent', color: DIVERGING.worse, shape: 'square', title: "σ above the field's median σ" },
+];
 
 export default function ConsistencyPanel() {
   const sessionData = useF1Store((s) => s.sessionData);
@@ -133,7 +139,7 @@ export default function ConsistencyPanel() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 22, height: 22, borderRadius: 4,
               border: 'none', background: 'transparent',
-              color: 'rgba(255,255,255,0.3)', cursor: 'pointer',
+              color: TEXT_COLORS.muted, cursor: 'pointer',
               fontSize: '12px', padding: 0, flexShrink: 0,
             }}
           >
@@ -146,28 +152,9 @@ export default function ConsistencyPanel() {
         </div>
       </div>
 
-      {/* ── Color Legend ── */}
+      {/* ── Colour legend: compounds with their letter, consistency badge ── */}
       <div className="sectors-panel__legend" style={{ padding: '2px 8px 4px' }}>
-        <span className="sectors-panel__legend-item">
-          <span className="sectors-panel__legend-dot" style={{ background: 'var(--tyre-soft)' }} />
-          Soft
-        </span>
-        <span className="sectors-panel__legend-item">
-          <span className="sectors-panel__legend-dot" style={{ background: 'var(--tyre-medium)' }} />
-          Medium
-        </span>
-        <span className="sectors-panel__legend-item">
-          <span className="sectors-panel__legend-dot" style={{ background: 'var(--tyre-hard)' }} />
-          Hard
-        </span>
-        <span className="sectors-panel__legend-item" title="σ at or below the field's median σ">
-          <span className="sectors-panel__legend-dot" style={{ borderRadius: 2, background: '#22c55e' }} />
-          Consistent
-        </span>
-        <span className="sectors-panel__legend-item" title="σ above the field's median σ">
-          <span className="sectors-panel__legend-dot" style={{ borderRadius: 2, background: '#ef4444' }} />
-          Inconsistent
-        </span>
+        <Legend items={CONSISTENCY_LEGEND} />
       </div>
 
       <div ref={gridRef} className="consistency-panel__grid">
@@ -193,7 +180,7 @@ export default function ConsistencyPanel() {
                 : undefined}
               style={{
                 opacity: !isSelected ? 0.35 : isDimmed ? 0.5 : (d.insufficient_data ? 0.55 : 1),
-                outline: isHl ? `1px solid ${color}` : undefined,
+                outline: isHl ? `1px solid ${markColor(color)}` : undefined,
                 transition: 'opacity 0.15s, outline 0.15s',
               }}
             >
@@ -204,7 +191,7 @@ export default function ConsistencyPanel() {
                 onClick={() => setFocusDriver(d.driver)}
                 style={{ cursor: 'pointer' }}
               >
-                <span className="consistency-card__team-bar" style={{ backgroundColor: color }} />
+                <span className="consistency-card__team-bar" style={{ backgroundColor: markColor(color) }} />
                 <span className="consistency-card__name">{d.driver}</span>
                 {d.number && <span className="consistency-card__number">#{d.number}</span>}
                 {d.insufficient_data && (
@@ -251,11 +238,11 @@ export default function ConsistencyPanel() {
                       </div>
                       <div className="consistency-card__stat">
                         <span>Fastest</span>
-                        <span className="consistency-card__stat-value" style={{ color: 'var(--sector-green)' }}>{formatTime(d.fastest)}</span>
+                        <span className="consistency-card__stat-value">{formatTime(d.fastest)}</span>
                       </div>
                       <div className="consistency-card__stat">
                         <span>Slowest</span>
-                        <span className="consistency-card__stat-value" style={{ color: 'var(--color-accent-danger)' }}>{formatTime(d.slowest)}</span>
+                        <span className="consistency-card__stat-value">{formatTime(d.slowest)}</span>
                       </div>
                       <div className="consistency-card__stat">
                         <span>Range</span>
@@ -288,10 +275,15 @@ export default function ConsistencyPanel() {
                       <div className="consistency-card__col-title">Tire Performance</div>
                       {compoundEntries.map(([compound, data]) => (
                         <div key={compound} className="consistency-card__tyre-row">
+                          {/* FIA compound colour with its letter (contrastText) */}
                           <span
                             className="consistency-card__tyre-dot"
-                            style={{ backgroundColor: COMPOUND_COLORS[compound] || '#888' }}
-                          />
+                            style={{
+                              backgroundColor: tyreColor(compound), color: contrastText(tyreColor(compound)),
+                              width: 'auto', height: 'auto', minWidth: 13, lineHeight: '13px', textAlign: 'center',
+                              fontSize: 'var(--font-size-label)', fontWeight: 800,
+                            }}
+                          >{tyreLetter(compound)}</span>
                           <span className="consistency-card__tyre-name">{compound}</span>
                           <span className="consistency-card__tyre-stat">
                             Avg: {formatTime(data.avg)}
@@ -301,10 +293,8 @@ export default function ConsistencyPanel() {
                             title={data.deg_slope != null
                               ? `Mean degradation of ${data.deg_fits} fitted stint(s) on this compound; ${FUEL_NOTE}`
                               : `No stint on this compound has ${MIN_FIT_LAPS} or more clean laps: no fit`}
-                            style={{
-                              color: data.deg_slope == null ? undefined
-                                : data.deg_slope > 0 ? 'var(--color-accent-danger)' : 'var(--sector-green)',
-                            }}
+                            // diverging pair with the sign of formatSlope: + orange (losing time), − blue
+                            style={{ color: data.deg_slope == null ? undefined : deltaColor(data.deg_slope) }}
                           >
                             Deg: {data.deg_slope != null ? `${formatSlope(data.deg_slope)} s/lap` : 'no fit'}
                           </span>

@@ -22,7 +22,7 @@ Interactive visual analytics platform for Formula 1 race strategy analysis.
 - Forecast 3-5 laps ahead using LSTM predictions to anticipate position changes before they happen
 - Test "what-if" scenarios through the Strategy Simulator (Monte Carlo simulation)
 
-**Usage scenario:** During the 2024 Monza GP, the strategist focuses on their driver (double-click on Leaderboard). All views highlight that driver. The StrategyTimeline shows the current stint is 18 laps on Hard compound. The degradation rate in the LapTimeChart (brushed to the current stint via StrategyTimeline click) shows a 0.12s/lap upward trend. The PCA biplot clusters this stint profile with historical 2-stop aggressive strategies. The LSTM prediction (triggered by double-click) forecasts a 0.5s lap time spike in 3 laps. The strategist radios: "Box this lap."
+**Usage scenario:** During the 2024 Monza GP, the strategist focuses on their driver (double-click on Leaderboard). All views highlight that driver. The StrategyTimeline shows the current stint is 18 laps on Hard compound. A click on that stint selects its laps in every view: the Timing Sheet filters its rows to them and shows them on its lap-range bar, the Position Tracker brushes them and the Tyre Degradation panel fits the stint's degradation rate. The PCA biplot clusters this stint profile with historical 2-stop aggressive strategies. The LSTM prediction (triggered by double-click) forecasts a 0.5s lap time spike in 3 laps. The strategist radios: "Box this lap."
 
 **Why visual analytics (not just visualization):** The system integrates dimensionality reduction (PCA biplot with interpretable loading vectors), machine learning (LSTM lap time prediction, Monte Carlo simulation), and analytics triggered by visual interaction (lasso selection on PCA triggers a backend comparison of the selection with the other rows: Hedges' g per feature with an interval and a random-selection baseline). This goes beyond information visualization into visual analytics as defined by the VA course framework.
 
@@ -32,7 +32,7 @@ Interactive visual analytics platform for Formula 1 race strategy analysis.
 ┌─────────────────────────────────────────────────────────┐
 │  Frontend (React + Vite + Zustand + D3.js)              │
 │  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌──────────┐  │
-│  │Track Map │↔│Lap Times  │ │t-SNE     │↔│Strategy  │  │
+│  │Track Map │↔│Lap Times  │ │PCA biplot│↔│Strategy  │  │
 │  │Leaderboard│ │Brush→Regr │ │Lasso→    │ │Timeline  │  │
 │  └──────────┘ └───────────┘ │Analysis  │ │+Overlays │  │
 │                             └──────────┘ └──────────┘  │
@@ -43,7 +43,7 @@ Interactive visual analytics platform for Formula 1 race strategy analysis.
 │  │FastF1    │ │Feature    │ │LSTM      │ │Gemini    │  │
 │  │Extractor │ │Engineering│ │Predictor │ │AI Client │  │
 │  └──────────┘ └───────────┘ └──────────┘ └──────────┘  │
-│  t-SNE Embeddings | Session Cache | REST API            │
+│  PCA Projections | Session Cache | REST API             │
 ├─────────────────────────────────────────────────────────┤
 │  Data: FastF1 Cache (8 races, 2024 season, ~953MB)      │
 └─────────────────────────────────────────────────────────┘
@@ -56,9 +56,9 @@ Interactive visual analytics platform for Formula 1 race strategy analysis.
 cd backend
 pip install -r requirements.txt
 
-# (Optional) Pre-compute t-SNE embeddings
-python -m data.processors.tsne_features
-python -m data.processors.tsne_compute
+# (Optional) Pre-compute the PCA feature matrix and biplot
+# (otherwise built from the session cache on the first request)
+python -m data.processors.pca_compute
 
 # (Optional) Train LSTM model
 python -m model.prepare_data
@@ -76,6 +76,9 @@ npm run dev
 ```
 
 Open `http://localhost:5173`. The frontend proxies API requests to `http://localhost:8000`.
+
+### Static demo (GitHub Pages, no backend)
+The GitHub Pages site is the demo build (`npm run build:demo`, `.github/workflows/deploy.yml`): the API is answered from `frontend/public/data`, written by `backend/scripts/export_demo_data.py` for three races (2024 R16 Monza, 2024 R5 China with its safety cars, 2025 R1 Australia in the wet; 5.54 MB, `notes/experiments/phase9/verify_cleanup-demo_r2/export_rerun_report.txt`). A normal build whose backend does not answer switches to the same demo. Either way the weather bar shows a DEMO chip, and a switch at run time raises a toast; the LSTM forecast, Gemini, telemetry, live timing and the other races say "Requires the local backend".
 
 ### Environment Variables (optional)
 ```
@@ -100,13 +103,17 @@ The dashboard uses a no-scroll tabbed layout (1920×1080) with:
 
 ## Bidirectional Coordination
 
-- **Track Map ↔ Leaderboard:** Click driver → highlights in both views (via `selectedDrivers`, `focusDriver`)
-- **PCA Biplot ↔ Leaderboard:** Lasso select points → drivers highlighted in leaderboard; click leaderboard row → ring on PCA point
-- **Strategy Timeline ↔ Lap Time Chart:** Click stint → filters lap range; lap range reflected as highlight overlay
-- **Position Tracker ↔ Lap Time Chart:** Brush lap range → filters displayed laps (via `brushLapRange`)
-- **Tyre Degradation ↔ Lap Time Chart:** Brush on LapTimeChart → triggers degradation regression for that range (via `brushLapRange`)
-- **Race Pace Grid ↔ Leaderboard:** Double-click header → focus driver syncs across views
-- **Driver Focus:** Double-click any driver → persistent highlighting across all views (1.5x dot, 3px line, glow)
+Every link goes through the Zustand store; [docs/COORDINATION_GRAPH.md](docs/COORDINATION_GRAPH.md) describes each one and lists, generated from the code (`frontend/scripts/coordination_matrix.mjs`), which view writes and which view subscribes to each coordination field.
+
+- **Track Map (TrackMap) ↔ Leaderboard (Leaderboard):** a click on a driver in either view selects it in both (`selectedDrivers`); hovering highlights it in both (`highlightedDriver`)
+- **Position Tracker (PositionByLap) ↔ Timing Sheet (LapTimeChart):** a lap range brushed on the Position Tracker or dragged on the Timing Sheet's lap-range bar is the dashboard's one lap range (`brushLapRange`, always equal to `selectedLapRange`): each view draws the range set in the other, the sheet shows each driver's latest lap inside it, and a clear in either view clears it in both
+- **Strategy Timeline (StrategyTimeline) ↔ Timing Sheet (LapTimeChart), Position Tracker:** a click on a stint sets the same lap range: the sheet filters its rows to those laps and shows them on its bar, the Position Tracker moves its brush to them; a range dragged on the bar or brushed on the Position Tracker is shaded on the timeline
+- **PCA Biplot (PCABiplot) ↔ Cross-Race Analysis (PCAAnalysisPanel):** a lasso or a click on the biplot selects rows (`selectedPCAPoints`) and asks their analysis; the panel's clear button empties the selection on the biplot
+- **PCA Biplot (PCABiplot) ↔ Leaderboard (Leaderboard):** a lasso selects the drivers of the lassoed rows in the leaderboard; a click on a leaderboard row rings that driver's points on the biplot (`selectedDrivers`)
+- **Race Situation map (RaceSituationMap) ↔ Race Analysis (StrategyAnalysis):** a lasso on the map selects drivers (`selectedDrivers`) that the Race Analysis panel compares with the field; an insight that names drivers selects them on the map
+- **Race Pace Grid (RacePaceGrid) ↔ Leaderboard (Leaderboard):** a double-click on a column header focuses that driver (`focusDriver`); clicks and hovers select and highlight in both (`selectedDrivers`, `highlightedDriver`)
+- **Lap range → Tyre Degradation (one way):** the lap range (set in any of the views above) is fitted for the focus driver by the backend degradation route
+- **Driver focus:** a double-click on a driver (Leaderboard, Timing Sheet, Race Pace Grid) focuses it in every view and asks its lap-time forecast
 
 ## Technologies
 

@@ -260,8 +260,9 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // D — toggle bottom bar visibility (Shift+D toggles DRS; no DRS from
-      // 2026, utils/seasons.js seasonHasDrs: nothing to toggle then)
+      // Shift+D toggles the DRS zones (no DRS from 2026, utils/seasons.js
+      // seasonHasDrs: nothing to toggle then, and the cheatsheet and the help
+      // say "seasons before 2026"); d opens the driver picker
       if (e.key === 'D' && e.shiftKey) {
         e.preventDefault();
         if (seasonHasDrs(sessionSeasonOf(state))) state.toggleTrackDRS();

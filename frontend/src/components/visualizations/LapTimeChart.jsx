@@ -1,37 +1,46 @@
 import React, { useMemo, useCallback, useState, useRef, useEffect } from 'react';
 import * as d3 from 'd3';
 import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS, countryFlag } from '../../utils/colors';
+import {
+  getDriverColor, countryFlag, CHART_FONT, TEXT_COLORS, STATUS_COLORS, STATUS_GLYPHS, UI_COLORS,
+  contrastText, tyreColor, tyreLetter, timingGlyph, signedDelta, deltaColor, tintedChip, markColor, textColor,
+  GRID_COLORS, withAlpha,
+} from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { completedLaps, isLapCompleted, leaderLapEndTime } from '../../utils/raceTime';
-import { TIME_COLORS, qualiSegmentBadges, lapTimingSheet } from '../../utils/views/lapTimeChart';
+import {
+  TIME_COLORS, qualiSegmentBadges, lapTimingSheet, timingSheetLegend, forecastChartLegend, lapBrushUpdate,
+} from '../../utils/views/lapTimeChart';
 import {
   focusForecast, forecastPoints, forecastMethodLabel, forecastMethodText, forecastPit, forecastHeldOutMae,
   forecastOriginFeature, FORECAST_LAPS,
 } from '../../utils/forecast';
 import Panel from '../ui/Panel';
+import Legend from '../ui/Legend';
+import { publicAsset } from '../../utils/publicAsset';
 
 
-/* ── Team name → logo file mapping (handles FastF1 name variations) */
+/* ── Team name → logo file mapping (handles FastF1 name variations); files of
+   public/team-logos under the build's base (utils/publicAsset.js) */
 const TEAM_LOGO_MAP = {
-  'McLaren': '/team-logos/mclaren.png',
-  'Ferrari': '/team-logos/ferrari.png',
-  'Red Bull Racing': '/team-logos/red-bull.png',
-  'Red Bull': '/team-logos/red-bull.png',
-  'Mercedes': '/team-logos/mercedes.png',
-  'Aston Martin': '/team-logos/aston-martin.jpg',
-  'Alpine': '/team-logos/alpine.png',
-  'Alpine F1 Team': '/team-logos/alpine.png',
-  'Williams': '/team-logos/williams.png',
-  'Haas F1 Team': '/team-logos/haas.png',
-  'Haas': '/team-logos/haas.png',
-  'RB': '/team-logos/rb.png',
-  'Racing Bulls': '/team-logos/rb.png',
-  'AlphaTauri': '/team-logos/rb.png',
-  'Kick Sauber': '/team-logos/kick-sauber.png',
-  'Stake F1 Team Kick Sauber': '/team-logos/kick-sauber.png',
-  'Alfa Romeo': '/team-logos/kick-sauber.png',
-  'Sauber': '/team-logos/kick-sauber.png',
+  'McLaren': publicAsset('team-logos/mclaren.png'),
+  'Ferrari': publicAsset('team-logos/ferrari.png'),
+  'Red Bull Racing': publicAsset('team-logos/red-bull.png'),
+  'Red Bull': publicAsset('team-logos/red-bull.png'),
+  'Mercedes': publicAsset('team-logos/mercedes.png'),
+  'Aston Martin': publicAsset('team-logos/aston-martin.jpg'),
+  'Alpine': publicAsset('team-logos/alpine.png'),
+  'Alpine F1 Team': publicAsset('team-logos/alpine.png'),
+  'Williams': publicAsset('team-logos/williams.png'),
+  'Haas F1 Team': publicAsset('team-logos/haas.png'),
+  'Haas': publicAsset('team-logos/haas.png'),
+  'RB': publicAsset('team-logos/rb.png'),
+  'Racing Bulls': publicAsset('team-logos/rb.png'),
+  'AlphaTauri': publicAsset('team-logos/rb.png'),
+  'Kick Sauber': publicAsset('team-logos/kick-sauber.png'),
+  'Stake F1 Team Kick Sauber': publicAsset('team-logos/kick-sauber.png'),
+  'Alfa Romeo': publicAsset('team-logos/kick-sauber.png'),
+  'Sauber': publicAsset('team-logos/kick-sauber.png'),
 };
 
 /* ── Column definitions for resizable grid ──────────────────────── */
@@ -69,6 +78,20 @@ function fmtGap(gap) {
   return gap > 0 ? `+${gap.toFixed(3)}` : gap.toFixed(3);
 }
 
+// A time in a timing colour with its glyph (◆ overall best, ● personal best)
+function TimeCue({ color, children }) {
+  const glyph = timingGlyph(color);
+  return (
+    <>
+      {glyph && <span className="timing-glyph" style={{ marginRight: 2 }}>{glyph}</span>}
+      {children}
+    </>
+  );
+}
+
+// The chrono of the lap being run: neutral, italic (not a timing colour)
+const RUNNING_STYLE = { color: STATUS_COLORS.running, fontStyle: 'italic', fontVariantNumeric: 'tabular-nums' };
+
 export default function LapTimeChart() {
   const timingContainerRef = useRef(null);
 
@@ -90,6 +113,7 @@ export default function LapTimeChart() {
   const maxLap = useF1Store((s) => s.maxLap);
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const brushLapRange = useF1Store((s) => s.brushLapRange);
+  const setBrushLapRange = useF1Store((s) => s.setBrushLapRange);
 
   const sessionType = useF1Store(loadedSessionTypeOf); // the loaded session, not the pill
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
@@ -236,10 +260,11 @@ export default function LapTimeChart() {
   const rowBudget = rowCount > 0 ? timingHeight / rowCount : 28;
   // Row padding: shrink from 2px to 0px as space gets tight
   const rowPadV = Math.max(0, Math.min(2, Math.floor((rowBudget - 18) / 2)));
-  // Font sizes: shrink when rows are very tight
+  // Rows tighten their padding and logos when space is short; the text keeps
+  // the data floor (CHART_FONT.data, >= 11 px) at every size
   const compactTiming = rowBudget < 22;
-  const rowFontSize = compactTiming ? '9px' : '10px';
-  const rowLapFontSize = compactTiming ? '9px' : '11px';
+  const rowFontSize = CHART_FONT.data;
+  const rowLapFontSize = CHART_FONT.data;
 
   /* ── Render ─────────────────────────────────────────────────── */
   const headerStyle = {
@@ -249,9 +274,9 @@ export default function LapTimeChart() {
     padding: '4px 6px',
     background: 'rgba(26, 31, 51, 0.75)',
     borderBottom: '1px solid rgba(255,255,255,0.10)',
-    fontSize: '9px',
+    fontSize: CHART_FONT.data,
     fontWeight: 700,
-    color: 'rgba(255,255,255,0.6)',
+    color: TEXT_COLORS.secondary,
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
     userSelect: 'none',
@@ -269,7 +294,7 @@ export default function LapTimeChart() {
   };
 
   const controls = (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '9px' }}>
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: CHART_FONT.label }}>
       {isQualifying && (
         <>
           {['ALL', 'Q1', 'Q2', 'Q3'].map((seg) => (
@@ -278,41 +303,28 @@ export default function LapTimeChart() {
               onClick={() => setQualiFilter(seg)}
               style={{
                 padding: '2px 6px', borderRadius: 4, border: 'none',
-                fontSize: '9px', fontWeight: 700, cursor: 'pointer',
+                fontSize: CHART_FONT.label, fontWeight: 700, cursor: 'pointer',
                 background: qualiFilter === seg ? 'rgba(255,255,255,0.15)' : 'transparent',
-                color: qualiFilter === seg ? '#fff' : 'rgba(255,255,255,0.4)',
+                color: qualiFilter === seg ? TEXT_COLORS.primary : TEXT_COLORS.muted,
               }}
             >{seg}</button>
           ))}
           <span style={{ width: 1, height: 12, background: 'rgba(255,255,255,0.1)' }} />
         </>
       )}
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 2, background: TIME_COLORS.overall_best }} />
-        <span style={{ color: 'rgba(255,255,255,0.65)' }}>Best</span>
-      </span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 2, background: TIME_COLORS.personal_best }} />
-        <span style={{ color: 'rgba(255,255,255,0.65)' }}>PB</span>
-      </span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 2, background: TIME_COLORS.pit }} />
-        <span style={{ color: 'rgba(255,255,255,0.65)' }}>Pit</span>
-      </span>
+      {/* Every colour of the sheet with its glyph (timingSheetLegend) */}
+      <Legend items={timingSheetLegend({ forecast: !!focusDriver })} shape="glyph" />
     </div>
   );
 
-  // Title and accent reflect *either* brush source: brushLapRange comes
-  // from the Position-by-Lap chart (cross-panel filter), selectedLapRange
-  // from the bottom-bar brush (regression target). Both end up driving
-  // the Tyre Degradation panel; both deserve visible feedback here.
+  // Title and accent: the brushed range (brushLapRange: this sheet's bar, via lapBrushUpdate, and the Position by Lap brush) else selectedLapRange (stint, pit window, race event).
   const titleRange = brushLapRange || selectedLapRange;
   const brushTitle = titleRange
     ? `Timing Sheet  (LAP ${titleRange[0]}–${titleRange[1]})`
     : 'Timing Sheet';
 
   return (
-    <Panel title={brushTitle} controls={controls} focused={focusedView === 'laptimes'} shortcutKey="2" style={titleRange ? { borderColor: 'rgba(225,6,0,0.35)' } : undefined}>
+    <Panel title={brushTitle} controls={controls} focused={focusedView === 'laptimes'} shortcutKey="2" style={titleRange ? { borderColor: UI_COLORS.brush } : undefined}>
       {/* Column headers with drag-to-resize handles */}
       <div style={headerStyle}>
         {COLUMN_DEFS.map((col, i) => (
@@ -323,7 +335,6 @@ export default function LapTimeChart() {
               display: 'flex',
               justifyContent: col.align,
               alignItems: 'center',
-              ...(col.key === 'gap' ? { fontSize: '8px' } : {}),
               ...(col.key === 'driver' ? { paddingLeft: 2 } : {}),
             }}
           >
@@ -367,11 +378,11 @@ export default function LapTimeChart() {
           const isFocused = row.driver === focusDriver;
           const isSelected = selectedDrivers.includes(row.driver);
           const isOdd = row.pos % 2 === 1;
-          const retiredOpacity = row.isRetired ? 0.4 : 1;
 
           return (
             <div
               key={row.driver}
+              data-driver={row.driver}
               style={{
                 display: 'grid',
                 gridTemplateColumns: gridColumns,
@@ -379,7 +390,10 @@ export default function LapTimeChart() {
                 padding: `${rowPadV}px 6px`,
                 cursor: 'pointer',
                 borderBottom: '1px solid rgba(255,255,255,0.04)',
-                opacity: retiredOpacity,
+                // a retired row is never faded (V2: its text would read 2.24:1):
+                // 'RET' and the retired grey (>= 4.5:1) on the position and the
+                // name, and the retired bar on its left edge, as in the tower
+                ...(row.isRetired ? { boxShadow: `inset 2px 0 0 ${STATUS_COLORS.retired}` } : {}),
                 background: row.isRetired
                   ? 'rgba(255,255,255,0.02)'
                   : isFocused
@@ -391,14 +405,19 @@ export default function LapTimeChart() {
                         : isOdd
                           ? 'rgba(255,255,255,0.015)'
                           : 'transparent',
-                transition: 'background 0.1s ease, opacity 0.3s ease',
+                transition: 'background 0.1s ease',
                 ...(isFocused && !row.isRetired ? {
-                  borderLeft: `3px solid ${row.color}`,
-                  boxShadow: `inset 4px 0 10px -2px ${row.color}44`,
+                  borderLeft: `3px solid ${markColor(row.color)}`,
+                  boxShadow: `inset 4px 0 10px -2px ${withAlpha(row.color, 0.27)}`,
                 } : {}),
               }}
               onClick={() => toggleDriver(row.driver)}
-              onDoubleClick={() => { setFocusDriver(row.driver); triggerPrediction(row.driver, currentLap); }}
+              onDoubleClick={() => {
+                // keep the focus on a second double-click (setFocusDriver toggles it
+                // off): the forecast of the focus driver is asked again (backlog L3)
+                if (useF1Store.getState().focusDriver !== row.driver) setFocusDriver(row.driver);
+                triggerPrediction(row.driver, currentLap);
+              }}
               onMouseEnter={(e) => setHighlightedDriver(row.driver, { x: e.clientX, y: e.clientY })}
               onMouseLeave={() => setHighlightedDriver(null)}
             >
@@ -407,19 +426,19 @@ export default function LapTimeChart() {
                 ...cellStyle,
                 justifyContent: 'center',
                 fontWeight: 800,
-                fontSize: row.isRetired ? '8px' : rowLapFontSize,
-                color: row.isRetired ? '#e10600' : '#fff',
+                fontSize: rowLapFontSize,
+                color: row.isRetired ? STATUS_COLORS.retired : TEXT_COLORS.primary,
                 letterSpacing: row.isRetired ? '0.02em' : undefined,
               }}>
                 {row.isRetired ? 'RET' : row.pos}
               </span>
 
-              {/* Team color bar */}
+              {/* Team color bar (teammate tint, V3; >= 3:1 as a mark) */}
               <span style={{
                 width: 3,
                 alignSelf: 'stretch',
                 borderRadius: 1.5,
-                background: row.color,
+                background: markColor(row.color),
               }} />
 
               {/* Team logo */}
@@ -445,20 +464,20 @@ export default function LapTimeChart() {
               <span style={{
                 ...cellStyle,
                 justifyContent: 'flex-start',
-                fontSize: compactTiming ? '9px' : '10px',
-                color: '#fff',
+                fontSize: CHART_FONT.data,
+                color: TEXT_COLORS.primary,
                 fontFamily: "'Formula1', 'Titillium Web', sans-serif",
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 gap: 3,
               }}>
                 {raceFinished && countryCodeMap[row.driver] && (
-                  <span style={{ fontSize: '11px', lineHeight: 1 }}>
+                  <span style={{ fontSize: CHART_FONT.data, lineHeight: 1 }}>
                     {countryFlag(countryCodeMap[row.driver])}
                   </span>
                 )}
                 {row.firstName && (
-                  <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.65)', fontSize: '9px' }}>
+                  <span style={{ fontWeight: 400, color: TEXT_COLORS.secondary, fontSize: CHART_FONT.data }}>
                     {row.firstName}
                   </span>
                 )}
@@ -466,58 +485,58 @@ export default function LapTimeChart() {
                   {row.surname}
                 </span>
                 {sessionBests.fastestLapDriver === row.driver && (
-                  <span style={{
-                    fontSize: '7px', marginLeft: 3, padding: '1px 3px',
-                    borderRadius: 3, background: 'rgba(160,32,240,0.25)',
-                    color: '#A020F0', fontWeight: 800, letterSpacing: '0.04em',
-                  }}>FL</span>
+                  <span title="Fastest lap of the session" style={{
+                    fontSize: CHART_FONT.label, marginLeft: 3, padding: '0 3px',
+                    borderRadius: 3, background: tintedChip(STATUS_COLORS.overallBest, 0.25).background,
+                    color: tintedChip(STATUS_COLORS.overallBest, 0.25).color, fontWeight: 800, letterSpacing: '0.04em',
+                  }}>{STATUS_GLYPHS.overallBest} FL</span>
                 )}
                 {isQualifying && row.qualiSegment && (
                   <span style={{
-                    fontSize: '7px', marginLeft: 3, padding: '1px 3px',
+                    // The segment reads in its text (Q1 / Q2 / Q3): a neutral chip
+                    fontSize: CHART_FONT.label, marginLeft: 3, padding: '0 3px',
                     borderRadius: 3, fontWeight: 700, letterSpacing: '0.04em',
-                    background: row.qualiSegment === 'Q3' ? 'rgba(160,32,240,0.2)' : row.qualiSegment === 'Q2' ? 'rgba(0,255,0,0.2)' : 'rgba(255,255,255,0.08)',
-                    color: row.qualiSegment === 'Q3' ? '#A020F0' : row.qualiSegment === 'Q2' ? '#00FF00' : 'rgba(255,255,255,0.4)',
+                    background: 'rgba(255,255,255,0.10)', color: TEXT_COLORS.secondary,
                   }}>{row.qualiSegment}</span>
                 )}
               </span>
 
               {/* Sector 1 */}
               <span style={{ ...cellStyle, color: row.s1Color, fontWeight: row.s1Color !== TIME_COLORS.normal ? 700 : 500 }}>
-                {row.s1 ? fmtSector(row.s1) : row.chrono?.sector === 1 ? (
-                  <span style={{ color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{row.chrono.elapsed.toFixed(1)}</span>
+                {row.s1 ? <TimeCue color={row.s1Color}>{fmtSector(row.s1)}</TimeCue> : row.chrono?.sector === 1 ? (
+                  <span style={RUNNING_STYLE}>{row.chrono.elapsed.toFixed(1)}</span>
                 ) : '—'}
               </span>
 
               {/* Sector 2 */}
               <span style={{ ...cellStyle, color: row.s2Color, fontWeight: row.s2Color !== TIME_COLORS.normal ? 700 : 500 }}>
-                {row.s2 ? fmtSector(row.s2) : row.chrono?.sector === 2 ? (
-                  <span style={{ color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{row.chrono.elapsed.toFixed(1)}</span>
+                {row.s2 ? <TimeCue color={row.s2Color}>{fmtSector(row.s2)}</TimeCue> : row.chrono?.sector === 2 ? (
+                  <span style={RUNNING_STYLE}>{row.chrono.elapsed.toFixed(1)}</span>
                 ) : '—'}
               </span>
 
               {/* Sector 3 */}
               <span style={{ ...cellStyle, color: row.s3Color, fontWeight: row.s3Color !== TIME_COLORS.normal ? 700 : 500 }}>
-                {row.s3 ? fmtSector(row.s3) : row.chrono?.sector === 3 ? (
-                  <span style={{ color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{row.chrono.elapsed.toFixed(1)}</span>
+                {row.s3 ? <TimeCue color={row.s3Color}>{fmtSector(row.s3)}</TimeCue> : row.chrono?.sector === 3 ? (
+                  <span style={RUNNING_STYLE}>{row.chrono.elapsed.toFixed(1)}</span>
                 ) : '—'}
               </span>
 
               {/* Lap Time */}
               <span style={{
                 ...cellStyle,
-                color: row.isRetired ? 'rgba(255,255,255,0.35)' : row.isPit ? TIME_COLORS.pit : row.lapColor,
+                color: row.isRetired ? STATUS_COLORS.retired : row.isPit ? TIME_COLORS.pit : row.lapColor,
                 fontWeight: 700,
-                fontSize: row.isRetired ? '9px' : rowLapFontSize,
+                fontSize: rowLapFontSize,
               }}>
-                {row.isRetired ? row.retiredStatus : row.isPit ? 'PIT' : fmtTime(row.lapTime)}
+                {row.isRetired ? row.retiredStatus : row.isPit ? 'PIT' : <TimeCue color={row.lapColor}>{fmtTime(row.lapTime)}</TimeCue>}
               </span>
 
               {/* Gap to fastest */}
               <span style={{
                 ...cellStyle,
-                color: row.isRetired ? '#e10600' : row.pos === 1 ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.7)',
-                fontSize: '9px',
+                color: row.isRetired ? STATUS_COLORS.retired : row.pos === 1 ? TEXT_COLORS.muted : TEXT_COLORS.secondary,
+                fontSize: CHART_FONT.data,
                 fontWeight: row.isRetired ? 800 : undefined,
               }}>
                 {row.isRetired ? 'DNF' : row.pos === 1 ? 'LEADER' : fmtGap(row.gap)}
@@ -529,19 +548,20 @@ export default function LapTimeChart() {
                 justifyContent: 'center',
                 gap: 3,
               }}>
+                {/* FIA compound colour as a badge with its letter (contrastText) */}
                 <span style={{
-                  width: 8,
-                  height: 8,
+                  minWidth: 14,
+                  height: 14,
+                  lineHeight: '14px',
                   borderRadius: '50%',
-                  background: TYRE_COLORS[row.compound] || '#888',
+                  background: tyreColor(row.compound),
+                  color: contrastText(tyreColor(row.compound)),
+                  fontSize: CHART_FONT.label,
+                  fontWeight: 800,
+                  textAlign: 'center',
                   flexShrink: 0,
-                }} />
-                <span style={{
-                  fontSize: '8px',
-                  fontWeight: 600,
-                  color: TYRE_COLORS[row.compound] || '#888',
                 }}>
-                  {row.compound ? row.compound[0] : '?'}
+                  {tyreLetter(row.compound)}
                 </span>
               </span>
 
@@ -549,8 +569,8 @@ export default function LapTimeChart() {
               <span style={{
                 ...cellStyle,
                 justifyContent: 'center',
-                color: 'rgba(255,255,255,0.55)',
-                fontSize: '9px',
+                color: TEXT_COLORS.muted,
+                fontSize: CHART_FONT.data,
               }}>
                 {row.tyreLife}
               </span>
@@ -580,16 +600,16 @@ export default function LapTimeChart() {
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '4px 8px',
-                background: 'rgba(245, 166, 35, 0.06)',
-                borderTop: '1px solid rgba(245, 166, 35, 0.15)',
-                borderBottom: '1px solid rgba(245, 166, 35, 0.08)',
+                background: withAlpha(STATUS_COLORS.predicted, 0.06),
+                borderTop: `1px solid ${withAlpha(STATUS_COLORS.predicted, 0.15)}`,
+                borderBottom: `1px solid ${withAlpha(STATUS_COLORS.predicted, 0.08)}`,
               }}>
                 <span title={note} style={{
-                  fontSize: '8px', fontWeight: 800, color: '#f5a623',
+                  fontSize: CHART_FONT.data, fontWeight: 800, color: STATUS_COLORS.predicted,
                   letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'help',
                 }}>Forecast · {forecastMethodLabel(pred)}</span>
                 <span style={{
-                  fontSize: '8px', color: 'rgba(255,255,255,0.55)',
+                  fontSize: CHART_FONT.data, color: TEXT_COLORS.muted,
                 }}>
                   {focusDriver} — laps {points[0].lap}-{points[points.length - 1].lap} from lap {pred.lap}
                   {forecastHeldOutMae(pred) != null && ` · held-out MAE ${forecastHeldOutMae(pred).toFixed(3)} s`}
@@ -597,10 +617,11 @@ export default function LapTimeChart() {
                 {pitProb != null && (
                   <span title={pitLabel ? `Pit stop within ${FORECAST_LAPS} laps, by the ${pitLabel}` : undefined} style={{
                     marginLeft: 'auto',
-                    fontSize: '8px', fontWeight: 700,
+                    fontSize: CHART_FONT.data, fontWeight: 700,
                     padding: '1px 5px', borderRadius: 3,
-                    background: pitProb > 0.6 ? 'rgba(225,6,0,0.15)' : pitProb > 0.3 ? 'rgba(245,166,35,0.15)' : 'rgba(34,197,94,0.1)',
-                    color: pitProb > 0.6 ? '#e10600' : pitProb > 0.3 ? '#f5a623' : '#22c55e',
+                    // The probability is the text; one forecast colour, stronger tint above 50 %
+                    background: tintedChip(STATUS_COLORS.predicted, pitProb > 0.5 ? 0.3 : 0.12).background,
+                    color: tintedChip(STATUS_COLORS.predicted, pitProb > 0.5 ? 0.3 : 0.12).color,
                   }}>
                     PIT {(pitProb * 100).toFixed(0)}%
                   </span>
@@ -620,15 +641,15 @@ export default function LapTimeChart() {
                       gridTemplateColumns: gridColumns,
                       gap: '2px',
                       padding: '3px 6px',
-                      borderBottom: '1px solid rgba(245, 166, 35, 0.06)',
-                      background: i % 2 === 0 ? 'rgba(245, 166, 35, 0.03)' : 'rgba(245, 166, 35, 0.015)',
+                      borderBottom: `1px solid ${withAlpha(STATUS_COLORS.predicted, 0.06)}`,
+                      background: i % 2 === 0 ? withAlpha(STATUS_COLORS.predicted, 0.03) : withAlpha(STATUS_COLORS.predicted, 0.015),
                     }}
                   >
                     {/* Position — show predicted lap number */}
                     <span style={{
                       ...cellStyle, justifyContent: 'center',
-                      fontWeight: 700, fontSize: '9px',
-                      color: '#f5a623', fontStyle: 'italic',
+                      fontWeight: 700, fontSize: CHART_FONT.data,
+                      color: STATUS_COLORS.predicted, fontStyle: 'italic',
                     }}>
                       L{predLap}
                     </span>
@@ -636,7 +657,7 @@ export default function LapTimeChart() {
                     {/* Team color bar */}
                     <span style={{
                       width: 3, alignSelf: 'stretch', borderRadius: 1.5,
-                      background: focusRow.color, opacity: 0.5,
+                      background: markColor(focusRow.color), opacity: 0.5,
                     }} />
 
                     {/* Team logo */}
@@ -649,49 +670,51 @@ export default function LapTimeChart() {
                     {/* Driver name */}
                     <span style={{
                       ...cellStyle, justifyContent: 'flex-start',
-                      fontSize: '9px', fontStyle: 'italic',
-                      color: 'rgba(245, 166, 35, 0.6)',
+                      fontSize: CHART_FONT.data, fontStyle: 'italic',
+                      color: STATUS_COLORS.predicted,
                       fontFamily: "'Formula1', 'Titillium Web', sans-serif",
                     }}>
                       <span style={{ fontWeight: 700 }}>{focusRow.surname}</span>
-                      <span style={{ fontSize: '7px', marginLeft: 4, color: 'rgba(245,166,35,0.35)' }}>predicted</span>
+                      <span style={{ fontSize: CHART_FONT.label, marginLeft: 4, color: TEXT_COLORS.muted }}>predicted</span>
                     </span>
 
                     {/* S1 — empty for predicted */}
-                    <span style={{ ...cellStyle, color: 'rgba(255,255,255,0.15)', fontSize: '9px' }}>—</span>
+                    <span style={{ ...cellStyle, color: TEXT_COLORS.muted, fontSize: CHART_FONT.data }}>—</span>
                     {/* S2 */}
-                    <span style={{ ...cellStyle, color: 'rgba(255,255,255,0.15)', fontSize: '9px' }}>—</span>
+                    <span style={{ ...cellStyle, color: TEXT_COLORS.muted, fontSize: CHART_FONT.data }}>—</span>
                     {/* S3 */}
-                    <span style={{ ...cellStyle, color: 'rgba(255,255,255,0.15)', fontSize: '9px' }}>—</span>
+                    <span style={{ ...cellStyle, color: TEXT_COLORS.muted, fontSize: CHART_FONT.data }}>—</span>
 
                     {/* Predicted Lap Time */}
                     <span style={{
-                      ...cellStyle, fontWeight: 700, fontSize: '11px',
-                      color: '#f5a623', fontStyle: 'italic',
+                      ...cellStyle, fontWeight: 700, fontSize: CHART_FONT.data,
+                      color: STATUS_COLORS.predicted, fontStyle: 'italic',
                     }}>
                       {fmtTime(time)}
                     </span>
 
                     {/* Delta vs last actual */}
                     <span style={{
-                      ...cellStyle, fontSize: '9px',
-                      color: delta != null ? (delta > 0 ? '#e10600' : '#22c55e') : 'rgba(255,255,255,0.2)',
+                      ...cellStyle, fontSize: CHART_FONT.data,
+                      // Diverging pair with the sign: blue faster, orange slower
+                      color: deltaColor(delta),
                     }}>
-                      {delta != null ? (delta > 0 ? `+${delta.toFixed(3)}` : delta.toFixed(3)) : ''}
+                      {delta != null ? signedDelta(delta) : ''}
                     </span>
 
                     {/* Tyre — inherit from current */}
                     <span style={{ ...cellStyle, justifyContent: 'center', gap: 3, opacity: 0.5 }}>
                       <span style={{
-                        width: 8, height: 8, borderRadius: '50%',
-                        background: TYRE_COLORS[focusRow.compound] || '#888',
-                      }} />
+                        minWidth: 14, height: 14, lineHeight: '14px', borderRadius: '50%', textAlign: 'center',
+                        background: tyreColor(focusRow.compound), color: contrastText(tyreColor(focusRow.compound)),
+                        fontSize: CHART_FONT.label, fontWeight: 800,
+                      }}>{tyreLetter(focusRow.compound)}</span>
                     </span>
 
                     {/* Tyre life — estimate */}
                     <span style={{
                       ...cellStyle, justifyContent: 'center',
-                      color: 'rgba(255,255,255,0.25)', fontSize: '9px', fontStyle: 'italic',
+                      color: TEXT_COLORS.muted, fontSize: CHART_FONT.data, fontStyle: 'italic',
                     }}>
                       {originTyreLife != null ? originTyreLife + (predLap - pred.lap) : '—'}
                     </span>
@@ -714,13 +737,19 @@ export default function LapTimeChart() {
         )}
       </div>
 
-      {/* Lap range brush bar */}
+      {/* Lap range brush bar: writes the shared brushed range (brushLapRange,
+          which Position by Lap draws and brushes too) and the selected range
+          of its other readers; shows whichever is set (V7, lapBrushUpdate) */}
       {!isQualifying && maxLap > 1 && (
         <LapRangeBrush
           maxLap={maxLap}
           currentLap={currentLap}
-          selectedRange={selectedLapRange}
-          onRangeChange={setSelectedLapRange}
+          selectedRange={brushLapRange || selectedLapRange}
+          onRangeChange={(range) => {
+            const next = lapBrushUpdate(range);
+            setBrushLapRange(next.brushLapRange);
+            setSelectedLapRange(next.selectedLapRange);
+          }}
         />
       )}
     </Panel>
@@ -785,21 +814,21 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
   const currentX = lapToX(currentLap);
 
   return (
-    <div style={{
+    <div className="lap-range-brush" style={{
       flexShrink: 0, padding: '4px 6px 6px',
       borderTop: '1px solid rgba(255,255,255,0.06)',
       background: 'rgba(15,15,35,0.6)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-        <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+        <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
           Lap Range
         </span>
         {selectedRange && (
           <button
             onClick={() => onRangeChange(null)}
             style={{
-              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 3, padding: '1px 6px', fontSize: '8px', color: 'rgba(255,255,255,0.5)',
+              background: 'rgba(255,255,255,0.06)', border: `1px solid ${UI_COLORS.brush}`,
+              borderRadius: 3, padding: '1px 6px', fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary,
               cursor: 'pointer',
             }}
           >
@@ -810,6 +839,7 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
       <div
         ref={barRef}
         onMouseDown={handleMouseDown}
+        className="lap-range-brush__bar"
         style={{
           position: 'relative', height: 16, borderRadius: 3,
           background: 'rgba(255,255,255,0.04)', cursor: 'crosshair',
@@ -818,25 +848,25 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
       >
         {/* Selected range highlight */}
         {selectedRange && (
-          <div style={{
+          <div className="lap-range-brush__selection" data-range={`${selectedRange[0]}-${selectedRange[1]}`} style={{
             position: 'absolute', top: 0, bottom: 0,
             left: selLeft, width: selWidth,
-            background: 'rgba(100,180,255,0.2)',
-            borderLeft: '2px solid rgba(100,180,255,0.6)',
-            borderRight: '2px solid rgba(100,180,255,0.6)',
+            background: UI_COLORS.brushFill,
+            borderLeft: `2px solid ${UI_COLORS.brush}`,
+            borderRight: `2px solid ${UI_COLORS.brush}`,
           }} />
         )}
         {/* Current lap marker */}
         <div style={{
           position: 'absolute', top: 0, bottom: 0, width: 2,
           left: currentX - 1,
-          background: 'rgba(255,255,255,0.4)',
+          background: GRID_COLORS.rule,
         }} />
         {/* Tick labels */}
         {ticks.map((l) => (
           <span key={l} style={{
-            position: 'absolute', top: 2, fontSize: '7px',
-            color: 'rgba(255,255,255,0.2)', fontWeight: 600,
+            position: 'absolute', top: 0, fontSize: CHART_FONT.data, lineHeight: '16px',
+            color: TEXT_COLORS.muted, fontWeight: 600,
             left: lapToX(l), transform: 'translateX(-50%)',
           }}>{l}</span>
         ))}
@@ -888,7 +918,9 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
     svg.attr('viewBox', `0 0 ${W} ${H}`).attr('preserveAspectRatio', 'xMidYMid meet');
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-    const driverColor = getDriverColor(focusDriver);
+    // Marks >= 3:1 and labels >= 4.5:1 on the panel (markColor / textColor)
+    const driverColor = markColor(getDriverColor(focusDriver));
+    const driverText = textColor(getDriverColor(focusDriver));
 
     // Build data points
     const actualPoints = recentLaps.map((d) => ({ lap: d.LapNumber, time: d.LapTimeSeconds, type: 'actual' }));
@@ -924,7 +956,7 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
     // Grid lines
     g.append('g').attr('transform', `translate(0,${h})`).call(
       d3.axisBottom(xScale).ticks(Math.min(allPoints.length, 8)).tickSize(-h).tickFormat('')
-    ).selectAll('line').attr('stroke', 'rgba(255,255,255,0.04)');
+    ).selectAll('line').attr('stroke', GRID_COLORS.grid);
     g.selectAll('.domain').remove();
 
     if (predPoints.length > 0 && mae != null) {
@@ -936,8 +968,9 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
       g.append('path')
         .datum(predPoints)
         .attr('d', uncertainty)
+        .attr('class', 'forecast-band')
         .attr('fill', driverColor)
-        .attr('opacity', 0.06);
+        .attr('opacity', 0.18);
     }
 
     // Vertical separator at the forecast's origin lap
@@ -945,20 +978,20 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
       g.append('line')
         .attr('x1', xScale(pred.lap)).attr('x2', xScale(pred.lap))
         .attr('y1', 0).attr('y2', h)
-        .attr('stroke', 'rgba(255,255,255,0.12)').attr('stroke-dasharray', '2,2');
+        .attr('stroke', GRID_COLORS.axis).attr('stroke-dasharray', '2,2');
     }
 
     // Actual pace line (solid)
     const line = d3.line().x((d) => xScale(d.lap)).y((d) => yScale(d.time)).curve(d3.curveMonotoneX);
     g.append('path').datum(actualPoints).attr('d', line)
-      .attr('fill', 'none').attr('stroke', driverColor).attr('stroke-width', 1.8).attr('opacity', 0.9);
+      .attr('fill', 'none').attr('stroke', driverColor).attr('stroke-width', 1.8);
 
     // Predicted pace line (dashed)
     if (fullPredLine.length > 1) {
       const predLine = d3.line().x((d) => xScale(d.lap)).y((d) => yScale(d.time)).curve(d3.curveMonotoneX);
       g.append('path').datum(fullPredLine).attr('d', predLine)
         .attr('fill', 'none').attr('stroke', driverColor).attr('stroke-width', 1.8)
-        .attr('stroke-dasharray', '6,4').attr('opacity', 0.7);
+        .attr('stroke-dasharray', '6,4');
     }
 
     // Actual lap dots
@@ -966,15 +999,15 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
       .data(actualPoints)
       .join('circle')
       .attr('cx', (d) => xScale(d.lap)).attr('cy', (d) => yScale(d.time))
-      .attr('r', 2).attr('fill', driverColor).attr('opacity', 0.6);
+      .attr('r', 2.5).attr('fill', driverColor);
 
     // Predicted lap dots (larger, with white stroke)
     g.selectAll('.pred-dot')
       .data(predPoints)
       .join('circle')
       .attr('cx', (d) => xScale(d.lap)).attr('cy', (d) => yScale(d.time))
-      .attr('r', 3.5).attr('fill', driverColor).attr('stroke', '#fff').attr('stroke-width', 1)
-      .attr('opacity', 0.8).style('cursor', 'pointer');
+      .attr('r', 3.5).attr('fill', driverColor).attr('stroke', TEXT_COLORS.primary).attr('stroke-width', 1)
+      .style('cursor', 'pointer');
 
     // Tooltip interaction on predicted dots
     const tooltip = tooltipRef.current;
@@ -998,18 +1031,17 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
       g.append('text')
         .attr('x', xScale(predPoints[0].lap))
         .attr('y', -4)
-        .attr('fill', driverColor)
-        .attr('font-size', '7px')
+        .attr('fill', driverText)
+        .style('font-size', CHART_FONT.data)
         .attr('font-weight', 700)
-        .attr('opacity', 0.8)
         .text(`Forecast: ${forecastMethodLabel(pred)}`);
     }
 
     // Driver label + pit probability
     g.append('text')
       .attr('x', 0).attr('y', -4)
-      .attr('fill', driverColor)
-      .attr('font-size', '8px')
+      .attr('fill', driverText)
+      .style('font-size', CHART_FONT.data)
       .attr('font-weight', 800)
       .text(focusDriver);
 
@@ -1018,8 +1050,8 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
       g.append('text')
         .attr('x', w).attr('y', -4)
         .attr('text-anchor', 'end')
-        .attr('fill', pitProb > 0.5 ? '#f5a623' : 'rgba(255,255,255,0.35)')
-        .attr('font-size', '7px')
+        .attr('fill', pitProb > 0.5 ? STATUS_COLORS.predicted : TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.data)
         .attr('font-weight', 700)
         .text(`PIT ${(pitProb * 100).toFixed(0)}%`);
     }
@@ -1027,9 +1059,9 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
     // X-axis
     g.append('g').attr('transform', `translate(0,${h})`).call(
       d3.axisBottom(xScale).ticks(Math.min(allPoints.length, 8)).tickFormat(d3.format('d'))
-    ).selectAll('text').attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px');
-    g.selectAll('.domain').attr('stroke', 'rgba(255,255,255,0.06)');
-    g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)');
+    ).selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data);
+    g.selectAll('.domain').attr('stroke', GRID_COLORS.axis);
+    g.selectAll('.tick line').attr('stroke', GRID_COLORS.axis);
 
     // Y-axis (time)
     g.append('g').call(
@@ -1038,7 +1070,7 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
         const s = (d % 60).toFixed(1);
         return m > 0 ? `${m}:${s.padStart(4, '0')}` : s;
       })
-    ).selectAll('text').attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px');
+    ).selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data);
   }, [recentLaps, predPointsAll, predTimes, focusDriver, pred, currentLap]);
 
   if (recentLaps.length < 2 && predTimes.length === 0) return null;
@@ -1049,17 +1081,18 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
       borderTop: '1px solid rgba(255,255,255,0.08)',
       background: 'rgba(15,15,35,0.5)',
       position: 'relative',
-      height: 90,
       overflow: 'hidden',
     }}>
+      {/* The marks of the chart: solid laps, dashed forecast, ± MAE band */}
+      <Legend items={forecastChartLegend(getDriverColor(focusDriver), forecastHeldOutMae(pred) != null)} />
       <div ref={tooltipRef} style={{
         position: 'absolute', pointerEvents: 'none', opacity: 0,
         background: 'rgba(10,10,25,0.9)', border: '1px solid rgba(255,255,255,0.15)',
-        borderRadius: 4, padding: '2px 6px', fontSize: '9px', color: '#f5a623',
+        borderRadius: 4, padding: '2px 6px', fontSize: CHART_FONT.data, color: STATUS_COLORS.predicted,
         fontWeight: 700, fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap',
         zIndex: 5, transition: 'opacity 0.1s',
       }} />
-      <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+      <svg ref={svgRef} style={{ width: '100%', height: 90, display: 'block' }} />
     </div>
   );
 }

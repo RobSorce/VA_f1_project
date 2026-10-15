@@ -202,7 +202,7 @@ undo toast as in V3.1.
 ### V5.2 — Switching session mid-analysis drops unsaved state silently **[severity 2]**
 
 SessionMenu swaps the entire session. Brush selections, focus driver,
-selected t-SNE points, open overlays — all reset with no warning.
+selected projection points (then t-SNE, now the PCA biplot's), open overlays — all reset with no warning.
 
 **Fix:** show "Switch session — your current analysis (N overlays,
 lap-range brush) will close. Continue?" confirm.
@@ -350,7 +350,7 @@ GitHub page.
 
 ### V10.2 — Tooltips on advanced visualisations are thin **[severity 2]**
 
-PCA biplot, t-SNE scatter, strategy-analysis panel — advanced charts
+PCA biplot, t-SNE scatter (since removed), strategy-analysis panel — advanced charts
 with no onboarding on the first view. The axis labels
 ("PC1 · 42 % var") are correct but assume the reader knows what
 principal-component analysis is.

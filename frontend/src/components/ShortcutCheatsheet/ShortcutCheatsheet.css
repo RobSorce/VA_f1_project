@@ -22,9 +22,15 @@
 }
 
 /* --- Modal --- */
+/* Wide enough for three balanced columns: a section may continue in the next
+   column (a row never splits, a title never ends a column), so the 42
+   shortcuts fit without a scrollbar from 1366x768 up
+   (notes/experiments/phase9/repair_cheatsheet_fit.txt); the body keeps
+   overflow-y: auto only as the fallback for windows narrower than 900 px
+   (docs/SCROLL_JUSTIFICATIONS.md) */
 .cs-modal {
-  width: min(680px, 92vw);
-  max-height: 80vh;
+  width: min(1040px, 94vw);
+  max-height: 92vh;
   background: var(--rh-surface, #141414);
   border: 1px solid var(--rh-border, #2A2A2A);
   border-radius: var(--rh-radius-2xl, 14px);
@@ -82,10 +88,9 @@
 /* --- Body --- */
 .cs-body {
   overflow-y: auto;
-  padding: 16px 20px 24px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  padding: 12px 20px 16px;
+  column-count: 3;
+  column-gap: 24px;
 }
 
 .cs-body::-webkit-scrollbar {
@@ -104,30 +109,33 @@
 /* --- Sections --- */
 .cs-section {
   min-width: 0;
+  margin-bottom: 12px;
 }
 
 .cs-section-title {
-  font-size: var(--rh-text-xs, 11px);
+  font-size: var(--font-size-label);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: var(--rh-tracking-wide, 0.08em);
   color: var(--rh-text-faint, #555);
   margin: 0 0 8px 0;
   font-family: var(--rh-font-sans);
+  break-after: avoid;
 }
 
+/* Block flow (not flex) so the list can continue in the next column */
 .cs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: block;
 }
 
 .cs-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px;
+  padding: 2px 8px;
+  margin-bottom: 2px;
   gap: 12px;
+  break-inside: avoid;
   border-radius: var(--rh-radius-sm, 6px);
   transition: background var(--rh-transition-fast, 0.15s ease);
 }
@@ -147,7 +155,7 @@
   border-radius: var(--rh-radius-sm, 6px);
   background: var(--rh-surface-hover, #222);
   border: 1px solid var(--rh-border-strong, #333);
-  font-size: var(--rh-text-xs, 11px);
+  font-size: var(--font-size-data);
   font-family: var(--rh-font-mono);
   font-weight: 600;
   color: var(--rh-text-muted, #666);
@@ -162,7 +170,7 @@
 }
 
 .cs-desc {
-  font-size: var(--rh-text-sm, 12px);
+  font-size: var(--font-size-sm);
   color: var(--rh-text-secondary, #B0B0B0);
   font-family: var(--rh-font-sans);
   text-align: right;
@@ -178,9 +186,15 @@
 }
 
 /* --- Responsive --- */
+@media (max-width: 900px) {
+  .cs-body {
+    column-count: 2;
+  }
+}
+
 @media (max-width: 640px) {
   .cs-body {
-    grid-template-columns: 1fr;
+    column-count: 1;
   }
 }
 

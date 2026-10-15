@@ -1,6 +1,7 @@
 import React, { Suspense, Component } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { SLOT_OPTIONS } from '../../utils/slotOptions';
+import { CHART_FONT, TEXT_COLORS } from '../../utils/colors';
 
 class SlotErrorBoundary extends Component {
   state = { hasError: false, error: null };
@@ -50,8 +51,8 @@ const selectStyle = {
   background: 'rgba(255,255,255,0.06)',
   border: '1px solid rgba(255,255,255,0.1)',
   borderRadius: 4,
-  color: '#ccc',
-  fontSize: 10,
+  color: TEXT_COLORS.secondary,
+  fontSize: CHART_FONT.label,
   fontWeight: 600,
   letterSpacing: '0.04em',
   padding: '2px 6px',
@@ -72,8 +73,8 @@ const spinnerStyle = {
   alignItems: 'center',
   justifyContent: 'center',
   height: '100%',
-  color: '#555',
-  fontSize: 11,
+  color: TEXT_COLORS.muted,
+  fontSize: CHART_FONT.data,
 };
 
 const errorStyle = {
@@ -82,8 +83,8 @@ const errorStyle = {
   alignItems: 'center',
   justifyContent: 'center',
   height: '100%',
-  color: '#888',
-  fontSize: 11,
+  color: TEXT_COLORS.muted,
+  fontSize: CHART_FONT.data,
   gap: 6,
 };
 
@@ -93,8 +94,8 @@ const retryBtnStyle = {
   borderRadius: 4,
   border: '1px solid rgba(255,255,255,0.12)',
   background: 'rgba(255,255,255,0.06)',
-  color: '#aaa',
-  fontSize: 10,
+  color: TEXT_COLORS.secondary,
+  fontSize: CHART_FONT.label,
   cursor: 'pointer',
 };
 
@@ -106,7 +107,7 @@ export default function AnalysisSlot({ slotKey, vizId }) {
   return (
     <div style={slotStyle}>
       <div style={titleBarStyle}>
-        <span style={{ fontSize: 9, color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           {slotKey.replace('slot', 'Slot ')}
         </span>
         <select

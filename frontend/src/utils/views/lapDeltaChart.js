@@ -9,6 +9,32 @@
  * Pure module: no React, no D3, no store access.
  */
 import { completedLaps } from '../raceTime';
+import { DIVERGING, getDriverColor, getDriverDash, markColor } from '../colors';
+import { deltaHatchCss } from './deltaHatch';
+
+// Dash of the base driver's zero line (a reference, not a driver's line)
+export const BASE_LINE_DASH = '6,3';
+
+/**
+ * Legend rows of the lap delta chart (V4): the base driver's dashed zero
+ * line, one line per compared driver (team colour, teammate tint and dash:
+ * V3), and the two shaded areas of the diverging pair, each with its sign.
+ *
+ * @param {string} base - base driver code
+ * @param {string[]} drivers - compared drivers, in drawing order
+ * @returns {Array<Object>} Legend items
+ */
+export function lapDeltaLegend(base, drivers) {
+  if (!base) return [];
+  return [
+    { label: `${base} (zero line)`, color: markColor(getDriverColor(base)), shape: 'line', dash: BASE_LINE_DASH, strokeWidth: 1.5 },
+    ...drivers.map((d) => ({
+      label: d, color: markColor(getDriverColor(d)), shape: 'line', dash: getDriverDash(d),
+    })),
+    { label: `+ behind ${base}`, color: DIVERGING.worse, shape: 'band', fill: deltaHatchCss('worse') },
+    { label: `− ahead of ${base}`, color: DIVERGING.better, shape: 'band', fill: deltaHatchCss('better') },
+  ];
+}
 
 /**
  * Cumulative race time per driver over the laps COMPLETED at sessionNow

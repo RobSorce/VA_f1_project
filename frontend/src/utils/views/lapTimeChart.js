@@ -11,15 +11,75 @@
  */
 import { hasPitOut, isLapCompleted, isPitVisible, lapStartTime, pitOutSeconds } from '../raceTime';
 import { driverStateAt, nonFinisherMap } from '../driverState';
+import { STATUS_COLORS, STATUS_GLYPHS, DIVERGING, TEXT_COLORS } from '../colors';
 
-/* ── Color codes for sector/lap timing (F1 TV convention) ───────── */
+/* ── Color codes for sector/lap timing: the STATUS_COLORS map of utils/colors.js ── */
+// (F1 TV convention; each drawn with its glyph, see timingSheetLegend)
 export const TIME_COLORS = {
-  overall_best: '#A020F0', // Purple — overall best in the session
-  personal_best: '#00FF00', // Green — personal best
-  normal: 'rgba(255,255,255,0.88)', // White/grey — normal
-  slow: '#FFD700', // Yellow — significantly slower
-  pit: '#e040fb', // Magenta — pit lap
+  overall_best: STATUS_COLORS.overallBest, // purple + ◆ — overall best in the session
+  personal_best: STATUS_COLORS.personalBest, // green + ● — personal best
+  normal: STATUS_COLORS.normal, // white/grey — normal
+  slow: STATUS_COLORS.slower, // yellow — significantly slower
+  pit: STATUS_COLORS.pit, // pit colour + the text PIT — pit lap
 };
+
+/**
+ * Legend rows of the timing sheet (V4): every colour the sheet draws, with the
+ * glyph / text drawn next to it, so the swatch is the mark itself.
+ *
+ * @param {{forecast?: boolean}} [opts] - forecast rows on screen (focus driver)
+ * @returns {Array<{label:string, color:string, glyph:string, shape:string}>}
+ */
+export function timingSheetLegend({ forecast = false } = {}) {
+  const items = [
+    { label: 'Overall best', color: STATUS_COLORS.overallBest, glyph: STATUS_GLYPHS.overallBest, shape: 'glyph' },
+    { label: 'Personal best', color: STATUS_COLORS.personalBest, glyph: STATUS_GLYPHS.personalBest, shape: 'glyph' },
+    { label: 'Pit lap', color: STATUS_COLORS.pit, glyph: 'PIT', shape: 'glyph' },
+    { label: 'Lap running', color: STATUS_COLORS.running, glyph: '12.3', shape: 'glyph' },
+  ];
+  if (forecast) {
+    items.push(
+      { label: 'Forecast', color: STATUS_COLORS.predicted, glyph: 'L', shape: 'glyph' },
+      { label: 'Faster', color: DIVERGING.better, glyph: '−', shape: 'glyph' },
+      { label: 'Slower', color: DIVERGING.worse, glyph: '+', shape: 'glyph' },
+    );
+  }
+  return items;
+}
+
+/**
+ * Legend rows of the forecast mini-chart (V4): solid line = laps run, dashed
+ * line = forecast, shaded band = ± the method's held-out MAE.
+ *
+ * @param {string} color - the focus driver's colour
+ * @param {boolean} hasBand - a held-out MAE exists (the band is drawn)
+ */
+export function forecastChartLegend(color, hasBand) {
+  const items = [
+    { label: 'Laps run', color, shape: 'line' },
+    { label: 'Forecast', color, shape: 'line', dash: '6,4' },
+  ];
+  if (hasBand) items.push({ label: '± held-out MAE', color, shape: 'band' });
+  items.push({ label: 'Forecast origin', color: TEXT_COLORS.muted, shape: 'line', dash: '2,2', strokeWidth: 1.5 });
+  return items;
+}
+
+/**
+ * Store update of the timing sheet's lap-range brush (V7): the shared brushed
+ * range (brushLapRange: Position by Lap draws and sets the same range, the
+ * sheet's bests and Tyre Degradation read it) and selectedLapRange (Strategy
+ * Timeline, Telemetry); a click (null) clears both.
+ *
+ * @param {[number, number]|null} range
+ * @returns {{brushLapRange: ([number, number]|null), selectedLapRange: ([number, number]|null)}}
+ */
+export function lapBrushUpdate(range) {
+  if (!Array.isArray(range) || range.length !== 2 || !range.every(Number.isFinite)) {
+    return { brushLapRange: null, selectedLapRange: null };
+  }
+  const r = [Math.min(range[0], range[1]), Math.max(range[0], range[1])];
+  return { brushLapRange: r, selectedLapRange: r };
+}
 
 /* ── Causal timing sheet (pure, tested in __tests__/views.timing*.test.js) ── */
 function positiveTime(v, max) {

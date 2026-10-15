@@ -2,26 +2,30 @@ import React, { useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import LapTimeChart from '../visualizations/LapTimeChart';
 import LapDeltaChart from '../visualizations/LapDeltaChart';
+import { CHART_FONT, TEXT_COLORS, tintedChip, UI_COLORS, SURFACES } from '../../utils/colors';
 
 const TABS = [
   { id: 'times', label: 'Lap Times' },
   { id: 'delta', label: 'Lap Delta' },
 ];
 
+// Active pill: a tint of the F1 red accent, its text lifted to 4.5:1 on that
+// tint (tintedChip)
+const ACTIVE = tintedChip(UI_COLORS.accent, 0.18, SURFACES.panel);
 const tabPillStyle = (active) => ({
-  padding: '3px 8px', fontSize: '9px', fontWeight: 600,
+  padding: '3px 8px', fontSize: CHART_FONT.label, fontWeight: 600,
   borderRadius: 4, border: 'none', cursor: 'pointer',
-  background: active ? 'rgba(229, 57, 53, 0.18)' : 'transparent',
-  color: active ? '#ff5757' : 'rgba(255,255,255,0.45)',
+  background: active ? ACTIVE.background : 'transparent',
+  color: active ? ACTIVE.color : TEXT_COLORS.muted,
   transition: 'background 0.12s, color 0.12s',
 });
 
 const splitBtnStyle = (active) => ({
-  padding: '3px 6px', fontSize: '9px', fontWeight: 600,
+  padding: '3px 6px', fontSize: CHART_FONT.label, fontWeight: 600,
   borderRadius: 4, border: 'none', cursor: 'pointer',
   marginLeft: 'auto',
-  background: active ? 'rgba(229, 57, 53, 0.14)' : 'transparent',
-  color: active ? '#ff5757' : 'rgba(255,255,255,0.3)',
+  background: active ? ACTIVE.background : 'transparent',
+  color: active ? ACTIVE.color : TEXT_COLORS.muted,
   transition: 'background 0.12s, color 0.12s',
   display: 'inline-flex', alignItems: 'center', gap: 3,
 });

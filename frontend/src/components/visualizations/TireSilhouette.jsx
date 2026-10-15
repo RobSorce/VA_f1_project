@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { TYRE_COLORS } from '../../utils/colors';
+import {
+  TYRE_COLORS, CHART_FONT, DIVERGING, STATUS_COLORS, contrastText,
+} from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { deriveStints } from '../../utils/stints';
 import { causalKey, tyreStintStatus } from '../../utils/strategyViews';
@@ -52,7 +54,7 @@ export default function TireSilhouette() {
   }, [driver, allStints, selectedStint]);
 
   const compound = stintInfo?.compound || 'UNKNOWN';
-  const tyreColor = TYRE_COLORS[compound] || '#888';
+  const tyreColor = TYRE_COLORS[compound] || TYRE_COLORS.UNKNOWN;
   const life = stintInfo?.tyreLife || 0;
   const lifeKnown = stintInfo?.tyreLife != null;
   // Opacity: 1.0 fresh → 0.3 worn
@@ -163,9 +165,9 @@ export default function TireSilhouette() {
               {/* Tyre label */}
               <text x={t.x} y={t.y}
                 textAnchor="middle" dominantBaseline="central"
-                fill={compound === 'HARD' || compound === 'MEDIUM' ? '#000' : '#fff'}
-                fontSize="8px" fontWeight="800"
-                style={{ pointerEvents: 'none' }}
+                fill={contrastText(tyreColor)}
+                fontWeight="800"
+                style={{ pointerEvents: 'none', fontSize: CHART_FONT.label }}
               >
                 {t.label}
               </text>
@@ -176,13 +178,13 @@ export default function TireSilhouette() {
         {/* Info row */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
-          fontSize: '10px', color: 'var(--color-text-secondary)',
+          fontSize: CHART_FONT.data, color: 'var(--color-text-secondary)',
         }}>
           <span style={{
             padding: '2px 8px', borderRadius: 4,
             background: tyreColor,
-            color: compound === 'HARD' || compound === 'MEDIUM' ? '#000' : '#fff',
-            fontWeight: 800, fontSize: '9px',
+            color: contrastText(tyreColor),
+            fontWeight: 800, fontSize: CHART_FONT.label,
           }}>
             {compound}
           </span>
@@ -199,20 +201,21 @@ export default function TireSilhouette() {
                 ? `~${Math.round(stintInfo.stintLength)}`
                 : stintInfo.stintLength}
           </span>
-          <span style={{ color: !lifeKnown ? 'var(--color-text-muted)' : life > 0.7 ? '#ef4444' : life > 0.4 ? '#fbbf24' : '#22c55e', fontWeight: 700 }}>
+          {/* Life left: orange worn, yellow half, blue fresh (not red / green); the percentage carries the value */}
+          <span style={{ color: !lifeKnown ? 'var(--color-text-muted)' : life > 0.7 ? DIVERGING.worse : life > 0.4 ? STATUS_COLORS.slower : DIVERGING.better, fontWeight: 700 }}>
             {lifeKnown ? `${((1 - life) * 100).toFixed(0)}% life` : 'life ?'}
           </span>
         </div>
 
         {highlightedCompound && (
           <div style={{
-            fontSize: '9px', color: 'var(--color-text-muted)', textAlign: 'center',
+            fontSize: CHART_FONT.label, color: 'var(--color-text-muted)', textAlign: 'center',
           }}>
             Filtering: {highlightedCompound} stints highlighted
             <button
               onClick={() => setHighlightedCompound(null)}
               style={{
-                marginLeft: 6, padding: '1px 6px', fontSize: '8px',
+                marginLeft: 6, padding: '1px 6px', fontSize: CHART_FONT.label,
                 background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
                 borderRadius: 3, color: 'var(--color-text-secondary)', cursor: 'pointer',
               }}

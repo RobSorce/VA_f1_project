@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { listedBattles } from '../../utils/simulationClient';
+import { CHART_FONT, TEXT_COLORS, GEMINI_COLORS, withAlpha } from '../../utils/colors';
+import { useDemoMode, BACKEND_ONLY_TEXT } from '../../utils/demoMode';
 
 /* Gemini logo — the official 4-pointed spark/star shape */
 function GeminiLogo({ size = 22 }) {
@@ -14,30 +16,35 @@ function GeminiLogo({ size = 22 }) {
   );
 }
 
+// In the dock row, in the gutter right of the dock pill (tokens.css
+// --dock-side-gutter): centred on the dock, never over the timeline row, the
+// status text or a panel (V13 r2: at bottom 76 px it covered 12-24 px of the
+// timeline row)
 const fabStyle = {
   position: 'fixed',
-  bottom: 76,
+  bottom: 'calc(var(--dock-margin) + (var(--bottom-tab-height) - var(--assistant-button-size)) / 2)',
   right: 16,
-  width: 44,
-  height: 44,
+  width: 'var(--assistant-button-size)',
+  height: 'var(--assistant-button-size)',
   borderRadius: '50%',
-  background: 'linear-gradient(135deg, #4285F4 0%, #886FBF 50%, #D96570 100%)',
+  background: `linear-gradient(135deg, ${GEMINI_COLORS.blue} 0%, ${GEMINI_COLORS.purple} 50%, ${GEMINI_COLORS.pink} 100%)`,
   border: 'none',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  boxShadow: '0 2px 16px rgba(66,133,244,0.35), 0 0 20px rgba(136,111,191,0.15)',
+  boxShadow: `0 2px 16px ${withAlpha(GEMINI_COLORS.blue, 0.35)}, 0 0 20px ${withAlpha(GEMINI_COLORS.purple, 0.15)}`,
   zIndex: 9999,
   transition: 'transform 0.15s ease, box-shadow 0.15s ease',
 };
 
+// The chat opens above the bottom chrome and never reaches the weather bar
 const panelWrapperBase = {
   position: 'fixed',
-  bottom: 128,
+  bottom: 'calc(var(--chrome-bottom) + 8px)',
   right: 16,
   width: 320,
-  height: 450,
+  height: 'min(450px, calc(100vh - var(--chrome-bottom) - var(--weather-bar-height) - 16px))',
   zIndex: 9999,
   transition: 'opacity 0.25s ease, transform 0.25s ease',
 };
@@ -72,6 +79,8 @@ export default function GeminiFloatingButton() {
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
+  // Static demo (no backend): Gemini is model-side, the input says so
+  const demoActive = useDemoMode((s) => s.active);
   const messagesEndRef = useRef(null);
 
   // Derive loading state from messages — last message is user means waiting for AI
@@ -136,7 +145,7 @@ export default function GeminiFloatingButton() {
           }}>
             <span style={{
               fontFamily: "'Formula1', 'Titillium Web', sans-serif",
-              fontSize: 12, fontWeight: 700, color: '#e0e0e0',
+              fontSize: 12, fontWeight: 700, color: TEXT_COLORS.primary,
               letterSpacing: '0.04em', textTransform: 'uppercase',
             }}>
               Gemini AI
@@ -144,7 +153,7 @@ export default function GeminiFloatingButton() {
             <button
               onClick={() => setOpen(false)}
               style={{
-                background: 'none', border: 'none', color: '#7a7f9a',
+                background: 'none', border: 'none', color: TEXT_COLORS.muted,
                 cursor: 'pointer', fontSize: 16, padding: '2px 6px', borderRadius: 4,
               }}
             >
@@ -158,7 +167,7 @@ export default function GeminiFloatingButton() {
           }}>
             {geminiMessages.length === 0 && !loading && (
               <div style={{
-                color: '#7a7f9a', fontSize: 11, textAlign: 'center',
+                color: TEXT_COLORS.muted, fontSize: 11, textAlign: 'center',
                 marginTop: 20, lineHeight: 1.5,
                 display: 'flex', flexDirection: 'column', gap: 12,
               }}>
@@ -172,7 +181,7 @@ export default function GeminiFloatingButton() {
                         background: 'rgba(255,255,255,0.04)',
                         border: '1px solid rgba(255,255,255,0.08)',
                         borderRadius: 12, padding: '3px 8px',
-                        fontSize: 9, color: '#aab', cursor: 'pointer',
+                        fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary, cursor: 'pointer',
                         transition: 'background 0.15s, color 0.15s',
                       }}
                     >
@@ -185,8 +194,8 @@ export default function GeminiFloatingButton() {
             {geminiMessages.map((msg, i) => (
               <div key={i} style={{
                 alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                background: msg.role === 'user' ? 'rgba(66,133,244,0.18)' : 'rgba(255,255,255,0.05)',
-                color: msg.role === 'user' ? '#e0e0e0' : '#bbc',
+                background: msg.role === 'user' ? withAlpha(GEMINI_COLORS.blue, 0.18) : 'rgba(255,255,255,0.05)',
+                color: msg.role === 'user' ? TEXT_COLORS.primary : TEXT_COLORS.secondary,
                 borderRadius: msg.role === 'user' ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
                 padding: '6px 10px', fontSize: 11, maxWidth: '85%',
                 wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: 1.4,
@@ -195,7 +204,7 @@ export default function GeminiFloatingButton() {
               </div>
             ))}
             {loading && (
-              <div style={{ color: '#7a7f9a', fontSize: 10, fontStyle: 'italic', padding: '4px 0' }}>
+              <div style={{ color: TEXT_COLORS.muted, fontSize: CHART_FONT.label, fontStyle: 'italic', padding: '4px 0' }}>
                 Thinking...
               </div>
             )}
@@ -212,22 +221,22 @@ export default function GeminiFloatingButton() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Gemini..."
+              placeholder={demoActive ? `${BACKEND_ONLY_TEXT} (Gemini)` : 'Ask Gemini...'}
               disabled={loading}
               style={{
                 flex: 1, background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: 8, padding: '7px 10px', fontSize: 11,
-                color: '#e0e0e0', outline: 'none', fontFamily: 'inherit',
+                color: TEXT_COLORS.primary, outline: 'none', fontFamily: 'inherit',
               }}
             />
             <button
               onClick={() => handleSend()}
               disabled={loading}
               style={{
-                background: 'linear-gradient(135deg, #4285F4, #886FBF)',
+                background: `linear-gradient(135deg, ${GEMINI_COLORS.blue}, ${GEMINI_COLORS.purple})`,
                 border: 'none', borderRadius: 8, padding: '7px 12px',
-                fontSize: 10, fontWeight: 700, color: '#fff',
+                fontSize: CHART_FONT.label, fontWeight: 700, color: '#fff',
                 cursor: loading ? 'default' : 'pointer',
                 opacity: loading ? 0.4 : 1,
               }}
@@ -245,11 +254,11 @@ export default function GeminiFloatingButton() {
         aria-label="Open Gemini AI chat"
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.08)';
-          e.currentTarget.style.boxShadow = '0 4px 24px rgba(66,133,244,0.45), 0 0 30px rgba(136,111,191,0.25)';
+          e.currentTarget.style.boxShadow = `0 4px 24px ${withAlpha(GEMINI_COLORS.blue, 0.45)}, 0 0 30px ${withAlpha(GEMINI_COLORS.purple, 0.25)}`;
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 2px 16px rgba(66,133,244,0.35), 0 0 20px rgba(136,111,191,0.15)';
+          e.currentTarget.style.boxShadow = `0 2px 16px ${withAlpha(GEMINI_COLORS.blue, 0.35)}, 0 0 20px ${withAlpha(GEMINI_COLORS.purple, 0.15)}`;
         }}
       >
         <GeminiLogo />

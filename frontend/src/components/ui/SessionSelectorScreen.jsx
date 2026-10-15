@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor } from '../../utils/colors';
+import { CHART_FONT, FLAG_COLORS, TEXT_COLORS, UI_COLORS, getDriverColor, withAlpha } from '../../utils/colors';
 import { yearOptions } from '../../utils/seasons';
+import { publicAsset } from '../../utils/publicAsset';
 const SESSION_TYPES = [
   { value: 'R', label: 'Race' },
   { value: 'Q', label: 'Qualifying' },
@@ -40,8 +41,8 @@ const mockSelectStyle = {
   background: 'rgba(255,255,255,0.04)',
   border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: 6,
-  color: '#ccc',
-  fontSize: 11,
+  color: TEXT_COLORS.secondary,
+  fontSize: CHART_FONT.data,
   padding: '6px 10px',
   outline: 'none',
   fontFamily: "'JetBrains Mono', monospace",
@@ -157,7 +158,7 @@ export default function SessionSelectorScreen() {
       <div className="session-screen__content">
         {/* Logo */}
         <div className="session-screen__logo">
-          <img src="/f1-logo.png" alt="F1" className="session-screen__logo-img" />
+          <img src={publicAsset('f1-logo.png')} alt="F1" className="session-screen__logo-img" />
           <h1 className="session-screen__title">RACE CONTROL</h1>
           <p className="session-screen__subtitle">Visual Analytics Dashboard</p>
         </div>
@@ -169,28 +170,28 @@ export default function SessionSelectorScreen() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <span style={{
                 width: 8, height: 8, borderRadius: '50%',
-                background: '#e10600',
-                boxShadow: '0 0 8px rgba(225,6,0,0.5)',
+                background: UI_COLORS.accent,
+                boxShadow: `0 0 8px ${withAlpha(UI_COLORS.accent, 0.5)}`,
                 animation: 'livePulse 1.5s ease-in-out infinite',
               }} />
               <span style={{
                 fontFamily: "'Formula1', 'Titillium Web', sans-serif",
                 fontSize: 13, fontWeight: 700, letterSpacing: '0.08em',
-                textTransform: 'uppercase', color: '#e0e0e0',
+                textTransform: 'uppercase', color: TEXT_COLORS.primary,
               }}>
                 Live Session
               </span>
             </div>
 
-            <p style={{ fontSize: 11, color: '#7a7f9a', lineHeight: 1.5, margin: 0 }}>
+            <p style={{ fontSize: CHART_FONT.data, color: TEXT_COLORS.muted, lineHeight: 1.5, margin: 0 }}>
               Connect to the F1 live timing feed during an active session.
             </p>
 
             <button
               style={{
                 ...liveBtnStyle,
-                background: liveConnecting ? 'rgba(225,6,0,0.15)' : 'linear-gradient(135deg, #e10600 0%, #c00 100%)',
-                color: '#fff',
+                background: liveConnecting ? withAlpha(UI_COLORS.accent, 0.15) : `linear-gradient(135deg, ${UI_COLORS.accent} 0%, ${UI_COLORS.accentDark} 100%)`,
+                color: TEXT_COLORS.primary,
                 opacity: liveConnecting ? 0.6 : 1,
               }}
               onClick={handleConnectLive}
@@ -209,19 +210,19 @@ export default function SessionSelectorScreen() {
 
             <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 0' }} />
 
-            <span style={{ fontSize: 10, color: '#555', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               Mock Replay
             </span>
-            <p style={{ fontSize: 10, color: '#666', lineHeight: 1.4, margin: 0 }}>
+            <p style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, lineHeight: 1.4, margin: 0 }}>
               Simulate live timing from a cached session (select year & GP above first).
             </p>
 
             <button
               style={{
                 ...liveBtnStyle,
-                background: mockConnecting ? 'rgba(66,133,244,0.1)' : 'rgba(66,133,244,0.15)',
-                border: '1px solid rgba(66,133,244,0.3)',
-                color: '#8ab4f8',
+                background: mockConnecting ? withAlpha(UI_COLORS.brush, 0.1) : withAlpha(UI_COLORS.brush, 0.15),
+                border: `1px solid ${withAlpha(UI_COLORS.brush, 0.3)}`,
+                color: UI_COLORS.brush,
                 opacity: (!round || mockConnecting || isLoading) ? 0.4 : 1,
               }}
               onClick={handleStartMock}
@@ -239,10 +240,10 @@ export default function SessionSelectorScreen() {
 
             {error && (
               <div style={{
-                fontSize: 10, color: '#f87171', lineHeight: 1.3,
+                fontSize: CHART_FONT.label, color: FLAG_COLORS.red, lineHeight: 1.3,
                 padding: '6px 8px', borderRadius: 4,
-                background: 'rgba(248,113,113,0.08)',
-                border: '1px solid rgba(248,113,113,0.15)',
+                background: withAlpha(FLAG_COLORS.red, 0.08),
+                border: `1px solid ${withAlpha(FLAG_COLORS.red, 0.15)}`,
               }}>
                 {error}
               </div>
@@ -259,7 +260,7 @@ export default function SessionSelectorScreen() {
                 style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   width: 16, height: 16, borderRadius: 4,
-                  color: '#8ab4f8',
+                  color: UI_COLORS.brush,
                 }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -272,12 +273,12 @@ export default function SessionSelectorScreen() {
               <span style={{
                 fontFamily: "'Formula1', 'Titillium Web', sans-serif",
                 fontSize: 13, fontWeight: 700, letterSpacing: '0.08em',
-                textTransform: 'uppercase', color: '#e0e0e0',
+                textTransform: 'uppercase', color: TEXT_COLORS.primary,
               }}>
                 Session Playback
               </span>
             </div>
-            <p style={{ fontSize: 11, color: '#7a7f9a', lineHeight: 1.5, margin: '0 0 6px' }}>
+            <p style={{ fontSize: CHART_FONT.data, color: TEXT_COLORS.muted, lineHeight: 1.5, margin: '0 0 6px' }}>
               Load any past race, qualifying, or practice for full analysis — lap times, strategy, telemetry, predictions.
             </p>
 

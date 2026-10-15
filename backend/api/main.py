@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from data.extractors.fastf1_extractor import FastF1Extractor, get_sample_session_data
 from data.processors.feature_engineering import FeatureEngineer
-from data.processors.pca_compute import load_embeddings, load_pca_embeddings, pca_embeddings_at, analyze_selection
+from data.processors.pca_compute import load_pca_embeddings, pca_embeddings_at, analyze_selection
 from data.processors.stints import build_tyre_strategy
 from utils.json_helpers import clean_dataframe_for_json
 
@@ -942,22 +942,11 @@ async def get_championship(year: int, load_all: bool = False):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============= PCA / t-SNE Endpoints =============
-
-@app.get("/api/tsne/embeddings")
-async def get_tsne_embeddings():
-    """Return pre-computed t-SNE embeddings, auto-building from cached sessions if needed."""
-    import asyncio
-    embeddings = await asyncio.to_thread(load_embeddings)
-    if embeddings is None:
-        return {
-            'points': [],
-            'feature_cols': [],
-            'n_points': 0,
-            'message': 'No t-SNE data available. Load at least one race session first.',
-        }
-    return embeddings
-
+# ============= PCA Endpoints =============
+# The dashboard's one projection is the PCA (docs/PCA_METHODOLOGY.md, section
+# 2 "Why PCA and not t-SNE"). The three /api/tsne/... paths below are former
+# route names, kept only as aliases of the /api/pca/... routes for old
+# clients; the t-SNE projection itself was removed.
 
 @app.get("/api/pca/embeddings")
 async def get_pca_embeddings(year: Optional[int] = None, round: Optional[int] = None,
@@ -989,6 +978,13 @@ async def get_pca_embeddings(year: Optional[int] = None, round: Optional[int] = 
     return embeddings
 
 
+# Alias (former route name, see above): the post-race PCA biplot of /api/pca/embeddings
+@app.get("/api/tsne/embeddings")
+async def get_embeddings_former_route():
+    """Alias of /api/pca/embeddings without parameters (the post-race biplot)."""
+    return await get_pca_embeddings()
+
+
 class PCAAnalyzeRequest(BaseModel):
     point_ids: List[str]
     # The race being replayed and its clock: its rows, stints and stops are
@@ -1009,14 +1005,14 @@ async def analyze_pca_selection(request: PCAAnalyzeRequest):
                                    request.year, request.round, request.session_now)
 
 
-# Former name of /api/pca/analyze-selection, kept as an alias
+# Alias (former route name, see above) of /api/pca/analyze-selection
 @app.post("/api/tsne/analyze-selection")
 async def analyze_tsne_selection(request: PCAAnalyzeRequest):
     """Alias of /api/pca/analyze-selection."""
     return await analyze_pca_selection(request)
 
 
-@app.get("/api/tsne/point-features/{point_id}")
+@app.get("/api/pca/point-features/{point_id}")
 async def get_point_features(point_id: str):
     """Get the feature values of one biplot point (post-race row)."""
     import pandas as pd
@@ -1042,6 +1038,13 @@ async def get_point_features(point_id: str):
             val = row[col]
             features[col] = round(float(val), 3) if pd.notna(val) else None
     return {'point_id': point_id, 'driver': driver, 'features': features}
+
+
+# Alias (former route name, see above) of /api/pca/point-features/{point_id}
+@app.get("/api/tsne/point-features/{point_id}")
+async def get_point_features_former_route(point_id: str):
+    """Alias of /api/pca/point-features/{point_id}."""
+    return await get_point_features(point_id)
 
 
 # ============= Live Timing Lifecycle =============

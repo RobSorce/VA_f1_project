@@ -11,15 +11,25 @@
 }
 
 html {
-  /* Fluid root — smoothly scales the whole rem-based design from
-     16 px @ 1920 viewport down to 13 px @ 1280, then clamps. The app
-     keeps 100% its designed proportions on big screens and renders at
-     ~81% on HiDPI-scaled 15" laptops (1261 CSS px viewport), fixing
-     the "need to press Ctrl+− to see everything" issue without using
-     the non-standard CSS `zoom` property. See docs/SCROLL_HEURISTIC_EVALUATION.md. */
+  /* Fluid root — scales the rem-based chrome from 16 px at a 1920 px wide
+     viewport down to 13 px at 1280, then clamps (14.08 px at 1536, 13.23 px
+     at 1366: notes/experiments/phase9/layout_font_floor_after.txt). Text
+     sizes never go under the type floors of tokens.css whatever the root. */
   font-size: clamp(13px, calc(6.4px + 0.5vw), 16px);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fixed viewport at every size (V13): the page never scrolls. The shell
+   (.app-container) is exactly 100vh, its body takes the rest of the chrome
+   rows (flex 1, min-height 0) and every grid track below is minmax(0, ...);
+   the few panels whose content outgrows them scroll inside themselves, each
+   justified in docs/SCROLL_JUSTIFICATIONS.md. The old page-scroll fallback
+   below 1440 x 900 is gone: it let the Pit Wall grow to its lap table, a
+   1896 px page at 1536 x 750 (notes/experiments/v13_audit/findings_2026-10-14.md). */
+html,
+body {
+  overflow: hidden;
 }
 
 body {
@@ -29,27 +39,20 @@ body {
   line-height: 1.4;
   color: var(--color-text-primary);
   background-color: var(--color-bg-primary);
-  overflow: hidden;
-  min-height: 100vh;
+  height: 100vh;
 }
 
-/* Safety net: when the viewport is smaller than the design canvas,
-   hand control back to the browser's native scroll instead of
-   silently clipping content. See docs/SCROLL_HEURISTIC_EVALUATION.md. */
-@media (max-width: 1440px), (max-height: 900px) {
-  html, body {
-    overflow: auto;
-  }
-}
-
+/* Links: the text red (>= 4.5:1 on every dark surface, V13); hover turns
+   them white and underlined, so the state is not a colour change alone */
 a {
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
 
 a:hover {
-  color: #ff3333;
+  color: var(--color-text-primary);
+  text-decoration: underline;
 }
 
 h1, h2, h3, h4, h5, h6 {

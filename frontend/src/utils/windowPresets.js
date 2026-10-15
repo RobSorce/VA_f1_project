@@ -125,8 +125,10 @@ export const WINDOW_PRESETS = {
   pitwindow: {
     label: 'Pit Window',
     description: 'Track Map + Circle of Doom + Strategy Timeline',
+    // Half and half: the timeline's 20 driver rows fit one page from
+    // 1536 x 750 up (notes/experiments/phase9/repair_strategy_fit.txt)
     dockedLayout: {
-      direction: 'vertical', ratio: 0.62,
+      direction: 'vertical', ratio: 0.5,
       children: [
         {
           direction: 'horizontal', ratio: 0.5,
@@ -139,9 +141,9 @@ export const WINDOW_PRESETS = {
       ],
     },
     windows: [
-      { id: 'trackmap', position: { left: '0%', top: '0%', width: '50%', height: '62%' } },
-      { id: 'circle',   position: { left: '50%', top: '0%', width: '50%', height: '62%' } },
-      { id: 'strategy', position: { left: '0%', top: '62%', width: '100%', height: '38%' } },
+      { id: 'trackmap', position: { left: '0%', top: '0%', width: '50%', height: '50%' } },
+      { id: 'circle',   position: { left: '50%', top: '0%', width: '50%', height: '50%' } },
+      { id: 'strategy', position: { left: '0%', top: '50%', width: '100%', height: '50%' } },
     ],
   },
   simulator: {

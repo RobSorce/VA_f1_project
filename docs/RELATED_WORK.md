@@ -22,7 +22,7 @@ Shi proposes integrating dimensionality reduction (t-SNE) with strategy timeline
 ## 3. Dimensionality Reduction in Visual Analytics
 
 ### Van der Maaten & Hinton — "Visualizing Data using t-SNE" (JMLR, 2008)
-The foundational paper on t-SNE establishes its strength in preserving local neighborhood structure but warns about its weaknesses: non-preservation of global distances, sensitivity to perplexity, and non-reproducibility across runs. Our system initially used t-SNE but migrated to PCA for the primary projection because: (a) PCA preserves global distances, making inter-cluster comparisons meaningful; (b) PCA axes are linear combinations of input features, enabling the biplot's loading vectors; (c) PCA is deterministic, ensuring consistency across sessions. t-SNE remains available as a secondary projection mode.
+The foundational paper on t-SNE establishes its strength in preserving local neighborhood structure but warns about its weaknesses: non-preservation of global distances, sensitivity to perplexity, and non-reproducibility across runs. Our system initially used t-SNE but migrated to PCA for the primary projection because: (a) PCA preserves global distances, making inter-cluster comparisons meaningful; (b) PCA axes are linear combinations of input features, enabling the biplot's loading vectors; (c) PCA is deterministic, ensuring consistency across sessions. t-SNE was later removed from the dashboard altogether: the PCA is its one projection (`docs/PCA_METHODOLOGY.md`, section 2 "Why PCA and not t-SNE").
 
 ### Wattenberg et al. — "How to Use t-SNE Effectively" (Distill, 2016)
 This interactive article demonstrates that t-SNE results are highly sensitive to hyperparameters and that cluster sizes and inter-cluster distances in t-SNE plots are not meaningful. This guided our decision to use PCA as the primary DR method: in our use case (comparing race strategies), the user needs to reason about "how different are these two strategy clusters?" — a question PCA can answer but t-SNE cannot.
@@ -50,6 +50,6 @@ The visual information-seeking mantra (overview first, zoom and filter, details 
 | RaceVis (Luo 2022) | Yes | No | No | Yes (linked highlight) | No |
 | SportsXVis (Perin 2018) | Yes | No | No | Yes | Limited |
 | Shi 2020 | Yes | t-SNE | No | Partial | Cluster analysis |
-| **Our system** | **Yes** | **PCA + t-SNE** | **LSTM + Monte Carlo** | **Yes (6 pairs)** | **Yes (lasso→analysis, click→LSTM)** |
+| **Our system** | **Yes** | **PCA** | **LSTM + Monte Carlo** | **Yes (6 pairs)** | **Yes (lasso→analysis, click→LSTM)** |
 
 Our system differentiates itself by combining all five capabilities — interactive exploration, dimensionality reduction with interpretable axes, predictive modeling, bidirectional multi-view coordination, and analytics triggered by visual interaction — in a single integrated dashboard.

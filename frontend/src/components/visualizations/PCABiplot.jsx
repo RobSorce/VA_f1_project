@@ -8,13 +8,18 @@ import {
 } from '../../utils/views/pcaBiplot';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+import {
+  CHART_FONT, TEXT_COLORS, GRID_COLORS, UI_COLORS, withAlpha,
+} from '../../utils/colors';
 
+// Toggle button: active = the brush / selection blue with its border; a
+// disabled toggle is muted (inactive component, WCAG 1.4.3 exempt)
 const toggleStyle = (active, disabled = false) => ({
-  padding: '2px 8px', fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+  padding: '2px 8px', fontSize: CHART_FONT.label, fontWeight: 700, letterSpacing: '0.05em',
   border: '1px solid', borderRadius: 4, cursor: disabled ? 'not-allowed' : 'pointer',
-  background: active ? 'rgba(138,180,248,0.14)' : 'transparent',
-  borderColor: active ? 'rgba(138,180,248,0.40)' : 'rgba(255,255,255,0.14)',
-  color: disabled ? 'rgba(255,255,255,0.35)' : active ? '#8ab4f8' : 'rgba(255,255,255,0.7)',
+  background: active ? withAlpha(UI_COLORS.brush, 0.14) : 'transparent',
+  borderColor: active ? UI_COLORS.brush : 'rgba(255,255,255,0.30)',
+  color: disabled ? 'rgba(255,255,255,0.35)' : active ? UI_COLORS.brush : TEXT_COLORS.secondary,
   transition: 'all 0.12s',
 });
 
@@ -123,12 +128,12 @@ export default function PCABiplot() {
       g.append('g')
         .attr('transform', `translate(0,${innerH})`)
         .call(xAxis)
-        .call((g) => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
+        .call((g) => g.selectAll('.tick line').attr('stroke', GRID_COLORS.grid))
         .call((g) => g.select('.domain').remove());
 
       g.append('g')
         .call(yAxis)
-        .call((g) => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.06)'))
+        .call((g) => g.selectAll('.tick line').attr('stroke', GRID_COLORS.grid))
         .call((g) => g.select('.domain').remove());
 
       // Axis labels with explained variance
@@ -138,16 +143,16 @@ export default function PCABiplot() {
       g.append('text')
         .attr('x', innerW / 2).attr('y', innerH + 28)
         .attr('text-anchor', 'middle')
-        .attr('fill', 'rgba(255,255,255,0.5)')
-        .attr('font-size', '9px')
+        .attr('fill', TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.label)
         .attr('font-weight', 600)
         .text(`PC1: ${pc1Label} (${pc1Pct})`);
 
       g.append('text')
         .attr('transform', `translate(-34, ${innerH / 2}) rotate(-90)`)
         .attr('text-anchor', 'middle')
-        .attr('fill', 'rgba(255,255,255,0.5)')
-        .attr('font-size', '9px')
+        .attr('fill', TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.label)
         .attr('font-weight', 600)
         .text(`PC2: ${pc2Label} (${pc2Pct})`);
 
@@ -158,17 +163,17 @@ export default function PCABiplot() {
         g.append('line')
           .attr('x1', originX).attr('y1', 0)
           .attr('x2', originX).attr('y2', innerH)
-          .attr('stroke', 'rgba(255,255,255,0.12)')
+          .attr('stroke', GRID_COLORS.axis)
           .attr('stroke-dasharray', '4,4');
         g.append('line')
           .attr('x1', 0).attr('y1', originY)
           .attr('x2', innerW).attr('y2', originY)
-          .attr('stroke', 'rgba(255,255,255,0.12)')
+          .attr('stroke', GRID_COLORS.axis)
           .attr('stroke-dasharray', '4,4');
         g.append('text')
-          .attr('x', originX + 4).attr('y', 10)
-          .attr('fill', 'rgba(255,255,255,0.2)')
-          .attr('font-size', '7px')
+          .attr('x', originX + 4).attr('y', 12)
+          .attr('fill', TEXT_COLORS.muted)
+          .style('font-size', CHART_FONT.label)
           .text('avg');
       }
     }
@@ -196,7 +201,7 @@ export default function PCABiplot() {
         .attr('orient', 'auto-start-reverse')
         .append('path')
         .attr('d', 'M 0 2 L 8 5 L 0 8 Z')
-        .attr('fill', 'rgba(255,255,255,0.45)');
+        .attr('fill', TEXT_COLORS.muted);
 
       topLoadings.forEach((l) => {
         const dx = l.pc1 * arrowScale;
@@ -212,7 +217,7 @@ export default function PCABiplot() {
         arrowG.append('line')
           .attr('x1', startX).attr('y1', startY)
           .attr('x2', endX).attr('y2', endY)
-          .attr('stroke', 'rgba(255,255,255,0.35)')
+          .attr('stroke', TEXT_COLORS.muted)
           .attr('stroke-width', 1.2)
           .attr('marker-end', 'url(#pca-arrow)');
 
@@ -222,8 +227,8 @@ export default function PCABiplot() {
         arrowG.append('text')
           .attr('x', endX + labelOffsetX).attr('y', endY + labelOffsetY)
           .attr('text-anchor', dx > 0 ? 'start' : 'end')
-          .attr('fill', 'rgba(255,255,255,0.45)')
-          .attr('font-size', '7px')
+          .attr('fill', TEXT_COLORS.secondary)
+          .style('font-size', CHART_FONT.data)
           .attr('font-weight', 600)
           .text(l.label);
       });
@@ -294,10 +299,9 @@ export default function PCABiplot() {
         .attr('cy', (d) => y(d.y))
         .attr('r', 8)
         .attr('fill', 'none')
-        .attr('stroke', '#ffffff')
+        .attr('stroke', TEXT_COLORS.primary)
         .attr('stroke-width', 1.5)
         .attr('stroke-dasharray', '3,2')
-        .attr('opacity', 0.85)
         .attr('pointer-events', 'none');
     }
 
@@ -313,8 +317,8 @@ export default function PCABiplot() {
     g.append('text')
       .attr('x', innerW / 2).attr('y', innerH + 16)
       .attr('text-anchor', 'middle')
-      .attr('fill', 'var(--color-text-muted)')
-      .attr('font-size', 8)
+      .attr('fill', TEXT_COLORS.muted)
+      .style('font-size', CHART_FONT.label)
       .text('Arrows show which features drive each axis | Shift+drag to lasso');
 
     // Selected count
@@ -322,8 +326,8 @@ export default function PCABiplot() {
       g.append('text')
         .attr('x', innerW - 4).attr('y', 12)
         .attr('text-anchor', 'end')
-        .attr('fill', 'var(--color-f1-red)')
-        .attr('font-size', 10)
+        .attr('fill', TEXT_COLORS.primary)
+        .style('font-size', CHART_FONT.label)
         .attr('font-weight', 700)
         .text(`${selectedPCAPoints.length} selected`);
     }
@@ -370,7 +374,7 @@ export default function PCABiplot() {
             ))}
           </span>
           <span role="radiogroup" aria-label="Colour encodes" style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-            <span style={{ fontSize: 9, color: 'var(--color-text-secondary)', marginRight: 2 }}>Colour</span>
+            <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary, marginRight: 2 }}>Colour</span>
             {COLOR_BY.map((c) => (
               <button
                 key={c.key}
@@ -419,9 +423,9 @@ export default function PCABiplot() {
                 onClick={clearSelection}
                 style={{
                   position: 'absolute', top: 6, left: 6,
-                  background: 'rgba(225, 6, 0, 0.15)', border: '1px solid rgba(225, 6, 0, 0.4)',
-                  borderRadius: 4, padding: '2px 8px', fontSize: '9px', fontWeight: 600,
-                  color: 'rgba(255,255,255,0.8)', cursor: 'pointer', zIndex: 2,
+                  background: withAlpha(UI_COLORS.brush, 0.15), border: `1px solid ${UI_COLORS.brush}`,
+                  borderRadius: 4, padding: '2px 8px', fontSize: CHART_FONT.label, fontWeight: 600,
+                  color: TEXT_COLORS.primary, cursor: 'pointer', zIndex: 2,
                   backdropFilter: 'blur(8px)',
                 }}
               >

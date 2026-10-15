@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ChampionshipChart from '../visualizations/ChampionshipChart';
 import ChampionshipStandings from '../visualizations/ChampionshipStandings';
 import GeminiAssistant from '../visualizations/GeminiAssistant';
+import { TEXT_COLORS, CHART_FONT } from '../../utils/colors';
 
 const SUBTABS = [
   { id: 'standings', label: 'Standings' },
@@ -25,10 +26,11 @@ export default function ChampionshipTabContent() {
             onClick={() => setSubtab(t.id)}
             style={{
               padding: '5px 14px',
-              fontSize: 11,
+              fontSize: CHART_FONT.label,
               fontWeight: subtab === t.id ? 700 : 500,
               fontFamily: "'Titillium Web', sans-serif",
-              color: subtab === t.id ? '#fff' : 'rgba(255,255,255,0.45)',
+              // the inactive sub-tab in the muted text colour (>= 4.5:1, it read 4.52:1 at white 0.45)
+              color: subtab === t.id ? TEXT_COLORS.primary : TEXT_COLORS.muted,
               background: subtab === t.id ? 'rgba(255,255,255,0.08)' : 'transparent',
               border: '1px solid',
               borderColor: subtab === t.id ? 'rgba(255,255,255,0.12)' : 'transparent',

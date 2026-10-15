@@ -2,12 +2,15 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as api from '../utils/apiClient';
 import { setHealthReporter } from '../utils/apiClient';
+import { isBackendOnlyError, useDemoMode, DEMO_NOTE } from '../utils/demoMode';
 import { setSessionDriverColors } from '../utils/colors';
 import { computePCA, LIVE_PCA_ALIGN } from '../utils/livePCA';
-import { extractRaceSituationFeatures, FEATURE_NAMES } from '../utils/raceSituationFeatures';
+import { extractRaceSituationFeatures, FEATURE_NAMES, estimatedLapsToPit } from '../utils/raceSituationFeatures';
+import { stintLifeEstimate } from '../utils/raceSimulation';
 import { replayReferenceAt } from '../utils/raceSituationReference';
 import {
   createSimulationClient, planFromStints, withBadges, listedBattles, modePosition, whatIfKey, whatIfMarks,
+  whatIfMarksOf,
 } from '../utils/simulationClient';
 import { seedFrom } from '../utils/prng';
 import {
@@ -19,7 +22,6 @@ import { driverStateAt, nonFinisherMap } from '../utils/driverState';
 import {
   viewSessionType, isRaceSession, causalKey, sessionScopeOf, geminiQuickQueryBody,
 } from '../utils/strategyViews';
-import { WINDOW_PRESETS } from '../utils/windowPresets';
 import { SLOT_IDS } from '../utils/slotOptions';
 import { brushFitKey } from '../utils/views/degradationViews';
 import { loadedRaceClock } from '../utils/views/pcaBiplot';
@@ -2750,9 +2752,18 @@ export const useF1Store = create(persist((set, get) => ({
   selectedDrivers: [],
   highlightedDriver: null,
   highlightedDriverPosition: null, // {x, y} | null — for MFD card positioning
+  // ONE lap range for every view (V7 r2). Both names hold the same value:
+  // every lap-range action (the Position by Lap brush and its clear, the
+  // Timing Sheet's lap-range bar, a stint click in the Strategy Timeline, a
+  // pit window of the PCA analysis, a race event of the timeline) sets both,
+  // and clearSelection clears both, so the sheet's rows and title, the
+  // Position by Lap brush, the Strategy Timeline band and the Tyre
+  // Degradation fit always show the same laps: the newest action wins. (r2:
+  // a stint click set selectedLapRange only, so the sheet's title named the
+  // stint while its rows and the brush showed another range or none.)
   selectedLapRange: null, // [startLap, endLap]
-  brushLapRange: null, // [startLap, endLap] — set by PositionByLap brush, consumed by LapTimeChart
-  setBrushLapRange: (range) => set({ brushLapRange: range }),
+  brushLapRange: null, // [startLap, endLap], always equal to selectedLapRange
+  setBrushLapRange: (range) => set({ brushLapRange: range, selectedLapRange: range }),
   // Last lap completed at the replay's "now" (see lastCompletedLap): for the
   // given drivers, or the race leader's when drivers is omitted.
   getLastCompletedLap: (drivers = null) => {
@@ -2833,7 +2844,7 @@ export const useF1Store = create(persist((set, get) => ({
     highlightedDriver: abbr,
     highlightedDriverPosition: abbr ? pos : null,
   }),
-  setSelectedLapRange: (range) => set({ selectedLapRange: range }),
+  setSelectedLapRange: (range) => set({ selectedLapRange: range, brushLapRange: range }),
   // An empty selection drops its analysis, and an answer still on its way
   // (fetchPCAAnalysis keeps only the newest request's answer)
   setSelectedPCAPoints: (ids) => set((s) => (ids?.length
@@ -2843,12 +2854,16 @@ export const useF1Store = create(persist((set, get) => ({
       _pcaAnalysisSeq: (s._pcaAnalysisSeq || 0) + 1,
     })),
 
-  clearSelection: () =>
+  // The focus goes, so its forecast and any forecast request in flight go
+  // with it (forecastReset, as setFocusDriver does; backlog L3)
+  clearSelection: () => {
+    const cleared = forecastReset();
     set({
       selectedDrivers: [],
       highlightedDriver: null,
       highlightedDriverPosition: null,
       selectedLapRange: null,
+      brushLapRange: null, // the one lap range (V7 r2)
       selectedPCAPoints: [],
       focusDriver: null,
       focusTeam: null,
@@ -2856,7 +2871,9 @@ export const useF1Store = create(persist((set, get) => ({
       lapDeltaBaseDriver: null,
       selectedStint: null,
       highlightedCompound: null,
-    }),
+      ...cleared,
+    });
+  },
 
   // ── Simulation ────────────────────────────────────────────────
   isPlaying: false,
@@ -3704,6 +3721,11 @@ export const useF1Store = create(persist((set, get) => ({
     // Get tyre info from frame data
     const frameDrivers = frameData?.frames?.[Math.min(currentFrameIndex, (frameData?.frames?.length || 1) - 1)]?.drivers || {};
     const COMPOUND_NAMES = { 0: 'UNKNOWN', 1: 'SOFT', 2: 'MEDIUM', 3: 'HARD', 4: 'INTERMEDIATE', 5: 'WET' };
+    // Stint life per compound at now: the race's stint-life survival, the
+    // estimate the Race Situation map and the race engine use (backlog P12)
+    const stintLength = stintLifeEstimate(sessionData.lap_times, {
+      sessionNow: now, running: stintsRunningOf(get()), dnfMap: get().dnfMap,
+    });
 
     // Collect nearby rivals (2 ahead, 2 behind)
     const rivals = [];
@@ -3742,9 +3764,11 @@ export const useF1Store = create(persist((set, get) => ({
           tyreAge = fd?.tyre_life != null ? Math.round(fd.tyre_life) : (lt.TyreLife || 0);
         }
 
-        // Estimated laps until pit (rough: avg stint for compound - current age)
-        const AVG_STINT = { SOFT: 18, MEDIUM: 28, HARD: 40, INTERMEDIATE: 25, WET: 20, UNKNOWN: 25 };
-        const estPitIn = Math.max(0, (AVG_STINT[compound] || 25) - tyreAge);
+        // Laps until the set is due: the conditional median life of the
+        // compound's stint-life survival at the age reached, minus that age
+        // (raceSituationFeatures.js estimatedLapsToPit, the map's "Est. pit in")
+        const pitEstimate = estimatedLapsToPit(stintLength, compound, tyreAge);
+        const estPitIn = pitEstimate.laps;
 
         // Gap from focus driver
         const gap = (lt.GapToLeader != null && focusLt.GapToLeader != null)
@@ -3759,6 +3783,7 @@ export const useF1Store = create(persist((set, get) => ({
           compound,
           tyreAge,
           estPitIn,
+          estPitInSource: pitEstimate.source,
         });
       }
     }
@@ -3897,10 +3922,16 @@ export const useF1Store = create(persist((set, get) => ({
     }
 
     // Simulator what-if result
+    // The positions are the cards' P labels (the median finishing position,
+    // moved only beyond the Monte Carlo error: whatIfMarks), as the Simulator
+    // shows them; the means go along under their own names (backlog S4)
     if (simulatorResult) {
+      const shown = whatIfMarksOf(simulatorResult).shown;
       raceContext.simulator = {
-        customPos: simulatorResult.simProjection?.expectedPos,
-        baselinePos: simulatorResult.baselineProjection?.expectedPos,
+        customPos: shown.custom,
+        baselinePos: shown.baseline,
+        customMeanPos: simulatorResult.simProjection?.expectedPos,
+        baselineMeanPos: simulatorResult.baselineProjection?.expectedPos,
         delta: simulatorResult.delta,
       };
     }
@@ -4012,10 +4043,11 @@ export const useF1Store = create(persist((set, get) => ({
     } catch (e) {
       const f = fate();
       if (f !== 'show') { dropped(f); return; }
+      // The static demo has no backend: the answer says so (BackendOnlyError)
       set((s) => ({
         geminiMessages: [
           ...s.geminiMessages,
-          { role: 'ai', content: 'Failed to get response from Gemini.' },
+          { role: 'ai', content: isBackendOnlyError(e) ? `${e.message}.` : 'Failed to get response from Gemini.' },
         ],
       }));
     }
@@ -4234,6 +4266,25 @@ setHealthReporter(
   () => useF1Store.getState().reportBackendOk(),
   (msg) => useF1Store.getState().reportBackendError(msg),
 );
+
+// A run-time demo (the backend did not answer, utils/apiClient.js) is never
+// silent: a toast says the static demo answers and what needs the backend,
+// until the backend answers again (the weather bar also shows a DEMO chip)
+export const DEMO_FALLBACK_TOAST_ID = 'demo-fallback';
+useDemoMode.subscribe((d, prev) => {
+  const on = d.active && d.source === 'fallback';
+  const wasOn = prev.active && prev.source === 'fallback';
+  if (on && !wasOn) {
+    useF1Store.getState().pushToast({
+      id: DEMO_FALLBACK_TOAST_ID,
+      kind: 'warn',
+      message: `Backend unreachable: switched to the static demo. ${DEMO_NOTE.replace(/^Static demo: /, '')}`,
+      timeout: 0,
+    });
+  } else if (!on && wasOn) {
+    useF1Store.getState().dismissToast(DEMO_FALLBACK_TOAST_ID);
+  }
+});
 
 // The Monte Carlo projection follows the race situation it is computed from:
 // whenever raceSituationData changes (a new lap's features, a clock jump, a

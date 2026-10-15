@@ -4,6 +4,9 @@ import { useSessionNow } from '../../hooks/useSessionNow';
 import SessionMenu from './SessionMenu';
 import CommandBar from '../CommandPalette/CommandBar';
 import LayoutPresetBar from './LayoutPresetBar';
+import { TEXT_COLORS, withAlpha, UI_COLORS } from '../../utils/colors';
+import { publicAsset } from '../../utils/publicAsset';
+import { useDemoMode, DEMO_NOTE } from '../../utils/demoMode';
 
 /* ── Minimal line-style weather condition icons ── */
 function WeatherIcon({ rainfall, humidity, className }) {
@@ -92,6 +95,8 @@ export default function WeatherBar() {
   const tempUnit = useF1Store((s) => s.tempUnit);
   const speedUnit = useF1Store((s) => s.speedUnit);
   const liveSessionInfo = useF1Store((s) => s.liveSessionInfo);
+  // Static demo (a demo build, or the backend did not answer): always shown
+  const demo = useDemoMode();
 
   const weather = sessionData?.weather_data;
   const sessionNow = useSessionNow();
@@ -128,8 +133,14 @@ export default function WeatherBar() {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <img src="/f1-logo.png" alt="F1" className="weather-bar__logo" />
-          <span className="weather-bar__event">{eventName}</span>
+          <img src={publicAsset('f1-logo.png')} alt="F1" className="weather-bar__logo" />
+          <span className="weather-bar__event" title={eventName}>{eventName}</span>
+          {demo.active && (
+            <span
+              className="weather-bar__demo"
+              title={demo.source === 'fallback' && demo.reason ? `${DEMO_NOTE} (${demo.reason})` : DEMO_NOTE}
+            >Demo</span>
+          )}
           <button className="weather-bar__change-btn" onClick={resetSession}>Change</button>
         </div>
 
@@ -156,7 +167,7 @@ export default function WeatherBar() {
                 </span>
               </div>
               <div className="weather-bar__pill">
-                <span className="weather-bar__pill-label">Track</span>
+                <span className="weather-bar__pill-label"><span className="weather-bar__pill-label--long">Track</span><span className="weather-bar__pill-label--short">Trk</span></span>
                 <span className="weather-bar__pill-value">
                   {latest.TrackTemp != null
                     ? tempUnit === 'F'
@@ -166,7 +177,7 @@ export default function WeatherBar() {
                 </span>
               </div>
               <div className="weather-bar__pill">
-                <span className="weather-bar__pill-label">Humidity</span>
+                <span className="weather-bar__pill-label"><span className="weather-bar__pill-label--long">Humidity</span><span className="weather-bar__pill-label--short">Hum</span></span>
                 <span className="weather-bar__pill-value">{latest.Humidity?.toFixed(0) ?? '—'}%</span>
               </div>
               <div className="weather-bar__pill">
@@ -207,17 +218,13 @@ export default function WeatherBar() {
         {/* Right: Session info + Flag status */}
         <div className="weather-bar__right">
           {isLiveMode && (
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              padding: '2px 8px', borderRadius: 4, fontSize: 9, fontWeight: 800,
-              letterSpacing: '0.1em', textTransform: 'uppercase',
-              color: '#fff',
-              background: liveConnected ? 'rgba(225,6,0,0.8)' : 'rgba(225,6,0,0.3)',
+            <span className="weather-bar__live-badge" style={{
+              background: withAlpha(UI_COLORS.accent, liveConnected ? 0.8 : 0.3),
               animation: liveConnected ? 'livePulse 1.5s ease-in-out infinite' : 'none',
             }}>
               <span style={{
                 width: 5, height: 5, borderRadius: '50%',
-                background: liveConnected ? '#fff' : '#888',
+                background: liveConnected ? TEXT_COLORS.primary : TEXT_COLORS.muted,
               }} />
               LIVE
             </span>

@@ -16,7 +16,9 @@
  * R3/R6: no view shows what has not happened yet).
  */
 import * as d3 from 'd3';
-import { getTeamColor, F1_POINTS } from '../colors';
+import {
+  getTeamColor, F1_POINTS, OUTCOME_COLORS, markColor, textColor, SURFACES, TEXT_COLORS, CHART_FONT,
+} from '../colors';
 
 // Areas of the marks (d3.symbol size, px^2): rows of other races, rows of the
 // loaded race, a hovered mark
@@ -124,9 +126,9 @@ export const PODIUM_PLACES = 3;
 // notes/experiments/phase67/pca_outcome_palette.txt: contrast 14.86 / 7.03 /
 // 3.07, L* 92.2 / 66.1 / 42.1)
 export const OUTCOME_CLASSES = [
-  { key: 'podium', label: `Podium (P1–P${PODIUM_PLACES})`, color: '#fdea45' },
-  { key: 'points', label: `Points (P${PODIUM_PLACES + 1}–P${POINTS_PLACES})`, color: '#a9a177' },
-  { key: 'none', label: `No points (P${POINTS_PLACES + 1}+)`, color: '#61636f' },
+  { key: 'podium', label: `Podium (P1–P${PODIUM_PLACES})`, color: OUTCOME_COLORS.podium },
+  { key: 'points', label: `Points (P${PODIUM_PLACES + 1}–P${POINTS_PLACES})`, color: OUTCOME_COLORS.points },
+  { key: 'none', label: `No points (P${POINTS_PLACES + 1}+)`, color: OUTCOME_COLORS.none },
 ];
 
 // A row whose finishing position is not shown (the loaded race while its
@@ -209,11 +211,13 @@ export const COLOR_BY = [
 ];
 
 /**
- * Fill of a mark: its team colour, or the colour of its outcome class
- * ('none' = outline only, for a result not shown).
+ * Fill of a mark: its team colour (drawn through markColor: >= 3:1 on the
+ * panel, V13), or the colour of its outcome class ('none' = outline only,
+ * for a result not shown). Team mode encodes the team, not the driver: both
+ * drivers of a team share the colour on purpose (the legend lists teams).
  */
 export function pointFill(point, colorBy, ctx = {}) {
-  if (colorBy !== 'finish') return getTeamColor(point.team);
+  if (colorBy !== 'finish') return markColor(getTeamColor(point.team), SURFACES.panel);
   const key = outcomeClass(shownFinish(point, ctx));
   return OUTCOME_CLASSES.find((c) => c.key === key)?.color || OUTCOME_PENDING.color;
 }
@@ -226,7 +230,7 @@ export const SHAPE_SWATCH_FILL = 'var(--color-text-secondary)';
 /** One entry per team drawn, in name order, swatch = the circle mark. */
 export function teamLegendItems(points) {
   const teams = [...new Set((points || []).map((p) => p.team || 'Unknown'))].sort((a, b) => a.localeCompare(b));
-  return teams.map((team) => ({ label: team, color: getTeamColor(team), ...markSwatch(false) }));
+  return teams.map((team) => ({ label: team, color: markColor(getTeamColor(team), SURFACES.panel), ...markSwatch(false) }));
 }
 
 /** The outcome classes, plus the outline entry when a drawn point has no result shown. */
@@ -302,16 +306,16 @@ export function tooltipHtml(point, ctx = {}) {
     ? `lap ${point.as_of_lap ?? '?'}`
     : `end of race${point.as_of_lap != null ? ` (lap ${point.as_of_lap})` : ''}`;
   const note = isLoadedRace(point, loaded) && point.as_of && point.as_of !== 'post-race'
-    ? '<div style="margin-top:4px;font-size:9px;color:rgba(255,255,255,0.6)">Replay clock: only the laps completed so far; the axes are fitted without this race</div>'
+    ? `<div style="margin-top:4px;font-size:${CHART_FONT.label};color:${TEXT_COLORS.muted}">Replay clock: only the laps completed so far; the axes are fitted without this race</div>`
     : '';
   return (
-    `<div class="tooltip-title" style="color:${getTeamColor(point.team)}">${esc(point.driver)} — ${esc(point.race_name || `R${point.round}`)}</div>`
+    `<div class="tooltip-title" style="color:${textColor(getTeamColor(point.team), SURFACES.elevated)}">${esc(point.driver)} — ${esc(point.race_name || `R${point.round}`)}</div>`
     + row('Team', point.team || 'Unknown')
     + row('Race', `${point.year} R${point.round}`)
     + row('Grid', Number.isFinite(grid) && point.grid_position != null ? `P${grid}` : '—')
     + row('Finish', finishText)
     + row('Features as of', asOf)
     + note
-    + '<div style="margin-top:4px;font-size:9px;color:rgba(255,255,255,0.6)">Click to select | Shift+drag to lasso</div>'
+    + `<div style="margin-top:4px;font-size:${CHART_FONT.label};color:${TEXT_COLORS.muted}">Click to select | Shift+drag to lasso</div>`
   );
 }

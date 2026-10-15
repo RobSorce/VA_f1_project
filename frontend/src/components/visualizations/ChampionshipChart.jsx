@@ -1,8 +1,22 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { countryFlag } from '../../utils/colors';
+import {
+  countryFlag, CHART_FONT, TEXT_COLORS, GRID_COLORS, STATUS_COLORS, FLAG_COLORS, SURFACES, tintedChip, withAlpha,
+  textColor,
+} from '../../utils/colors';
+import { championshipStyles, championshipLegend, usedDashes, PREDICTION_DASH } from '../../utils/views/championshipChart';
 import Panel from '../ui/Panel';
+import Legend from '../ui/Legend';
+
+// Header toggle: active = white on a grey chip, inactive = muted (>= 4.5:1)
+const toggleBtn = (active, activeColor = TEXT_COLORS.primary) => ({
+  padding: '2px 8px', borderRadius: 4, border: '1px solid transparent',
+  fontSize: CHART_FONT.label, fontWeight: 700, cursor: 'pointer',
+  background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
+  borderColor: active ? activeColor : 'transparent',
+  color: active ? activeColor : TEXT_COLORS.muted,
+});
 
 export default function ChampionshipChart() {
   const svgRef = useRef(null);
@@ -54,6 +68,10 @@ export default function ChampionshipChart() {
     filtered.forEach((e, i) => { e.position = i + 1; });
     return filtered;
   }, [championshipData, isDriverView, round]);
+
+  // The teammate dashes drawn (the legend names the third-driver dash-dot
+  // only when a third driver is drawn)
+  const legendDashes = useMemo(() => usedDashes(championshipStyles(chartEntries, isDriverView)), [chartEntries, isDriverView]);
 
   // D3 render
   useEffect(() => {
@@ -113,34 +131,34 @@ export default function ChampionshipChart() {
       .attr('class', 'grid-y')
       .call(d3.axisLeft(y).ticks(6).tickSize(-innerW).tickFormat(''))
       .selectAll('line')
-      .attr('stroke', 'rgba(255,255,255,0.06)');
+      .attr('stroke', GRID_COLORS.grid);
     g.select('.grid-y .domain').remove();
 
     // X axis
     g.append('g')
       .attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(x).ticks(Math.min(allRounds.length, 24)).tickFormat(d3.format('d')))
-      .attr('color', 'rgba(255,255,255,0.5)')
+      .attr('color', GRID_COLORS.rule)
       .selectAll('text')
-      .style('font-size', '9px')
-      .attr('fill', 'rgba(255,255,255,0.6)');
+      .style('font-size', CHART_FONT.data)
+      .attr('fill', TEXT_COLORS.muted);
 
     // X axis label
     g.append('text')
       .attr('x', innerW / 2)
       .attr('y', innerH + 30)
       .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.4)')
-      .style('font-size', '9px')
+      .attr('fill', TEXT_COLORS.muted)
+      .style('font-size', CHART_FONT.label)
       .text('Round');
 
     // Y axis
     g.append('g')
       .call(d3.axisLeft(y).ticks(6))
-      .attr('color', 'rgba(255,255,255,0.5)')
+      .attr('color', GRID_COLORS.rule)
       .selectAll('text')
-      .style('font-size', '9px')
-      .attr('fill', 'rgba(255,255,255,0.6)');
+      .style('font-size', CHART_FONT.data)
+      .attr('fill', TEXT_COLORS.muted);
 
     // Y axis label
     g.append('text')
@@ -148,8 +166,8 @@ export default function ChampionshipChart() {
       .attr('x', -innerH / 2)
       .attr('y', -38)
       .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.4)')
-      .style('font-size', '9px')
+      .attr('fill', TEXT_COLORS.muted)
+      .style('font-size', CHART_FONT.label)
       .text('Points');
 
     // Completed rounds region boundary
@@ -160,14 +178,14 @@ export default function ChampionshipChart() {
         .attr('x2', x(lastRound))
         .attr('y1', 0)
         .attr('y2', innerH)
-        .attr('stroke', 'rgba(255,255,255,0.15)')
+        .attr('stroke', GRID_COLORS.rule)
         .attr('stroke-dasharray', '4 3');
 
       g.append('text')
         .attr('x', x(lastRound) + 4)
-        .attr('y', 10)
-        .attr('fill', 'rgba(255,255,255,0.3)')
-        .style('font-size', '8px')
+        .attr('y', 12)
+        .attr('fill', TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.label)
         .text('Prediction');
     }
 
@@ -179,6 +197,9 @@ export default function ChampionshipChart() {
 
     // Sort entries so higher-ranked are drawn on top
     const sortedEntries = [...chartEntries].sort((a, b) => b.position - a.position);
+    // Colour, mark colour (>= 3:1), text colour and dash of every line (V3:
+    // the second driver of a team tinted and dashed)
+    const styles = championshipStyles(chartEntries, isDriverView);
 
     // Draw lines for each entry
     const linesGroup = g.append('g').attr('class', 'lines');
@@ -186,7 +207,8 @@ export default function ChampionshipChart() {
     sortedEntries.forEach((entry) => {
       if (!entry.progression || entry.progression.length === 0) return;
       const key = isDriverView ? entry.abbr : entry.team;
-      const color = entry.teamColor || '#888';
+      const st = styles[key];
+      const color = st.mark;
       const isHigh = isDriverView
         ? highlightedDriver === entry.abbr
         : false;
@@ -194,7 +216,8 @@ export default function ChampionshipChart() {
         ? selectedDrivers.includes(entry.abbr)
         : false;
       const isDimmed = (selectedDrivers.length > 0 || highlightedDriver) && !isHigh && !isSelected;
-      const opacity = isDimmed ? 0.15 : isHigh ? 1 : 0.8;
+      // focus + context: full colour unless another line is highlighted or selected
+      const opacity = isDimmed ? 0.15 : 1;
       const strokeW = isHigh ? 3 : isSelected ? 2.5 : 1.5;
 
       const entryG = linesGroup.append('g');
@@ -206,6 +229,7 @@ export default function ChampionshipChart() {
         .attr('stroke', color)
         .attr('stroke-width', strokeW)
         .attr('stroke-opacity', opacity)
+        .attr('stroke-dasharray', st.dash)
         .attr('d', line);
 
       // Prediction dashed line
@@ -219,9 +243,10 @@ export default function ChampionshipChart() {
           .datum(predLine)
           .attr('fill', 'none')
           .attr('stroke', color)
-          .attr('stroke-width', strokeW * 0.8)
-          .attr('stroke-opacity', opacity * 0.5)
-          .attr('stroke-dasharray', '6 4')
+          .attr('stroke-width', strokeW)
+          .attr('stroke-opacity', opacity * 0.8)
+          .attr('stroke-linecap', 'round')
+          .attr('stroke-dasharray', PREDICTION_DASH)
           .attr('d', line);
       }
 
@@ -234,7 +259,7 @@ export default function ChampionshipChart() {
         .attr('r', isHigh ? 4 : 2.5)
         .attr('fill', color)
         .attr('fill-opacity', opacity)
-        .attr('stroke', isHigh ? '#fff' : 'none')
+        .attr('stroke', isHigh ? TEXT_COLORS.primary : 'none')
         .attr('stroke-width', isHigh ? 1 : 0);
 
       // End label (right side)
@@ -251,9 +276,9 @@ export default function ChampionshipChart() {
           .attr('x', labelX)
           .attr('y', labelY)
           .attr('dy', '0.35em')
-          .attr('fill', color)
-          .attr('fill-opacity', isDimmed ? 0.3 : 0.9)
-          .style('font-size', '9px')
+          .attr('fill', st.text)
+          .attr('fill-opacity', isDimmed ? 0.3 : 1)
+          .style('font-size', CHART_FONT.data)
           .style('font-weight', 700)
           .style('font-family', "'Formula1', 'Titillium Web', sans-serif")
           .text(isDriverView ? entry.abbr : entry.team.slice(0, 10));
@@ -282,7 +307,7 @@ export default function ChampionshipChart() {
     const tooltipG = g.append('g').style('display', 'none');
     const tooltipLine = tooltipG.append('line')
       .attr('y1', 0).attr('y2', innerH)
-      .attr('stroke', 'rgba(255,255,255,0.3)')
+      .attr('stroke', GRID_COLORS.rule)
       .attr('stroke-dasharray', '3 2');
 
     // Invisible overlay for tooltip tracking
@@ -308,7 +333,7 @@ export default function ChampionshipChart() {
               if (!pt) return null;
               return {
                 key: isDriverView ? e.abbr : e.team,
-                color: e.teamColor || '#888',
+                color: styles[isDriverView ? e.abbr : e.team]?.mark || TEXT_COLORS.muted,
                 points: pt.cumulative,
                 roundPts: pt.points,
                 position: pt.position,
@@ -320,15 +345,15 @@ export default function ChampionshipChart() {
 
           tooltipRef.current.style.display = entries.length ? 'block' : 'none';
           tooltipRef.current.innerHTML = `
-            <div style="font-weight:700;margin-bottom:4px;color:rgba(255,255,255,0.7);font-size:10px;">Round ${roundNum}</div>
+            <div style="font-weight:700;margin-bottom:4px;color:${TEXT_COLORS.secondary};font-size:${CHART_FONT.label};">Round ${roundNum}</div>
             ${entries.slice(0, 10).map((e) => `
-              <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px;font-size:9px;">
-                <span style="color:rgba(255,255,255,0.4);width:14px;text-align:right;">${e.position}.</span>
-                <span style="width:6px;height:6px;border-radius:50%;background:${e.color};flex-shrink:0;"></span>
-                ${e.flag ? `<span style="font-size:10px;">${e.flag}</span>` : ''}
-                <span style="color:#fff;font-weight:600;">${e.key}</span>
-                <span style="color:rgba(255,255,255,0.5);margin-left:auto;">${e.points} pts</span>
-                <span style="color:rgba(255,255,255,0.3);font-size:8px;">(+${e.roundPts})</span>
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:1px;font-size:${CHART_FONT.data};">
+                <span style="color:${TEXT_COLORS.muted};width:16px;text-align:right;">${e.position}.</span>
+                <span style="width:8px;height:8px;border-radius:50%;background:${e.color};flex-shrink:0;"></span>
+                ${e.flag ? `<span>${e.flag}</span>` : ''}
+                <span style="color:${TEXT_COLORS.primary};font-weight:600;">${e.key}</span>
+                <span style="color:${TEXT_COLORS.secondary};margin-left:auto;">${e.points} pts</span>
+                <span style="color:${TEXT_COLORS.muted};">(+${e.roundPts})</span>
               </div>
             `).join('')}
           `;
@@ -346,47 +371,20 @@ export default function ChampionshipChart() {
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
       <button
         onClick={() => setChampionshipView('drivers')}
-        style={{
-          padding: '2px 8px',
-          borderRadius: 4,
-          border: 'none',
-          fontSize: '9px',
-          fontWeight: 700,
-          cursor: 'pointer',
-          background: isDriverView ? 'rgba(255,255,255,0.15)' : 'transparent',
-          color: isDriverView ? '#fff' : 'rgba(255,255,255,0.5)',
-        }}
+        style={toggleBtn(isDriverView)}
       >
         DRIVERS
       </button>
       <button
         onClick={() => setChampionshipView('constructors')}
-        style={{
-          padding: '2px 8px',
-          borderRadius: 4,
-          border: 'none',
-          fontSize: '9px',
-          fontWeight: 700,
-          cursor: 'pointer',
-          background: !isDriverView ? 'rgba(255,255,255,0.15)' : 'transparent',
-          color: !isDriverView ? '#fff' : 'rgba(255,255,255,0.5)',
-        }}
+        style={toggleBtn(!isDriverView)}
       >
         CONSTRUCTORS
       </button>
       <span style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.12)' }} />
       <button
         onClick={togglePredictions}
-        style={{
-          padding: '2px 8px',
-          borderRadius: 4,
-          border: 'none',
-          fontSize: '9px',
-          fontWeight: 600,
-          cursor: 'pointer',
-          background: showPredictions ? 'rgba(168,85,247,0.2)' : 'transparent',
-          color: showPredictions ? '#a855f7' : 'rgba(255,255,255,0.4)',
-        }}
+        style={toggleBtn(showPredictions, STATUS_COLORS.predicted)}
       >
         Predictions
       </button>
@@ -396,10 +394,10 @@ export default function ChampionshipChart() {
           padding: '2px 6px',
           borderRadius: 4,
           border: 'none',
-          fontSize: '9px',
+          fontSize: CHART_FONT.label,
           cursor: 'pointer',
           background: 'transparent',
-          color: 'rgba(255,255,255,0.4)',
+          color: TEXT_COLORS.muted,
         }}
         title="Refresh championship data"
       >
@@ -413,13 +411,15 @@ export default function ChampionshipChart() {
       title={`Championship ${championshipData?.year || year}`}
       controls={controls}
     >
-      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        {/* Marks of the chart (lines are labelled at their end) */}
+        {chartEntries.length > 0 && <Legend items={championshipLegend({ isDriverView, showPredictions, dashes: legendDashes })} />}
         {championshipLoading && (
           <div style={{
             position: 'absolute', inset: 0, display: 'flex',
             alignItems: 'center', justifyContent: 'center',
             background: 'rgba(15,15,25,0.8)', zIndex: 10,
-            color: 'rgba(255,255,255,0.6)', fontSize: '12px',
+            color: TEXT_COLORS.secondary, fontSize: '12px',
           }}>
             Loading championship data...
           </div>
@@ -428,10 +428,10 @@ export default function ChampionshipChart() {
           <div style={{
             position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 8,
-            color: 'rgba(255,255,255,0.4)', fontSize: '12px',
+            color: TEXT_COLORS.muted, fontSize: '12px',
           }}>
             {championshipError && (
-              <span style={{ color: '#ef4444', fontSize: '11px', maxWidth: 300, textAlign: 'center' }}>
+              <span style={{ color: textColor(FLAG_COLORS.red, SURFACES.panel), fontSize: CHART_FONT.data, maxWidth: 300, textAlign: 'center' }}>
                 {championshipError}
               </span>
             )}
@@ -441,21 +441,23 @@ export default function ChampionshipChart() {
                 padding: '8px 16px', borderRadius: 6,
                 border: '1px solid rgba(255,255,255,0.15)',
                 background: 'rgba(255,255,255,0.06)',
-                color: '#fff', cursor: 'pointer', fontSize: '12px',
+                color: TEXT_COLORS.primary, cursor: 'pointer', fontSize: '12px',
               }}
             >
               {championshipError ? 'Retry' : `Load ${year} Championship`}
             </button>
           </div>
         )}
-        <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <svg ref={svgRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+        </div>
         {/* Missing rounds banner */}
         {championshipData?.missing_rounds?.length > 0 && (
           <div style={{
             position: 'absolute', bottom: 4, left: 8, right: 8,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            background: 'rgba(245,166,35,0.1)', borderRadius: 4, padding: '3px 8px',
-            fontSize: '9px', color: 'rgba(245,166,35,0.8)',
+            background: tintedChip(STATUS_COLORS.predicted, 0.12).background, borderRadius: 4, padding: '3px 8px',
+            fontSize: CHART_FONT.label, color: tintedChip(STATUS_COLORS.predicted, 0.12).color,
           }}>
             <span>
               {championshipData.completed_rounds}/{championshipData.total_rounds} rounds loaded
@@ -465,9 +467,9 @@ export default function ChampionshipChart() {
               onClick={() => { setFetchedYear(null); fetchChampionship(year, true); }}
               style={{
                 padding: '1px 6px', borderRadius: 3,
-                border: '1px solid rgba(245,166,35,0.3)',
-                background: 'rgba(245,166,35,0.15)',
-                color: '#f5a623', cursor: 'pointer', fontSize: '9px', fontWeight: 600,
+                border: `1px solid ${STATUS_COLORS.predicted}`,
+                background: withAlpha(STATUS_COLORS.predicted, 0.15),
+                color: tintedChip(STATUS_COLORS.predicted, 0.15).color, cursor: 'pointer', fontSize: CHART_FONT.label, fontWeight: 600,
               }}
             >
               Load All (slow)

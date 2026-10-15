@@ -1,10 +1,21 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  driverStyle, tyreColor, tyreLetter, contrastText, deltaColor, withAlpha, CHART_FONT, chartFontPx,
+  TEXT_COLORS, GRID_COLORS, UI_COLORS,
+} from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import Panel from '../ui/Panel';
+import { useDemoMode, BACKEND_ONLY_TEXT } from '../../utils/demoMode';
 import { focusDriverStatus } from '../../utils/views/focusDriverWidget';
-import { listedBattles } from '../../utils/simulationClient';
+import { listedBattles, modePosition } from '../../utils/simulationClient';
+import { drawStintStrips } from '../../utils/views/stintStripChart';
+import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
+import { severityOf, chipStyle, UP, DOWN } from '../../utils/views/strategyMarks';
+
+// Tooltip of the MOCK chip: what the fallback is (the reply's first line names the reason)
+const MOCK_TOOLTIP = 'Heuristic fallback, not Gemini: no API key configured, the google-genai package missing, '
+  + 'or the API unavailable. A rule-based answer built from the race context; its first line names the reason.';
 
 const COMPOUND_ORDER = ['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'];
 
@@ -15,30 +26,42 @@ function fmtTime(s) {
   return min > 0 ? `${min}:${sec.padStart(6, '0')}` : sec;
 }
 
-function StintBar({ stint, maxLap }) {
-  const color = TYRE_COLORS[stint.compound] || '#888';
-  const isDark = stint.compound === 'HARD' || stint.compound === 'MEDIUM';
-  const left = ((stint.lap_start - 1) / maxLap) * 100;
-  const width = (stint.length / maxLap) * 100;
+/**
+ * A scenario's stints as a D3 strip (utils/views/stintStripChart.js) on the
+ * race's laps: compound colour, letter and length on each segment.
+ */
+function ScenarioStrip({ stints, maxLap }) {
+  const boxRef = useRef(null);
+  const svgRef = useRef(null);
+  const box = useBoxSize(boxRef);
+  useEffect(() => {
+    if (!svgRef.current) return;
+    const segments = (stints || []).map((st, i) => ({
+      key: `${i}`,
+      start: st.lap_start,
+      length: st.length,
+      compound: st.compound || 'UNKNOWN',
+      title: `${st.compound} L${st.lap_start}-${st.lap_start + st.length - 1}`,
+    }));
+    drawStintStrips(svgRef.current, {
+      rows: [{ key: 'scenario', label: '', segments }],
+      domain: [1, Math.max(2, maxLap + 1)],
+      width: box.width > 0 ? box.width : 220,
+      rowH: Math.max(18, Math.round(chartFontPx('data') * 1.7)),
+      font: CHART_FONT.data,
+      fontPx: chartFontPx('data'),
+    });
+  });
   return (
-    <div
-      style={{
-        position: 'absolute', left: `${left}%`, width: `${Math.max(width, 2)}%`,
-        height: '100%', background: color, borderRadius: 3,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 8, fontWeight: 700, color: isDark ? '#000' : '#fff',
-        overflow: 'hidden', whiteSpace: 'nowrap',
-      }}
-      title={`${stint.compound} L${stint.lap_start}-${stint.lap_start + stint.length - 1}`}
-    >
-      {stint.length > 5 ? `${stint.compound[0]} ${stint.length}L` : stint.compound[0]}
+    <div ref={boxRef} className="strategy-card__stints">
+      <svg ref={svgRef} className="strategy-card__stints-svg" style={{ display: 'block', maxWidth: '100%' }} />
     </div>
   );
 }
 
 function StrategyCard({ scenario, isActive, onToggle, onSimulate, maxLap, index }) {
-  const riskColors = { low: '#22c55e', medium: '#f5a623', high: '#ef4444' };
-  const riskColor = riskColors[scenario.risk] || '#888';
+  // risk: the severity scheme (colour, glyph, word), never green / red
+  const risk = severityOf(scenario.risk);
 
   return (
     <div
@@ -49,18 +72,14 @@ function StrategyCard({ scenario, isActive, onToggle, onSimulate, maxLap, index 
       <div className="strategy-card__header">
         <span className="strategy-card__label">{scenario.label}</span>
         {scenario.risk && (
-          <span className="strategy-card__risk" style={{ color: riskColor, borderColor: `${riskColor}44` }}>
-            {scenario.risk.toUpperCase()}
+          <span className="strategy-card__risk" title={`Risk: ${scenario.risk}`} style={chipStyle(risk.color, 0.12)}>
+            {risk.glyph} {scenario.risk.toUpperCase()}
           </span>
         )}
       </div>
 
-      {/* Stint plan visual */}
-      <div className="strategy-card__stints">
-        {(scenario.stints || []).map((stint, i) => (
-          <StintBar key={i} stint={stint} maxLap={maxLap || 60} />
-        ))}
-      </div>
+      {/* Stint plan visual (D3) */}
+      <ScenarioStrip stints={scenario.stints} maxLap={maxLap || 60} />
 
       {/* Projected outcome */}
       <div className="strategy-card__outcome">
@@ -92,8 +111,8 @@ function StrategyCard({ scenario, isActive, onToggle, onSimulate, maxLap, index 
           <button
             onClick={(e) => { e.stopPropagation(); onSimulate(scenario); }}
             style={{
-              background: 'rgba(0,230,118,0.12)', border: '1px solid rgba(0,230,118,0.3)',
-              borderRadius: 3, padding: '1px 6px', fontSize: '8px', color: '#00e676',
+              background: withAlpha(UI_COLORS.brush, 0.12), border: `1px solid ${UI_COLORS.brush}`,
+              borderRadius: 3, padding: '1px 6px', fontSize: CHART_FONT.label, color: TEXT_COLORS.primary,
               cursor: 'pointer', fontWeight: 700,
             }}
           >
@@ -107,6 +126,8 @@ function StrategyCard({ scenario, isActive, onToggle, onSimulate, maxLap, index 
 
 export default function GeminiAssistant() {
   const [input, setInput] = useState('');
+  // Static demo (no backend): Gemini is model-side, the input says so
+  const demoActive = useDemoMode((s) => s.active);
   const [mode, setMode] = useState('strategy'); // 'strategy' | 'chat'
   const messagesEndRef = useRef(null);
 
@@ -133,7 +154,7 @@ export default function GeminiAssistant() {
   const sessionNow = useSessionNow();
 
   const activeDriver = focusDriver || selectedDrivers[0] || null;
-  const driverColor = activeDriver ? getDriverColor(activeDriver) : '#888';
+  const driverMark = activeDriver ? driverStyle(activeDriver) : null;
 
   // Current tyre: race replay / lap mode = the set in force from the lap data
   // at sessionNow (FocusDriverWidget focusDriverStatus, R3: the new set from
@@ -298,37 +319,44 @@ export default function GeminiAssistant() {
     <Panel title="Strategy Engineer">
       <div className="strategy-console">
         {/* Driver Briefing Header */}
-        <div className="strategy-console__briefing" style={{ borderColor: `${driverColor}44` }}>
+        <div className="strategy-console__briefing" style={{ borderColor: driverMark?.mark || GRID_COLORS.rule }}>
           {activeDriver ? (
             <>
               <div className="strategy-console__driver">
-                <span className="strategy-console__team-bar" style={{ backgroundColor: driverColor }} />
-                <span className="strategy-console__abbr" style={{ color: driverColor }}>{activeDriver}</span>
+                <span className="strategy-console__team-bar" style={{ backgroundColor: driverMark.mark }} />
+                <span className="strategy-console__abbr" style={{ color: driverMark.text }}>{activeDriver}</span>
                 <span className="strategy-console__team">{driverInfo?.TeamName || ''}</span>
               </div>
               <div className="strategy-console__stats">
                 {driverFeats?.position && <span className="strategy-console__stat">P{driverFeats.position}</span>}
                 {tyreInfo && (
-                  <span className="strategy-console__tyre" style={{
-                    backgroundColor: TYRE_COLORS[tyreInfo.compound] || '#888',
-                    color: tyreInfo.compound === 'HARD' || tyreInfo.compound === 'MEDIUM' ? '#000' : '#fff',
+                  <span className="strategy-console__tyre" title={tyreInfo.compound} style={{
+                    backgroundColor: tyreColor(tyreInfo.compound),
+                    color: contrastText(tyreColor(tyreInfo.compound)),
                   }}>
-                    {tyreInfo.compound[0]}{tyreInfo.age != null ? ` L${tyreInfo.age}` : ''}
+                    {tyreLetter(tyreInfo.compound)}{tyreInfo.age != null ? ` L${tyreInfo.age}` : ''}
                   </span>
                 )}
                 {driverFeats?.recentPace > 0 && (
                   <span className="strategy-console__stat">{fmtTime(driverFeats.recentPace)}</span>
                 )}
                 {driverFeats?.paceTrend != null && (
-                  <span className="strategy-console__stat" style={{
-                    color: driverFeats.paceTrend > 0.05 ? '#ef4444' : driverFeats.paceTrend < -0.05 ? '#22c55e' : '#888',
-                  }}>
-                    {driverFeats.paceTrend > 0 ? '+' : ''}{driverFeats.paceTrend.toFixed(2)}s/lap
+                  // pace trend: + = slower each lap (worse, ▲), − = faster (better, ▼)
+                  <span
+                    className="strategy-console__stat"
+                    title="Pace trend: change of the lap time per lap (+ = slower)"
+                    style={{ color: deltaColor(driverFeats.paceTrend, { deadband: 0.05 }) }}
+                  >
+                    {driverFeats.paceTrend > 0.05 ? `${UP} ` : driverFeats.paceTrend < -0.05 ? `${DOWN} ` : ''}
+                    {driverFeats.paceTrend > 0 ? '+' : driverFeats.paceTrend < 0 ? '−' : ''}{Math.abs(driverFeats.paceTrend).toFixed(2)}s/lap
                   </span>
                 )}
-                {driverProjection && (
-                  <span className="strategy-console__stat" title="Monte Carlo projected finish">
-                    {'\u2192'} P{typeof driverProjection.expectedPos === 'number' ? driverProjection.expectedPos.toFixed(1) : driverProjection.expectedPos}
+                {driverProjection && modePosition(raceProjection, driverProjection) != null && (
+                  <span
+                    className="strategy-console__stat"
+                    title="Monte Carlo median finishing position: the Race Prediction panel's P label of the driver"
+                  >
+                    {'\u2192'} P{modePosition(raceProjection, driverProjection)}
                   </span>
                 )}
               </div>
@@ -384,10 +412,11 @@ export default function GeminiAssistant() {
               </button>
             )}
 
-            {/* Strategy Cards */}
+            {/* Strategy Cards: the cards that fit, paged (no scroll) */}
             {latestScenarios.length > 0 && (
-              <div className="strategy-console__cards">
-                {latestScenarios.map((scenario, i) => (
+              <ScenarioCards
+                scenarios={latestScenarios}
+                render={(scenario, i) => (
                   <StrategyCard
                     key={scenario.id}
                     scenario={scenario}
@@ -397,8 +426,8 @@ export default function GeminiAssistant() {
                     onToggle={() => toggleScenario(scenario)}
                     maxLap={maxLap || 60}
                   />
-                ))}
-              </div>
+                )}
+              />
             )}
 
             {/* Latest AI response text */}
@@ -407,7 +436,13 @@ export default function GeminiAssistant() {
               if (!lastAi) return null;
               return (
                 <div className="strategy-console__response">
-                  <div className="strategy-console__response-label">Analysis</div>
+                  <div className="strategy-console__response-label">
+                    Analysis
+                    {/* the whole answer is in the Radio tab's chat log */}
+                    <button type="button" className="strategy-console__response-more" onClick={() => setMode('chat')}>
+                      Full answer in Radio {'\u2192'}
+                    </button>
+                  </div>
                   <div className="strategy-console__response-text">{lastAi.content}</div>
                 </div>
               );
@@ -435,7 +470,7 @@ export default function GeminiAssistant() {
                       {msg.is_mock && (
                         <span
                           className="message-mock-chip"
-                          title="Mock fallback — no Gemini API key configured. Responses are hand-written examples, not live model output."
+                          title={MOCK_TOOLTIP}
                         >
                           MOCK
                         </span>
@@ -459,7 +494,7 @@ export default function GeminiAssistant() {
                 </div>
               ))}
               {loading && (
-                <div style={{ color: '#7a7f9a', fontSize: 10, fontStyle: 'italic', padding: '4px 0' }}>
+                <div style={{ color: TEXT_COLORS.secondary, fontSize: CHART_FONT.label, fontStyle: 'italic', padding: '4px 0' }}>
                   Analyzing race data...
                 </div>
               )}
@@ -473,7 +508,7 @@ export default function GeminiAssistant() {
           <input
             type="text"
             className="chat-input"
-            placeholder={activeDriver ? `Ask about ${activeDriver}'s strategy...` : 'Select a driver first...'}
+            placeholder={demoActive ? `${BACKEND_ONLY_TEXT} (Gemini)` : activeDriver ? `Ask about ${activeDriver}'s strategy...` : 'Select a driver first...'}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -485,5 +520,40 @@ export default function GeminiAssistant() {
         </div>
       </div>
     </Panel>
+  );
+}
+
+/**
+ * The scenario cards that fit the space left in the Strategy tab, paged
+ * when they do not (no scroll): a card is a title line, the D3 strip, the
+ * outcome and the overlay line.
+ */
+function ScenarioCards({ scenarios, render }) {
+  const boxRef = useRef(null);
+  const box = useBoxSize(boxRef);
+  const [page, setPage] = useState(0);
+  const line = Math.ceil(chartFontPx('data') * 1.4);
+  const cardH = 5 * line + Math.max(18, Math.round(chartFontPx('data') * 1.7)) + 28;
+  const fit = fitRows(box.height, scenarios.length, { rowMin: cardH, rowMax: cardH * 2, rowDefault: cardH, pagerH: 22 });
+  const pg = pageOf(scenarios, page, fit.perPage);
+  const btn = {
+    fontSize: CHART_FONT.label, color: TEXT_COLORS.primary, background: 'transparent',
+    border: `1px solid ${GRID_COLORS.rule}`, borderRadius: 3, padding: '0 6px', cursor: 'pointer',
+  };
+  return (
+    <div ref={boxRef} className="strategy-console__cards">
+      {pg.rows.map((sc, i) => render(sc, pg.first - 1 + i))}
+      {fit.paged && (
+        <div className="strategy-console__pager" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, height: 22, flexShrink: 0,
+          fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary,
+        }}
+        >
+          <button type="button" aria-label="Previous scenarios" disabled={pg.page === 0} onClick={() => setPage(pg.page - 1)} style={btn}>{'◀'}</button>
+          <span>scenarios {pg.first}{'–'}{pg.last} of {scenarios.length}</span>
+          <button type="button" aria-label="Next scenarios" disabled={pg.page >= pg.pages - 1} onClick={() => setPage(pg.page + 1)} style={btn}>{'▶'}</button>
+        </div>
+      )}
+    </div>
   );
 }

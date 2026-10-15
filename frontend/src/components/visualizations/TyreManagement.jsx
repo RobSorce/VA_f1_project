@@ -1,7 +1,13 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS, TYRE_LABELS } from '../../utils/colors';
+import {
+  getDriverColor, TYRE_LABELS, tyreColor, tyreLetter, contrastText, markColor, textColor,
+  TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT, chartFontPx, UNKNOWN_TEAM_COLOR,
+} from '../../utils/colors';
+import Legend from '../ui/Legend';
+
+const PIT_DASH = '2,3';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { stintsByDriver } from '../../utils/stints';
 import { causalKey, driverCompletedLaps, groupLapsByStint } from '../../utils/strategyViews';
@@ -21,7 +27,7 @@ export default function TyreManagement() {
   const sessionNow = useSessionNow();
   const causal = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
   const driver = focusDriver || selectedDrivers[0] || null;
-  const driverColor = driver ? getDriverColor(driver) : '#888';
+  const driverColor = driver ? getDriverColor(driver) : UNKNOWN_TEAM_COLOR;
 
   const chartData = useMemo(() => {
     if (!driver || lapTimes.length === 0) return { stints: [], maxLapNum: 1 };
@@ -104,14 +110,14 @@ export default function TyreManagement() {
   const driverBadge = driver ? (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6,
-      fontSize: 11, fontWeight: 800, fontFamily: "'Titillium Web', sans-serif",
+      fontSize: CHART_FONT.data, fontWeight: 800, fontFamily: "'Titillium Web', sans-serif",
       textTransform: 'uppercase', letterSpacing: '0.06em',
     }}>
       <span style={{
         width: 3, height: 14, borderRadius: 1.5,
-        background: driverColor, flexShrink: 0,
+        background: markColor(driverColor), flexShrink: 0,
       }} />
-      <span style={{ color: driverColor }}>{driver}</span>
+      <span style={{ color: textColor(driverColor) }}>{driver}</span>
     </div>
   ) : null;
 
@@ -135,7 +141,7 @@ export default function TyreManagement() {
       svg.append('text')
         .attr('x', width / 2).attr('y', height / 2)
         .attr('text-anchor', 'middle')
-        .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', 12)
+        .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data)
         .attr('font-family', "'Titillium Web', sans-serif")
         .text('Focus a driver to view pace retention');
       return;
@@ -158,30 +164,30 @@ export default function TyreManagement() {
     g.selectAll('.grid-v').data(xTicks).enter().append('line')
       .attr('x1', (d) => x(d)).attr('x2', (d) => x(d))
       .attr('y1', 0).attr('y2', innerH)
-      .attr('stroke', 'rgba(255,255,255,0.04)');
+      .attr('stroke', GRID_COLORS.grid);
 
     // X-axis
     const xAxisG = g.append('g')
       .attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(x).ticks(Math.min(12, chartData.maxLapNum)).tickFormat(d3.format('d')).tickSize(3));
-    xAxisG.selectAll('text').attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '9px').attr('font-family', 'var(--font-mono)');
-    xAxisG.selectAll('line').attr('stroke', 'rgba(255,255,255,0.15)');
-    xAxisG.select('.domain').attr('stroke', 'rgba(255,255,255,0.1)');
+    xAxisG.selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data).attr('font-family', 'var(--font-mono)');
+    xAxisG.selectAll('line').attr('stroke', GRID_COLORS.axis);
+    xAxisG.select('.domain').attr('stroke', GRID_COLORS.axis);
 
     g.append('text').attr('x', -4).attr('y', innerH + 20)
-      .attr('fill', 'rgba(255,255,255,0.3)').attr('font-size', '8px').attr('font-weight', 700)
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label).attr('font-weight', 700)
       .attr('font-family', "'Titillium Web', sans-serif").attr('text-anchor', 'end').text('LAP');
 
     // Y-axis
     const yAxisG = g.append('g')
       .call(d3.axisLeft(y).ticks(4).tickFormat((d) => `${d.toFixed(0)}%`).tickSize(3));
-    yAxisG.selectAll('text').attr('fill', 'rgba(255,255,255,0.3)').attr('font-size', '8px').attr('font-family', 'var(--font-mono)');
-    yAxisG.selectAll('line').attr('stroke', 'rgba(255,255,255,0.1)');
-    yAxisG.select('.domain').attr('stroke', 'rgba(255,255,255,0.08)');
+    yAxisG.selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data).attr('font-family', 'var(--font-mono)');
+    yAxisG.selectAll('line').attr('stroke', GRID_COLORS.axis);
+    yAxisG.select('.domain').attr('stroke', GRID_COLORS.axis);
     // Y-axis label
     g.append('text').attr('text-anchor', 'middle')
       .attr('transform', 'rotate(-90)').attr('x', -innerH / 2).attr('y', -32)
-      .attr('fill', 'rgba(255,255,255,0.3)').attr('font-size', '8px')
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
       .attr('font-weight', 700).text('Pace Retention (%)');
 
     // Pit stop markers
@@ -189,11 +195,11 @@ export default function TyreManagement() {
       g.append('line')
         .attr('x1', x(pitLap)).attr('x2', x(pitLap))
         .attr('y1', 0).attr('y2', innerH)
-        .attr('stroke', 'rgba(255,255,255,0.25)').attr('stroke-width', 1).attr('stroke-dasharray', '2,3');
+        .attr('stroke', GRID_COLORS.rule).attr('stroke-width', 1).attr('stroke-dasharray', PIT_DASH);
       g.append('text')
         .attr('x', x(pitLap)).attr('y', -3)
-        .attr('text-anchor', 'middle').attr('fill', 'rgba(255,255,255,0.4)')
-        .attr('font-size', '7px').attr('font-weight', 700)
+        .attr('text-anchor', 'middle').attr('fill', TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.label).attr('font-weight', 700)
         .attr('font-family', 'var(--font-mono)')
         .text('PIT');
     });
@@ -203,7 +209,8 @@ export default function TyreManagement() {
       const validLaps = stint.laps.filter((l) => l.performance != null);
       if (validLaps.length < 2) return;
 
-      const compoundColor = TYRE_COLORS[stint.compound] || '#888';
+      // FIA compound colour as a mark (>= 3:1 on the panel)
+      const compoundColor = markColor(tyreColor(stint.compound), SURFACES.panel);
 
       const gradId = `mgmt-grad-${i}`;
       const grad = defs.append('linearGradient').attr('id', gradId)
@@ -223,7 +230,7 @@ export default function TyreManagement() {
 
       g.append('path').datum(validLaps).attr('d', line)
         .attr('fill', 'none').attr('stroke', compoundColor)
-        .attr('stroke-width', 1.8).attr('opacity', 0.85);
+        .attr('stroke-width', 1.8);
     });
 
     // Current lap marker
@@ -231,33 +238,35 @@ export default function TyreManagement() {
       g.append('line')
         .attr('x1', x(currentLap)).attr('x2', x(currentLap))
         .attr('y1', 0).attr('y2', innerH)
-        .attr('stroke', '#00e5ff').attr('stroke-width', 1.5).attr('opacity', 0.7);
+        .attr('stroke', TEXT_COLORS.secondary).attr('stroke-width', 1.5);
       g.append('text').attr('x', x(currentLap)).attr('y', -3)
-        .attr('text-anchor', 'middle').attr('fill', '#00e5ff')
-        .attr('font-size', '8px').attr('font-weight', 700)
-        .attr('font-family', 'var(--font-mono)').attr('opacity', 0.8)
+        .attr('text-anchor', 'middle').attr('fill', TEXT_COLORS.secondary)
+        .style('font-size', CHART_FONT.label).attr('font-weight', 700)
+        .attr('font-family', 'var(--font-mono)')
         .text(`L${currentLap}`);
     }
 
     // Stint compound bar
     const barY = innerH + 20;
     chartData.stints.forEach((stint) => {
-      const compoundColor = TYRE_COLORS[stint.compound] || '#888';
-      const label = TYRE_LABELS[stint.compound] || '?';
+      const compoundColor = tyreColor(stint.compound);
+      const label = tyreLetter(stint.compound);
       const barX = x(stint.startLap);
       const barW = Math.max(4, x(stint.endLap) - x(stint.startLap));
 
       g.append('rect').attr('x', barX).attr('y', barY).attr('width', barW).attr('height', stintBarH)
         .attr('rx', 2).attr('fill', compoundColor).attr('opacity', 0.7);
 
-      const badgeCx = barX + 7;
+      // compound badge: FIA colour + letter in contrastText
+      const badgeR = Math.max(6, Math.ceil(chartFontPx('label') * 0.65));
+      const badgeCx = barX + badgeR + 1;
       const badgeCy = barY + stintBarH / 2;
-      g.append('circle').attr('cx', badgeCx).attr('cy', badgeCy).attr('r', 6)
-        .attr('fill', compoundColor).attr('stroke', 'rgba(0,0,0,0.6)').attr('stroke-width', 1);
+      g.append('circle').attr('cx', badgeCx).attr('cy', badgeCy).attr('r', badgeR)
+        .attr('fill', compoundColor).attr('stroke', SURFACES.page).attr('stroke-width', 1);
       g.append('text').attr('x', badgeCx).attr('y', badgeCy)
         .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-        .attr('fill', stint.compound === 'MEDIUM' || stint.compound === 'HARD' ? '#000' : '#fff')
-        .attr('font-size', '8px').attr('font-weight', 900)
+        .attr('fill', contrastText(compoundColor))
+        .style('font-size', CHART_FONT.label).attr('font-weight', 900)
         .attr('font-family', "'Titillium Web', sans-serif").text(label);
     });
 
@@ -283,22 +292,22 @@ export default function TyreManagement() {
 
         if (!closest || minDist > 2) return;
 
-        const compColor = TYRE_COLORS[closest.compound] || '#888';
+        const compColor = tyreColor(closest.compound);
 
         g.append('line').attr('class', 'hover-line')
           .attr('x1', x(closest.lapNumber)).attr('x2', x(closest.lapNumber))
           .attr('y1', 0).attr('y2', innerH)
-          .attr('stroke', 'rgba(255,255,255,0.15)').attr('stroke-width', 1).attr('stroke-dasharray', '3,3');
+          .attr('stroke', GRID_COLORS.rule).attr('stroke-width', 1).attr('stroke-dasharray', '3,3');
 
         g.append('circle').attr('class', 'hover-dot')
           .attr('cx', x(closest.lapNumber)).attr('cy', y(closest.performance)).attr('r', 4)
-          .attr('fill', compColor).attr('stroke', '#fff').attr('stroke-width', 1.5);
+          .attr('fill', compColor).attr('stroke', TEXT_COLORS.primary).attr('stroke-width', 1.5);
 
         const tooltipHtml = `
-          <div style="color:${driverColor};font-weight:700;font-size:11px">${driver}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,0.5)">Lap ${closest.lapNumber}</div>
-          <div style="font-size:11px;font-weight:700">${closest.performance.toFixed(1)}%</div>
-          <div style="font-size:9px;color:${compColor}">${closest.compound} &mdash; L${closest.tyreLife}</div>
+          <div style="color:${textColor(driverColor, SURFACES.elevated)};font-weight:700;font-size:${CHART_FONT.data}">${driver}</div>
+          <div style="font-size:${CHART_FONT.data};color:${TEXT_COLORS.muted}">Lap ${closest.lapNumber}</div>
+          <div style="font-size:${CHART_FONT.data};font-weight:700">${closest.performance.toFixed(1)}%</div>
+          <div style="font-size:${CHART_FONT.data};color:${textColor(compColor, SURFACES.elevated)}">${closest.compound} &mdash; L${closest.tyreLife}</div>
         `;
         let tooltip = d3.select('.tyre-mgmt-tooltip');
         if (!tooltip.size()) {
@@ -323,27 +332,25 @@ export default function TyreManagement() {
       .filter((s) => { if (seen.has(s.compound)) return false; seen.add(s.compound); return true; })
       .map((s) => ({
         label: s.compound,
-        color: TYRE_COLORS[s.compound] || '#888',
+        color: tyreColor(s.compound),
+        glyph: TYRE_LABELS[s.compound] || tyreLetter(s.compound),
+        shape: 'badge',
       }));
   }, [chartData.stints]);
 
+  // Legend (V4): compounds (line colour + badge letter), the current-lap
+  // line and the pit stops
+  const legendItems = tyreLegendItems.length ? [
+    ...tyreLegendItems,
+    { label: 'Current lap', color: TEXT_COLORS.secondary, shape: 'line' },
+    { label: 'Pit', color: TEXT_COLORS.muted, shape: 'line', dash: PIT_DASH, strokeWidth: 1.5 },
+  ] : [];
+
   return (
     <Panel title="Pace Retention" className="panel-tyre-management" controls={driverBadge}>
-      {tyreLegendItems.length > 0 && (
-        <div style={{
-          display: 'flex', gap: 8, padding: '2px 10px 0', flexWrap: 'wrap',
-          fontSize: '9px', color: 'rgba(255,255,255,0.5)',
-        }}>
-          {tyreLegendItems.map((item) => (
-            <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
-              {item.label}
-            </span>
-          ))}
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-            <span style={{ width: 8, height: 2, background: '#00e5ff', borderRadius: 1, flexShrink: 0 }} />
-            Current Lap
-          </span>
+      {legendItems.length > 0 && (
+        <div style={{ padding: '0 8px' }}>
+          <Legend items={legendItems} />
         </div>
       )}
       <div className="viz-container tyre-management-chart">

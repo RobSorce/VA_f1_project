@@ -1,9 +1,14 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
 import { activeSegmentWindow } from '../../utils/raceTime';
-import { TYRE_COLORS, TYRE_LABELS } from '../../utils/colors';
+import {
+  CHART_FONT, TEXT_COLORS, STATUS_COLORS, TRACK_STATUS_STYLES, UI_COLORS,
+  contrastText, tintedChip, tyreColor as compoundColor, tyreLetter, withAlpha,
+} from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { timingTowerEntries } from '../../utils/views/timingTower';
+import { timingTowerEntries, timingTowerLegend } from '../../utils/views/timingTower';
+import { useBoxSize, fitRows } from '../../utils/views/chartBox';
+import Legend from '../ui/Legend';
 
 /* -- Format helpers ------------------------------------------------------ */
 function formatLapTime(seconds) {
@@ -26,6 +31,12 @@ function formatSectorTime(seconds) {
 }
 
 /* -- Styles -------------------------------------------------------------- */
+// Table text at the fixed-width data size (CHART_FONT.fixed, 11 px at every
+// viewport): the 480 px column does not grow with the window, so neither does
+// its type; every cell and header fits its column at this size
+// (notes/experiments/phase9/repair_tower_columns.txt)
+const TOWER_FONT = CHART_FONT.fixed;
+
 const containerStyle = {
   display: 'flex',
   flexDirection: 'column',
@@ -35,7 +46,7 @@ const containerStyle = {
   background: 'rgba(10,10,20,0.95)',
   fontFamily: "'Titillium Web', 'Inter', 'Segoe UI', sans-serif",
   fontSize: 11,
-  color: '#e0e0e0',
+  color: TEXT_COLORS.secondary,
   userSelect: 'none',
 };
 
@@ -44,7 +55,7 @@ const headerStyle = {
   alignItems: 'center',
   justifyContent: 'space-between',
   padding: '8px 14px 7px 10px',
-  background: 'linear-gradient(135deg, #e10600 0%, #b80500 50%, #1a1a2e 100%)',
+  background: `linear-gradient(135deg, ${UI_COLORS.accent} 0%, ${UI_COLORS.accentDark} 50%, ${UI_COLORS.accentEnd} 100%)`,
   borderBottom: '1px solid rgba(255,255,255,0.08)',
   flexShrink: 0,
 };
@@ -53,7 +64,7 @@ const headerTitleStyle = {
   fontFamily: "'Formula1', 'Titillium Web', sans-serif",
   fontSize: 12,
   fontWeight: 900,
-  color: '#fff',
+  color: TEXT_COLORS.primary,
   letterSpacing: '0.10em',
   textTransform: 'uppercase',
   whiteSpace: 'nowrap',
@@ -65,40 +76,66 @@ const colHeaderStyle = {
   padding: '4px 0',
   background: 'rgba(26,31,51,0.50)',
   borderBottom: '1px solid rgba(255,255,255,0.06)',
-  fontSize: 9,
+  fontSize: TOWER_FONT,
   fontWeight: 700,
   textTransform: 'uppercase',
-  letterSpacing: '0.08em',
-  color: '#7a7f9a',
+  letterSpacing: '0.04em',
+  color: TEXT_COLORS.muted,
   flexShrink: 0,
 };
 
+// The rows fit the body (fitRows): 24 px each while the 20 rows fit, down to
+// 18 px; the body scrolls vertically only when even 18 px rows do not fit
+// (docs/SCROLL_JUSTIFICATIONS.md). No horizontal scroll: the columns share
+// the width of the panel.
 const bodyStyle = {
   flex: 1,
+  minHeight: 0,
   overflowY: 'auto',
-  overflowX: 'auto',
 };
+
+const ROW_MIN = 18;
+const ROW_MAX = 24;
 
 const tableStyle = {
   width: '100%',
   borderCollapse: 'collapse',
-  tableLayout: 'auto',
+  tableLayout: 'fixed',
 };
 
-/* -- Column widths (optimised for ~480px sidebar) ------------------------ */
+/* -- Column widths: shares of the 480 px Pit Wall timing column ---------- */
+// Design widths in px summing to 476 (the 480 px column minus its borders),
+// drawn as percentages of the table so the columns always fit the panel
+// (table-layout fixed; a cell too narrow would end in an ellipsis). Each one
+// holds its widest value and its header at TOWER_FONT: sector '◆28.123', lap
+// '◆1:21.456', gap '+12.345' / 'LEADER', 'POS', 'LAP'
+// (notes/experiments/phase9/repair_tower_columns.txt).
 const COL = {
-  pos: 28,
-  num: 34,
-  driver: 90,
-  gap: 64,
-  int: 56,
-  s1: 50,
-  s2: 50,
-  s3: 50,
-  lapTime: 72,
-  lap: 28,
-  status: 22,
+  pos: 26,
+  num: 28,
+  driver: 62,
+  gap: 48,
+  int: 48,
+  s1: 54,
+  s2: 54,
+  s3: 54,
+  lapTime: 62,
+  lap: 26,
+  status: 14,
 };
+const COL_TOTAL = Object.values(COL).reduce((a, w) => a + w, 0);
+const colPct = (w) => `${((100 * w) / COL_TOTAL).toFixed(3)}%`;
+
+// One timing cell: the glyph of its status (◆ overall best, ● personal best,
+// P / O pit in / out) before the time, in the same colour
+function TimingValue({ glyph, children }) {
+  return (
+    <>
+      {glyph && <span className="timing-glyph" style={{ marginRight: 2, fontWeight: 700 }}>{glyph}</span>}
+      {children}
+    </>
+  );
+}
 
 /* -- Memoized row component ---------------------------------------------- */
 const TimingRow = React.memo(function TimingRow({
@@ -110,15 +147,17 @@ const TimingRow = React.memo(function TimingRow({
   onRowMouseEnter,
   onRowMouseLeave,
   onRowDoubleClick,
+  rowH,
 }) {
   const {
     pos, abbr, driverNumber, teamColor,
     gap, interval,
     s1, s2, s3, lapTime,
     s1Color, s2Color, s3Color, lapTimeColor,
+    s1Glyph, s2Glyph, s3Glyph, lapTimeGlyph,
     s1Chrono, s2Chrono, s3Chrono, lapChrono,
     compound, tyreLife, lapNumber,
-    statusColor, statusLabel, isDnf, dnfStatus,
+    statusColor, statusLabel, statusGlyph, isDnf, dnfStatus,
     isEvenRow,
   } = entry;
 
@@ -128,10 +167,12 @@ const TimingRow = React.memo(function TimingRow({
 
   const rowStyle = {
     display: 'table-row',
-    height: 30,
+    height: rowH,
+    lineHeight: 1.2,
     cursor: 'pointer',
-    fontSize: 11,
-    color: isDnf ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.9)',
+    fontSize: TOWER_FONT,
+    // A retired row is muted (still >= 4.5:1), and its gap reads DNF / RET
+    color: isDnf ? STATUS_COLORS.retired : TEXT_COLORS.primary,
     background: bg,
     transition: 'background 0.12s ease',
   };
@@ -144,7 +185,7 @@ const TimingRow = React.memo(function TimingRow({
   }
 
   const cellBase = {
-    padding: '3px 4px',
+    padding: '0 2px',
     textAlign: 'center',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -155,7 +196,7 @@ const TimingRow = React.memo(function TimingRow({
     borderBottom: '1px solid rgba(255,255,255,0.03)',
   };
 
-  const tyreColor = compound ? (TYRE_COLORS[compound] || TYRE_COLORS.UNKNOWN) : TYRE_COLORS.UNKNOWN;
+  const tyreColor = compoundColor(compound);
 
   return (
     <tr
@@ -166,10 +207,10 @@ const TimingRow = React.memo(function TimingRow({
       onDoubleClick={() => onRowDoubleClick(abbr)}
     >
       {/* POS */}
-      <td style={{ ...cellBase, width: COL.pos, position: 'relative', fontWeight: 800, color: '#fff', fontSize: 11 }}>
+      <td style={{ ...cellBase, width: COL.pos, position: 'relative', fontWeight: 800, color: TEXT_COLORS.primary, fontSize: TOWER_FONT }}>
         <span style={{
           position: 'absolute', left: 0, top: 3, bottom: 3, width: 3,
-          background: teamColor || '#888', borderRadius: 1.5,
+          background: teamColor, borderRadius: 1.5,
         }} />
         {pos}
       </td>
@@ -177,11 +218,11 @@ const TimingRow = React.memo(function TimingRow({
       {/* Car Number */}
       <td style={{ ...cellBase, width: COL.num }}>
         <span style={{
-          display: 'inline-block', padding: '1px 6px', borderRadius: 3,
-          fontSize: 9, fontWeight: 700, color: '#fff',
-          background: teamColor || '#555',
+          display: 'inline-block', padding: '0 4px', borderRadius: 3,
+          fontSize: TOWER_FONT, fontWeight: 700,
+          // Team-colour badge: black or white text by contrast (contrastText)
+          background: teamColor, color: contrastText(teamColor),
           minWidth: 24, textAlign: 'center',
-          textShadow: '0 1px 2px rgba(0,0,0,0.5)',
         }}>
           {driverNumber}
         </span>
@@ -190,18 +231,20 @@ const TimingRow = React.memo(function TimingRow({
       {/* Driver abbreviation + tyre indicator */}
       <td style={{ ...cellBase, width: COL.driver, textAlign: 'left', paddingLeft: 6 }}>
         <span style={{
-          fontWeight: 700, fontSize: 11, color: '#fff',
+          fontWeight: 700, fontSize: TOWER_FONT, color: TEXT_COLORS.primary,
           textTransform: 'uppercase', letterSpacing: '0.03em',
         }}>
           {abbr}
         </span>
+        {/* Compound: FIA colour with its letter (never the colour alone) */}
         <span style={{
-          display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-          background: tyreColor, verticalAlign: 'middle', margin: '0 4px',
+          display: 'inline-block', minWidth: 13, height: 13, lineHeight: '13px', borderRadius: '50%',
+          background: tyreColor, color: contrastText(tyreColor), verticalAlign: 'middle', margin: '0 2px',
+          fontSize: CHART_FONT.label, fontWeight: 800, textAlign: 'center',
         }}
           title={`${compound || '?'} - Lap ${tyreLife || 0}`}
-        />
-        <span style={{ fontSize: 8, color: '#7a7f9a' }}>
+        >{tyreLetter(compound)}</span>
+        <span style={{ fontSize: TOWER_FONT, color: TEXT_COLORS.muted }}>
           {tyreLife != null ? tyreLife : ''}
         </span>
       </td>
@@ -209,55 +252,59 @@ const TimingRow = React.memo(function TimingRow({
       {/* GAP */}
       <td style={{
         ...cellBase, width: COL.gap,
-        color: gap === 'LEADER' ? '#fff' : '#aab',
+        color: gap === 'LEADER' ? TEXT_COLORS.primary : TEXT_COLORS.secondary,
         fontWeight: gap === 'LEADER' ? 600 : 400,
       }}>
         {isDnf ? (dnfStatus || 'DNF') : gap}
       </td>
 
       {/* INT */}
-      <td style={{ ...cellBase, width: COL.int, color: '#aab' }}>
+      <td style={{ ...cellBase, width: COL.int, color: TEXT_COLORS.secondary }}>
         {isDnf ? '-' : interval}
       </td>
 
       {/* S1 */}
       <td style={{
         ...cellBase, width: COL.s1,
-        color: s1Chrono != null ? '#fbbf24' : s1Color,
+        color: s1Chrono != null ? STATUS_COLORS.running : s1Color,
+        fontStyle: s1Chrono != null ? 'italic' : undefined,
         fontWeight: 500,
       }}>
-        {s1Chrono != null ? s1Chrono.toFixed(1) : formatSectorTime(s1)}
+        {s1Chrono != null ? s1Chrono.toFixed(1) : <TimingValue glyph={s1Glyph}>{formatSectorTime(s1)}</TimingValue>}
       </td>
 
       {/* S2 */}
       <td style={{
         ...cellBase, width: COL.s2,
-        color: s2Chrono != null ? '#fbbf24' : s2Color,
+        color: s2Chrono != null ? STATUS_COLORS.running : s2Color,
+        fontStyle: s2Chrono != null ? 'italic' : undefined,
         fontWeight: 500,
       }}>
-        {s2Chrono != null ? s2Chrono.toFixed(1) : formatSectorTime(s2)}
+        {s2Chrono != null ? s2Chrono.toFixed(1) : <TimingValue glyph={s2Glyph}>{formatSectorTime(s2)}</TimingValue>}
       </td>
 
       {/* S3 */}
       <td style={{
         ...cellBase, width: COL.s3,
-        color: s3Chrono != null ? '#fbbf24' : s3Color,
+        color: s3Chrono != null ? STATUS_COLORS.running : s3Color,
+        fontStyle: s3Chrono != null ? 'italic' : undefined,
         fontWeight: 500,
       }}>
-        {s3Chrono != null ? s3Chrono.toFixed(1) : formatSectorTime(s3)}
+        {s3Chrono != null ? s3Chrono.toFixed(1) : <TimingValue glyph={s3Glyph}>{formatSectorTime(s3)}</TimingValue>}
       </td>
 
       {/* LAP TIME */}
       <td style={{
         ...cellBase, width: COL.lapTime,
-        color: lapChrono != null ? '#fbbf24' : lapTimeColor,
+        color: lapChrono != null ? STATUS_COLORS.running : lapTimeColor,
+        fontStyle: lapChrono != null ? 'italic' : undefined,
         fontWeight: 500,
       }}>
-        {lapChrono != null ? formatRunningLap(lapChrono) : formatLapTime(lapTime)}
+        {lapChrono != null ? formatRunningLap(lapChrono) : <TimingValue glyph={lapTimeGlyph}>{formatLapTime(lapTime)}</TimingValue>}
       </td>
 
       {/* LAP */}
-      <td style={{ ...cellBase, width: COL.lap, color: '#7a7f9a', fontSize: 10 }}>
+      <td style={{ ...cellBase, width: COL.lap, color: TEXT_COLORS.muted, fontSize: TOWER_FONT }}>
         {lapNumber || '-'}
       </td>
 
@@ -265,11 +312,8 @@ const TimingRow = React.memo(function TimingRow({
       <td style={{ ...cellBase, width: COL.status }}>
         <span
           title={statusLabel}
-          style={{
-            display: 'inline-block', width: 8, height: 8,
-            borderRadius: '50%', background: statusColor,
-          }}
-        />
+          style={{ color: statusColor, fontWeight: 800, fontSize: TOWER_FONT }}
+        >{statusGlyph}</span>
       </td>
     </tr>
   );
@@ -306,6 +350,13 @@ export default function TimingTower() {
   const handleRowMouseEnter = useCallback((abbr) => setHighlightedDriver(abbr, null), [setHighlightedDriver]);
   const handleRowMouseLeave = useCallback(() => setHighlightedDriver(null), [setHighlightedDriver]);
   const handleRowDoubleClick = useCallback((abbr) => setFocusDriver(abbr), [setFocusDriver]);
+
+  /* -- Row height fitted to the body (utils/views/chartBox.js) ----------- */
+  // The body exists only once there are rows (not in the empty states): a
+  // callback ref, so the box is measured when it appears
+  const [bodyEl, setBodyEl] = useState(null);
+  const bodyRef = useMemo(() => ({ current: bodyEl }), [bodyEl]);
+  const bodyBox = useBoxSize(bodyRef);
 
   /* -- Build driver info lookup ------------------------------------------ */
   const driverInfoMap = useMemo(() => {
@@ -354,16 +405,17 @@ export default function TimingTower() {
   }, [sessionData, totalFrames, driverInfoMap, dnfMap, sessionNow, sessionType, isQualifyingReplay, isLiveMode,
     segmentStart]);
 
+  // 24 px rows while every row fits, down to 18 px (the focus cards under
+  // the tower take room); not measured yet (server render): 24 px
+  const rowFit = fitRows(bodyBox.height, entries.length, { rowMin: ROW_MIN, rowMax: ROW_MAX, rowDefault: ROW_MAX });
+
   /* -- Flag status banner ------------------------------------------------ */
   const flagBanner = useMemo(() => {
-    const banners = {
-      '2': { label: 'YELLOW FLAG', bg: 'rgba(255,204,0,0.12)', color: '#FFCC00' },
-      '4': { label: 'SAFETY CAR', bg: 'rgba(255,140,0,0.12)', color: '#FF8C00' },
-      '5': { label: 'RED FLAG', bg: 'rgba(255,0,0,0.12)', color: '#FF0000' },
-      '6': { label: 'VSC', bg: 'rgba(255,140,0,0.12)', color: '#FF8C00' },
-      '7': { label: 'VSC', bg: 'rgba(255,140,0,0.12)', color: '#FF8C00' },
-    };
-    return banners[currentFlagStatus] || null;
+    // FIA flag colour with its label; the text is lifted to 4.5:1 on its tint
+    const st = currentFlagStatus !== '1' ? TRACK_STATUS_STYLES[currentFlagStatus] : null;
+    if (!st) return null;
+    const chip = tintedChip(st.color, 0.12);
+    return { label: st.short, bg: chip.background, color: chip.color };
   }, [currentFlagStatus]);
 
   /* -- Empty state ------------------------------------------------------- */
@@ -377,14 +429,14 @@ export default function TimingTower() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: 24 }}>
             <span style={{
               width: 10, height: 10, borderRadius: '50%',
-              background: liveConnected ? '#e10600' : '#666',
-              boxShadow: liveConnected ? '0 0 10px rgba(225,6,0,0.6)' : 'none',
+              background: liveConnected ? UI_COLORS.accent : TEXT_COLORS.muted,
+              boxShadow: liveConnected ? `0 0 10px ${withAlpha(UI_COLORS.accent, 0.6)}` : 'none',
               animation: liveConnected ? 'livePulse 1.5s ease-in-out infinite' : 'none',
             }} />
-            <span style={{ color: '#bbc', fontSize: 12, fontWeight: 600, letterSpacing: '0.04em' }}>
+            <span style={{ color: TEXT_COLORS.secondary, fontSize: 12, fontWeight: 600, letterSpacing: '0.04em' }}>
               {liveConnected ? 'Waiting for first laps' : 'Connecting to live feed…'}
             </span>
-            <span style={{ color: '#666', fontSize: 10, lineHeight: 1.4, maxWidth: 240 }}>
+            <span style={{ color: TEXT_COLORS.muted, fontSize: TOWER_FONT, lineHeight: 1.4, maxWidth: 240 }}>
               {liveConnected
                 ? 'Drivers haven’t crossed the line yet. Timing will populate row-by-row from lap 1.'
                 : 'Establishing SignalR connection.'}
@@ -395,7 +447,7 @@ export default function TimingTower() {
     }
     return (
       <div style={{ ...containerStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ color: '#666', fontSize: 12 }}>No timing data available</span>
+        <span style={{ color: TEXT_COLORS.muted, fontSize: 12 }}>No timing data available</span>
       </div>
     );
   }
@@ -406,13 +458,13 @@ export default function TimingTower() {
       {/* Red gradient header */}
       <div style={headerStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 3, height: 16, background: '#fff', borderRadius: 1 }} />
+          <div style={{ width: 3, height: 16, background: TEXT_COLORS.primary, borderRadius: 1 }} />
           <span style={headerTitleStyle}>Timing Tower</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>LAP</span>
-          <span style={{ fontSize: 15, fontWeight: 800, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{currentLap}</span>
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>/{maxLap}</span>
+          <span style={{ fontSize: TOWER_FONT, color: TEXT_COLORS.secondary, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>LAP</span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: TEXT_COLORS.primary, fontVariantNumeric: 'tabular-nums' }}>{currentLap}</span>
+          <span style={{ fontSize: 12, color: TEXT_COLORS.secondary, fontVariantNumeric: 'tabular-nums' }}>/{maxLap}</span>
         </div>
       </div>
 
@@ -421,7 +473,7 @@ export default function TimingTower() {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           gap: 6, padding: '3px 8px',
-          fontSize: 10, fontWeight: 900, letterSpacing: '0.10em',
+          fontSize: TOWER_FONT, fontWeight: 900, letterSpacing: '0.10em',
           textTransform: 'uppercase',
           background: flagBanner.bg, color: flagBanner.color,
           flexShrink: 0,
@@ -436,33 +488,33 @@ export default function TimingTower() {
         <table style={tableStyle}>
           <colgroup>
             {Object.entries(COL).map(([key, w]) => (
-              <col key={key} style={{ width: w }} />
+              <col key={key} style={{ width: colPct(w) }} />
             ))}
           </colgroup>
           <thead>
             <tr>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}>POS</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}>#</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'left', paddingLeft: 6 }}>Driver</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}>GAP</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}>INT</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}>S1</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}>S2</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}>S3</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}>LAP TIME</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}>LAP</th>
-              <th style={{ fontWeight: 700, padding: '0 3px', textAlign: 'center' }}></th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>POS</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>#</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'left', paddingLeft: 6 }}>Driver</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>GAP</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>INT</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>S1</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>S2</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>S3</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }} title="Lap time">TIME</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>LAP</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}></th>
             </tr>
           </thead>
         </table>
       </div>
 
-      {/* Scrollable body */}
-      <div style={bodyStyle}>
+      {/* Body: the rows fit its height (fitRows) */}
+      <div ref={setBodyEl} style={bodyStyle}>
         <table style={tableStyle}>
           <colgroup>
             {Object.entries(COL).map(([key, w]) => (
-              <col key={key} style={{ width: w }} />
+              <col key={key} style={{ width: colPct(w) }} />
             ))}
           </colgroup>
           <tbody>
@@ -477,10 +529,16 @@ export default function TimingTower() {
                 onRowMouseEnter={handleRowMouseEnter}
                 onRowMouseLeave={handleRowMouseLeave}
                 onRowDoubleClick={handleRowDoubleClick}
+                rowH={rowFit.rowH}
               />
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Timing colours with their glyphs (timingTowerLegend) */}
+      <div style={{ flexShrink: 0, padding: '0 6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <Legend items={timingTowerLegend()} shape="glyph" />
       </div>
     </div>
   );

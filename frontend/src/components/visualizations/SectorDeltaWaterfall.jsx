@@ -1,24 +1,35 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor } from '../../utils/colors';
+import { driverStyle, CHART_FONT, chartFontPx } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { runningOrderAt, sectorDeltaRows } from '../../utils/views/sectorDeltaWaterfall';
+import {
+  runningOrderAt, sectorDeltaRows, sectorMeans, waterfallLaps, waterfallLapsThatFit, waterfallDomain, fmtDelta,
+} from '../../utils/views/sectorDeltaWaterfall';
+import { drawSectorDeltaWaterfall, WATERFALL_MARGIN } from '../../utils/views/sectorDeltaWaterfallChart';
+import { useBoxSize } from '../../utils/views/chartBox';
+import { CHART_COLORS, timeDeltaColor, UP, DOWN } from '../../utils/views/strategyMarks';
 
-function fmtSec(s) {
-  if (s == null || !isFinite(s)) return '—';
-  const sign = s >= 0 ? '+' : '-';
-  return `${sign}${Math.abs(s).toFixed(3)}`;
-}
+// Laps the waterfall can hold (a wide panel); a narrow one shows the most
+// recent laps that fit (sectorDeltaWaterfall.js waterfallLapsThatFit)
+const MAX_LAPS = 20;
 
+/**
+ * Sector Delta: the focus driver against a reference driver, sector by sector
+ * over the laps both completed at the replay clock, drawn as a D3 waterfall
+ * (utils/views/sectorDeltaWaterfallChart.js) with the mean of each sector
+ * above it. No scroll: the chart shows the most recent laps its width holds.
+ */
 export default function SectorDeltaWaterfall() {
   const sessionData = useF1Store((s) => s.sessionData);
   const focusDriver = useF1Store((s) => s.focusDriver);
-  const drivers = useF1Store((s) => s.drivers);
   const comparisonDriver = useF1Store((s) => s.comparisonDriver);
   const setComparisonDriver = useF1Store((s) => s.setComparisonDriver);
   // Causal "now" in session seconds (utils/raceTime.js): only laps completed
   // by then are compared
   const sessionNow = useSessionNow();
+  const boxRef = useRef(null);
+  const svgRef = useRef(null);
+  const box = useBoxSize(boxRef);
 
   const lapTimes = sessionData?.lap_times || [];
 
@@ -57,201 +68,112 @@ export default function SectorDeltaWaterfall() {
 
   // Laps both drivers completed at sessionNow (an unfinished lap is never compared)
   const rows = useMemo(
-    () => sectorDeltaRows(lapTimes, effectiveFocus, refDriver, sessionNow),
+    () => sectorDeltaRows(lapTimes, effectiveFocus, refDriver, sessionNow, MAX_LAPS),
     [lapTimes, effectiveFocus, refDriver, sessionNow],
   );
 
-  // Normalize scale by the largest abs delta across all displayed sector cells
-  const maxAbs = useMemo(() => {
-    let m = 0.1;
-    for (const r of rows) {
-      for (const v of r.sectors) {
-        if (v != null && Math.abs(v) > m) m = Math.abs(v);
-      }
-    }
-    return m;
-  }, [rows]);
+  // The laps the width holds (all of them before the panel is measured)
+  const plotWidth = box.width > 0 ? box.width - WATERFALL_MARGIN.left - WATERFALL_MARGIN.right : 0;
+  const shown = useMemo(
+    () => waterfallLaps(rows, waterfallLapsThatFit(plotWidth, rows.length)),
+    [rows, plotWidth],
+  );
+  // Mean per sector over the laps drawn
+  const summary = useMemo(() => sectorMeans(shown), [shown]);
 
-  // Summary: mean per sector
-  const summary = useMemo(() => {
-    const sums = [0, 0, 0];
-    const counts = [0, 0, 0];
-    for (const r of rows) {
-      r.sectors.forEach((v, i) => {
-        if (v != null) { sums[i] += v; counts[i] += 1; }
-      });
-    }
-    return sums.map((s, i) => (counts[i] ? +(s / counts[i]).toFixed(3) : null));
-  }, [rows]);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || box.width <= 0 || box.height <= 0 || !effectiveFocus || !refDriver) return;
+    drawSectorDeltaWaterfall(svg, {
+      laps: shown,
+      domain: waterfallDomain(shown),
+      width: box.width,
+      height: box.height,
+      focus: effectiveFocus,
+      reference: refDriver,
+      colors: {
+        faster: CHART_COLORS.better,
+        slower: CHART_COLORS.worse,
+        even: CHART_COLORS.neutral,
+        text: CHART_COLORS.text,
+        muted: CHART_COLORS.muted,
+        grid: CHART_COLORS.grid,
+      },
+      font: CHART_FONT.data,
+      fontPx: chartFontPx('data'),
+    });
+  }, [shown, box.width, box.height, effectiveFocus, refDriver]);
 
-  if (!effectiveFocus || !refDriver) {
-    return (
-      <div style={{ padding: 20, color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
-        Select a focus driver and ensure at least two drivers have lap data.
-      </div>
-    );
-  }
-
-  const focusColor = getDriverColor(effectiveFocus);
-  const refColor = getDriverColor(refDriver);
-
-  const BAR_COL = 96;  // width of each sector bar column
-  const LABEL_COL = 48;
-  const CUM_COL = 70;
-  const COL_GAP = 22;  // generous breathing room between columns
+  const ready = !!(effectiveFocus && refDriver);
+  const focusStyle = ready ? driverStyle(effectiveFocus) : null;
+  const refStyle = ready ? driverStyle(refDriver) : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, padding: '8px 10px', fontSize: 11 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>FOCUS</span>
-        <span style={{ fontWeight: 800, color: focusColor, fontSize: 12 }}>{effectiveFocus}</span>
-        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>vs</span>
-        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>REF</span>
-        <select
-          value={refDriver}
-          onChange={(e) => setComparisonDriver(e.target.value)}
-          style={{
-            background: 'rgba(255,255,255,0.08)',
-            color: refColor,
-            border: `1px solid ${refColor}55`,
-            borderRadius: 4,
-            fontWeight: 800,
-            fontSize: 11,
-            padding: '2px 6px',
-          }}
-        >
-          {driverList.filter((d) => d !== effectiveFocus).map((d) => (
-            <option key={d} value={d} style={{ color: '#000' }}>{d}</option>
-          ))}
-        </select>
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: '#22c55e' }} />
-            focus faster
-          </span>
-          <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>
-            <span style={{ width: 10, height: 10, borderRadius: 2, background: '#ef4444' }} />
-            focus slower
-          </span>
-        </span>
-      </div>
-
-      {/* Summary row (mean per sector) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: `${LABEL_COL}px repeat(3, ${BAR_COL}px) ${CUM_COL}px`,
-        gap: COL_GAP,
-        padding: '4px 0',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-        marginBottom: 4,
-        alignItems: 'center',
-      }}>
-        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: 700 }}>AVG</span>
-        {summary.map((v, i) => {
-          const color = v == null ? 'rgba(255,255,255,0.3)' : v < 0 ? '#22c55e' : '#ef4444';
-          return (
-            <span key={i} style={{ color, fontWeight: 700, fontSize: 10, textAlign: 'center' }}>
-              S{i + 1}: {v != null ? fmtSec(v) : '—'}
-            </span>
-          );
-        })}
-        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: 700, textAlign: 'right' }}>Σ lap</span>
-      </div>
-
-      {/* Header row */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: `${LABEL_COL}px repeat(3, ${BAR_COL}px) ${CUM_COL}px`,
-        gap: COL_GAP,
-        fontSize: 9,
-        color: 'rgba(255,255,255,0.4)',
-        fontWeight: 700,
-        letterSpacing: '0.05em',
-        marginBottom: 2,
-      }}>
-        <span>LAP</span>
-        <span style={{ textAlign: 'center' }}>S1 Δ</span>
-        <span style={{ textAlign: 'center' }}>S2 Δ</span>
-        <span style={{ textAlign: 'center' }}>S3 Δ</span>
-        <span style={{ textAlign: 'right' }}>CUM</span>
-      </div>
-
-      {/* Waterfall rows */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {rows.map((r) => (
-          <div
-            key={r.lap}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `${LABEL_COL}px repeat(3, ${BAR_COL}px) ${CUM_COL}px`,
-              gap: 4,
-              padding: '3px 0',
-              borderBottom: '1px solid rgba(255,255,255,0.04)',
-              alignItems: 'center',
-            }}
-          >
-            <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 700, fontSize: 10 }}>L{r.lap}</span>
-            {r.sectors.map((v, i) => (
-              <div key={i} style={{ position: 'relative', height: 16 }}>
-                {/* center line */}
-                <div style={{
-                  position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1,
-                  background: 'rgba(255,255,255,0.1)',
-                }} />
-                {v != null && (
-                  <>
-                    {/* Bar extending from center */}
-                    <div style={{
-                      position: 'absolute',
-                      top: 2,
-                      bottom: 2,
-                      left: v < 0 ? `${50 - (Math.abs(v) / maxAbs) * 50}%` : '50%',
-                      width: `${(Math.abs(v) / maxAbs) * 50}%`,
-                      background: v < 0 ? '#22c55e' : '#ef4444',
-                      borderRadius: 2,
-                      opacity: 0.85,
-                    }} />
-                    {/* Numeric label sits on the OPPOSITE side of center from the
-                        bar so it never lands on top of the colored fill. */}
-                    <span style={{
-                      position: 'absolute',
-                      top: 0,
-                      // v<0: bar on left → label on right (left:52%); v>0: bar on right → label on left (right:52%)
-                      [v < 0 ? 'left' : 'right']: '52%',
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: v < 0 ? '#22c55e' : '#ef4444',
-                      lineHeight: '16px',
-                      pointerEvents: 'none',
-                      textShadow: '0 0 2px rgba(0,0,0,0.6)',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {fmtSec(v)}
-                    </span>
-                  </>
-                )}
-                {v == null && (
-                  <span style={{
-                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
-                    color: 'rgba(255,255,255,0.2)', fontSize: 9, lineHeight: '16px',
-                  }}>—</span>
-                )}
-              </div>
-            ))}
-            <span style={{
-              textAlign: 'right',
-              fontWeight: 800,
-              fontSize: 10,
-              color: r.cumulative == null ? 'rgba(255,255,255,0.3)'
-                : r.cumulative < 0 ? '#22c55e' : '#ef4444',
-            }}>
-              {r.cumulative != null ? fmtSec(r.cumulative) : '—'}
-            </span>
+    <div className="sdw" style={{
+      display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, padding: '8px 10px', fontSize: CHART_FONT.data,
+    }}>
+      {!ready && (
+        <div style={{ padding: 20, color: CHART_COLORS.secondary }}>
+          Select a focus driver and ensure at least two drivers have lap data.
+        </div>
+      )}
+      {ready && (
+        <>
+          {/* Header: focus vs reference (the shared comparison driver) */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+            <span style={{ color: CHART_COLORS.secondary, fontSize: CHART_FONT.label }}>FOCUS</span>
+            <span style={{ fontWeight: 800, color: focusStyle.text }}>{effectiveFocus}</span>
+            <span style={{ color: CHART_COLORS.secondary, fontSize: CHART_FONT.label }}>vs REF</span>
+            <select
+              value={refDriver}
+              onChange={(e) => setComparisonDriver(e.target.value)}
+              aria-label="Reference driver"
+              style={{
+                background: CHART_COLORS.surface,
+                color: refStyle.text,
+                border: `1px solid ${refStyle.mark}`,
+                borderRadius: 4,
+                fontWeight: 800,
+                fontSize: CHART_FONT.data,
+                padding: '2px 6px',
+              }}
+            >
+              {driverList.filter((d) => d !== effectiveFocus).map((d) => (
+                <option key={d} value={d} style={{ background: CHART_COLORS.surface, color: CHART_COLORS.text }}>{d}</option>
+              ))}
+            </select>
           </div>
-        ))}
-        {rows.length === 0 && (
-          <div style={{ padding: 16, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>
+
+          {/* Mean of each sector over the laps drawn, signed and with its arrow */}
+          <div className="sdw-avg" style={{
+            display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'baseline', marginBottom: 2,
+          }}
+          >
+            <span style={{ color: CHART_COLORS.secondary, fontWeight: 700 }}>
+              AVG {shown.length} lap{shown.length === 1 ? '' : 's'}
+            </span>
+            {summary.map((v, i) => (
+              <span
+                key={i}
+                title={v == null ? `S${i + 1}: no lap with a time for both` : `S${i + 1}: ${effectiveFocus} ${fmtDelta(v)} s on average against ${refDriver} (${v < 0 ? 'faster' : v > 0 ? 'slower' : 'level'})`}
+                style={{ color: v == null ? CHART_COLORS.secondary : timeDeltaColor(v), fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
+              >
+                S{i + 1} {v == null ? '—' : `${v < 0 ? DOWN : v > 0 ? UP : ''}${fmtDelta(v)}`}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* The D3 waterfall fills the rest of the panel (always mounted, so it is measured) */}
+      <div ref={boxRef} className="sdw-chart" style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+        <svg ref={svgRef} className="sdw-svg" style={{ display: 'block' }} />
+        {ready && rows.length === 0 && (
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16, textAlign: 'center', color: CHART_COLORS.secondary,
+          }}
+          >
             No overlapping laps yet between {effectiveFocus} and {refDriver}.
           </div>
         )}

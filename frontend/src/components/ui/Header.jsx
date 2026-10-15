@@ -3,6 +3,7 @@ import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
 import SessionSelector from './SessionSelector';
 import SessionMenu from './SessionMenu';
 import PanelToggleBar from '../layout/PanelToggleBar';
+import { publicAsset } from '../../utils/publicAsset';
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -39,7 +40,7 @@ export default function Header() {
           </button>
           <div className="logo">
             <img
-              src="/f1-logo.png"
+              src={publicAsset('f1-logo.png')}
               alt="F1"
               className="logo-f1-img"
             />
@@ -76,7 +77,7 @@ export default function Header() {
                 );
               })}
               {isLoadingFrames && (
-                <span style={{ fontSize: '10px', color: 'var(--color-accent-warning)', marginLeft: '4px' }}>
+                <span style={{ fontSize: 'var(--font-size-label)', color: 'var(--color-accent-warning)', marginLeft: '4px' }}>
                   Loading...
                 </span>
               )}

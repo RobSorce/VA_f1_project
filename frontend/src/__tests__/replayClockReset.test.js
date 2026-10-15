@@ -261,6 +261,10 @@ describe('timeline events helpers (synthetic, future rows never change the past)
     expect(fastestLapEvent([...base, ...future], 360).driver).toBe('BBB');
     expect(fastestLapEvent([...base, ...future], Infinity).description).toBe('Fastest lap: BBB (1:20.000)');
     expect(positionChangeEvents([...base, ...future], 360).map((e) => e.lap)).toEqual([2, 3]);
+    // signed places (+ gained, − lost), no colour: the timeline colours by type
+    expect(positionChangeEvents([...base, ...future], 360).map((e) => e.change)).toEqual([3, -4]);
+    expect(positionChangeEvents([...base, ...future], 360).every((e) => !('color' in e))).toBe(true);
+    expect('color' in fastestLapEvent(base, now)).toBe(false);
     expect(fastestLapEvent(base, 200)).toBeNull();
   });
 });
@@ -1145,7 +1149,9 @@ describe.skipIf(!have(2024, 5))('R5 (frontend): track-status events on the leade
     panel = renderWithStore(createElement(RaceControlPanel));
     for (const html of [feed, panel]) {
       expect(html).toContain('VSCDeployed');
-      expect(html.split('SCDeployed').length - 1).toBe(2); // 'VSCDeployed' + one 'SCDeployed'
+      // 'VSCDeployed' + one 'SCDeployed' in the text (the feed repeats each
+      // one-line message in its title attribute, for the ellipsis)
+      expect(html.replace(/<[^>]+>/g, ' ').split('SCDeployed').length - 1).toBe(2);
       expect(html).toContain(formatReplayClock(5702.945 - offset));
       expect(html).not.toContain(formatReplayClock(6283.584 - offset));
     }

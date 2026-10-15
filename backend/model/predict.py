@@ -285,7 +285,7 @@ def _no_window(ctx, feature_source, session_now):
     }
 
 
-def forecast_from_context(ctx, max_lap=None, tsne_context=None, feature_source='cache', session_now=None):
+def forecast_from_context(ctx, max_lap=None, context_races=None, feature_source='cache', session_now=None):
     """The /api/predict/lstm response of one build_window context."""
     _ensure_loaded()
     if ctx['features'] is None:
@@ -323,8 +323,8 @@ def forecast_from_context(ctx, max_lap=None, tsne_context=None, feature_source='
                f"(laps {ctx['window_laps'][0]}-{ctx['window_laps'][-1]}) completed by lap {c_lap}.")
     if held and method in held['values']:
         summary += f" Held-out MAE {held['values'][method]:.3f} s ({len(held['races'] or [])} test races)."
-    if tsne_context:
-        summary += f" Enriched with {len(tsne_context)} similar historical races."
+    if context_races:
+        summary += f" Enriched with {len(context_races)} similar historical races."
 
     result = {
         'driver': driver,
@@ -368,14 +368,14 @@ def forecast_from_context(ctx, max_lap=None, tsne_context=None, feature_source='
 
 
 def predict_from_rows(lap_rows, driver, session_now=None, lap=None, weather_rows=None,
-                      max_lap=None, tsne_context=None, feature_source='cache') -> dict:
+                      max_lap=None, context_races=None, feature_source='cache') -> dict:
     """Forecast of one driver at a clock from session lap rows (build_window)."""
     ctx = build_window(lap_rows, driver, session_now=session_now, weather_rows=weather_rows, lap=lap)
-    return forecast_from_context(ctx, max_lap=max_lap, tsne_context=tsne_context,
+    return forecast_from_context(ctx, max_lap=max_lap, context_races=context_races,
                                  feature_source=feature_source, session_now=session_now)
 
 
-def predict_laps(last_10_laps: list, tsne_context: list = None,
+def predict_laps(last_10_laps: list, context_races: list = None,
                  current_lap: int = None, driver: str = None,
                  max_lap: int = None) -> dict:
     """
@@ -387,7 +387,7 @@ def predict_laps(last_10_laps: list, tsne_context: list = None,
     """
     drv = driver or 'UNK'
     rows = rows_from_legacy_laps(last_10_laps, drv, current_lap)
-    out = predict_from_rows(rows, drv, max_lap=max_lap, tsne_context=tsne_context, feature_source='legacy_laps')
+    out = predict_from_rows(rows, drv, max_lap=max_lap, context_races=context_races, feature_source='legacy_laps')
     if not driver:
         out['driver_predictions'] = {}
         out.pop('predicted_laps', None)
@@ -430,7 +430,7 @@ def _compute_predicted_stints(driver, current_compound, current_lap, optimal_pit
     return stints
 
 
-def _heuristic_prediction(last_10_laps, tsne_context=None,
+def _heuristic_prediction(last_10_laps, context_races=None,
                           current_lap=None, driver=None, max_lap=None):
     """The heuristic twin of the router's built-in fallback
     (api/routers/predictions.py _builtin_heuristic, used only when this
@@ -466,8 +466,8 @@ def _heuristic_prediction(last_10_laps, tsne_context=None,
     predicted_stints = _compute_predicted_stints(driver, current_compound, c_lap, optimal_pit_lap, m_lap)
 
     summary = f"Heuristic: avg {avg_time:.1f}s + {deg_rate}s/lap degradation."
-    if tsne_context:
-        summary += f" Context: {len(tsne_context)} similar races."
+    if context_races:
+        summary += f" Context: {len(context_races)} similar races."
 
     result = {
         'predicted_times': predicted,

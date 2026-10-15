@@ -116,7 +116,7 @@ export function generateInsights({
     const top = pcaStrategyAnalysis.strategies[0];
     if (top && top.frequency >= 0.4) {
       const stintDesc = top.stints.map(s => s.compound[0]).join('-');
-      // N stints = N - 1 stops (same rule as the backend summary in tsne_compute.py)
+      // N stints = N - 1 stops (same rule as the backend summary in data/processors/pca_compute.py)
       const stops = Math.max(0, top.stints.length - 1);
       insights.push({
         id: `pca-${stintDesc}`,

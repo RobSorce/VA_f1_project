@@ -1,57 +1,181 @@
 # View Coordination Graph
 
-All coordination flows through the Zustand store (`useF1Store.js`). Views emit selections by calling store actions; other views react via Zustand selectors.
+All coordination flows through the Zustand store (`frontend/src/store/useF1Store.js`). A view **writes** a coordination field when it calls a store action that assigns it; a view **subscribes** to a field when it reads it with a `useF1Store` selector, so it redraws when the field changes. A read inside an event handler (`getState()`) is not a subscription.
 
-## Coordination Matrix
+The tables at the end of this document are generated from the code by `frontend/scripts/coordination_matrix.mjs`: it reads which coordination fields each store action assigns (following the actions it calls) and scans every `useF1Store` selector and store call under `frontend/src/components` and `frontend/src/hooks`. `frontend/src/__tests__/coordination.matrix.test.js` fails when the tables no longer match the code; after changing a link, run `node scripts/coordination_matrix.mjs --write` from `frontend/`. Session loads and replay-clock moves (`loadSession`, `setCurrentLap`, ...) are not counted as links: they reset or re-ask state for another session or clock, they do not carry a choice from one view to another.
 
-| Emitter \ Receiver | TrackMap | LapTimeChart | Leaderboard | PCABiplot | StrategyAnalysis | TireDeg | StrategyTimeline | RaceSituation |
-|---------------------|---------|-------------|------------|----------|----------------|---------|-----------------|--------------|
-| **Leaderboard** | `selectedDrivers` | `selectedDrivers` | — | highlight | `selectedDrivers` | `focusDriver` | `selectedDrivers` | `selectedDrivers` |
-| **TrackMap** | — | `highlightedDriver` | `highlightedDriver` | — | — | — | — | — |
-| **LapTimeChart** | `brushLapRange` | — | — | — | — | `brushLapRange`→regression | `selectedLapRange` | — |
-| **PCABiplot** | — | — | — | — | `selectedTSNEPoints` | — | — | — |
-| **StrategyAnalysis** | — | — | — | highlight back | — | — | `selectedLapRange` | — |
+## The links, view by view
 
-## Bidirectional Pairs
+### 1. Drivers: selection, hover, focus
 
-### 1. PCABiplot <-> StrategyAnalysis/PCAAnalysisPanel
-- **Forward**: Lasso on biplot writes `selectedTSNEPoints` -> `StrategyAnalysis.jsx` calls `fetchTSNEAnalysis` -> displays cluster features, pit windows
-  - `PCABiplot.jsx:~210` (lasso release handler) -> `useF1Store.setSelectedTSNEPoints`
-  - `StrategyAnalysis.jsx:~30` (useEffect on `selectedTSNEPoints`) -> `fetchTSNEAnalysis`
-- **Backward**: Click pit window in analysis panel writes `selectedLapRange` -> PCABiplot highlights drivers in that range
-  - `PCAAnalysisPanel.jsx` -> `useF1Store.setSelectedLapRange`
+- `selectedDrivers`: a click on a driver (`toggleDriver`) in the Leaderboard, Timing Tower, Track Map, Timing Sheet, Race Pace Grid, Strategy Timeline, Telemetry or Race Situation map; a lasso on the Race Situation map or the PCA biplot (`setSelectedDrivers`). Almost every view subscribes and highlights or filters the selected drivers.
+- `highlightedDriver`: hover (`setHighlightedDriver`). The views that write it also subscribe to it, so the driver under the pointer is highlighted in all of them at once.
+- `focusDriver`: `setFocusDriver`, from a driver row or mark (a double-click in the Leaderboard, the Timing Sheet, the Timing Tower, the Race Pace Grid and the Race Situation map; the generated table lists every view that sets it) or the `F` key. Setting the focus also makes it the Lap Delta baseline (`lapDeltaBaseDriver`) and clears the forecast of the previous focus driver. A double-click in the Leaderboard, the Timing Sheet or the Race Pace Grid also asks the lap-time forecast of that driver (`triggerPrediction`).
+- `comparisonDriver`: the rival of the Sector Delta Waterfall and the Undercut Calculator; set by either of them, or by a Race Analysis insight that names a pair of drivers (the car behind becomes the focus, the car ahead the rival).
 
-### 2. Leaderboard <-> All Visualizations
-- **Forward**: Click driver in Leaderboard writes `selectedDrivers` -> every chart (TrackMap, LapTimeChart, TireDeg, etc.) filters/highlights
-  - `Leaderboard.jsx:~onclick` -> `toggleDriver()`
-  - All visualization components subscribe to `selectedDrivers` via Zustand selectors
-- **Backward**: Hover on TrackMap or LapTimeChart writes `highlightedDriver` -> Leaderboard highlights row
-  - `TrackMap.jsx` / `LapTimeChart.jsx` -> `setHighlightedDriver`
-  - `Leaderboard.jsx` subscribes to `highlightedDriver`
+### 2. One lap range for every view (`selectedLapRange` = `brushLapRange`)
 
-### 3. LapTimeChart <-> TireDegradation (via brush)
-- **Forward**: Brush on LapTimeChart writes `brushLapRange` -> TireDegradation triggers regression on that range
-  - `LapTimeChart.jsx` D3 brush handler -> `setBrushLapRange`
-  - `TireDegradation.jsx:~27` useEffect on `brushLapRange` -> `fetchDegradationRegression`
-- **Backward**: Both charts share `selectedDrivers` and `focusDriver` state
+- The store keeps one lap range under two names: `setBrushLapRange` and `setSelectedLapRange` both set `brushLapRange` and `selectedLapRange` to the same value, and `clearSelection` clears both (`frontend/src/store/useF1Store.js`). Every lap-range action replaces the range, so the newest one shows in every view; a clear in any view clears it everywhere (`frontend/src/__tests__/coordination.matrix.test.js`, scenarios in `notes/experiments/phase9/repair3/v7_range_scenarios.txt`).
+- Written by the **Position Tracker** brush (`PositionByLap.jsx`: `setBrushLapRange([lapStart, lapEnd])`; a click on the chart or the "LAP a–b" chip clears it), the **Timing Sheet**'s lap-range bar (`LapTimeChart.jsx`, through `lapBrushUpdate` of `frontend/src/utils/views/lapTimeChart.js`; a click on the bar or its "L a–L b" chip clears it), a stint click on the **Strategy Timeline**, a pit-window click in the **Cross-Race Analysis** panel (`PCAAnalysisPanel.jsx`) and a race-event click on the **Timeline Player**.
+- Shown by the Position Tracker (it moves its brush to the stored range, `brush.move`), the Timing Sheet (each row shows the driver's latest lap inside the range, the title names the range and the bar draws it), the Strategy Timeline (shades the laps) and Telemetry (in laps mode, compares the laps of the range).
+- **Tyre Degradation** (`TireDegradation.jsx`) subscribes to the range and asks the fit of those laps (section "Analytics triggered by visual interaction"); it writes nothing back.
+- Example: a stint clicked on the Strategy Timeline (laps 5-15) filters the sheet's rows to those laps, names them in its title and on its bar, moves the Position Tracker brush to laps 5-15 and refits Tyre Degradation; a new brush on the Position Tracker (laps 30-40) then moves every view to laps 30-40, and its clear leaves no range anywhere. (An earlier version kept a stint's range under `selectedLapRange` only: the sheet's title named the stint while its rows and the brush showed another range or none.)
 
-### 4. Driver Focus (double-click flow)
-- Double-click on Leaderboard -> `setFocusDriver` -> persistent highlight in TrackMap, LapTimeChart, TireDeg, RaceSituation, all panels
+### 3. (merged into section 2)
 
-## Store Fields Used for Coordination
+- The lap range was described in two sections, a brushed and a selected range; the code now has one range, section 2.
 
-| Field | Emitters | Receivers |
-|-------|---------|----------|
-| `selectedDrivers` | Leaderboard, CommandPalette | All visualizations |
-| `highlightedDriver` | TrackMap, LapTimeChart, Leaderboard | TrackMap, LapTimeChart, Leaderboard, PCABiplot |
-| `focusDriver` | Leaderboard (dbl-click) | TireDeg, TelemetryStrip, RaceSituation, LapDelta |
-| `selectedTSNEPoints` | PCABiplot (lasso) | StrategyAnalysis, PCAAnalysisPanel |
-| `brushLapRange` | LapTimeChart (D3 brush) | TireDegradation |
-| `selectedLapRange` | PCAAnalysisPanel, StrategyAnalysis | LapTimeChart, TrackMap, StrategyTimeline |
-| `currentLap` | TimelinePlayer, keyboard | All time-dependent visualizations |
+### 4. PCA lasso -> Cross-Race Analysis -> Strategy Timeline (`selectedPCAPoints`, `pcaStrategyAnalysis`)
 
-## Analytics Triggered by Visual Interaction
+- **PCA biplot** (`PCABiplot.jsx`): a lasso (Shift+drag) or a click on a point calls `setSelectedPCAPoints(ids)`, `fetchPCAAnalysis(ids)` and `setSelectedDrivers` with the drivers of those rows; its clear action empties the selection and the driver selection.
+- **Cross-Race Analysis** (`PCAAnalysisPanel.jsx`, beside the biplot) subscribes to `selectedPCAPoints` and to the analysis `fetchPCAAnalysis` stores in `pcaStrategyAnalysis`; its clear button calls `setSelectedPCAPoints([])`, which drops the analysis, and the biplot redraws without the selection. A pit-window click sets the lap range (section 2).
+- **Strategy Timeline** subscribes to `pcaStrategyAnalysis` and draws the selection's tyre strategies as extra rows under the drivers; **Race Analysis** (`StrategyAnalysis.jsx`) reads it for its insights.
+- The store field is `selectedPCAPoints`. There is no t-SNE field, action or view: the dashboard's projection is the PCA (`docs/PCA_METHODOLOGY.md`, section 2).
 
-1. **Lasso on PCA biplot** -> backend `POST /api/pca/analyze-selection` (alias `/api/tsne/analyze-selection`) -> per-feature Hedges' g with interval and random baseline, pit windows, stint patterns -> displayed in `PCAAnalysisPanel`
-2. **Brush on LapTimeChart** -> backend `POST /api/predict/degradation` -> linear regression on brushed range -> displayed in `TireDegradation`
-3. **Click driver in Leaderboard** -> PCA focus highlighting + `raceSituationData.driverFeatures` recomputed with updated driver context
+### 5. Race Situation map -> Race Analysis (`selectedDrivers`)
+
+- **Race Situation map** (`RaceSituationMap.jsx`): a click toggles a driver, a double-click focuses it, a lasso writes `setSelectedDrivers(ids)`.
+- **Race Analysis** (`StrategyAnalysis.jsx`, beside the map) subscribes to `selectedDrivers` and compares the selected drivers with the rest of the field on the map's features (Cohen's d, computed in the browser). Its insight cards write `selectedDrivers`, `focusDriver` and `comparisonDriver`.
+
+### 6. Tyre views (`selectedStint`, `highlightedCompound`)
+
+- A stint click on the Strategy Timeline writes `selectedStint`, drawn by the Tyre Silhouette; hovering a compound on the Tyre Silhouette writes `highlightedCompound`, which the Strategy Timeline highlights.
+
+### 7. Not linked
+
+Earlier versions of this document claimed links the code does not have; the generated tables confirm each of these:
+
+- The Track Map subscribes to no lap range: out-of-range laps are not dimmed there.
+- The PCA biplot does not subscribe to `selectedLapRange`: a pit-window click in the Cross-Race Analysis panel does not change the biplot.
+- Race Analysis (`StrategyAnalysis.jsx`) writes no lap range.
+- `trackProgress` (a playhead on the Track Map along the focus driver's lap) has a subscriber, the Track Map, but no writer: nothing sets it.
+- `watchedRivals` is only reset (by `setFocusDriver` and `clearSelection`); no view subscribes to it.
+
+## Analytics triggered by visual interaction
+
+1. **Lasso or click on the PCA biplot** -> `fetchPCAAnalysis` -> backend `POST /api/pca/analyze-selection` (the former `/api/tsne/analyze-selection` path is kept as an alias), with the replay clock -> per-feature Hedges' g with its interval and a random-selection baseline, pit windows and stint patterns -> drawn in the Cross-Race Analysis panel; the selection's strategies are drawn on the Strategy Timeline.
+2. **Lap range brushed** (Position Tracker or the Timing Sheet's bar) **or selected** (stint, pit window, race event) -> Tyre Degradation calls `fetchDegradationRegression` -> backend `POST /api/predict/degradation` for the focus driver (else the first selected one), on the laps completed at the replay clock -> the fit of that range is drawn in Tyre Degradation.
+3. **Double-click a driver** (Leaderboard, Timing Sheet, Race Pace Grid) -> focus + `triggerPrediction` -> backend `POST /api/predict/lstm` -> the forecast of the next laps in Race Prediction and in the Timing Sheet's forecast rows.
+4. **Lasso on the Race Situation map** -> Race Analysis compares the selected drivers with the rest of the field (computed in the browser).
+
+## Generated tables
+
+<!-- coordination-matrix:start (generated by frontend/scripts/coordination_matrix.mjs; do not edit by hand) -->
+
+### Coordination fields: who writes, who subscribes
+
+| Field | Holds | Written by | Subscribed by |
+|-------|-------|------------|---------------|
+| `selectedDrivers` | the drivers selected (multi-select) | ChampionshipChart, ChampionshipStandings, LapTimeChart, Leaderboard, PCAAnalysisPanel, PCABiplot, RacePaceGrid, RaceSituationMap, StrategyAnalysis, StrategyTimeline, TelemetryStrip, TimingTower, TrackMap, commandRegistry | ChampionshipChart, ChampionshipStandings, CircleOfDoom, CommandBar, CommandPalette, ConsistencyPanel, DriverComparePanel, GeminiAssistant, GeminiFloatingButton, LapDeltaChart, LapTimeChart, Leaderboard, PCAAnalysisPanel, PCABiplot, PositionByLap, RaceControlPanel, RacePaceGrid, RacePredictionPanel, RaceSituationMap, RadioPipToast, SectorsPanel, ShortcutHints, StrategyAnalysis, StrategySimulator, StrategyTimeline, TelemetryStrip, TimelinePlayer, TimingTower, TireDegradation, TireSilhouette, TrackMap, TyreHealth, TyreManagement |
+| `highlightedDriver` | the driver under the pointer (hover) | ChampionshipChart, ChampionshipStandings, CircleOfDoom, ConsistencyPanel, DriverMFDCard, LapTimeChart, Leaderboard, RacePaceGrid, RaceSituationMap, SectorsPanel, StrategyTimeline, TelemetryStrip, TimelinePlayer, TimingTower, TrackMap, commandRegistry | ChampionshipChart, ChampionshipStandings, CircleOfDoom, ConsistencyPanel, DriverMFDCard, LapDeltaChart, LapTimeChart, Leaderboard, RacePaceGrid, RaceSituationMap, SectorsPanel, StrategyTimeline, TelemetryStrip, TimingTower, TrackMap |
+| `focusDriver` | the focus driver (one at a time) | CircleOfDoom, ConsistencyPanel, LapTimeChart, Leaderboard, PCAAnalysisPanel, PositionByLap, RacePaceGrid, RaceSituationMap, SectorsPanel, SessionSelectorScreen, StrategyAnalysis, TelemetryStrip, TimingTower, commandRegistry, useKeyboardShortcuts | CircleOfDoom, CommandBar, CommandPalette, ConsistencyPanel, FocusDriverWidget, GeminiAssistant, GeminiFloatingButton, LapDeltaChart, LapTimeChart, Leaderboard, PCAAnalysisPanel, PitWallLayout, PitWallSectorPanel, PositionByLap, RaceControlPanel, RacePredictionPanel, RaceSituationMap, RadioPipToast, SectorDeltaWaterfall, ShortcutHints, SidebarFocusCards, StrategyAnalysis, StrategySimulator, StrategyTimeline, TelemetryStrip, TimingTower, TireDegradation, TireSilhouette, TrackMap, TyreHealth, TyreManagement, UndercutCalculator |
+| `watchedRivals` | the focus driver's watched rivals | CircleOfDoom, ConsistencyPanel, LapTimeChart, Leaderboard, PCAAnalysisPanel, PositionByLap, RacePaceGrid, RaceSituationMap, SectorsPanel, SessionSelectorScreen, StrategyAnalysis, TelemetryStrip, TimingTower, commandRegistry, useKeyboardShortcuts | — |
+| `lapDeltaBaseDriver` | the baseline driver of the Lap Delta chart | CircleOfDoom, ConsistencyPanel, LapTimeChart, Leaderboard, PCAAnalysisPanel, PositionByLap, RacePaceGrid, RaceSituationMap, SectorsPanel, SessionSelectorScreen, StrategyAnalysis, TelemetryStrip, TimingTower, commandRegistry, useKeyboardShortcuts | LapDeltaChart, LapTimesTabContent |
+| `compareDrivers` | the two drivers of the Driver Comparison | DriverComparePanel, Leaderboard, commandRegistry, useKeyboardShortcuts | DriverComparePanel |
+| `comparisonDriver` | the rival of the Sector Delta Waterfall and the Undercut Calculator | SectorDeltaWaterfall, StrategyAnalysis, UndercutCalculator | SectorDeltaWaterfall, UndercutCalculator |
+| `selectedLapRange` | the one lap range (a brush, the sheet bar, a stint, a pit window, a race event), equal to brushLapRange | LapTimeChart, PCAAnalysisPanel, PositionByLap, StrategyTimeline, TimelinePlayer, commandRegistry | LapTimeChart, StrategyTimeline, TelemetryStrip, TireDegradation |
+| `brushLapRange` | the same lap range, under the name the Position Tracker, the Timing Sheet and Tyre Degradation read | LapTimeChart, PCAAnalysisPanel, PositionByLap, StrategyTimeline, TimelinePlayer, commandRegistry | LapTimeChart, PositionByLap, TireDegradation |
+| `selectedPCAPoints` | the (driver, race) rows lassoed or clicked on the PCA biplot | PCAAnalysisPanel, PCABiplot, commandRegistry | PCAAnalysisPanel, PCABiplot |
+| `pcaStrategyAnalysis` | the backend analysis of that PCA selection (fetchPCAAnalysis) | PCAAnalysisPanel, PCABiplot | PCAAnalysisPanel, StrategyAnalysis, StrategyTimeline |
+| `selectedStint` | the stint clicked on a tyre view | StrategyTimeline, commandRegistry | TireSilhouette |
+| `highlightedCompound` | the compound highlighted on a tyre view | TireSilhouette, commandRegistry | StrategyTimeline, TireSilhouette |
+| `trackProgress` | the playhead along the lap (0-1) of the speed trace | — | TrackMap |
+
+### Analysis views: emitter (row) -> receiver (column)
+
+A cell lists the fields the row view writes and the column view subscribes to.
+
+| Emitter \ Receiver | Leaderboard | TrackMap | LapTimeChart | PositionByLap | StrategyTimeline | TireDegradation | PCABiplot | PCAAnalysisPanel | StrategyAnalysis | RaceSituationMap | CircleOfDoom | RacePaceGrid | LapDeltaChart | TelemetryStrip | TimelinePlayer |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **Leaderboard** | · | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `lapDeltaBaseDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `selectedDrivers` |
+| **TrackMap** | `highlightedDriver` `selectedDrivers` | · | `highlightedDriver` `selectedDrivers` | `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `selectedDrivers` |
+| **LapTimeChart** | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | · | `brushLapRange` `focusDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` `selectedLapRange` | `brushLapRange` `focusDriver` `selectedDrivers` `selectedLapRange` | `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `lapDeltaBaseDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` `selectedLapRange` | `selectedDrivers` |
+| **PositionByLap** | `focusDriver` | `focusDriver` | `brushLapRange` `focusDriver` `selectedLapRange` | · | `focusDriver` `selectedLapRange` | `brushLapRange` `focusDriver` `selectedLapRange` | — | `focusDriver` | `focusDriver` | `focusDriver` | `focusDriver` | — | `focusDriver` `lapDeltaBaseDriver` | `focusDriver` `selectedLapRange` | — |
+| **StrategyTimeline** | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `brushLapRange` `highlightedDriver` `selectedDrivers` `selectedLapRange` | `brushLapRange` `selectedDrivers` | · | `brushLapRange` `selectedDrivers` `selectedLapRange` | `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` `selectedLapRange` | `selectedDrivers` |
+| **TireDegradation** | — | — | — | — | — | · | — | — | — | — | — | — | — | — | — |
+| **PCABiplot** | `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `pcaStrategyAnalysis` `selectedDrivers` | `selectedDrivers` | · | `pcaStrategyAnalysis` `selectedDrivers` `selectedPCAPoints` | `pcaStrategyAnalysis` `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `selectedDrivers` | `selectedDrivers` |
+| **PCAAnalysisPanel** | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `brushLapRange` `focusDriver` `selectedDrivers` `selectedLapRange` | `brushLapRange` `focusDriver` `selectedDrivers` | `focusDriver` `pcaStrategyAnalysis` `selectedDrivers` `selectedLapRange` | `brushLapRange` `focusDriver` `selectedDrivers` `selectedLapRange` | `selectedDrivers` `selectedPCAPoints` | · | `focusDriver` `pcaStrategyAnalysis` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `selectedDrivers` | `focusDriver` `lapDeltaBaseDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` `selectedLapRange` | `selectedDrivers` |
+| **StrategyAnalysis** | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `selectedDrivers` | `focusDriver` `selectedDrivers` | · | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `selectedDrivers` | `focusDriver` `lapDeltaBaseDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `selectedDrivers` |
+| **RaceSituationMap** | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | · | `focusDriver` `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `lapDeltaBaseDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `selectedDrivers` |
+| **CircleOfDoom** | `focusDriver` `highlightedDriver` | `focusDriver` `highlightedDriver` | `focusDriver` `highlightedDriver` | `focusDriver` | `focusDriver` `highlightedDriver` | `focusDriver` | — | `focusDriver` | `focusDriver` | `focusDriver` `highlightedDriver` | · | `highlightedDriver` | `focusDriver` `highlightedDriver` `lapDeltaBaseDriver` | `focusDriver` `highlightedDriver` | — |
+| **RacePaceGrid** | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | · | `focusDriver` `highlightedDriver` `lapDeltaBaseDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `selectedDrivers` |
+| **LapDeltaChart** | — | — | — | — | — | — | — | — | — | — | — | — | · | — | — |
+| **TelemetryStrip** | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `lapDeltaBaseDriver` `selectedDrivers` | · | `selectedDrivers` |
+| **TimelinePlayer** | `highlightedDriver` | `highlightedDriver` | `brushLapRange` `highlightedDriver` `selectedLapRange` | `brushLapRange` | `highlightedDriver` `selectedLapRange` | `brushLapRange` `selectedLapRange` | — | — | — | `highlightedDriver` | `highlightedDriver` | `highlightedDriver` | `highlightedDriver` | `highlightedDriver` `selectedLapRange` | · |
+
+### Analysis views linked both ways
+
+| View A | View B | A -> B | B -> A |
+|--------|--------|--------|--------|
+| Leaderboard | TrackMap | `focusDriver` `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` |
+| Leaderboard | LapTimeChart | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| Leaderboard | PositionByLap | `focusDriver` `selectedDrivers` | `focusDriver` |
+| Leaderboard | StrategyTimeline | `focusDriver` `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` |
+| Leaderboard | PCABiplot | `selectedDrivers` | `selectedDrivers` |
+| Leaderboard | PCAAnalysisPanel | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| Leaderboard | StrategyAnalysis | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| Leaderboard | RaceSituationMap | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| Leaderboard | CircleOfDoom | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` |
+| Leaderboard | RacePaceGrid | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| Leaderboard | TelemetryStrip | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| Leaderboard | TimelinePlayer | `selectedDrivers` | `highlightedDriver` |
+| TrackMap | LapTimeChart | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| TrackMap | PositionByLap | `selectedDrivers` | `focusDriver` |
+| TrackMap | StrategyTimeline | `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` |
+| TrackMap | PCABiplot | `selectedDrivers` | `selectedDrivers` |
+| TrackMap | PCAAnalysisPanel | `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| TrackMap | StrategyAnalysis | `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| TrackMap | RaceSituationMap | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| TrackMap | CircleOfDoom | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` |
+| TrackMap | RacePaceGrid | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| TrackMap | TelemetryStrip | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| TrackMap | TimelinePlayer | `selectedDrivers` | `highlightedDriver` |
+| LapTimeChart | PositionByLap | `brushLapRange` `focusDriver` `selectedDrivers` | `brushLapRange` `focusDriver` `selectedLapRange` |
+| LapTimeChart | StrategyTimeline | `focusDriver` `highlightedDriver` `selectedDrivers` `selectedLapRange` | `brushLapRange` `highlightedDriver` `selectedDrivers` `selectedLapRange` |
+| LapTimeChart | PCABiplot | `selectedDrivers` | `selectedDrivers` |
+| LapTimeChart | PCAAnalysisPanel | `focusDriver` `selectedDrivers` | `brushLapRange` `focusDriver` `selectedDrivers` `selectedLapRange` |
+| LapTimeChart | StrategyAnalysis | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| LapTimeChart | RaceSituationMap | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| LapTimeChart | CircleOfDoom | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` |
+| LapTimeChart | RacePaceGrid | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| LapTimeChart | TelemetryStrip | `focusDriver` `highlightedDriver` `selectedDrivers` `selectedLapRange` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| LapTimeChart | TimelinePlayer | `selectedDrivers` | `brushLapRange` `highlightedDriver` `selectedLapRange` |
+| PositionByLap | StrategyTimeline | `focusDriver` `selectedLapRange` | `brushLapRange` `selectedDrivers` |
+| PositionByLap | PCAAnalysisPanel | `focusDriver` | `brushLapRange` `focusDriver` `selectedDrivers` |
+| PositionByLap | StrategyAnalysis | `focusDriver` | `focusDriver` `selectedDrivers` |
+| PositionByLap | RaceSituationMap | `focusDriver` | `focusDriver` `selectedDrivers` |
+| PositionByLap | CircleOfDoom | `focusDriver` | `focusDriver` |
+| PositionByLap | TelemetryStrip | `focusDriver` `selectedLapRange` | `focusDriver` `selectedDrivers` |
+| StrategyTimeline | PCABiplot | `selectedDrivers` | `pcaStrategyAnalysis` `selectedDrivers` |
+| StrategyTimeline | PCAAnalysisPanel | `selectedDrivers` | `focusDriver` `pcaStrategyAnalysis` `selectedDrivers` `selectedLapRange` |
+| StrategyTimeline | StrategyAnalysis | `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| StrategyTimeline | RaceSituationMap | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| StrategyTimeline | CircleOfDoom | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` |
+| StrategyTimeline | RacePaceGrid | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| StrategyTimeline | TelemetryStrip | `highlightedDriver` `selectedDrivers` `selectedLapRange` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| StrategyTimeline | TimelinePlayer | `selectedDrivers` | `highlightedDriver` `selectedLapRange` |
+| PCABiplot | PCAAnalysisPanel | `pcaStrategyAnalysis` `selectedDrivers` `selectedPCAPoints` | `selectedDrivers` `selectedPCAPoints` |
+| PCABiplot | StrategyAnalysis | `pcaStrategyAnalysis` `selectedDrivers` | `selectedDrivers` |
+| PCABiplot | RaceSituationMap | `selectedDrivers` | `selectedDrivers` |
+| PCABiplot | RacePaceGrid | `selectedDrivers` | `selectedDrivers` |
+| PCABiplot | TelemetryStrip | `selectedDrivers` | `selectedDrivers` |
+| PCAAnalysisPanel | StrategyAnalysis | `focusDriver` `pcaStrategyAnalysis` `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| PCAAnalysisPanel | RaceSituationMap | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| PCAAnalysisPanel | CircleOfDoom | `focusDriver` `selectedDrivers` | `focusDriver` |
+| PCAAnalysisPanel | RacePaceGrid | `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| PCAAnalysisPanel | TelemetryStrip | `focusDriver` `selectedDrivers` `selectedLapRange` | `focusDriver` `selectedDrivers` |
+| StrategyAnalysis | RaceSituationMap | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| StrategyAnalysis | CircleOfDoom | `focusDriver` `selectedDrivers` | `focusDriver` |
+| StrategyAnalysis | RacePaceGrid | `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| StrategyAnalysis | TelemetryStrip | `focusDriver` `selectedDrivers` | `focusDriver` `selectedDrivers` |
+| RaceSituationMap | CircleOfDoom | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` |
+| RaceSituationMap | RacePaceGrid | `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| RaceSituationMap | TelemetryStrip | `focusDriver` `highlightedDriver` `selectedDrivers` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| RaceSituationMap | TimelinePlayer | `selectedDrivers` | `highlightedDriver` |
+| CircleOfDoom | RacePaceGrid | `highlightedDriver` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| CircleOfDoom | TelemetryStrip | `focusDriver` `highlightedDriver` | `focusDriver` `highlightedDriver` `selectedDrivers` |
+| RacePaceGrid | TelemetryStrip | `focusDriver` `highlightedDriver` `selectedDrivers` | `highlightedDriver` `selectedDrivers` |
+| RacePaceGrid | TimelinePlayer | `selectedDrivers` | `highlightedDriver` |
+| TelemetryStrip | TimelinePlayer | `selectedDrivers` | `highlightedDriver` `selectedLapRange` |
+
+<!-- coordination-matrix:end -->

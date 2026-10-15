@@ -1,40 +1,34 @@
-import React, { useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  getDriverColor, contrastText, TEXT_COLORS, UI_COLORS, CHART_FONT, SURFACES, GRID_COLORS, withAlpha,
+  UNKNOWN_TEAM_COLOR, chartFontPx, compositeOver,
+} from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { causalKey } from '../../utils/strategyViews';
-import { paceGridData, paceCell } from '../../utils/views/racePaceGrid';
-
-/* -- Cell style palette ---------------------------------------------------- */
-const CELL_STYLES = {
-  'session-best':  { background: 'rgba(168,85,247,0.30)', color: '#A855F7', fontWeight: 600 },
-  'personal-best': { background: 'rgba(34,197,94,0.22)',  color: '#22C55E' },
-  'good':          { background: 'rgba(34,197,94,0.08)',   color: '#88FFAA' },
-  'slower':        { background: 'rgba(251,191,36,0.12)',  color: '#FBBF24' },
-  'very-slow':     { background: 'rgba(255,60,60,0.20)',   color: '#FF4444' },
-  'pit-in':        { background: 'rgba(255,136,0,0.35)',   color: '#FFA500', fontWeight: 700 },
-  'pit-out':       { background: 'rgba(68,170,255,0.18)',  color: '#44AAFF' },
-  'default':       { color: '#aab' },
-  'empty':         { color: 'rgba(255,255,255,0.15)' },
-  'future':        { background: 'rgba(255,255,255,0.008)', color: 'transparent' },
-  'dnf':           { background: 'rgba(255,60,60,0.12)', color: '#FF4444', fontWeight: 700 },
-  'live-chrono':   { background: 'rgba(251,191,36,0.14)', color: '#fbbf24', fontWeight: 700 },
-};
+import {
+  paceGridData, paceCell, PACE_CELL_STYLES as CELL_STYLES, PACE_CELL_GLYPHS, paceLegend,
+  paceColumns, paceLabel, paceLapWindow,
+  PACE_LAP_COL_W as LAP_COL_W, PACE_HEADER_H as HEADER_H, PACE_ROW_MIN, PACE_ROW_MAX,
+} from '../../utils/views/racePaceGrid';
+import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
+import Legend from '../ui/Legend';
 
 /* -- Styles ---------------------------------------------------------------- */
-const CELL_W = 70;
-const LAP_COL_W = 42;
-const HEADER_H = 30;
-const ROW_H = 26;
-
+// The grid fits its panel and never scrolls: the cells take the panel width
+// (paceColumns: 78 px down to 36 px, then the drivers are paged) and the
+// rows its height (fitRows: 26 px down to 18 px, then the most recent laps
+// that fit are shown, older ones a page back with the lap pager).
 const containerStyle = {
   width: '100%',
   height: '100%',
-  overflow: 'auto',
+  overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column',
   background: 'rgba(10,10,20,0.95)',
   fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-  fontSize: 10,
-  color: '#aab',
+  fontSize: CHART_FONT.data,
+  color: TEXT_COLORS.secondary,
   userSelect: 'none',
   position: 'relative',
 };
@@ -46,24 +40,31 @@ const tableStyle = {
 };
 
 /* -- Memoized Cell component ----------------------------------------------- */
+// Header of a context driver (not selected): the team colour at 25 % over the
+// panel (repair_contrast.txt: secondary text >= 4.5:1 on every team tint)
+const dimmedHeaderBg = (teamColor) => compositeOver(withAlpha(teamColor, 0.25), SURFACES.panel);
+
 const PaceCell = React.memo(function PaceCell({
-  label, cellStyle, tooltip, dimmed, isHighlighted,
+  label, glyph, cellStyle, tooltip, dimmed, isHighlighted, cellW, rowH, compact,
   onClick, onDoubleClick, onMouseEnter, onMouseLeave,
 }) {
   const style = {
-    width: CELL_W, minWidth: CELL_W, maxWidth: CELL_W,
-    height: ROW_H,
-    padding: '0 3px',
+    width: cellW, minWidth: cellW, maxWidth: cellW,
+    height: rowH,
+    padding: '0 2px', // racePaceGrid.js CELL_PAD_PX
     textAlign: 'center',
-    lineHeight: `${ROW_H}px`,
+    lineHeight: `${rowH - 1}px`,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
     cursor: 'pointer',
     fontVariantNumeric: 'tabular-nums',
     borderRight: '1px solid rgba(255,255,255,0.04)',
     borderBottom: '1px solid rgba(255,255,255,0.04)',
-    transition: 'opacity 0.12s ease',
     ...cellStyle,
-    opacity: dimmed ? 0.35 : 1,
+    // Focus + context: the cell of a context driver (not selected) is never
+    // faded (at opacity 0.35 its text read 1.9-2.6:1): it drops its pace
+    // colour and tint for the muted text colour (>= 4.5:1), keeping its glyph
+    // (docs/COLOR_ENCODING.md, focus + context)
+    ...(dimmed && cellStyle?.color !== 'transparent' ? { color: TEXT_COLORS.muted, background: 'transparent' } : {}),
   };
 
   if (isHighlighted) {
@@ -79,6 +80,7 @@ const PaceCell = React.memo(function PaceCell({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
+      {glyph && label ? <span className="timing-glyph">{compact ? glyph : `${glyph} `}</span> : null}
       {label}
     </td>
   );
@@ -122,8 +124,17 @@ function RacePaceGrid() {
   }, [sessionData, validAbbrSet]);
   const raceResults = sessionData?.race_results || [];
 
-  const currentLapRef = useRef(null);
-  const scrollContainerRef = useRef(null);
+  // Grid area measured for the fit (a callback ref: it exists only once
+  // there are laps), the lap window paged back by the user (null = follow the
+  // replay) and the page of driver columns
+  const [gridEl, setGridEl] = useState(null);
+  const gridRef = useMemo(() => ({ current: gridEl }), [gridEl]);
+  const gridBox = useBoxSize(gridRef);
+  const [pinnedLast, setPinnedLast] = useState(null);
+  const [driverPage, setDriverPage] = useState(0);
+  // a new session starts from its most recent laps and its first drivers
+  const sessionKey = useF1Store((s) => `${s.sessionData?.session_info?.year}-${s.sessionData?.session_info?.round}-${s.isLiveMode}`);
+  useEffect(() => { setPinnedLast(null); setDriverPage(0); }, [sessionKey]);
 
   // -- Column order: grid slot while the race runs (the final classification
   // is not known yet), final position once it is over (sessionNow Infinity) --
@@ -196,19 +207,6 @@ function RacePaceGrid() {
   const handleMouseEnter = useCallback((abbr) => setHighlightedDriver(abbr), [setHighlightedDriver]);
   const handleMouseLeave = useCallback(() => setHighlightedDriver(null), [setHighlightedDriver]);
 
-  // -- Auto-scroll current lap into view --
-  useEffect(() => {
-    if (currentLapRef.current && scrollContainerRef.current) {
-      const container = scrollContainerRef.current;
-      const row = currentLapRef.current;
-      const containerRect = container.getBoundingClientRect();
-      const rowRect = row.getBoundingClientRect();
-      if (rowRect.top < containerRect.top + 36 || rowRect.bottom > containerRect.bottom - 10) {
-        row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    }
-  }, [currentLap]);
-
   // Replay frames loaded: running laps show a live chronometer
   const replayActive = totalFrames > 0;
 
@@ -216,16 +214,16 @@ function RacePaceGrid() {
   if (!lapTimes.length || !sortedDrivers.length) {
     if (isLiveMode) {
       return (
-        <div style={{ ...containerStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbc', fontSize: 12 }}>
+        <div style={{ ...containerStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEXT_COLORS.secondary, fontSize: 12 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: 24 }}>
             <span style={{
               width: 10, height: 10, borderRadius: '50%',
-              background: '#e10600',
-              boxShadow: '0 0 10px rgba(225,6,0,0.6)',
+              background: UI_COLORS.accent,
+              boxShadow: `0 0 10px ${withAlpha(UI_COLORS.accent, 0.6)}`,
               animation: 'livePulse 1.5s ease-in-out infinite',
             }} />
             <span style={{ fontWeight: 600 }}>Waiting for live laps…</span>
-            <span style={{ color: '#777', fontSize: 10, maxWidth: 280 }}>
+            <span style={{ color: TEXT_COLORS.muted, fontSize: CHART_FONT.data, maxWidth: 280 }}>
               Pace cells will appear as drivers complete each lap.
             </span>
           </div>
@@ -233,29 +231,46 @@ function RacePaceGrid() {
       );
     }
     return (
-      <div style={{ ...containerStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 13 }}>
+      <div style={{ ...containerStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', color: TEXT_COLORS.muted, fontSize: 13 }}>
         No lap time data available
       </div>
     );
   }
 
-  const lapNumbers = [];
   const gridMaxLap = isLiveMode ? currentLap : maxLap;
-  for (let i = 1; i <= gridMaxLap; i++) lapNumbers.push(i);
   const hasSelection = selectedDrivers.length > 0;
 
+  // -- Fit: columns to the width, rows to the height (no scroll) --
+  const cols = paceColumns(gridBox.width, sortedDrivers.length, chartFontPx('data'));
+  const cellW = cols.cellW;
+  const compact = cols.format !== 'full';
+  const driverPg = pageOf(sortedDrivers, driverPage, cols.perPage);
+  const shownDrivers = driverPg.rows;
+  const rowFit = fitRows(gridBox.height - HEADER_H, gridMaxLap, {
+    rowMin: PACE_ROW_MIN, rowMax: PACE_ROW_MAX, rowDefault: PACE_ROW_MAX,
+  });
+  const rowH = rowFit.rowH;
+  const win = paceLapWindow(gridMaxLap, currentLap, rowFit.perPage, pinnedLast);
+  const lapNumbers = [];
+  for (let i = win.first; i <= win.last; i++) lapNumbers.push(i);
+  const pagerBtn = (enabled) => ({
+    fontSize: CHART_FONT.label, color: enabled ? TEXT_COLORS.primary : TEXT_COLORS.muted, background: 'transparent',
+    border: `1px solid ${GRID_COLORS.rule}`, borderRadius: 3, padding: '0 6px',
+    cursor: enabled ? 'pointer' : 'default',
+  });
+
   return (
-    <div ref={scrollContainerRef} style={containerStyle}>
-      <table style={tableStyle}>
+    <div style={containerStyle}>
+      <div ref={setGridEl} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      <table style={{ ...tableStyle, width: LAP_COL_W + cellW * shownDrivers.length }}>
         <thead>
           <tr>
             {/* Corner cell */}
             <th style={{
-              position: 'sticky', top: 0, left: 0, zIndex: 3,
               width: LAP_COL_W, minWidth: LAP_COL_W, maxWidth: LAP_COL_W,
               height: HEADER_H,
-              background: '#151528', color: '#7a7f9a',
-              fontSize: 8, fontWeight: 700, textTransform: 'uppercase',
+              background: SURFACES.panel, color: TEXT_COLORS.muted,
+              fontSize: CHART_FONT.label, fontWeight: 700, textTransform: 'uppercase',
               letterSpacing: '0.06em', textAlign: 'center', verticalAlign: 'middle',
               borderRight: '1px solid rgba(255,255,255,0.08)',
               borderBottom: '1px solid rgba(255,255,255,0.08)',
@@ -263,8 +278,8 @@ function RacePaceGrid() {
               Lap
             </th>
             {/* Driver headers */}
-            {sortedDrivers.map((d) => {
-              const teamColor = driverTeamColors[d.abbr] || '#888';
+            {shownDrivers.map((d) => {
+              const teamColor = driverTeamColors[d.abbr] || UNKNOWN_TEAM_COLOR;
               const isSelected = selectedDrivers.includes(d.abbr);
               const isHighlighted = highlightedDriver === d.abbr;
               const dimmed = hasSelection && !isSelected;
@@ -272,19 +287,21 @@ function RacePaceGrid() {
                 <th
                   key={d.abbr}
                   style={{
-                    position: 'sticky', top: 0, zIndex: 2,
-                    width: CELL_W, minWidth: CELL_W, maxWidth: CELL_W,
+                    width: cellW, minWidth: cellW, maxWidth: cellW,
                     height: HEADER_H,
                     fontFamily: "'Formula1', 'Titillium Web', sans-serif",
-                    fontSize: 10, fontWeight: 700, textAlign: 'center',
+                    fontSize: CHART_FONT.data, fontWeight: 700, textAlign: 'center',
                     cursor: 'pointer',
                     borderRight: '1px solid rgba(255,255,255,0.08)',
                     borderBottom: '1px solid rgba(255,255,255,0.08)',
                     letterSpacing: '0.04em', textTransform: 'uppercase',
-                    background: teamColor,
-                    color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.6)',
-                    opacity: dimmed ? 0.35 : 1,
-                    transition: 'opacity 0.15s ease, box-shadow 0.15s ease',
+                    // team-colour header (teammate tint, V3): black or white text by
+                    // contrast; a context driver (not selected) gets a dark team tint
+                    // with the secondary text colour instead of a lower opacity, so
+                    // its code keeps >= 4.5:1 (COLOR_ENCODING.md, focus + context)
+                    background: dimmed ? dimmedHeaderBg(teamColor) : teamColor,
+                    color: dimmed ? TEXT_COLORS.secondary : contrastText(teamColor),
+                    transition: 'background 0.15s ease, box-shadow 0.15s ease',
                     boxShadow: isHighlighted ? 'inset 0 0 0 1px rgba(255,255,255,0.5)' : 'none',
                   }}
                   onClick={() => handleHeaderClick(d.abbr)}
@@ -296,7 +313,7 @@ function RacePaceGrid() {
                     {d.abbr}
                     {(pitCountByDriver[d.abbr] || 0) > 0 && (
                       <div style={{
-                        fontSize: 7, fontWeight: 400, opacity: 0.75,
+                        fontSize: CHART_FONT.label, fontWeight: 600,
                         letterSpacing: '0.03em', marginTop: 1,
                       }}>
                         {pitCountByDriver[d.abbr]}P
@@ -314,26 +331,24 @@ function RacePaceGrid() {
             return (
               <tr
                 key={lap}
-                ref={isCurrent ? currentLapRef : undefined}
                 style={isCurrent ? { borderTop: '1px solid rgba(255,255,255,0.25)' } : undefined}
               >
                 {/* Lap number */}
                 <td style={{
-                  position: 'sticky', left: 0, zIndex: 1,
                   width: LAP_COL_W, minWidth: LAP_COL_W, maxWidth: LAP_COL_W,
-                  height: ROW_H,
-                  background: '#151528',
-                  fontSize: 10, textAlign: 'center', verticalAlign: 'middle',
+                  height: rowH,
+                  background: SURFACES.panel,
+                  fontSize: CHART_FONT.data, textAlign: 'center', verticalAlign: 'middle',
                   borderRight: '1px solid rgba(255,255,255,0.08)',
                   borderBottom: '1px solid rgba(255,255,255,0.04)',
-                  color: isCurrent ? '#fff' : '#7a7f9a',
+                  color: isCurrent ? TEXT_COLORS.primary : TEXT_COLORS.muted,
                   fontWeight: isCurrent ? 700 : 400,
                   fontVariantNumeric: 'tabular-nums',
                 }}>
                   {lap}
                 </td>
                 {/* Driver cells */}
-                {sortedDrivers.map((d) => {
+                {shownDrivers.map((d) => {
                   const abbr = d.abbr;
                   const lapKey = `${abbr}_${lap}`;
                   const { label, style: styleKey, tooltip } = paceCell(
@@ -345,7 +360,11 @@ function RacePaceGrid() {
                   return (
                     <PaceCell
                       key={lapKey}
-                      label={label}
+                      label={paceLabel(label, cols.format)}
+                      cellW={cellW}
+                      rowH={rowH}
+                      compact={compact}
+                      glyph={PACE_CELL_GLYPHS[styleKey]}
                       cellStyle={CELL_STYLES[styleKey] || CELL_STYLES.default}
                       tooltip={tooltip}
                       isHighlighted={isHighlighted}
@@ -362,34 +381,51 @@ function RacePaceGrid() {
           })}
         </tbody>
       </table>
+      </div>
 
-      {/* Pace legend */}
+      {/* Pace legend: every cell colour with its glyph / sample text
+          (paceLegend), and the pagers of the laps and drivers that do not fit */}
       <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: '8px 14px',
-        padding: '6px 10px', fontSize: 9,
-        color: '#99a', fontFamily: "'JetBrains Mono', monospace",
+        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        padding: '2px 8px',
         borderTop: '1px solid rgba(255,255,255,0.06)',
         background: 'rgba(10,10,20,0.98)',
-        position: 'sticky', bottom: 0, left: 0, zIndex: 4,
       }}>
-        {[
-          { color: '#A855F7', label: 'Session Best' },
-          { color: '#22C55E', label: 'Personal Best' },
-          { color: '#88FFAA', label: 'Fast' },
-          { color: '#aab',    label: 'Normal' },
-          { color: '#FBBF24', label: 'Slow' },
-          { color: '#FF4444', label: 'Very Slow' },
-          { color: '#FFA500', label: 'Pit In' },
-          { color: '#44AAFF', label: 'Pit Out' },
-        ].map(({ color, label }) => (
-          <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <span style={{
-              width: 7, height: 7, borderRadius: '50%',
-              background: color, display: 'inline-block', flexShrink: 0,
-            }} />
-            {label}
-          </span>
-        ))}
+        <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+          <Legend items={paceLegend()} shape="glyph" title="Lap vs driver median" />
+        </div>
+        {(rowFit.paged || driverPg.pages > 1) && (
+          <div className="pace-grid__pager" style={{
+            display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+            fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary,
+          }}
+          >
+            {rowFit.paged && (
+              <>
+                <button type="button" aria-label="Older laps" disabled={!win.canOlder}
+                  onClick={() => setPinnedLast(Math.max(win.size, win.last - win.size))} style={pagerBtn(win.canOlder)}
+                >{'◀'}</button>
+                <span title={win.following ? 'The most recent laps, following the replay' : 'Older laps: the right arrow returns to the most recent'}>
+                  L{win.first}{'–'}{win.last} of {gridMaxLap}
+                </span>
+                <button type="button" aria-label="Newer laps" disabled={!win.canNewer}
+                  onClick={() => setPinnedLast(win.last + win.size)} style={pagerBtn(win.canNewer)}
+                >{'▶'}</button>
+              </>
+            )}
+            {driverPg.pages > 1 && (
+              <>
+                <button type="button" aria-label="Previous drivers" disabled={driverPg.page === 0}
+                  onClick={() => setDriverPage(driverPg.page - 1)} style={pagerBtn(driverPg.page > 0)}
+                >{'◀'}</button>
+                <span>drivers {driverPg.first}{'–'}{driverPg.last} of {sortedDrivers.length}</span>
+                <button type="button" aria-label="Next drivers" disabled={driverPg.page >= driverPg.pages - 1}
+                  onClick={() => setDriverPage(driverPg.page + 1)} style={pagerBtn(driverPg.page < driverPg.pages - 1)}
+                >{'▶'}</button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

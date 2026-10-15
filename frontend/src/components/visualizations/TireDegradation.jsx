@@ -1,7 +1,13 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store, sessionScopeOf, telemetryKeySuffix } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  getDriverColor, TYRE_LABELS, tyreColor, tyreLetter, markColor, textColor, deltaColor, signedDelta,
+  TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT, UNKNOWN_TEAM_COLOR,
+} from '../../utils/colors';
+
+// Dash of a stint's fit line (legend and line)
+const FIT_DASH = '6,3';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { causalKey, fittedLapRange } from '../../utils/strategyViews';
 import { FUEL_EFFECT_S_PER_LAP, MIN_FIT_LAPS } from '../../utils/degradation';
@@ -63,7 +69,7 @@ export default function TireDegradation() {
 
   // Pick driver: focusDriver → first selectedDriver → null
   const driver = focusDriver || selectedDrivers[0] || null;
-  const driverColor = driver ? getDriverColor(driver) : '#888';
+  const driverColor = driver ? getDriverColor(driver) : UNKNOWN_TEAM_COLOR;
 
   // Has the focused driver retired by sessionNow? Only once the final lap row
   // has ended (or, for a retirement in the pits, the car entered the pits):
@@ -109,26 +115,36 @@ export default function TireDegradation() {
   const driverBadge = driver ? (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6,
-      fontSize: 11, fontWeight: 800, fontFamily: "'Titillium Web', sans-serif",
+      fontSize: CHART_FONT.data, fontWeight: 800, fontFamily: "'Titillium Web', sans-serif",
       textTransform: 'uppercase', letterSpacing: '0.06em',
     }}>
       <span style={{
         width: 3, height: 14, borderRadius: 1.5,
-        background: driverColor, flexShrink: 0,
+        background: markColor(driverColor), flexShrink: 0,
       }} />
-      <span style={{ color: driverColor }}>{driver}</span>
+      <span style={{ color: textColor(driverColor) }}>{driver}</span>
     </div>
   ) : null;
 
-  // Legend items from active stints
+  // Legend (V4): the compounds of the stints shown (FIA colour + the letter
+  // the stint labels carry), the clean / excluded laps and the fit line
   const legendItems = useMemo(() => {
     const compounds = new Set();
     chartData.stints.forEach((s) => compounds.add(s.compound));
-    return [...compounds].map((c) => ({
+    const items = [...compounds].map((c) => ({
       label: c,
-      color: TYRE_COLORS[c] || '#888',
-      shape: 'circle',
+      color: tyreColor(c),
+      glyph: TYRE_LABELS[c] || tyreLetter(c),
+      shape: 'badge',
     }));
+    if (items.length) {
+      items.push(
+        { label: 'Clean lap', color: TEXT_COLORS.secondary, shape: 'circle' },
+        { label: 'Not fitted', color: TEXT_COLORS.muted, glyph: '○', shape: 'glyph' },
+        { label: 'Fit', color: TEXT_COLORS.secondary, shape: 'line', dash: FIT_DASH },
+      );
+    }
+    return items;
   }, [chartData]);
 
   // D3 rendering — scatter plot with regression lines
@@ -152,7 +168,7 @@ export default function TireDegradation() {
       svg.append('text')
         .attr('x', width / 2).attr('y', height / 2)
         .attr('text-anchor', 'middle')
-        .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', 12)
+        .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data)
         .attr('font-family', "'Titillium Web', sans-serif")
         .text('Focus a driver to view tyre degradation');
       return;
@@ -164,7 +180,7 @@ export default function TireDegradation() {
       svg.append('text')
         .attr('x', width / 2).attr('y', height / 2)
         .attr('text-anchor', 'middle')
-        .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', 12)
+        .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data)
         .attr('font-family', "'Titillium Web', sans-serif")
         .text('Not enough lap data for degradation analysis');
       return;
@@ -198,7 +214,7 @@ export default function TireDegradation() {
       .append('line')
       .attr('x1', (d) => x(d)).attr('x2', (d) => x(d))
       .attr('y1', 0).attr('y2', innerH)
-      .attr('stroke', 'rgba(255,255,255,0.04)')
+      .attr('stroke', GRID_COLORS.grid)
       .attr('stroke-width', 1);
 
     const yTicks = y.ticks(5);
@@ -208,7 +224,7 @@ export default function TireDegradation() {
       .append('line')
       .attr('x1', 0).attr('x2', innerW)
       .attr('y1', (d) => y(d)).attr('y2', (d) => y(d))
-      .attr('stroke', 'rgba(255,255,255,0.04)')
+      .attr('stroke', GRID_COLORS.grid)
       .attr('stroke-width', 1);
 
     // X-axis
@@ -217,17 +233,17 @@ export default function TireDegradation() {
       .call(d3.axisBottom(x).ticks(Math.min(12, maxTyreLife)).tickFormat(d3.format('d')).tickSize(3));
 
     xAxisG.selectAll('text')
-      .attr('fill', 'rgba(255,255,255,0.35)')
-      .attr('font-size', '9px')
+      .attr('fill', TEXT_COLORS.muted)
+      .style('font-size', CHART_FONT.data)
       .attr('font-family', 'var(--font-mono)');
-    xAxisG.selectAll('line').attr('stroke', 'rgba(255,255,255,0.15)');
-    xAxisG.select('.domain').attr('stroke', 'rgba(255,255,255,0.1)');
+    xAxisG.selectAll('line').attr('stroke', GRID_COLORS.axis);
+    xAxisG.select('.domain').attr('stroke', GRID_COLORS.axis);
 
     g.append('text')
       .attr('x', innerW / 2).attr('y', innerH + 24)
       .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.3)')
-      .attr('font-size', '8px')
+      .attr('fill', TEXT_COLORS.muted)
+      .style('font-size', CHART_FONT.label)
       .attr('font-weight', 700)
       .attr('font-family', "'Titillium Web', sans-serif")
       .text('Tyre life (laps)');
@@ -242,18 +258,18 @@ export default function TireDegradation() {
       .call(d3.axisLeft(y).ticks(5).tickFormat(formatLapTime).tickSize(3));
 
     yAxisG.selectAll('text')
-      .attr('fill', 'rgba(255,255,255,0.3)')
-      .attr('font-size', '8px')
+      .attr('fill', TEXT_COLORS.muted)
+      .style('font-size', CHART_FONT.data)
       .attr('font-family', 'var(--font-mono)');
-    yAxisG.selectAll('line').attr('stroke', 'rgba(255,255,255,0.1)');
-    yAxisG.select('.domain').attr('stroke', 'rgba(255,255,255,0.08)');
+    yAxisG.selectAll('line').attr('stroke', GRID_COLORS.axis);
+    yAxisG.select('.domain').attr('stroke', GRID_COLORS.axis);
 
     g.append('text')
       .attr('transform', 'rotate(-90)')
       .attr('x', -innerH / 2).attr('y', -42)
       .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.3)')
-      .attr('font-size', '8px')
+      .attr('fill', TEXT_COLORS.muted)
+      .style('font-size', CHART_FONT.label)
       .attr('font-weight', 700)
       .attr('font-family', "'Titillium Web', sans-serif")
       .text('Lap time');
@@ -261,7 +277,9 @@ export default function TireDegradation() {
     // Draw each stint: scatter points + regression line + slope annotation
     chartData.stints.forEach((stint) => {
       if (stint.cleanLaps.length < 2) return;
-      const compoundColor = TYRE_COLORS[stint.compound] || '#888';
+      // FIA compound colour (marks >= 3:1 on the panel); its text >= 4.5:1
+      const compoundColor = markColor(tyreColor(stint.compound), SURFACES.panel);
+      const compoundText = textColor(tyreColor(stint.compound), SURFACES.panel);
 
       // Scatter points (clean laps)
       g.selectAll(`.dot-stint-${stint.stintIndex}`)
@@ -272,10 +290,9 @@ export default function TireDegradation() {
         .attr('cy', (d) => y(d.lapTime))
         .attr('r', 3)
         .attr('fill', compoundColor)
-        .attr('opacity', 0.55)
-        .attr('stroke', compoundColor)
-        .attr('stroke-width', 0.5)
-        .attr('stroke-opacity', 0.3);
+        .attr('opacity', 0.9)
+        .attr('stroke', SURFACES.page)
+        .attr('stroke-width', 0.5);
 
       // Laps left out of the fit (lap 1, pit in/out, non-green, slow
       // outliers) — small hollow circles
@@ -286,10 +303,10 @@ export default function TireDegradation() {
         .append('circle')
         .attr('cx', (d) => x(d.tyreLife))
         .attr('cy', (d) => y(d.lapTime))
-        .attr('r', 2)
+        .attr('r', 2.5)
         .attr('fill', 'none')
-        .attr('stroke', 'rgba(255,255,255,0.15)')
-        .attr('stroke-width', 0.8);
+        .attr('stroke', TEXT_COLORS.muted)
+        .attr('stroke-width', 1);
 
       // Fit line, drawn in raw lap time (fitLapTime: the fitted
       // fuel-corrected time with the fuel correction taken back out)
@@ -303,8 +320,7 @@ export default function TireDegradation() {
           .attr('y2', y(y2))
           .attr('stroke', compoundColor)
           .attr('stroke-width', 1.8)
-          .attr('opacity', 0.9)
-          .attr('stroke-dasharray', '6,3');
+          .attr('stroke-dasharray', FIT_DASH);
 
         // Slope annotation near end of fit line: the degradation of the
         // shared definition (fuel-corrected slope, fuel effect an assumed
@@ -318,21 +334,19 @@ export default function TireDegradation() {
         g.append('text')
           .attr('x', x(annotX) + 4)
           .attr('y', y(annotY) - 5)
-          .attr('fill', compoundColor)
-          .attr('font-size', '9px')
+          .attr('fill', compoundText)
+          .style('font-size', CHART_FONT.data)
           .attr('font-weight', 700)
           .attr('font-family', 'var(--font-mono)')
-          .attr('opacity', 0.9)
           .text(corrLabel);
 
         g.append('text')
           .attr('x', x(annotX) + 4)
-          .attr('y', y(annotY) + 6)
-          .attr('fill', compoundColor)
-          .attr('font-size', '8px')
+          .attr('y', y(annotY) + 8)
+          .attr('fill', TEXT_COLORS.muted)
+          .style('font-size', CHART_FONT.data)
           .attr('font-weight', 600)
           .attr('font-family', 'var(--font-mono)')
-          .attr('opacity', 0.62)
           .text(rawLabel);
       }
 
@@ -341,14 +355,14 @@ export default function TireDegradation() {
       g.append('text')
         .attr('x', x(first.tyreLife) - 2)
         .attr('y', y(first.lapTime) - 8)
-        .attr('fill', compoundColor)
-        .attr('font-size', '8px')
+        .attr('fill', compoundText)
+        .style('font-size', CHART_FONT.data)
         .attr('font-weight', 700)
         .attr('font-family', 'var(--font-mono)')
-        .attr('opacity', 0.65)
+        // the compound letter with the stint: the cue of the FIA colour
         .text(stint.fit
-          ? `S${stint.stintNumber}`
-          : `S${stint.stintNumber} no fit (${stint.cleanCount} < ${MIN_FIT_LAPS} clean laps)`);
+          ? `S${stint.stintNumber} ${tyreLetter(stint.compound)}`
+          : `S${stint.stintNumber} ${tyreLetter(stint.compound)} no fit (${stint.cleanCount} < ${MIN_FIT_LAPS} clean laps)`);
     });
 
     // Tooltip on hover
@@ -380,21 +394,21 @@ export default function TireDegradation() {
 
         if (!closest || minDist > 0.15) return;
 
-        const compColor = TYRE_COLORS[closestStint.compound] || '#888';
+        const compColor = tyreColor(closestStint.compound);
 
         // Crosshair
         g.append('line')
           .attr('class', 'hover-line-v')
           .attr('x1', x(closest.tyreLife)).attr('x2', x(closest.tyreLife))
           .attr('y1', 0).attr('y2', innerH)
-          .attr('stroke', 'rgba(255,255,255,0.12)')
+          .attr('stroke', GRID_COLORS.rule)
           .attr('stroke-width', 1)
           .attr('stroke-dasharray', '3,3');
         g.append('line')
           .attr('class', 'hover-line-h')
           .attr('x1', 0).attr('x2', innerW)
           .attr('y1', y(closest.lapTime)).attr('y2', y(closest.lapTime))
-          .attr('stroke', 'rgba(255,255,255,0.08)')
+          .attr('stroke', GRID_COLORS.axis)
           .attr('stroke-width', 1)
           .attr('stroke-dasharray', '3,3');
 
@@ -404,7 +418,7 @@ export default function TireDegradation() {
           .attr('cy', y(closest.lapTime))
           .attr('r', 4.5)
           .attr('fill', compColor)
-          .attr('stroke', '#fff')
+          .attr('stroke', TEXT_COLORS.primary)
           .attr('stroke-width', 1.5);
 
         // Tooltip content
@@ -413,11 +427,11 @@ export default function TireDegradation() {
           ? `${formatSlope(fit.slope)} s/lap fuel-corr. (raw ${formatSlope(fit.rawSlope)}) · ${fit.n} laps`
           : `no fit (${closestStint.cleanCount} < ${MIN_FIT_LAPS} clean laps)`;
         const tooltipHtml = `
-          <div style="color:${driverColor};font-weight:700;font-size:11px">${driver}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,0.5)">Lap ${closest.lapNumber} · tyre lap ${closest.tyreLife}</div>
+          <div style="color:${textColor(driverColor, SURFACES.elevated)};font-weight:700;font-size:${CHART_FONT.data}">${driver}</div>
+          <div style="font-size:${CHART_FONT.data};color:${TEXT_COLORS.muted}">Lap ${closest.lapNumber} · tyre lap ${closest.tyreLife}</div>
           <div style="font-size:12px;font-weight:700">${Math.floor(closest.lapTime / 60)}:${(closest.lapTime % 60).toFixed(3).padStart(6, '0')}</div>
-          <div style="font-size:9px;color:${compColor}">${closestStint.compound} — S${closestStint.stintNumber}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,0.5)">Deg: ${slopeText}</div>
+          <div style="font-size:${CHART_FONT.data};color:${textColor(compColor, SURFACES.elevated)}">${closestStint.compound} — S${closestStint.stintNumber}</div>
+          <div style="font-size:${CHART_FONT.data};color:${TEXT_COLORS.muted}">Deg: ${slopeText}</div>
         `;
         let tooltip = d3.select('.deg-tooltip');
         if (!tooltip.size()) {
@@ -471,19 +485,20 @@ export default function TireDegradation() {
                     ? 'Fitted on the laps of the brushed range completed so far; the fit extends as the replay advances'
                     : 'Fitted on the whole brushed range'}
                 >
-                  <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>fitted</span>
+                  <span style={{ color: TEXT_COLORS.muted, marginRight: 4 }}>fitted</span>
                   <strong>L{fit.start} – L{fit.end}</strong>
                   {fit.partial && (
-                    <span style={{ color: 'rgba(255,255,255,0.5)', marginLeft: 4 }}>(so far)</span>
+                    <span style={{ color: TEXT_COLORS.muted, marginLeft: 4 }}>(so far)</span>
                   )}
                 </span>
               </>
             )}
             <span className="deg-brush-banner__sep">·</span>
             <span className="deg-brush-banner__slope">
-              <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>raw</span>
-              <strong style={{ color: slopeMs >= 0 ? '#ef4444' : '#22c55e' }}>
-                {slopeMs >= 0 ? '+' : ''}{slopeMs} ms/lap
+              <span style={{ color: TEXT_COLORS.muted, marginRight: 4 }}>raw</span>
+              {/* + losing time per lap (orange), − gaining (blue): sign always shown */}
+              <strong style={{ color: deltaColor(slopeMs) }}>
+                {signedDelta(slopeMs, 0)} ms/lap
               </strong>
             </span>
             {slopeFc != null && (
@@ -491,9 +506,9 @@ export default function TireDegradation() {
                 className="deg-brush-banner__slope"
                 title={`raw slope + ${(reg.fuel_correction_per_lap ?? FUEL_EFFECT_S_PER_LAP).toFixed(3)} s/lap: an assumed fuel effect, not measured`}
               >
-                <span style={{ color: 'rgba(255,255,255,0.5)', marginRight: 4 }}>fuel-corr.*</span>
-                <strong style={{ color: slopeFc >= 0 ? '#ef4444' : '#22c55e' }}>
-                  {slopeFc >= 0 ? '+' : ''}{slopeFc} ms/lap
+                <span style={{ color: TEXT_COLORS.muted, marginRight: 4 }}>fuel-corr.*</span>
+                <strong style={{ color: deltaColor(slopeFc) }}>
+                  {signedDelta(slopeFc, 0)} ms/lap
                 </strong>
               </span>
             )}
@@ -511,7 +526,7 @@ export default function TireDegradation() {
     <Panel
       title="Tyre Degradation"
       className="panel-degradation"
-      controls={<>{driverBadge}<Legend items={legendItems} shape="circle" /></>}
+      controls={<>{driverBadge}<Legend items={legendItems} /></>}
       focused={focusedView === 'tires'}
       shortcutKey="4"
     >
@@ -523,8 +538,8 @@ export default function TireDegradation() {
         <div
           className="deg-fit-note"
           style={{
-            padding: '2px 12px', fontSize: 9, lineHeight: 1.3, flexShrink: 0,
-            color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--font-mono)',
+            padding: '2px 12px', fontSize: CHART_FONT.label, lineHeight: 1.3, flexShrink: 0,
+            color: TEXT_COLORS.muted, fontFamily: 'var(--font-mono)',
           }}
         >
           *{FUEL_NOTE} · {FIT_NOTE}

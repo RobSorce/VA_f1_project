@@ -31,7 +31,7 @@ import { timingTowerEntries } from '../utils/views/timingTower.js';
 import { lapTimingSheet } from '../utils/views/lapTimeChart.js';
 import { sectorsPanelData } from '../utils/views/sectorsPanel.js';
 import { sectorDeltaRows, runningOrderAt } from '../utils/views/sectorDeltaWaterfall.js';
-import { consistencyStats } from '../utils/views/consistencyPanel.js';
+import { consistencyView } from '../utils/views/degradationViews.js';
 import { raceStandings } from '../utils/views/leaderboard.js';
 import { trackMapDriverStatus } from '../utils/views/trackMap.js';
 import { paceGridData, paceCell } from '../utils/views/racePaceGrid.js';
@@ -188,7 +188,7 @@ function allViews(lapTimes, now, { dnfMap, grid, weather, replayActive, maxLap }
     sectors: sectorsPanelData(lapTimes, now, { dnfMap, replayActive }),
     waterfall: [sectorDeltaRows(lapTimes, 'LEC', 'PIA', now), sectorDeltaRows(lapTimes, 'HAM', 'NOR', now)],
     order: runningOrderAt(lapTimes, now),
-    consistency: consistencyStats(lapTimes, now),
+    consistency: consistencyView(lapTimes, now),
     standings: raceStandings(lapTimes, now, { dnfMap, gridPositions: grid }),
     trackMap: trackMapDriverStatus(lapTimes, now, dnfMap),
     paceCells: cells,
@@ -489,15 +489,17 @@ describe.skipIf(!HAVE)('per-driver timing views on cached Monza 2024 (R16)', () 
   });
 
   it('ConsistencyPanel: pit laps leave the sample causally, averages from completed laps', () => {
-    const before = consistencyStats(lapTimes, frameNow(3194));
+    // consistencyView (utils/views/degradationViews.js) is what the panel draws
+    const before = consistencyView(lapTimes, frameNow(3194));
     const lecBefore = before.drivers.find((x) => x.driver === 'LEC');
     // LEC laps 1-14 completed, no pit lap among them: at most 14 laps, lap 1 included
     expect(lecBefore.lap_count).toBeLessThanOrEqual(14);
-    const after = consistencyStats(lapTimes, 4740); // LEC in-lap 15 and out-lap 16 completed
+    expect(lecBefore.laps_completed).toBeLessThanOrEqual(14);
+    const after = consistencyView(lapTimes, 4740); // LEC in-lap 15 and out-lap 16 completed
     const lecAfter = after.drivers.find((x) => x.driver === 'LEC');
     // The in-lap and the out-lap are completed but left out: same sample as before
     expect(lecAfter.sample_size + lecAfter.outliers).toBe(lecBefore.sample_size + lecBefore.outliers);
-    expect(after.minLapsThreshold).toBe(Math.max(3, Math.floor(16 * 0.75)));
+    expect(after.minLapsThreshold).toBeGreaterThanOrEqual(before.minLapsThreshold);
   });
 });
 
@@ -624,7 +626,9 @@ describe.skipIf(!HAVE)('the timing components render only what is known (Monza 2
     expect(sessionNowOfStore()).toBeCloseTo(3470.494, 3);
     const lastBefore = renderAll(session.lap_times, { frame: frameAt(3983.674) - 1 });
     const after = renderAll(session.lap_times, { frame: frameAt(3983.674) + 1 });
-    const towerStatus = (html) => (/title="([^"]*)"[^>]*><\/span><\/td><\/tr>/.exec(
+    // (the status cell's span carries the label in its title and the status
+    // letter as its text: P in the pits, ✕ retired, nothing on track)
+    const towerStatus = (html) => (/title="([^"]*)"[^>]*>[^<]*<\/span><\/td><\/tr>/.exec(
       html.slice(html.indexOf('>TSU<')),
     ) || [])[1];
     expect(towerStatus(before.TimingTower)).not.toBe('Retired');

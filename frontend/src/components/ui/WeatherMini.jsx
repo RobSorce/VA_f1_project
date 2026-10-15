@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useF1Store, weatherAtSessionTime } from '../../store/useF1Store';
 import { useSessionNow } from '../../hooks/useSessionNow';
+import { CHART_FONT, FLAG_COLORS, SURFACES, TEXT_COLORS, tintedChip } from '../../utils/colors';
 
 function ThermometerIcon() {
   return (
@@ -35,8 +36,11 @@ function WindIcon() {
   );
 }
 
+// Compact (Pit Wall side column, V13): the DRY / WET chip sits on the title
+// line, the four readings on two lines
 const panelStyle = {
-  padding: '10px 12px',
+  flex: 'none',
+  padding: '8px 12px',
   background: 'rgba(12,12,28,0.75)',
   backdropFilter: 'blur(20px)',
   WebkitBackdropFilter: 'blur(20px)',
@@ -45,9 +49,9 @@ const panelStyle = {
 
 const titleStyle = {
   fontFamily: "'Formula1', 'Titillium Web', sans-serif",
-  fontSize: 10, fontWeight: 700, color: '#7a7f9a',
+  fontSize: CHART_FONT.label, fontWeight: 700, color: TEXT_COLORS.muted,
   textTransform: 'uppercase', letterSpacing: '0.08em',
-  marginBottom: 8,
+  marginBottom: 6,
 };
 
 export default function WeatherMini() {
@@ -69,49 +73,53 @@ export default function WeatherMini() {
     return (
       <div style={panelStyle}>
         <div style={titleStyle}>Weather</div>
-        <div style={{ color: '#555', fontSize: 11 }}>No weather data</div>
+        <div style={{ color: TEXT_COLORS.muted, fontSize: CHART_FONT.data }}>No weather data</div>
       </div>
     );
   }
   const isWet = latest.Rainfall === true || latest.Rainfall === 1 || latest.Rainfall === 'True';
+  // Track condition chip: the word is the cue, the tint follows it
+  const chip = tintedChip(isWet ? FLAG_COLORS.blue : FLAG_COLORS.green, 0.15, SURFACES.panel);
+  const valueStyle = { fontSize: CHART_FONT.data, fontFamily: "'JetBrains Mono', monospace" };
+  const cellStyle = { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, color: TEXT_COLORS.secondary };
 
   return (
     <div style={panelStyle}>
-      <div style={titleStyle}>Weather</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#bbc' }}>
+      <div style={{ ...titleStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>Weather</span>
+        <span style={{
+          display: 'inline-block', padding: '1px 8px', borderRadius: 3,
+          fontSize: CHART_FONT.label, fontWeight: 800, letterSpacing: '0.08em',
+          background: chip.background, color: chip.color,
+          border: `1px solid ${chip.borderColor}`,
+        }}>
+          {isWet ? 'WET' : 'DRY'}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+        <div style={cellStyle}>
           <ThermometerIcon />
-          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
-            {latest.AirTemp != null ? `${Number(latest.AirTemp).toFixed(1)}\u00B0C` : '\u2014'}
+          <span style={valueStyle}>
+            {latest.AirTemp != null ? `${Number(latest.AirTemp).toFixed(1)}°C` : '—'}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#bbc' }}>
+        <div style={cellStyle}>
           <RoadIcon />
-          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
-            {latest.TrackTemp != null ? `${Number(latest.TrackTemp).toFixed(1)}\u00B0C` : '\u2014'}
+          <span style={valueStyle}>
+            {latest.TrackTemp != null ? `${Number(latest.TrackTemp).toFixed(1)}°C` : '—'}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#bbc' }}>
+        <div style={cellStyle}>
           <DropletIcon />
-          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
-            {latest.Humidity != null ? `${Number(latest.Humidity).toFixed(0)}%` : '\u2014'}
+          <span style={valueStyle}>
+            {latest.Humidity != null ? `${Number(latest.Humidity).toFixed(0)}%` : '—'}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#bbc' }}>
+        <div style={cellStyle}>
           <WindIcon />
-          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
+          <span style={valueStyle}>
             {/* FastF1 WindSpeed is in m/s (WeatherBar shows the same unit) */}
-            {latest.WindSpeed != null ? `${Number(latest.WindSpeed).toFixed(1)} m/s` : '\u2014'}
-          </span>
-        </div>
-        <div style={{ gridColumn: 'span 2', marginTop: 2 }}>
-          <span style={{
-            display: 'inline-block', padding: '2px 10px', borderRadius: 3,
-            fontSize: 9, fontWeight: 800, letterSpacing: '0.08em',
-            background: isWet ? 'rgba(33,150,243,0.15)' : 'rgba(34,197,94,0.12)',
-            color: isWet ? '#2196F3' : '#22C55E',
-          }}>
-            {isWet ? 'WET' : 'DRY'}
+            {latest.WindSpeed != null ? `${Number(latest.WindSpeed).toFixed(1)} m/s` : '—'}
           </span>
         </div>
       </div>

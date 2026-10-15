@@ -306,7 +306,9 @@ export function driverStateAt(lapTimes, driver, sessionNow = Infinity, { stints,
  * start of Q1 nobody has a time yet. A segment ranks only its own laps
  * (opts.after: laps that started after the previous segment's end), as the
  * official Q2 / Q3 order does: at the start of Q3 nobody has a Q3 time yet,
- * whatever they did in Q2.
+ * whatever they did in Q2. A lap deleted by the stewards (Deleted true, e.g.
+ * track limits) never ranks, as in the official order; the payload carries
+ * no time of the deletion, so the lap is left out from its completion on.
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full session)
  * @param {number} sessionNow - session seconds, Infinity = whole session
@@ -331,6 +333,7 @@ export function qualifyingOrder(lapTimes, sessionNow = Infinity, { drivers = nul
     if (!best.has(drv)) best.set(drv, null);
     const t = toNum(lt.LapTimeSeconds);
     if (t == null || t <= 0 || t >= 300 || !isLapCompleted(lt, now)) continue;
+    if (lt.Deleted === true) continue;
     if (from > -Infinity && !(lapStartTime(lt) > from)) continue;
     const cur = best.get(drv);
     if (!cur || t < toNum(cur.LapTimeSeconds)) best.set(drv, lt);

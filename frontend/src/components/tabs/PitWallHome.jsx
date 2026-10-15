@@ -6,6 +6,7 @@ import SessionInfoBar from '../ui/SessionInfoBar';
 import WeatherMini from '../ui/WeatherMini';
 import RaceControlFeed from '../ui/RaceControlFeed';
 import GeminiQuickQuery from '../ui/GeminiQuickQuery';
+import { TEXT_COLORS, CHART_FONT } from '../../utils/colors';
 
 export default function PitWallHome() {
   const sessionData = useF1Store((s) => s.sessionData);
@@ -13,7 +14,7 @@ export default function PitWallHome() {
   if (!sessionData) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-        <span style={{ color: '#666', fontFamily: 'var(--font-mono)' }}>No session data loaded</span>
+        <span style={{ color: TEXT_COLORS.muted, fontSize: CHART_FONT.data, fontFamily: 'var(--font-mono)' }}>No session data loaded</span>
       </div>
     );
   }
@@ -49,6 +50,7 @@ export default function PitWallHome() {
           </div>
         </div>
         <div style={{
+          position: 'relative',
           overflowY: 'hidden',
           display: 'flex',
           flexDirection: 'column',

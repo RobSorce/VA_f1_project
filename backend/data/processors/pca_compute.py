@@ -18,7 +18,8 @@ selection on the biplot.
   screen at the clock and whole-race rows of the finished races; with rows of
   both kinds each feature has its own family-wise threshold), the stints and
   the pit windows of the selected rows.
-- compute_tsne / load_embeddings: t-SNE of the same matrix (/api/tsne/embeddings).
+- No t-SNE: the PCA is the one projection (docs/PCA_METHODOLOGY.md, section 2);
+  the /api/tsne/... routes of api/main.py are aliases of the PCA routes.
 
 Feature definitions (race_feature_rows). Laps, stints and stops come from the
 shared definitions: data/processors/stints.py (R1 stint, R2 pit stop = tyre
@@ -76,7 +77,6 @@ CACHE_DIR = Path(__file__).parent.parent / 'processed_cache'
 
 MATRIX_FILE = 'pca_feature_matrix.csv'
 PCA_FILE = 'pca_embeddings.json'
-TSNE_FILE = 'tsne_embeddings.json'
 
 # A (driver, race) enters the matrix when the driver completed at least this
 # share of the race leader's laps (at session_now). ASSUMPTION: 0.9, the share
@@ -386,21 +386,6 @@ def _load_matrix():
     return pd.read_csv(csv_path)
 
 
-def _ensure_data():
-    """Ensure the feature matrix and the t-SNE embeddings exist."""
-    embed_path = PROCESSED_DIR / TSNE_FILE
-    if _load_matrix() is None:
-        return False
-    if not embed_path.exists():
-        logger.info("Embeddings missing - computing t-SNE...")
-        try:
-            compute_tsne()
-        except Exception as e:
-            logger.error(f"Failed to compute t-SNE: {e}")
-            return False
-    return embed_path.exists()
-
-
 # ---------------------------------------------------------------------------
 # Projections
 # ---------------------------------------------------------------------------
@@ -659,49 +644,6 @@ def pca_embeddings_at(year, round_num, session_now=None) -> dict:
         'reason': reason,
     }
     return out
-
-
-def compute_tsne(feature_matrix: pd.DataFrame = None, perplexity: int = 15) -> dict:
-    """StandardScaler + t-SNE of the feature matrix; saved to
-    processed/tsne_embeddings.json. Returns {points, feature_cols, n_points}."""
-    from sklearn.manifold import TSNE
-    from sklearn.preprocessing import StandardScaler
-    import inspect
-
-    df = feature_matrix if feature_matrix is not None else _load_matrix()
-    if df is None or df.empty:
-        raise FileNotFoundError(f"Feature matrix not found at {PROCESSED_DIR / MATRIX_FILE}.")
-    df = df.reset_index(drop=True)
-    cols = [c for c in FEATURE_COLS if c in df.columns]
-    X, _ = _design(df, cols)
-    X_scaled = StandardScaler().fit_transform(X)
-    actual_perplexity = min(perplexity, len(X_scaled) - 1)
-    # sklearn >=1.5 renamed n_iter -> max_iter
-    tsne_params = inspect.signature(TSNE.__init__).parameters
-    iter_key = 'max_iter' if 'max_iter' in tsne_params else 'n_iter'
-    tsne = TSNE(n_components=2, perplexity=max(5, actual_perplexity), random_state=42,
-                init='pca', learning_rate='auto', **{iter_key: 1000})
-    embeddings = tsne.fit_transform(X_scaled)
-    points = [{k: p[k] for k in ('id', 'x', 'y', 'driver', 'team', 'year', 'round', 'race_name')}
-              for p in _points(df, embeddings, 'post-race')]
-    result = {'points': points, 'feature_cols': cols, 'n_points': len(points)}
-    output_path = PROCESSED_DIR / TSNE_FILE
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(result, f, indent=2)
-    logger.info(f"Saved t-SNE embeddings to {output_path} ({len(points)} points)")
-    return result
-
-
-def load_embeddings() -> dict:
-    """Pre-computed t-SNE embeddings, auto-building from the cache if needed."""
-    path = PROCESSED_DIR / TSNE_FILE
-    if not path.exists() and not _ensure_data():
-        return None
-    if not path.exists():
-        return None
-    with open(path, encoding='utf-8') as f:
-        return json.load(f)
 
 
 # ---------------------------------------------------------------------------
@@ -1540,8 +1482,7 @@ if __name__ == '__main__':
     matrix = build_feature_matrix_from_cache()
     if not matrix.empty:
         pca_result = compute_pca(matrix)
-        tsne_result = compute_tsne(matrix)
         print(f"Built {len(matrix)} rows; PCA {pca_result['n_points']} points, "
-              f"eta2(race) PC1 {pca_result['eta2_race'][0]:.3f}; t-SNE {tsne_result['n_points']} points")
+              f"eta2(race) PC1 {pca_result['eta2_race'][0]:.3f}")
     else:
         print("No cached data available.")

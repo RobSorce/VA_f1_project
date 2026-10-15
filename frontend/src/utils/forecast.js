@@ -32,7 +32,7 @@ export const FORECAST_LAPS = 5;
  * The held-out evaluation the help text quotes (utils/chartHelp.js
  * prediction): every number is copied from
  * notes/experiments/phase6/evaluate_forecast.txt (backend
- * scripts/evaluate_forecast.py; __tests__/forecast.help.test.js checks each
+ * scripts/evaluate_forecast.py; __tests__/forecast.views.test.jsx checks each
  * one against that file). MAE in seconds over laps +1..+5, pooled; the method
  * is chosen on the validation races, the test races give the held-out
  * numbers. A response carries its own held_out numbers (the served file).

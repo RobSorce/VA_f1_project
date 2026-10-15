@@ -1,16 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { useF1Store, formatReplayClock } from '../../store/useF1Store';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { raceClockLimit } from '../../utils/raceTime';
+import {
+  TRACK_STATUS_STYLES, FLAG_COLORS, TEXT_COLORS, CHART_FONT, chartFontPx,
+} from '../../utils/colors';
+import { useBoxSize, fitRows } from '../../utils/views/chartBox';
 
-const STATUS_MAP = {
-  '1': { label: 'Green Flag', color: '#22c55e' },
-  '2': { label: 'Yellow Flag', color: '#eab308' },
-  '4': { label: 'Safety Car', color: '#f59e0b' },
-  '5': { label: 'Red Flag', color: '#ef4444' },
-  '6': { label: 'Virtual Safety Car', color: '#f97316' },
-  '7': { label: 'Virtual Safety Car', color: '#f97316' },
-};
+// FIA flag colours of utils/colors.js; the message text names the flag (the
+// colour of the dot is never the only cue)
+const STATUS_MAP = TRACK_STATUS_STYLES;
+const FLAG_MESSAGE_COLORS = { YELLOW: FLAG_COLORS.yellow, RED: FLAG_COLORS.red, BLUE: FLAG_COLORS.blue };
 
 /** Live feed times (epoch seconds or milliseconds, or an ISO string) as ms. */
 function liveMs(t) {
@@ -25,8 +25,16 @@ function formatWallClock(ms) {
   return Number.isNaN(d.getTime()) ? '--:--' : d.toLocaleTimeString();
 }
 
+// The feed takes the room the Weather and Ask boxes leave in the Pit Wall
+// side column (flex 1, min-height 0): it shows the newest messages that fit,
+// one line each (the full text in the tooltip), and counts the older ones
 const panelStyle = {
-  padding: '10px 12px',
+  flex: '1 1 0',
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
+  padding: '8px 12px',
   background: 'rgba(12,12,28,0.75)',
   backdropFilter: 'blur(20px)',
   WebkitBackdropFilter: 'blur(20px)',
@@ -35,12 +43,20 @@ const panelStyle = {
 
 const titleStyle = {
   fontFamily: "'Formula1', 'Titillium Web', sans-serif",
-  fontSize: 10, fontWeight: 700, color: '#7a7f9a',
+  fontSize: CHART_FONT.label, fontWeight: 700, color: TEXT_COLORS.muted,
   textTransform: 'uppercase', letterSpacing: '0.08em',
-  marginBottom: 8,
+  marginBottom: 6,
+  flex: 'none',
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 6,
 };
 
+const ROW_GAP = 2;
+
 export default function RaceControlFeed() {
+  const listRef = useRef(null);
+  const listBox = useBoxSize(listRef);
   const trackStatus = useF1Store((s) => s.trackStatus);
   const raceControlMessages = useF1Store((s) => s.raceControlMessages);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
@@ -95,10 +111,7 @@ export default function RaceControlFeed() {
       ? raceControlMessages.map((msg) => ({
           time: formatWallClock(liveMs(msg.timestamp)),
           message: msg.Message || msg.message || JSON.stringify(msg),
-          color: msg.Flag === 'YELLOW' ? '#eab308'
-            : msg.Flag === 'RED' ? '#ef4444'
-            : msg.Flag === 'BLUE' ? '#3b82f6'
-            : '#8b8fa3',
+          color: FLAG_MESSAGE_COLORS[msg.Flag] || TEXT_COLORS.muted,
           sortKey: liveMs(msg.timestamp),
         }))
       : [];
@@ -109,25 +122,45 @@ export default function RaceControlFeed() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackStatus, raceControlMessages, isLiveMode, sessionTimeOffset, reached]);
 
+  // One line per message: data font x 1.3 + 4 px padding + 1 px rule
+  const rowH = Math.ceil(chartFontPx('data') * 1.3) + 5;
+  // unmeasured (0: server render, first paint): every message
+  const fit = fitRows(listBox.height > 0 ? listBox.height + ROW_GAP : 0, messages.length, {
+    rowMin: rowH + ROW_GAP, rowMax: rowH + ROW_GAP,
+  });
+  const shown = fit.paged ? messages.slice(0, fit.perPage) : messages;
+  const older = messages.length - shown.length;
+
   return (
     <div style={panelStyle}>
-      <div style={titleStyle}>Race Control</div>
+      <div style={titleStyle}>
+        <span>Race Control</span>
+        {older > 0 && (
+          <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600 }} title="Older messages are in the Race Control panel">
+            +{older} older
+          </span>
+        )}
+      </div>
       {messages.length === 0 ? (
-        <div style={{ color: '#555', fontSize: 11 }}>No race control messages</div>
+        <div style={{ color: TEXT_COLORS.muted, fontSize: CHART_FONT.data }}>No race control messages</div>
       ) : (
-        <div style={{ maxHeight: 120, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {messages.map((msg, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '3px 0', fontSize: 10,
+        <div ref={listRef} style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: ROW_GAP }}>
+          {shown.map((msg, i) => (
+            <div key={i} title={`${msg.time} — ${msg.message}`} style={{
+              display: 'flex', alignItems: 'center', gap: 6, flex: 'none',
+              height: rowH, boxSizing: 'border-box',
+              padding: '2px 0', fontSize: CHART_FONT.data, lineHeight: 1.3,
               borderBottom: '1px solid rgba(255,255,255,0.03)',
               fontFamily: "'JetBrains Mono', monospace",
             }}>
               <span style={{
-                display: 'inline-block', width: 6, height: 6,
+                display: 'inline-block', width: 8, height: 8,
                 borderRadius: '50%', background: msg.color, flexShrink: 0,
               }} />
-              <span style={{ color: '#bbc' }}>
+              <span style={{
+                color: TEXT_COLORS.secondary, minWidth: 0,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
                 {msg.time} &mdash; {msg.message}
               </span>
             </div>

@@ -1,9 +1,14 @@
 import React, { useMemo, useState, useRef, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor } from '../../utils/colors';
+import {
+  getDriverColor, markColor, STATUS_COLORS, STATUS_GLYPHS, TEXT_COLORS, CHART_FONT,
+} from '../../utils/colors';
 import { exportAsPng } from '../../utils/exportChart';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { SPEED_COLS, sectorsPanelData } from '../../utils/views/sectorsPanel';
+import {
+  SPEED_COLS, sectorsPanelData, sectorsLegend, SECTOR_BAR_COLOR,
+} from '../../utils/views/sectorsPanel';
+import Legend from '../ui/Legend';
 
 
 function formatTime(seconds) {
@@ -87,7 +92,7 @@ export default function SectorsPanel() {
             marginLeft: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
             width: 22, height: 22, borderRadius: 4,
             border: 'none', background: 'transparent',
-            color: 'rgba(255,255,255,0.3)', cursor: 'pointer',
+            color: TEXT_COLORS.muted, cursor: 'pointer',
             fontSize: '12px', padding: 0, flexShrink: 0,
           }}
         >
@@ -99,24 +104,9 @@ export default function SectorsPanel() {
         </button>
       </div>
 
-      {/* ── Color Legend ── */}
+      {/* ── Colour legend of the tab shown (sectorsLegend): glyph + colour ── */}
       <div className="sectors-panel__legend">
-        <span className="sectors-panel__legend-item">
-          <span className="sectors-panel__legend-dot" style={{ background: '#A020F0' }} />
-          Session Best
-        </span>
-        <span className="sectors-panel__legend-item">
-          <span className="sectors-panel__legend-dot" style={{ background: '#00FF00' }} />
-          Personal Best
-        </span>
-        <span className="sectors-panel__legend-item">
-          <span className="sectors-panel__legend-dot" style={{ background: '#FFD700' }} />
-          Improving
-        </span>
-        <span className="sectors-panel__legend-item" style={{ opacity: 0.5 }}>
-          <span className="sectors-panel__legend-dot" style={{ background: 'rgba(255,255,255,0.6)' }} />
-          Standard
-        </span>
+        <Legend items={sectorsLegend(view)} shape="glyph" />
       </div>
 
       {/* ── Live Sector Times (current lap, chronometer) ── */}
@@ -140,19 +130,18 @@ export default function SectorsPanel() {
               const isHl = highlightedDriver === row.driver;
               const isDimmed = highlightedDriver && !isHl;
               return (
-                <div key={row.driver} className="sectors-panel__live-row"
+                <div key={row.driver} className={`sectors-panel__live-row${!isSelected || isDimmed ? ' sectors-panel__row--context' : ''}`}
                   onMouseEnter={() => setHighlightedDriver(row.driver)}
                   onMouseLeave={() => setHighlightedDriver(null)}
                   onClick={() => setFocusDriver(row.driver)}
                   style={{
-                    opacity: !isSelected ? 0.3 : isDimmed ? 0.5 : 1,
                     background: isHl ? 'rgba(255,255,255,0.06)' : undefined,
                     cursor: 'pointer',
-                    transition: 'opacity 0.15s, background 0.15s',
+                    transition: 'background 0.15s',
                   }}
                 >
                   <span className="sectors-panel__live-pos">{row.pos}</span>
-                  <span className="sectors-panel__team-bar" style={{ backgroundColor: color }} />
+                  <span className="sectors-panel__team-bar" style={{ backgroundColor: markColor(color) }} />
                   <span className="sectors-panel__live-drv">{row.driver}</span>
                   {row.sectors.map((s, i) => {
                     const sectorNum = i + 1;
@@ -165,10 +154,11 @@ export default function SectorsPanel() {
                           s.show && s.val
                             ? { color: s.color }
                             : isChrono
-                              ? { color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }
+                              ? { color: STATUS_COLORS.running, fontStyle: 'italic', fontVariantNumeric: 'tabular-nums' }
                               : undefined
                         }
                       >
+                        {s.show && s.glyph && s.val ? <span className="timing-glyph">{s.glyph} </span> : null}
                         {s.show ? formatTime(s.val) : isChrono ? row.chrono.elapsed.toFixed(1) : '—'}
                       </span>
                     );
@@ -176,7 +166,7 @@ export default function SectorsPanel() {
                   <span
                     className="sectors-panel__live-sec sectors-panel__live-sec--lap"
                     style={!row.lapTime && row.runningLap != null
-                      ? { color: '#fbbf24', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }
+                      ? { color: STATUS_COLORS.running, fontStyle: 'italic', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }
                       : undefined}
                   >
                     {row.lapTime
@@ -206,7 +196,7 @@ export default function SectorsPanel() {
             return (
               <div key={s} className="sectors-panel__column">
                 <div className="sectors-panel__col-header">
-                  <span className="sectors-panel__col-title">SECTOR {s} <span style={{ opacity: 0.5, fontSize: '0.8em', fontWeight: 400 }}>Lap {currentLap}</span></span>
+                  <span className="sectors-panel__col-title">SECTOR {s} <span style={{ color: TEXT_COLORS.muted, fontSize: CHART_FONT.label, fontWeight: 400 }}>Lap {currentLap}</span></span>
                   {best && (
                     <span className="sectors-panel__col-best">{formatTime(best)}</span>
                   )}
@@ -220,40 +210,42 @@ export default function SectorsPanel() {
                     const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(entry.driver);
                     const isHl = highlightedDriver === entry.driver;
                     const isDimmed = highlightedDriver && !isHl;
+                    // Focus + context: a context row (not selected, or another
+                    // row hovered) fades its marks only; its text turns to the
+                    // muted colour, never faded (>= 4.5:1; r2: row opacity 0.3
+                    // put the text at 1.77-2.69:1)
+                    const isContext = !isSelected || !!isDimmed;
                     return (
                       <div
                         key={entry.driver}
-                        className={`sectors-panel__row${isBest ? ' sectors-panel__row--best' : ''}`}
+                        className={`sectors-panel__row${isBest ? ' sectors-panel__row--best' : ''}${isContext ? ' sectors-panel__row--context' : ''}`}
                         onMouseEnter={() => setHighlightedDriver(entry.driver)}
                         onMouseLeave={() => setHighlightedDriver(null)}
                         onClick={() => setFocusDriver(entry.driver)}
                         style={{
-                          opacity: !isSelected ? 0.3 : isDimmed ? 0.5 : 1,
                           background: isHl ? 'rgba(255,255,255,0.06)' : undefined,
                           cursor: 'pointer',
-                          transition: 'opacity 0.15s, background 0.15s',
+                          transition: 'background 0.15s',
                         }}
                       >
                         <span className="sectors-panel__rank">{entry.rank}</span>
-                        <span className="sectors-panel__team-bar" style={{ backgroundColor: color }} />
+                        <span className="sectors-panel__team-bar" style={{ backgroundColor: markColor(color) }} />
                         <span className="sectors-panel__driver">{entry.driver}</span>
                         <span className="sectors-panel__bar-cell">
                           <span
                             className="sectors-panel__bar-fill"
                             style={{
                               width: `${barPct}%`,
-                              background: isBest
-                                ? 'var(--sector-purple)'
-                                : entry.rank <= 3
-                                  ? 'var(--sector-green)'
-                                  : 'rgba(255, 210, 0, 0.5)',
+                              // the best in the overall-best colour, every other bar neutral
+                              background: isBest ? STATUS_COLORS.overallBest : SECTOR_BAR_COLOR,
                             }}
                           />
                         </span>
                         <span
                           className="sectors-panel__time"
-                          style={{ color: isBest ? 'var(--sector-purple)' : 'var(--color-text-primary)' }}
+                          style={{ color: isContext ? TEXT_COLORS.muted : isBest ? STATUS_COLORS.overallBest : TEXT_COLORS.primary }}
                         >
+                          {isBest && <span className="timing-glyph">{STATUS_GLYPHS.overallBest} </span>}
                           {formatTime(entry.best)}
                         </span>
                         {entry.rank > 1 && items[0] && (
@@ -280,7 +272,7 @@ export default function SectorsPanel() {
             return (
               <div key={key} className="sectors-panel__column sectors-panel__column--speed">
                 <div className="sectors-panel__col-header">
-                  <span className="sectors-panel__col-title">{label} <span style={{ opacity: 0.5, fontSize: '0.8em', fontWeight: 400 }}>Lap {currentLap}</span></span>
+                  <span className="sectors-panel__col-title">{label} <span style={{ color: TEXT_COLORS.muted, fontSize: CHART_FONT.label, fontWeight: 400 }}>Lap {currentLap}</span></span>
                   {fastest > 0 && (
                     <span className="sectors-panel__col-best sectors-panel__col-best--purple">
                       {toDisplaySpeed(fastest)} {speedLabel}
@@ -297,24 +289,24 @@ export default function SectorsPanel() {
                     return (
                       <div
                         key={entry.driver}
-                        className={`sectors-panel__row${isFastest ? ' sectors-panel__row--best' : ''}`}
+                        className={`sectors-panel__row${isFastest ? ' sectors-panel__row--best' : ''}${!isSelected || isDimmed ? ' sectors-panel__row--context' : ''}`}
                         onMouseEnter={() => setHighlightedDriver(entry.driver)}
                         onMouseLeave={() => setHighlightedDriver(null)}
                         onClick={() => setFocusDriver(entry.driver)}
                         style={{
-                          opacity: !isSelected ? 0.3 : isDimmed ? 0.5 : 1,
                           background: isHl ? 'rgba(255,255,255,0.06)' : undefined,
                           cursor: 'pointer',
-                          transition: 'opacity 0.15s, background 0.15s',
+                          transition: 'background 0.15s',
                         }}
                       >
                         <span className="sectors-panel__rank">{entry.rank}</span>
-                        <span className="sectors-panel__team-bar" style={{ backgroundColor: color }} />
+                        <span className="sectors-panel__team-bar" style={{ backgroundColor: markColor(color) }} />
                         <span className="sectors-panel__driver">{entry.driver}</span>
                         <span
                           className="sectors-panel__speed-val"
-                          style={{ color: isFastest ? 'var(--sector-purple)' : 'var(--color-text-primary)' }}
+                          style={{ color: isFastest ? STATUS_COLORS.overallBest : TEXT_COLORS.primary }}
                         >
+                          {isFastest && <span className="timing-glyph">{STATUS_GLYPHS.overallBest} </span>}
                           {toDisplaySpeed(entry.speed)}
                         </span>
                         <span className="sectors-panel__speed-unit">{speedLabel}</span>

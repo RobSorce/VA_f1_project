@@ -1,14 +1,15 @@
 import React from 'react';
 import { useF1Store } from '../../store/useF1Store';
+import { SURFACES, TRACK_STATUS_STYLES, tintedChip } from '../../utils/colors';
 
-const FLAG_CLS = {
-  '1': { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', label: 'TRACK CLEAR' },
-  '2': { bg: 'rgba(255,204,0,0.15)', color: '#FFCC00', label: 'YELLOW FLAG' },
-  '4': { bg: 'rgba(255,140,0,0.15)', color: '#FF8C00', label: 'SAFETY CAR' },
-  '5': { bg: 'rgba(255,0,0,0.15)',   color: '#FF0000', label: 'RED FLAG' },
-  '6': { bg: 'rgba(255,140,0,0.15)', color: '#FF8C00', label: 'VSC' },
-  '7': { bg: 'rgba(255,140,0,0.15)', color: '#FF8C00', label: 'VSC' },
-};
+// Track status chip: FIA colour on its tint, always with its label (the
+// colour is never the only cue), the text lifted to 4.5:1 on the tint
+// (tintedChip, utils/colors.js). Code '1' reads "Track clear".
+function flagChip(status) {
+  const st = TRACK_STATUS_STYLES[status] || TRACK_STATUS_STYLES['1'];
+  const label = status === '1' || !TRACK_STATUS_STYLES[status] ? 'Track clear' : st.short;
+  return { label, ...tintedChip(st.color, 0.15, SURFACES.panel) };
+}
 
 export default function SessionInfoBar() {
   const sessionData = useF1Store((s) => s.sessionData);
@@ -26,36 +27,26 @@ export default function SessionInfoBar() {
     || liveSessionInfo?.session_name
     || liveSessionInfo?.session_type
     || '';
-  const flag = FLAG_CLS[currentFlagStatus] || FLAG_CLS['1'];
+  const flag = flagChip(currentFlagStatus);
+  const title = `${eventName}${sessionType ? ` — ${sessionType}` : ''}`;
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      height: '100%', padding: '0 16px',
-      background: 'rgba(12,12,28,0.85)',
-      backdropFilter: 'blur(20px) saturate(1.6)',
-      WebkitBackdropFilter: 'blur(20px) saturate(1.6)',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
-      fontFamily: "'Formula1', 'Titillium Web', sans-serif",
-      color: '#e0e0e0',
-    }}>
-      <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff' }}>
-        {eventName}{sessionType ? ` \u2014 ${sessionType}` : ''}
-      </div>
+    <div className="session-info-bar">
+      <div className="session-info-bar__event" title={title}>{title}</div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontSize: 11, color: '#7a7f9a', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
-          LAP <strong style={{ color: '#fff', fontSize: 14 }}>{currentLap}</strong> / {totalRaceLaps || maxLap}
-        </span>
-      </div>
+      <span className="session-info-bar__lap">
+        Lap <strong>{currentLap}</strong> / {totalRaceLaps || maxLap}
+      </span>
 
-      <span style={{
-        padding: '4px 12px', borderRadius: 4,
-        fontSize: 10, fontWeight: 800, letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        background: flag.bg, color: flag.color,
-        animation: currentFlagStatus !== '1' ? 'flag-pulse 1.5s ease-in-out infinite' : 'none',
-      }}>
+      <span
+        className="session-info-bar__flag"
+        style={{
+          background: flag.background,
+          color: flag.color,
+          borderColor: flag.borderColor,
+          animation: currentFlagStatus && currentFlagStatus !== '1' ? 'flag-pulse 1.5s ease-in-out infinite' : 'none',
+        }}
+      >
         {flag.label}
       </span>
     </div>

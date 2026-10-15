@@ -1,8 +1,13 @@
 name: Deploy to GitHub Pages
 
+# The GitHub Pages site is the static demo of the dashboard (no backend:
+# frontend/src/utils/demoMode.js): the demo build (vite --mode demo) answers
+# the API from frontend/public/data, written by
+# backend/scripts/export_demo_data.py. It is built from the working branch
+# (v4) and from main.
 on:
   push:
-    branches: [main]
+    branches: [main, v4]
   workflow_dispatch:
 
 permissions:
@@ -22,15 +27,25 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: cd frontend && npm ci
 
-      - name: Build
-        run: cd frontend && npm run build
+      # Served under https://<owner>.github.io/<repository>/
+      - name: Build the static demo
+        run: cd frontend && npm run build:demo
+        env:
+          DEMO_BASE: /${{ github.event.repository.name }}/
+
+      # Serves dist/ as Pages does and loads every demo race, its PCA biplot
+      # and a lasso analysis with no backend (frontend/scripts/serve_dist_check.mjs)
+      - name: Check the static demo
+        run: cd frontend && npm run check:demo
+        env:
+          DEMO_BASE: /${{ github.event.repository.name }}/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

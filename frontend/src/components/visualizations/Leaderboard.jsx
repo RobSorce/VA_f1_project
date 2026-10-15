@@ -1,6 +1,11 @@
 import React, { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS, countryFlag, F1_POINTS } from '../../utils/colors';
+import {
+  getDriverColor, countryFlag, F1_POINTS, TRACK_STATUS_STYLES, FLAG_COLORS, MEDAL_COLORS, STATUS_COLORS,
+  STATUS_GLYPHS, DIVERGING, TEXT_COLORS, TYRE_COLORS, TYRE_LABELS, CHART_FONT, tyreColor, tyreLetter,
+  contrastText, markColor, textColor, tintedChip, withAlpha,
+} from '../../utils/colors';
+import Legend from '../ui/Legend';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { isLapCompleted, leaderLapEndTime, activeSegmentWindow } from '../../utils/raceTime';
 import { pitStops } from '../../utils/stints';
@@ -9,34 +14,49 @@ import { raceStandings, qualifyingStandings } from '../../utils/views/leaderboar
 import { battleLevel, BATTLE_BADGE_PCT, BADGE_INTERVAL_PCT } from '../../utils/simulationClient';
 import { focusForecast, forecastPit, forecastMethodLabel, FORECAST_LAPS } from '../../utils/forecast';
 import Panel from '../ui/Panel';
+import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
 
-/* ── Flag constants ─────────────────────────────────────────────────── */
-const FLAG_BORDER_COLORS = {
-  '1': 'transparent',
-  '2': '#FFCC00',
-  '4': '#FF8C00',
-  '5': '#FF0000',
-  '6': '#FF8C00',
-  '7': '#FF8C00',
-};
+/* ── Flag constants: FIA colours of utils/colors.js, always with their label ── */
+const FLAG_BORDER_COLORS = Object.fromEntries(
+  Object.entries(TRACK_STATUS_STYLES).map(([k, s]) => [k, k === '1' ? 'transparent' : s.color]),
+);
 
-const FLAG_BANNER = {
-  '2': { label: 'YELLOW FLAG', bg: 'rgba(255,204,0,0.15)', color: '#FFCC00' },
-  '4': { label: 'SAFETY CAR', bg: 'rgba(255,140,0,0.15)', color: '#FF8C00' },
-  '5': { label: 'RED FLAG', bg: 'rgba(255,0,0,0.15)', color: '#FF0000' },
-  '6': { label: 'VSC', bg: 'rgba(255,140,0,0.15)', color: '#FF8C00' },
-  '7': { label: 'VSC', bg: 'rgba(255,140,0,0.15)', color: '#FF8C00' },
-};
+const FLAG_BANNER = Object.fromEntries(
+  Object.entries(TRACK_STATUS_STYLES).filter(([k]) => k !== '1').map(([k, s]) => {
+    const chip = tintedChip(s.color, 0.15);
+    return [k, { label: s.short, bg: chip.background, color: chip.color, border: s.color }];
+  }),
+);
 
-/* ── Medal colors for P1/P2/P3 ─────────────────────────────────────── */
-const MEDAL_BG = {
-  1: 'linear-gradient(135deg, #FFD700 0%, #DAA520 100%)',
-  2: 'linear-gradient(135deg, #C0C0C0 0%, #A0A0A0 100%)',
-  3: 'linear-gradient(135deg, #CD7F32 0%, #A0652F 100%)',
-};
+/* ── Battle badge: overtake probability level, an ordered scale (grey <
+   yellow < orange), the percentage is the text ───────────────────────── */
+const BATTLE_LEVEL_COLORS = [TEXT_COLORS.secondary, STATUS_COLORS.slower, DIVERGING.worse];
+const BATTLE_LEVEL_NAMES = ['grey', 'yellow', 'orange'];
+
+/* ── Legend of the tower (V4): every mark it draws ─────────────────── */
+const TOWER_LEGEND = [
+  { label: 'vs grid', color: DIVERGING.better, glyph: '▲', shape: 'glyph', title: 'Places gained since the start' },
+  { label: 'lost', color: DIVERGING.worse, glyph: '▼', shape: 'glyph', title: 'Places lost since the start' },
+  ...['SOFT', 'MEDIUM', 'HARD'].map((c) => ({ label: '', color: TYRE_COLORS[c], glyph: TYRE_LABELS[c], shape: 'badge', title: `${c} tyre` })),
+  { label: 'pit', color: STATUS_COLORS.pit, glyph: STATUS_GLYPHS.pit, shape: 'glyph', title: 'In the pit lane' },
+  // the overtake badge's three levels, each with its threshold (V4 r2: the
+  // levels were explained only in the badge's tooltip)
+  ...BATTLE_LEVEL_COLORS.map((color, i) => ({
+    label: i === 0 ? `<${BATTLE_BADGE_PCT[0]}%` : `≥${BATTLE_BADGE_PCT[i - 1]}%`,
+    color, glyph: '⇅', shape: 'glyph',
+    title: `Monte Carlo overtake probability of a battle, ${BATTLE_LEVEL_NAMES[i]} level`,
+  })),
+  { label: 'battle', color: TEXT_COLORS.secondary, glyph: '⚔', shape: 'glyph', title: 'Within 1 s of a rival, no overtake projection yet (row highlighted)' },
+];
 
 /* ── Layout constants ───────────────────────────────────────────────── */
-const DEFAULT_ROW_HEIGHT = 28;
+// The rows fit the room the sidebar leaves them (chartBox.fitRows): 28 px
+// while the field fits, down to 18 px (the Timing Tower's minimum, same data
+// type); when even 18 px rows do not fit (the focus cards opened in full on a
+// short window) they are paged, with a pager line, never clipped (V5 / V13 r2)
+const ROW_MIN = 18;
+const ROW_MAX = 28;
+const PAGER_H = 22;
 
 /* ── Column display modes ───────────────────────────────────────────── */
 const COLUMN_MODES = ['INT', 'GAP', 'TYRE', 'PIT'];
@@ -95,7 +115,8 @@ export default function Leaderboard({ collapsed }) {
   const rowRefsMap = useRef({});
   const animatingRowsRef = useRef(new Set());
   const clearChangesTimerRef = useRef(null);
-  const [dynamicRowHeight, setDynamicRowHeight] = useState(DEFAULT_ROW_HEIGHT);
+  const towerBox = useBoxSize(towerWrapRef);
+  const [rowPage, setRowPage] = useState(0);
 
   /* ── Replay started gate ───────────────────────────────────────── */
   const replayStarted = currentFrameIndex > 0 || currentLap > 1;
@@ -328,21 +349,12 @@ export default function Leaderboard({ collapsed }) {
     if (clearChangesTimerRef.current) clearTimeout(clearChangesTimerRef.current);
   }, []);
 
-  /* ── Dynamic row height from available space ─────────────────────── */
-  useEffect(() => {
-    if (!towerWrapRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      const h = entries[0].contentRect.height;
-      const driverCount = standings.length || 20;
-      if (h > 0 && driverCount > 0) {
-        setDynamicRowHeight(Math.max(20, Math.min(DEFAULT_ROW_HEIGHT, Math.floor(h / driverCount))));
-      }
-    });
-    observer.observe(towerWrapRef.current);
-    return () => observer.disconnect();
-  }, [standings.length]);
-
-  const ROW_HEIGHT = dynamicRowHeight;
+  /* ── Rows fitted to the room left, paged when 18 px rows do not fit ── */
+  const rowFit = fitRows(towerBox.height, standings.length, { rowMin: ROW_MIN, rowMax: ROW_MAX, rowDefault: ROW_MAX, pagerH: PAGER_H });
+  const ROW_HEIGHT = rowFit.rowH;
+  const rowPg = pageOf(standings, rowFit.paged ? rowPage : 0, rowFit.perPage);
+  const pageRows = rowPg.rows;
+  const pageFirst = rowPg.first - 1; // index of the page's first row
 
   /* ── Position-change highlight flash (CSS transition handles the slide) */
   useEffect(() => {
@@ -420,14 +432,14 @@ export default function Leaderboard({ collapsed }) {
       return (
         <span className="tower-col-value tower-col-value--retired">
           {d.retiredStatus || 'RET'}
-          {d.retiredLap && <span style={{ fontSize: '7px', marginLeft: 3, opacity: 0.7 }}>L{d.retiredLap}</span>}
+          {d.retiredLap && <span style={{ fontSize: CHART_FONT.label, marginLeft: 3 }}>L{d.retiredLap}</span>}
         </span>
       );
     }
 
     if (d.isPitting) {
       return (
-        <span className="tower-col-value tower-col-value--pit">IN PIT</span>
+        <span className="tower-col-value tower-col-value--pit">{STATUS_GLYPHS.pit} IN PIT</span>
       );
     }
 
@@ -448,7 +460,7 @@ export default function Leaderboard({ collapsed }) {
     if (mode === 'TYRE') {
       return (
         <span className="tower-col-value tower-col-value--tyre">
-          <span style={{ color: TYRE_COLORS[d.compound] || '#888' }}>
+          <span style={{ color: textColor(tyreColor(d.compound)) }}>
             {TYRE_DISPLAY_NAMES[d.compound] || '?'}
           </span>
           <span className="tower-tyre-age">L{d.tyreLife}</span>
@@ -512,7 +524,7 @@ export default function Leaderboard({ collapsed }) {
 
   /* ── Flag border styling ──────────────────────────────────────────── */
   const flagBorderColor = greenFlash
-    ? '#00e676'
+    ? FLAG_COLORS.green
     : (FLAG_BORDER_COLORS[currentFlagStatus] || 'transparent');
   const flagBanner = FLAG_BANNER[currentFlagStatus];
   const isHazard = flagBorderColor !== 'transparent';
@@ -524,11 +536,11 @@ export default function Leaderboard({ collapsed }) {
 
   const panelBorderStyle = {
     '--bezel-color': bezelActive ? activeColor : 'transparent',
-    '--bezel-color-dim': bezelActive ? `${activeColor}44` : 'transparent',
-    '--bezel-color-glow': bezelActive ? `${activeColor}33` : 'transparent',
+    '--bezel-color-dim': bezelActive ? withAlpha(activeColor, 0.27) : 'transparent',
+    '--bezel-color-glow': bezelActive ? withAlpha(activeColor, 0.2) : 'transparent',
     border: 'none',
     boxShadow: bezelActive
-      ? `0 0 20px ${activeColor}33, 0 0 40px ${activeColor}18, 0 8px 32px rgba(0,0,0,0.40)`
+      ? `0 0 20px ${withAlpha(activeColor, 0.2)}, 0 0 40px ${withAlpha(activeColor, 0.09)}, 0 8px 32px rgba(0,0,0,0.40)`
       : '0 8px 32px rgba(0,0,0,0.40)',
     transition: 'box-shadow 0.4s ease',
   };
@@ -597,7 +609,7 @@ export default function Leaderboard({ collapsed }) {
             <div
               key={d.abbr}
               className={`leaderboard-collapsed__pos${selectedDrivers.includes(d.abbr) ? ' leaderboard-collapsed__pos--selected' : ''}`}
-              style={{ borderLeftColor: d.color }}
+              style={{ borderLeftColor: markColor(d.color) }}
               onClick={() => toggleDriver(d.abbr)}
               title={d.abbr}
             >
@@ -620,17 +632,17 @@ export default function Leaderboard({ collapsed }) {
         const winnerInfo = driverInfoMap[winner.abbr] || {};
         return (
           <div className="tower-flag-banner" style={{
-            background: `linear-gradient(90deg, ${winner.color}25, transparent, ${winner.color}25)`,
-            borderBottom: `1px solid ${winner.color}55`,
+            background: `linear-gradient(90deg, ${withAlpha(winner.color, 0.15)}, transparent, ${withAlpha(winner.color, 0.15)})`,
+            borderBottom: `1px solid ${withAlpha(winner.color, 0.33)}`,
             animation: 'winner-banner-glow 2s ease-in-out infinite',
           }}>
-            <span className="tower-flag-banner__label" style={{ color: '#fff', letterSpacing: '0.2em' }}>
+            <span className="tower-flag-banner__label" style={{ color: TEXT_COLORS.primary, letterSpacing: '0.2em' }}>
               CHEQUERED FLAG
             </span>
             <span style={{
               fontWeight: 900,
               fontSize: '12px',
-              color: winner.color,
+              color: textColor(winner.color),
               fontFamily: "'Formula1', 'Titillium Web', sans-serif",
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -645,7 +657,7 @@ export default function Leaderboard({ collapsed }) {
       {!raceFinished && flagBanner && (
         <div className="tower-flag-banner" style={{
           background: flagBanner.bg,
-          borderBottom: `1px solid ${flagBanner.color}33`,
+          borderBottom: `1px solid ${flagBanner.border}`,
         }}>
           <span className="tower-flag-banner__label" style={{ color: flagBanner.color }}>
             {flagBanner.label}
@@ -662,28 +674,24 @@ export default function Leaderboard({ collapsed }) {
         <span className="tower-col-header__tyre-dot"></span>
       </div>
 
-      {/* Sector color legend hint */}
-      <div style={{
-        fontSize: 7, color: 'rgba(255,255,255,0.35)',
-        padding: '2px 8px', display: 'flex', gap: 6,
-      }}>
-        <span style={{ color: '#A855F7' }}>{'\u25A0'} SB</span>
-        <span style={{ color: '#22C55E' }}>{'\u25A0'} PB</span>
-        <span>= session/personal best sector</span>
+      {/* Legend of the marks the tower draws (arrows, tyre letters, pit, battle) */}
+      <div style={{ padding: '0 6px' }}>
+        <Legend items={TOWER_LEGEND} shape="glyph" />
       </div>
 
       {/* Driver rows */}
-      <div ref={towerWrapRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      <div ref={towerWrapRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div
         className="tower-body"
         ref={containerRef}
         style={{
           position: 'relative',
-          height: standings.length > 0 ? standings.length * ROW_HEIGHT : 'auto',
+          flex: '0 0 auto',
+          height: standings.length > 0 ? pageRows.length * ROW_HEIGHT : 'auto',
           minHeight: standings.length === 0 ? 120 : undefined,
         }}
       >
-        {standings.map((d) => {
+        {pageRows.map((d) => {
           const isSelected = selectedDrivers.includes(d.abbr);
           const isHighlighted = d.abbr === highlightedDriver;
           const isFocused = d.abbr === focusDriver;
@@ -724,17 +732,22 @@ export default function Leaderboard({ collapsed }) {
                 left: 0,
                 right: 0,
                 height: ROW_HEIGHT,
-                transform: `translateY(${(d.pos - 1) * ROW_HEIGHT}px)`,
+                transform: `translateY(${(d.pos - 1 - pageFirst) * ROW_HEIGHT}px)`,
                 ...(isFocused ? {
-                  borderLeft: `4px solid ${d.color}`,
-                  boxShadow: `inset 6px 0 12px -2px ${d.color}55, 0 0 8px ${d.color}22`,
+                  borderLeft: `4px solid ${markColor(d.color)}`,
+                  boxShadow: `inset 6px 0 12px -2px ${withAlpha(d.color, 0.33)}, 0 0 8px ${withAlpha(d.color, 0.13)}`,
                 } : isSelected ? {
-                  borderLeft: `3px solid ${d.color}`,
-                  boxShadow: `inset 4px 0 8px -2px ${d.color}44`,
+                  borderLeft: `3px solid ${markColor(d.color)}`,
+                  boxShadow: `inset 4px 0 8px -2px ${withAlpha(d.color, 0.27)}`,
                 } : {}),
               }}
               onClick={() => compareMode ? addCompareDriver(d.abbr) : toggleDriver(d.abbr)}
-              onDoubleClick={() => { setFocusDriver(d.abbr); triggerPrediction(d.abbr, currentLap); }}
+              onDoubleClick={() => {
+                // keep the focus on a second double-click (setFocusDriver toggles it
+                // off): the forecast of the focus driver is asked again (backlog L3)
+                if (useF1Store.getState().focusDriver !== d.abbr) setFocusDriver(d.abbr);
+                triggerPrediction(d.abbr, currentLap);
+              }}
               onMouseEnter={(e) => handleMouseEnter(d.abbr, e)}
               onMouseLeave={handleMouseLeave}
             >
@@ -753,15 +766,15 @@ export default function Leaderboard({ collapsed }) {
                 <span
                   className={`tower-row__pos ${d.isRetired ? 'tower-row__pos--retired' : ''}`}
                   style={raceFinished && !d.isRetired && d.pos <= 3 ? {
-                    background: MEDAL_BG[d.pos],
-                    color: d.pos === 1 ? '#000' : d.pos === 2 ? '#000' : '#fff',
+                    background: MEDAL_COLORS[d.pos],
+                    color: contrastText(MEDAL_COLORS[d.pos]),
                     borderRadius: 3,
                     width: 20,
                     height: 18,
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '10px',
+                    fontSize: CHART_FONT.data,
                   } : undefined}
                 >
                   {d.isRetired ? 'RET' : d.pos}
@@ -780,21 +793,21 @@ export default function Leaderboard({ collapsed }) {
               <span className="tower-row__driver-cell">
                 <span
                   className="tower-row__team-bar"
-                  style={{ backgroundColor: d.color }}
+                  style={{ backgroundColor: markColor(d.color) }}
                 />
                 {raceFinished && countryCodeMap[d.abbr] && (
                   <span style={{ fontSize: '11px', marginRight: 2, lineHeight: 1 }}>
                     {countryFlag(countryCodeMap[d.abbr])}
                   </span>
                 )}
-                <span className="tower-row__driver-name" style={d.isRetired ? { textDecoration: 'line-through', textDecorationColor: 'rgba(225,6,0,0.5)' } : undefined}>{d.abbr}</span>
+                <span className="tower-row__driver-name" style={d.isRetired ? { textDecoration: 'line-through', textDecorationColor: STATUS_COLORS.retired } : undefined}>{d.abbr}</span>
                 {d.isRetired && <span className="tower-row__out-badge">OUT</span>}
                 {raceFinished && fastestLapDriver === d.abbr && (
-                  <span style={{
-                    fontSize: '7px', marginLeft: 4, padding: '1px 3px',
-                    borderRadius: 3, background: 'rgba(160,32,240,0.25)',
-                    color: '#A020F0', fontWeight: 800, letterSpacing: '0.04em',
-                  }}>FL</span>
+                  <span title="Fastest lap of the race" style={{
+                    fontSize: CHART_FONT.label, marginLeft: 4, padding: '0 3px',
+                    borderRadius: 3, background: tintedChip(STATUS_COLORS.overallBest, 0.25).background,
+                    color: tintedChip(STATUS_COLORS.overallBest, 0.25).color, fontWeight: 800, letterSpacing: '0.04em',
+                  }}>{STATUS_GLYPHS.overallBest} FL</span>
                 )}
                 {!raceFinished && battles[d.abbr] && (() => {
                   const mc = overtakeProbMap[d.abbr];
@@ -802,13 +815,13 @@ export default function Leaderboard({ collapsed }) {
                   const gap = battles[d.abbr].gap;
                   if (mc && mc.rival === rival) {
                     // Colour by the battle badge level (store badge rule)
-                    const color = mc.level >= 2 ? '#ef4444' : mc.level === 1 ? '#f5a623' : '#22c55e';
+                    const color = BATTLE_LEVEL_COLORS[Math.max(0, Math.min(2, mc.level))];
                     const runs = raceProjection?.numSimulations;
                     return (
                       <span
                         className="tower-row__battle-badge tower-row__battle-badge--mc"
-                        style={{ color, borderColor: `${color}55`, background: `${color}18` }}
-                        title={`Overtake probability: ${mc.prob}% — chance ${rival} passes ${d.abbr} before the flag.\nCurrent gap: ${gap.toFixed(2)}s.\nBasis: Monte Carlo race simulation (${runs != null ? runs.toLocaleString('en-US') : '?'} runs) using pace delta, tyre degradation, and pit-loss.\nColour: green below ${BATTLE_BADGE_PCT[0]}% · amber at least ${BATTLE_BADGE_PCT[0]}% · red at least ${BATTLE_BADGE_PCT[1]}%; a colour changes only when the ${BADGE_INTERVAL_PCT}% Wilson interval of the share clears the threshold.`}
+                        style={{ color, borderColor: withAlpha(color, 0.45), background: withAlpha(color, 0.1) }}
+                        title={`Overtake probability: ${mc.prob}% — chance ${rival} passes ${d.abbr} before the flag.\nCurrent gap: ${gap.toFixed(2)}s.\nBasis: Monte Carlo race simulation (${runs != null ? runs.toLocaleString('en-US') : '?'} runs) using pace delta, tyre degradation, and pit-loss.\nColour: ${BATTLE_LEVEL_NAMES[0]} below ${BATTLE_BADGE_PCT[0]}% · ${BATTLE_LEVEL_NAMES[1]} at least ${BATTLE_BADGE_PCT[0]}% · ${BATTLE_LEVEL_NAMES[2]} at least ${BATTLE_BADGE_PCT[1]}%; a colour changes only when the ${BADGE_INTERVAL_PCT}% Wilson interval of the share clears the threshold.`}
                       >
                         {'\u21C5'}{mc.prob}%
                       </span>
@@ -825,9 +838,9 @@ export default function Leaderboard({ collapsed }) {
               <span className="tower-row__value">
                 {showPoints && !d.isRetired && d.pos <= 10 ? (
                   <span className="tower-row__points-badge" style={{
-                    color: '#ffd700',
+                    color: MEDAL_COLORS[1],
                     fontWeight: 700,
-                    fontSize: '10px',
+                    fontSize: CHART_FONT.data,
                     letterSpacing: '0.02em',
                   }}>
                     +{pointsMap[d.abbr] != null ? pointsMap[d.abbr] : (F1_POINTS[d.pos] || 0)}
@@ -838,11 +851,16 @@ export default function Leaderboard({ collapsed }) {
               </span>
 
               <span className="tower-row__tyre-dot">
+                {/* FIA compound colour with its letter (contrastText) */}
                 <span
                   className="tower-tyre-circle"
-                  style={{ backgroundColor: TYRE_COLORS[d.compound] || '#888' }}
+                  style={{
+                    backgroundColor: tyreColor(d.compound), color: contrastText(tyreColor(d.compound)),
+                    width: 14, height: 14, lineHeight: '14px', textAlign: 'center',
+                    fontSize: CHART_FONT.label, fontWeight: 800,
+                  }}
                   title={`${d.compound} - ${d.tyreLife} laps`}
-                />
+                >{tyreLetter(d.compound)}</span>
               </span>
             </div>
           );
@@ -854,6 +872,26 @@ export default function Leaderboard({ collapsed }) {
           </div>
         )}
       </div>
+      {/* Pager of the rows that do not fit (fitRows / pageOf) */}
+      {rowFit.paged && (
+        <div className="tower-pager" style={{ height: PAGER_H }}>
+          <button
+            type="button"
+            className="tower-pager__btn"
+            onClick={() => setRowPage(rowPg.page - 1)}
+            disabled={rowPg.page === 0}
+            aria-label="Previous positions"
+          >{'▲'}</button>
+          <span className="tower-pager__text">P{rowPg.first}–P{rowPg.last} of {standings.length}</span>
+          <button
+            type="button"
+            className="tower-pager__btn"
+            onClick={() => setRowPage(rowPg.page + 1)}
+            disabled={rowPg.page >= rowPg.pages - 1}
+            aria-label="Next positions"
+          >{'▼'}</button>
+        </div>
+      )}
       </div>
 
       {/* The focus driver's forecast (double-click a row): pit probability
@@ -864,8 +902,8 @@ export default function Leaderboard({ collapsed }) {
           padding: '4px 8px',
           background: 'rgba(255,255,255,0.04)',
           borderTop: '1px solid rgba(255,255,255,0.1)',
-          fontSize: '9px',
-          color: 'rgba(255,255,255,0.6)',
+          fontSize: CHART_FONT.data,
+          color: TEXT_COLORS.secondary,
           lineHeight: 1.4,
         }}>
           {pit.probability != null && (
@@ -875,7 +913,7 @@ export default function Leaderboard({ collapsed }) {
               style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}
             >
               <span>{forecast.driver} PIT PROB{pit.label ? ` (${pit.label})` : ''}</span>
-              <span style={{ color: pit.probability > 0.5 ? '#f5a623' : '#888', fontWeight: 700 }}>
+              <span style={{ color: pit.probability > 0.5 ? STATUS_COLORS.predicted : TEXT_COLORS.muted, fontWeight: 700 }}>
                 {(pit.probability * 100).toFixed(0)}%
               </span>
             </div>
@@ -886,7 +924,7 @@ export default function Leaderboard({ collapsed }) {
               style={{ display: 'flex', justifyContent: 'space-between' }}
             >
               <span>OPT PIT LAP</span>
-              <span style={{ color: '#f5a623', fontWeight: 700 }}>L{forecast.optimal_pit_lap}</span>
+              <span style={{ color: STATUS_COLORS.predicted, fontWeight: 700 }}>L{forecast.optimal_pit_lap}</span>
             </div>
           )}
         </div>

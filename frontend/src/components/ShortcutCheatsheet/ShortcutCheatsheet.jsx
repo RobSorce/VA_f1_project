@@ -1,6 +1,7 @@
 import React from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { modKey } from '../CommandPalette/commandRegistry';
+import { FIRST_SEASON_WITHOUT_DRS } from '../../utils/seasons';
 import './ShortcutCheatsheet.css';
 
 const SHORTCUT_SECTIONS = [
@@ -50,7 +51,7 @@ const SHORTCUT_SECTIONS = [
       { keys: ['R'], desc: 'Rotate Clockwise' },
       { keys: ['\u21E7', 'R'], desc: 'Rotate Counter-Clockwise' },
       { keys: ['\u21E7', 'S'], desc: 'Toggle Sectors' },
-      { keys: ['\u21E7', 'D'], desc: 'Toggle DRS Zones' },
+      { keys: ['\u21E7', 'D'], desc: `Toggle DRS Zones (seasons before ${FIRST_SEASON_WITHOUT_DRS})` },
     ],
   },
   {
@@ -59,7 +60,7 @@ const SHORTCUT_SECTIONS = [
       { keys: ['D'], desc: 'Select Driver' },
       { keys: ['F'], desc: 'Focus / Unfocus Driver' },
       { keys: ['C'], desc: 'Toggle Compare Mode' },
-      { keys: ['\u21E7', 'P'], desc: 'Run LSTM Prediction' },
+      { keys: ['\u21E7', 'P'], desc: 'Lap-Time Forecast of the Focus Driver' },
       { keys: ['S'], desc: 'Strategy Timeline' },
       { keys: ['T'], desc: 'Tyres (Degradation)' },
       { keys: ['A'], desc: 'Analytics (PCA)' },

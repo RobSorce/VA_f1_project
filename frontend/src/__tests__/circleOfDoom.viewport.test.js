@@ -1,7 +1,7 @@
 // Circle of Doom in its Pit Wall slot at common viewports (1920x1080,
-// 1440x900, 1366x768), laid out from the slot size as in the browser and
+// 2048x1100, 1440x900, 1536x750, 1366x768), laid out from the slot size as in the browser and
 // measured with the real Formula1 font metrics (public/fonts, advance widths).
-// Centre text never below 9 px: lines without room leave the centre for the
+// Centre text never below 10 px (the label floor): lines without room leave the centre for the
 // legend line, lap/maxLap and the pit loss with its "(fallback)" last.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
@@ -118,7 +118,11 @@ function pitWallSlot(vw, vh) {
   };
 }
 
-const VIEWPORTS = { '1920x1080': [1920, 1080], '1440x900': [1440, 900], '1366x768': [1366, 768] };
+// the four V13 target viewports (1536x750: a 1920x1080 screen at 125 % with
+// the browser maximised) and the earlier 1440x900
+const VIEWPORTS = {
+  '1920x1080': [1920, 1080], '2048x1100': [2048, 1100], '1440x900': [1440, 900], '1536x750': [1536, 750], '1366x768': [1366, 768],
+};
 // the sweep adds the sizes of the earlier review (a 1920x1080 laptop at 125 %, 1680x1050)
 const SWEEP_VIEWPORTS = { ...VIEWPORTS, '1536x864': [1536, 864], '1680x1050': [1680, 1050] };
 
@@ -234,7 +238,7 @@ const SCENARIOS = haveChina && haveMonza ? [
 
 describe.skipIf(!haveFonts || !SCENARIOS.length)('centre text at the Pit Wall viewports (real font metrics)', () => {
   for (const [vp, [vw, vh]] of Object.entries(VIEWPORTS)) {
-    it(`${vp}: never below 9 px, inside the ring's room; lap and pit loss always shown, in the centre or on the legend line`, () => {
+    it(`${vp}: never below 10 px, inside the ring's room; lap and pit loss always shown, in the centre or on the legend line`, () => {
       const slot = pitWallSlot(vw, vh);
       for (const sc of SCENARIOS) {
         replayAt(sc.session, sc.now, sc.lap, sc.extra);
@@ -250,17 +254,17 @@ describe.skipIf(!haveFonts || !SCENARIOS.length)('centre text at the Pit Wall vi
           + `legend ${r.legend.side ? 'side' : 'under'} ${r.legend.cols} col, R ${r.R.toFixed(0)}, layout ${r.layout}; `
           + `centre [${r.centre.map((l) => `${l.text}@${l.size.toFixed(1)}`).join(' | ')}]; legend line [${r.statusText}]`
           + `${r.gap ? `; gap readout @${r.gap.size.toFixed(1)}` : ''}`);
-        // never below 9 px, every line inside the room clear of the pit-lane cars
-        for (const l of r.centre) expect(l.size).toBeGreaterThanOrEqual(9);
+        // never below 10 px (the label floor), every line inside the room clear of the pit-lane cars
+        for (const l of r.centre) expect(l.size).toBeGreaterThanOrEqual(10);
         expect(r.fits).toBe(true);
         for (const l of r.centre) {
           const reach = Math.hypot(Math.max(Math.abs(l.box[0] - r.cx), Math.abs(l.box[2] - r.cx)),
             Math.max(Math.abs(l.box[1] - r.cy), Math.abs(l.box[3] - r.cy)));
           expect(reach).toBeLessThanOrEqual(r.rInner + 0.1);
         }
-        // the hover gap readout: at least 9 px, clear of every centre line
+        // the hover gap readout: at least 10 px, clear of every centre line
         if (r.gap) {
-          expect(r.gap.size).toBeGreaterThanOrEqual(9);
+          expect(r.gap.size).toBeGreaterThanOrEqual(10);
           for (const l of r.centre) expect(overlaps(l.box, r.gap.box)).toBe(false);
         }
         // lap/maxLap and the pit loss, with "(fallback)" when it is one: in the centre
@@ -310,7 +314,7 @@ describe.skipIf(!haveFonts || !SCENARIOS.length)('pit in k laps at the Pit Wall 
           const shown = `${r.centreText.replace(/ \| /g, ' ')} ${r.statusText}`;
           const ghost = /<g class="cod-ghost"/.test(markup);
           console.log(`${vp} ${sc.name}, k ${k}: ghost ${ghost}, R ${r.R.toFixed(0)}, layout ${r.layout}; centre [${r.centre.map((l) => `${l.text}@${l.size.toFixed(1)}`).join(' | ')}]; legend line [${r.statusText}]`);
-          for (const l of r.centre) expect(l.size).toBeGreaterThanOrEqual(9);
+          for (const l of r.centre) expect(l.size).toBeGreaterThanOrEqual(10);
           expect(r.fits).toBe(true);
           expect(shown).toContain(`LAP ${sc.lap}/${maxLapOf(sc.session)}`);
           expect(shown).toMatch(/pit loss \d+\.\d s/);
@@ -353,7 +357,8 @@ describe.skipIf(!haveFonts || !haveChina || !haveMonza)('sweep at the Pit Wall v
       const totals = {};
       for (const vp of Object.keys(SWEEP_VIEWPORTS)) {
         totals[vp] = {
-          renders: 0, centreUnder9: 0, notFits: 0, readoutOnCentre: 0, lapOrLossMissing: 0, labelOverlaps: 0, clamped: 0, examples: [],
+          renders: 0, centreUnder9: 0, notFits: 0, readoutOnCentre: 0, lapOrLossMissing: 0, labelOverlaps: 0, clamped: 0,
+          labelFontMin: Infinity, hiddenLabelsMax: 0, hiddenLabelsSum: 0, examples: [],
         };
       }
       for (let now = firstStartOfLap(session, 2); now < flag; now += 150) {
@@ -369,9 +374,18 @@ describe.skipIf(!haveFonts || !haveChina || !haveMonza)('sweep at the Pit Wall v
             .sort((a, b) => a.g - b.g)[0]?.d : null;
           replayAt(session, now, lap, { focusDriver: focus, highlightedDriver: nearest ?? null });
           for (const [vp, [vw, vh]] of Object.entries(SWEEP_VIEWPORTS)) {
-            const r = readRender(renderAt(pitWallSlot(vw, vh)));
+            const markup = renderAt(pitWallSlot(vw, vh));
+            const r = readRender(markup);
             const t = totals[vp];
             t.renders += 1;
+            // ring labels: never under the data type (11 px), a crowded ring
+            // leaves the least relevant labels out instead (data-hidden-labels)
+            for (const m of markup.matchAll(/<text class="cod-label[^"]*"[^>]*font-size="([^"]+)"/g)) {
+              t.labelFontMin = Math.min(t.labelFontMin, Number(m[1]));
+            }
+            const hidden = Number((markup.match(/data-hidden-labels="(\d+)"/) || [])[1] || 0);
+            t.hiddenLabelsMax = Math.max(t.hiddenLabelsMax, hidden);
+            t.hiddenLabelsSum += hidden;
             if (r.centre.some((l) => l.size < 9) || (r.gap && r.gap.size < 9)) t.centreUnder9 += 1;
             if (!r.fits) t.notFits += 1;
             if (r.gap && r.centre.some((l) => overlaps(l.box, r.gap.box))) t.readoutOnCentre += 1;
@@ -388,6 +402,7 @@ describe.skipIf(!haveFonts || !haveChina || !haveMonza)('sweep at the Pit Wall v
       console.log(`${name}: ${JSON.stringify(totals)}`);
       for (const [vp, t] of Object.entries(totals)) {
         expect(t.renders).toBeGreaterThan(80);
+        expect(t.labelFontMin).toBeGreaterThanOrEqual(11);
         expect({
           centreUnder9: t.centreUnder9, notFits: t.notFits, readoutOnCentre: t.readoutOnCentre, lapOrLossMissing: t.lapOrLossMissing,
         }).toEqual({

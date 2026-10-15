@@ -10,7 +10,7 @@ Endpoints:
                                    (data/processors/degradation.py), projected pit lap
 """
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 from typing import List, Optional, Dict, Any
 import asyncio
 import math
@@ -38,7 +38,7 @@ except Exception as e:
     PREDICT_AVAILABLE = False
 
 
-def _builtin_heuristic(last_10_laps: list, tsne_context: list = None,
+def _builtin_heuristic(last_10_laps: list, context_races: list = None,
                        current_lap: int = None, driver: str = None,
                        max_lap: int = None) -> dict:
     """Fallback lap-time prediction when the model module cannot be loaded."""
@@ -76,8 +76,8 @@ def _builtin_heuristic(last_10_laps: list, tsne_context: list = None,
         )
 
     summary = f"Heuristic: avg {avg_time:.1f}s + {deg_rate}s/lap degradation."
-    if tsne_context:
-        summary += f" Context: {len(tsne_context)} similar races."
+    if context_races:
+        summary += f" Context: {len(context_races)} similar races."
 
     result = {
         "predicted_times": predicted,
@@ -155,7 +155,10 @@ class LSTMRequest(BaseModel):
     # Race distance (total laps). Cached session: the payload's last lap when
     # absent; live lap_rows: required for a pit lap projection.
     max_lap: Optional[int] = None
-    tsne_context: Optional[List[str]] = None
+    # Ids of similar historical races (optional, only counted in the summary).
+    # 'tsne_context' is the former field name, still accepted as an alias.
+    context_races: Optional[List[str]] = Field(
+        default=None, validation_alias=AliasChoices('context_races', 'tsne_context'))
     # Type of the session the laps come from (D16; default the race). Outside
     # a race ('R') or sprint ('S') no pit stop is projected (race-only logic).
     session_type: Optional[str] = DEFAULT_SESSION_TYPE
@@ -194,7 +197,7 @@ UNDERCUT_WINDOW_LAPS_AFTER = 2
 async def predict_lstm(request: LSTMRequest):
     """
     Lap-time forecast (next 5 laps) and pit probability of one driver at a
-    clock, with optional t-SNE context.
+    clock, with optional context races.
 
     The window (the driver's last clean laps completed at the clock) is built
     by model/features.py build_window from the cached laps of the session
@@ -215,13 +218,13 @@ async def predict_lstm(request: LSTMRequest):
         except Exception as e:
             logger.warning(f"LSTM forecast failed, using heuristic: {e}", exc_info=True)
             result = _builtin_heuristic(
-                request.last_10_laps or [], request.tsne_context,
+                request.last_10_laps or [], request.context_races,
                 current_lap=request.current_lap, driver=request.driver,
                 max_lap=request.max_lap,
             )
     else:
         result = _builtin_heuristic(
-            request.last_10_laps or [], request.tsne_context,
+            request.last_10_laps or [], request.context_races,
             current_lap=request.current_lap, driver=request.driver,
             max_lap=request.max_lap,
         )
@@ -256,7 +259,7 @@ def _lstm_for_request(request: LSTMRequest) -> Dict[str, Any]:
             rows, request.driver, session_now=request.session_now, lap=lap,
             weather_rows=data.get("weather_data") or [],
             max_lap=request.max_lap or _race_last_lap(rows),
-            tsne_context=request.tsne_context, feature_source="cache",
+            context_races=request.context_races, feature_source="cache",
         )
     if request.lap_rows and request.driver:
         # Live rows stop at the laps run so far: the race distance is the
@@ -266,11 +269,11 @@ def _lstm_for_request(request: LSTMRequest) -> Dict[str, Any]:
             request.lap_rows, request.driver, session_now=request.session_now, lap=request.lap,
             weather_rows=request.weather_rows or [],
             max_lap=request.max_lap,
-            tsne_context=request.tsne_context, feature_source="request_rows",
+            context_races=request.context_races, feature_source="request_rows",
         )
     if request.last_10_laps:
         return _predict_laps(
-            request.last_10_laps, request.tsne_context, current_lap=request.current_lap,
+            request.last_10_laps, request.context_races, current_lap=request.current_lap,
             driver=request.driver, max_lap=request.max_lap,
         )
     raise HTTPException(status_code=422, detail=(

@@ -79,7 +79,9 @@ import React, {
 } from 'react';
 import * as d3 from 'd3';
 import { useF1Store, flagAtClock } from '../../store/useF1Store';
-import { getDriverColor } from '../../utils/colors';
+import {
+  getDriverColor, markColor, textColor, withAlpha, UI_COLORS, TEXT_COLORS, SURFACES, CHART_FONT, chartFontPx,
+} from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { pitInLapsKeyStep } from '../../hooks/useKeyboardShortcuts';
 import { estimatePitLoss, FALLBACK_PIT_LOSS } from '../../utils/pitLoss';
@@ -97,23 +99,31 @@ import {
 } from '../../utils/circleLabelLayout';
 import Panel from '../ui/Panel';
 
-/** Pit-window purple: the palette's session-best purple (docs/COLOR_ENCODING.md). */
-const PIT_WINDOW_COLOR = '#A855F7';
+/** Pit-window purple: utils/colors.js UI_COLORS.pitWindow (>= 3:1 as a mark). */
+const PIT_WINDOW_COLOR = UI_COLORS.pitWindow;
+// Its text colour on the tooltip (>= 4.5:1 on the elevated surface)
+const PIT_WINDOW_TEXT = textColor(PIT_WINDOW_COLOR, SURFACES.elevated);
 // Ghost of the rejoin for "pit in k laps": the rejoin diamond, hollow and dashed
 const GHOST_MARK = {
-  fill: 'rgba(168, 85, 247, 0.12)', stroke: PIT_WINDOW_COLOR, strokeWidth: 1.4, strokeDasharray: '2.5 1.5',
+  fill: withAlpha(PIT_WINDOW_COLOR, 0.12), stroke: PIT_WINDOW_COLOR, strokeWidth: 1.4, strokeDasharray: '2.5 1.5',
 };
 const TWO_PI = 2 * Math.PI;
 const MINUS = '−';
 // Size of the first render, before the slot is measured (and in server rendering)
 const FALLBACK_SIZE = { width: 520, height: 360 };
-// Labels of cars not relevant to the focus (or not selected)
+// Leader lines of cars not relevant to the focus (or not selected); their
+// labels are never faded: they turn to the muted text colour (>= 4.5:1,
+// docs/COLOR_ENCODING.md, focus + context)
 const DIM_OPACITY = 0.3;
 // Fixed drawing size (size prop) and wide: legend beside the circle instead of under it
 const SIDE_LEGEND_ASPECT = 1.45;
-const MIN_LABEL_FONT = 7;
-// Legend and legend line as laid out by visualizations.css (.cod-legend, .cod-status), px
-const LEGEND_FONT = 10;
+// Ring labels are data: drawn at the data type (CHART_FONT.data, >= 11 px)
+// and never shrunk; when the ring is too crowded for every label at that
+// size, the labels of the cars that matter least leave (thinLabels), the cars
+// stay and a hover brings a label back (V13)
+// Legend and legend line as laid out by visualizations.css (.cod-legend,
+// .cod-status): the label type, read from its token like the CSS does
+const legendFont = () => chartFontPx('label');
 const LEGEND_WEIGHT = 500;
 const LEGEND_ROW_H = 14;
 const LEGEND_ROW_GAP = 1;
@@ -122,7 +132,7 @@ const LEGEND_COL_GAP = 4;
 const LEGEND_MAX_ROWS = 3;
 // padding 2 + swatch 16 + gap 3 + padding 2
 const LEGEND_ITEM_EXTRA = 23;
-const STATUS_FONT = 10;
+const statusFont = () => chartFontPx('label');
 const STATUS_WEIGHT = 600;
 const STATUS_LINE_H = 13;
 const STATUS_SEP = ' · ';
@@ -131,8 +141,12 @@ const BLOCK_GAP = 2;
 // Legend-line items always shown, on more lines when needed (the others only
 // when they fit on its single line; the car tooltip has them all)
 const STATUS_ESSENTIAL = new Set(['lap', 'loss']);
-// Centre text is never smaller: a line that does not fit leaves the centre
-const MIN_CENTRE_FONT = 9;
+// Centre text is never smaller: values (lap, track status, reference lap, pit
+// loss, the focus result, the hover gap readout) are data, >= 11 px; the
+// italic notes are labels, >= 10 px. A line that does not fit leaves the
+// centre for the legend line (the readout for the car tooltip)
+const MIN_CENTRE_FONT = 11;
+const MIN_CENTRE_NOTE = 10;
 // px: a ring held at exactly the radius the centre lines need still holds them
 const FIT_EPS = 1e-6;
 // Width of a character of the Wide face (weight 900) in em, where the text
@@ -180,6 +194,9 @@ const CENTRE_LINE_EM = 1.3;
 // first to go; centreItems builds them top to bottom: lap, flag, ref, loss,
 // focus, neutral, hint): lap/maxLap and the pit loss stay longest
 const CENTRE_PRIORITY = ['gap', 'lap', 'loss', 'focus', 'neutral', 'flag', 'ref', 'hint'];
+// Centre lines that step aside for the hover gap readout when it has no room
+// (least important first; lap, pit loss and the focus result never do)
+const GAP_YIELDS = ['hint', 'refnote', 'ref', 'neutral', 'flag'];
 // Hover gap readout: angles tried around the middle of its arc (4 degree steps)
 const GAP_ANGLE_STEP = Math.PI / 45;
 // Gap kept between the readout and a centre line, px
@@ -359,9 +376,9 @@ function referenceNote(ref) {
 function centreItems(R, {
   currentLap, lapTotal, trackFlag, refLap, pitLoss, focusDriver, win, pitIn = null,
 }) {
-  const big = clamp(R * 0.12, 10, 18);
-  const small = clamp(R * 0.075, MIN_CENTRE_FONT, 11);
-  const tiny = clamp(R * 0.065, MIN_CENTRE_FONT, 10);
+  const big = clamp(R * 0.12, MIN_CENTRE_FONT, 18);
+  const small = clamp(R * 0.075, MIN_CENTRE_FONT, 12);
+  const tiny = MIN_CENTRE_NOTE;
   const line = (key, text, cls, size) => ({
     key, text, cls, size,
   });
@@ -562,7 +579,8 @@ function ringGeometry(width, height, measure) {
   const minSide = Math.min(width, height);
   const carR = clamp(minSide / 70, 3.5, 7);
   const bandHalf = clamp(minSide / 60, 4, 8);
-  const fs0 = clamp(minSide / 38, 8, 11);
+  // the data type: >= 11 px at every size (V13), the token's value in the browser
+  const fs0 = chartFontPx('data');
   // room kept beside the ring for a label such as 'VER +88.8'
   const baseLabelW = measure ? measure('VER +88.8', fs0) + 4 : fs0 * CHAR_EM * 9;
   const gapOut = carR + bandHalf + 10;
@@ -594,7 +612,7 @@ function legendGrid(measure, {
 }) {
   const n = items.length;
   const grid = (short) => {
-    const colW = Math.max(...items.map((it) => textWidth(measure, short ? it.short : it.label, LEGEND_FONT,
+    const colW = Math.max(...items.map((it) => textWidth(measure, short ? it.short : it.label, legendFont(),
       { weight: LEGEND_WEIGHT }))) + LEGEND_ITEM_EXTRA;
     let cols;
     if (side) {
@@ -626,7 +644,7 @@ function legendGrid(measure, {
  * when it still fits (the car tooltip has them all).
  */
 function statusLines(chunks, width, measure) {
-  const w = (t) => textWidth(measure, t, STATUS_FONT, { weight: STATUS_WEIGHT });
+  const w = (t) => textWidth(measure, t, statusFont(), { weight: STATUS_WEIGHT });
   const sep = w(STATUS_SEP);
   const lines = [];
   let line = [];
@@ -857,7 +875,7 @@ function useTextMeasure(el) {
 
 /** Legend swatch: each mark as drawn on the circle. */
 function Swatch({ kind, hatchId }) {
-  const car = '#8f96a3';
+  const car = TEXT_COLORS.muted;
   return (
     <svg className="cod-legend__swatch" width="20" height="12" viewBox="0 0 20 12" aria-hidden="true">
       {kind === 'car' && <circle cx="10" cy="6" r="4" fill={car} stroke="rgba(0,0,0,0.55)" strokeWidth="1" />}
@@ -935,7 +953,7 @@ function CircleLegend({
 function HatchPattern({ id }) {
   return (
     <pattern id={id} patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-      <rect width="4" height="4" fill="rgba(168, 85, 247, 0.10)" />
+      <rect width="4" height="4" fill={withAlpha(PIT_WINDOW_COLOR, 0.10)} />
       <line x1="0" y1="0" x2="0" y2="4" stroke={PIT_WINDOW_COLOR} strokeWidth="1.6" />
     </pattern>
   );
@@ -1232,7 +1250,7 @@ export default function CircleOfDoom({
       const rClear = R + Math.max(bandHalf + 6, carR * 1.35 + 5.5) + 1;
       for (const [variant, rejoinVariant] of attempts) {
         const layout = layoutLabels(variant, rejoinVariant, {
-          width, height, cx, cy, rLabel, rClear, fontSize: fs0, minFontSize: MIN_LABEL_FONT, measure,
+          width, height, cx, cy, rLabel, rClear, fontSize: fs0, minFontSize: fs0, measure,
         });
         if (!chosen || layout.problems < chosen.layout.problems) {
           chosen = {
@@ -1242,6 +1260,42 @@ export default function CircleOfDoom({
         if (layout.ok) break;
       }
       if (chosen.layout.ok) break;
+    }
+    // Too crowded at the data type: the labels of the cars that matter least
+    // leave until the others fit (focus, hovered, selected and relevant cars
+    // first, then by place); their cars stay, a hover brings a label back
+    let hiddenLabels = 0;
+    if (!chosen.layout.ok) {
+      const rank = (it) => {
+        const c = onRing.find((x) => x.driver === it.key);
+        const tier = it.key === focusDriver ? 0 : it.key === highlightedDriver ? 1 : selected.has(it.key) ? 2
+          : !isDim(c) ? 3 : 4;
+        return tier * 1000 + (c?.position ?? 999);
+      };
+      const ordered = [...(shortItems || items)].sort((a, b) => rank(a) - rank(b));
+      let thin = null;
+      for (const scale of RING_SCALES) {
+        const R = Math.max(30, R0 * scale, rFloor);
+        const rLabel = R + gapOut;
+        const rClear = R + Math.max(bandHalf + 6, carR * 1.35 + 5.5) + 1;
+        const at = (k) => layoutLabels(ordered.slice(0, k), rejoin, {
+          width, height, cx, cy, rLabel, rClear, fontSize: fs0, minFontSize: fs0, measure,
+        });
+        let lo = 0;
+        let hi = ordered.length - 1;
+        let best = at(0).ok ? { k: 0, layout: at(0) } : null;
+        while (best && lo < hi) {
+          const mid = Math.ceil((lo + hi + 1) / 2);
+          const layout = at(mid);
+          if (layout.ok) { best = { k: mid, layout }; lo = mid; } else hi = mid - 1;
+        }
+        if (best && (!thin || best.k > thin.k)) thin = { ...best, R, rLabel };
+        if (thin && thin.k >= ordered.length - 1) break;
+      }
+      if (thin) {
+        chosen = { R: thin.R, rLabel: thin.rLabel, layout: thin.layout, short: !!shortItems };
+        hiddenLabels = onRing.length - thin.k;
+      }
     }
     const { R, rLabel, layout } = chosen;
     const fs = layout.fontSize;
@@ -1266,7 +1320,9 @@ export default function CircleOfDoom({
         isSelected: selected.has(c.driver),
         second: secondCars.has(c.driver),
         lappedByLeader: c.lapOffsetToLeader > 0,
-        color: getDriverColor(c.driver),
+        color: markColor(getDriverColor(c.driver), SURFACES.panel),
+        // label text in the driver colour at >= 4.5:1 on the panel
+        text: textColor(getDriverColor(c.driver), SURFACES.panel),
         tag: chosen.short && dim ? '' : tagOf(c),
         dim,
       });
@@ -1362,9 +1418,25 @@ export default function CircleOfDoom({
           b: highlightedDriver,
           size: Math.max(MIN_CENTRE_FONT, fs + 1),
         };
-        const spot = placeGapText(gapMark.text, gapMark.size, {
+        let spot = placeGapText(gapMark.text, gapMark.size, {
           cx, cy, rInner, mid: gapMark.mid, avoid: centre.map((l) => l.box), measure,
         });
+        // No room at the data type: the readout of the car the user points at
+        // outranks the reference notes; the least important centre lines step
+        // aside while it is shown (the car tooltip repeats them)
+        for (const key of GAP_YIELDS) {
+          if (spot) break;
+          const kept = centre.filter((l) => !l.key.startsWith(key));
+          if (kept.length === centre.length) continue;
+          const restacked = stackCentre(kept.map((l) => ({
+            key: l.key, text: l.text, cls: l.cls, size: l.size,
+          })), cx, cy, measure);
+          const at = placeGapText(gapMark.text, gapMark.size, {
+            cx, cy, rInner, mid: gapMark.mid, avoid: restacked.map((l) => l.box), measure,
+          });
+          if (at) { centre = restacked; spot = at; } else centre = restacked;
+        }
+        if (!spot) centre = panel.centre.lines;
         if (spot) {
           Object.assign(gapMark, { x: spot.x, y: spot.y, box: spot.box });
         } else {
@@ -1402,6 +1474,7 @@ export default function CircleOfDoom({
       centre,
       centreFits: centre.every((l) => cornerReach(l.box, cx, cy) <= rInner + FIT_EPS),
       layoutOk: layout.ok,
+      hiddenLabels,
     };
   }, [cars, live, panel, width, height, focusDriver, highlightedDriver, selectedDrivers, focusTags,
     secondCars, state, measure, pitInRow, kShown]);
@@ -1511,30 +1584,30 @@ export default function CircleOfDoom({
   };
   const rejoinTooltip = (event) => showTooltip(
     event,
-    `<div class="tooltip-title" style="color:${PIT_WINDOW_COLOR}">${focusDriver} pit now</div>${distributionRows()}`,
+    `<div class="tooltip-title" style="color:${PIT_WINDOW_TEXT}">${focusDriver} pit now</div>${distributionRows()}`,
   );
   const ghostTooltip = (event) => showTooltip(
     event,
-    `<div class="tooltip-title" style="color:${PIT_WINDOW_COLOR}">${focusDriver} pits in ${kShown}</div>${pitInRows()}`,
+    `<div class="tooltip-title" style="color:${PIT_WINDOW_TEXT}">${focusDriver} pits in ${kShown}</div>${pitInRows()}`,
   );
 
   // Header: the "pit in k laps" stepper ([ and ]) and the "rivals stop" toggle
   const stepBtn = {
     width: 16, height: 16, padding: 0, borderRadius: 3, lineHeight: '14px',
-    border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)',
-    color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+    border: '1px solid rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.06)',
+    color: TEXT_COLORS.primary, fontSize: 11, fontWeight: 700, cursor: 'pointer',
   };
   const pitInTitle = focusDriver
     ? `Pit in k laps ([ and ] keys): ${focusDriver} stays out k more laps, then stops; dashed diamond = its projected rejoin. `
       + 'Lap model of the race simulation (degradation by compound and tyre age, fresh-tyre delta), no traffic.'
     : 'Pit in k laps ([ and ] keys): click a car first';
   const headerControls = isRace ? (
-    <div className="cod-pitin" title={pitInTitle} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10 }}>
-      <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 600, whiteSpace: 'nowrap' }}>pit in</span>
+    <div className="cod-pitin" title={pitInTitle} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: CHART_FONT.label }}>
+      <span style={{ color: TEXT_COLORS.muted, fontWeight: 600, whiteSpace: 'nowrap' }}>pit in</span>
       <button type="button" aria-label="Pit one lap earlier ([)" disabled={kShown <= 0} onClick={() => stepK(-1)} style={stepBtn}>
         {MINUS}
       </button>
-      <span className="cod-pitin__k" data-k={kShown} style={{ minWidth: 14, textAlign: 'center', fontWeight: 800, color: '#fff' }}>
+      <span className="cod-pitin__k" data-k={kShown} style={{ minWidth: 14, textAlign: 'center', fontWeight: 800, color: TEXT_COLORS.primary }}>
         {kShown}
       </span>
       <button type="button" aria-label="Pit one lap later (])" disabled={kShown >= kMax} onClick={() => stepK(1)} style={stepBtn}>
@@ -1550,11 +1623,11 @@ export default function CircleOfDoom({
           ...stepBtn,
           width: 'auto',
           padding: '0 4px',
-          fontSize: 9,
+          fontSize: CHART_FONT.label,
           fontWeight: 600,
           whiteSpace: 'nowrap',
-          background: rivalsStop ? 'rgba(168, 85, 247, 0.25)' : stepBtn.background,
-          borderColor: rivalsStop ? PIT_WINDOW_COLOR : 'rgba(255,255,255,0.18)',
+          background: rivalsStop ? withAlpha(PIT_WINDOW_COLOR, 0.25) : stepBtn.background,
+          borderColor: rivalsStop ? PIT_WINDOW_COLOR : 'rgba(255,255,255,0.45)',
         }}
       >
         rivals
@@ -1585,6 +1658,7 @@ export default function CircleOfDoom({
 
   const {
     cx, cy, R, rPit, rInner, bandHalf, carR, fs, drawn, placed, windowMarks, gapMark, centre, centreFits, layoutOk,
+    hiddenLabels,
   } = scene;
   const boxAttr = (box) => box.map((v) => v.toFixed(1)).join(',');
   // Laid out from the slot: the plot gets its size explicitly
@@ -1598,6 +1672,7 @@ export default function CircleOfDoom({
             <svg
               className="cod__svg"
               data-layout={layoutOk ? 'fits' : 'clamped'}
+              data-hidden-labels={hiddenLabels}
               viewBox={`0 0 ${width} ${height}`}
               role="img"
               aria-label="Circle of Doom: one lap in seconds, timing line at the top"
@@ -1626,7 +1701,11 @@ export default function CircleOfDoom({
               )}
 
               {gapMark && (
-                <g className="cod-gap-layer" data-gap={`${gapMark.a}-${gapMark.b}`}>
+                <g
+                  className="cod-gap-layer"
+                  data-gap={`${gapMark.a}-${gapMark.b}`}
+                  data-gap-place={gapMark.inCentre ? 'centre' : gapMark.inTooltip ? 'tooltip' : 'ring'}
+                >
                   <path className="cod-gap-arc" d={gapMark.path} transform={`translate(${cx},${cy})`} />
                   {!gapMark.inCentre && !gapMark.inTooltip && (
                     <text
@@ -1759,12 +1838,11 @@ export default function CircleOfDoom({
                       x={xm}
                       y={(y0 + y1) / 2}
                       fontSize={fs}
-                      opacity={c.dim ? DIM_OPACITY : 1}
                       data-driver={c.driver}
                       data-angle={wrapAngle(l.placed).toFixed(4)}
                       data-box={l.box.map((v) => v.toFixed(1)).join(',')}
                     >
-                      <tspan className="cod-label__code" fill={c.color}>{c.driver}</tspan>
+                      <tspan className="cod-label__code" fill={c.dim ? TEXT_COLORS.muted : c.text}>{c.driver}</tspan>
                       {c.tag && <tspan className="cod-label__gap" dx={3}>{c.tag}</tspan>}
                     </text>
                   );

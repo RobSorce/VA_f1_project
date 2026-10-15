@@ -10,6 +10,62 @@
  */
 import { isLapCompleted, lapStartTime } from '../raceTime';
 import { driverStateAt, nonFinisherMap } from '../driverState';
+import {
+  STATUS_COLORS, STATUS_GLYPHS, DIVERGING, TEXT_COLORS, TIMING_BANDS, timingBandColor,
+} from '../colors';
+
+// Tolerance of "equal to a best" and the bands of the timing colours: the one
+// TIMING_BANDS of utils/colors.js (sectors yellow beyond 0.3 s over the PB,
+// orange beyond 1.0 s; laps 0.5 / 2.0 s), as in the Timing Tower
+export const PITWALL_BANDS = TIMING_BANDS;
+
+/**
+ * Timing colour of a sector or lap time and its glyph (the one STATUS_COLORS
+ * map: ◆ session best, ● personal best, then the one ordered scale of
+ * TIMING_BANDS: normal near the PB, yellow beyond `slower`, orange beyond
+ * `muchSlower`); the glyph is the redundant cue of
+ * the purple / green convention.
+ *
+ * @param {number} time
+ * @param {number} personalBest
+ * @param {number} sessionBest
+ * @param {'sector'|'lap'} [kind='sector']
+ * @returns {{color: string, glyph: string}}
+ */
+export function pitWallTimingCue(time, personalBest, sessionBest, kind = 'sector') {
+  const tol = PITWALL_BANDS.tolerance;
+  const cue = (color, glyph = '') => ({ color, glyph });
+  if (!time || time <= 0 || !Number.isFinite(time)) return cue(STATUS_COLORS.normal);
+  if (sessionBest && Math.abs(time - sessionBest) <= tol) return cue(STATUS_COLORS.overallBest, STATUS_GLYPHS.overallBest);
+  if (personalBest && Math.abs(time - personalBest) <= tol) return cue(STATUS_COLORS.personalBest, STATUS_GLYPHS.personalBest);
+  if (personalBest && Number.isFinite(personalBest)) return cue(timingBandColor(time - personalBest, kind === 'lap' ? 'lap' : 'sector'));
+  return cue(STATUS_COLORS.normal);
+}
+
+/**
+ * Colour of a sector's delta to the personal best: at or under the PB blue,
+ * more than the sector band's much-slower limit over it orange (the orange of
+ * the timing scale, same threshold, so a time and its delta never disagree),
+ * else muted; the sign is always printed (signedDelta).
+ */
+export function pitWallDeltaColor(delta) {
+  if (delta == null || !Number.isFinite(delta)) return TEXT_COLORS.muted;
+  if (delta <= 0) return DIVERGING.better;
+  return delta > PITWALL_BANDS.sector.muchSlower ? DIVERGING.worse : TEXT_COLORS.muted;
+}
+
+/** Legend rows of the panel (V4): every timing colour with its glyph or sign. */
+export function pitWallLegend() {
+  return [
+    { label: 'Session best', color: STATUS_COLORS.overallBest, glyph: STATUS_GLYPHS.overallBest, shape: 'glyph' },
+    { label: 'PB', color: STATUS_COLORS.personalBest, glyph: STATUS_GLYPHS.personalBest, shape: 'glyph' },
+    { label: `> ${PITWALL_BANDS.sector.slower} s off PB`, color: STATUS_COLORS.slower, glyph: '31.2', shape: 'glyph' },
+    { label: `> ${PITWALL_BANDS.sector.muchSlower} s off`, color: STATUS_COLORS.muchSlower, glyph: '31.2', shape: 'glyph' },
+    { label: 'Running', color: STATUS_COLORS.running, glyph: '12.3', shape: 'glyph' },
+    { label: 'vs PB', color: DIVERGING.better, glyph: '−', shape: 'glyph' },
+    { label: `> ${PITWALL_BANDS.sector.muchSlower} s`, color: DIVERGING.worse, glyph: '+', shape: 'glyph' },
+  ];
+}
 
 /**
  * The focus driver's sector panel at sessionNow (session seconds), causal

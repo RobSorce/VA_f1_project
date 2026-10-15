@@ -1,5 +1,6 @@
 import React, { useRef, useCallback } from 'react';
 import { exportAsPng } from '../../utils/exportChart';
+import { TEXT_COLORS } from '../../utils/colors';
 
 export default function Panel({ title, icon, controls, children, className = '', style, focused = false, shortcutKey }) {
   const panelRef = useRef(null);
@@ -30,7 +31,8 @@ export default function Panel({ title, icon, controls, children, className = '',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 22, height: 22, borderRadius: 4,
                 border: 'none', background: 'transparent',
-                color: 'rgba(255,255,255,0.3)', cursor: 'pointer',
+                // muted text colour: the glyph is a control, >= 3:1 (V13)
+                color: TEXT_COLORS.muted, cursor: 'pointer',
                 fontSize: '12px', padding: 0, flexShrink: 0,
               }}
             >

@@ -1,43 +1,50 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { useF1Store, formatReplayClock } from '../../store/useF1Store';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { getDriverColor } from '../../utils/colors';
+import {
+  driverStyle, tintedChip, textColor, markColor, withAlpha, CHART_FONT, chartFontPx,
+  TEXT_COLORS, GRID_COLORS, SURFACES, UI_COLORS, FLAG_COLORS, SERIES_COLORS,
+} from '../../utils/colors';
+import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
 import { lapWindows, leaderLapAt, raceClockLimit } from '../../utils/raceTime';
 import { causalKey } from '../../utils/strategyViews';
 import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
 
 /* -- Race control category styling --------------------------------------- */
 // Maps the F1 SignalR `Category` string + flag/colour to a user-readable
-// label, an accent colour, and a glyph. Categories the official feed emits:
-// "Flag", "Drs", "SafetyCar", "CarEvent", "Other" (and a few rarely-seen).
+// label, an accent colour (utils/colors.js) and a glyph. Categories the
+// official feed emits: "Flag", "Drs", "SafetyCar", "CarEvent", "Other" (and a
+// few rarely-seen). The glyph (and the label) tells the categories apart,
+// never the colour alone: every glyph is different.
 const CATEGORY_META = {
-  Flag:       { label: 'Flag',       color: '#FFD500', icon: 'F' },
-  Drs:        { label: 'DRS',        color: '#3b82f6', icon: 'D' },
-  SafetyCar:  { label: 'Safety Car', color: '#FF8C00', icon: 'S' },
-  CarEvent:   { label: 'Car Event',  color: '#22c55e', icon: 'C' },
-  Other:      { label: 'Other',      color: '#9aa0b3', icon: '·' },
-  Penalty:    { label: 'Penalty',    color: '#ef4444', icon: 'P' },
-  Stewards:   { label: 'Stewards',   color: '#ef4444', icon: 'S' },
+  Flag:       { label: 'Flag',       color: FLAG_COLORS.yellow,    icon: 'F' },
+  Drs:        { label: 'DRS',        color: FLAG_COLORS.blue,      icon: 'D' },
+  SafetyCar:  { label: 'Safety Car', color: FLAG_COLORS.safetyCar, icon: 'S' },
+  CarEvent:   { label: 'Car Event',  color: SERIES_COLORS[2],      icon: 'C' },
+  Other:      { label: 'Other',      color: TEXT_COLORS.muted,     icon: '·' },
+  Penalty:    { label: 'Penalty',    color: FLAG_COLORS.red,       icon: 'P' },
+  Stewards:   { label: 'Stewards',   color: FLAG_COLORS.red,       icon: '⚖' },
 };
 
+// Flags: the FIA colours of utils/colors.js, always drawn with their label
 const FLAG_META = {
-  GREEN:    { color: '#22c55e', label: 'Green' },
-  YELLOW:   { color: '#eab308', label: 'Yellow' },
-  DOUBLE_YELLOW: { color: '#eab308', label: 'Double Yellow' },
-  RED:      { color: '#ef4444', label: 'Red' },
-  BLUE:     { color: '#3b82f6', label: 'Blue' },
-  CHEQUERED:{ color: '#fff',    label: 'Chequered' },
-  CLEAR:    { color: '#22c55e', label: 'Clear' },
+  GREEN:    { color: FLAG_COLORS.green,     label: 'Green' },
+  YELLOW:   { color: FLAG_COLORS.yellow,    label: 'Yellow' },
+  DOUBLE_YELLOW: { color: FLAG_COLORS.yellow, label: 'Double Yellow' },
+  RED:      { color: FLAG_COLORS.red,       label: 'Red' },
+  BLUE:     { color: FLAG_COLORS.blue,      label: 'Blue' },
+  CHEQUERED:{ color: FLAG_COLORS.chequered, label: 'Chequered' },
+  CLEAR:    { color: FLAG_COLORS.green,     label: 'Clear' },
 };
 
 const TRACK_STATUS_META = {
-  '1': { label: 'Track clear',          color: '#22c55e' },
-  '2': { label: 'Yellow flag',          color: '#eab308' },
-  '3': { label: 'Yellow flag',          color: '#eab308' },
-  '4': { label: 'Safety Car',           color: '#FF8C00' },
-  '5': { label: 'Red flag',             color: '#ef4444' },
-  '6': { label: 'Virtual Safety Car',   color: '#f97316' },
-  '7': { label: 'VSC ending',           color: '#f97316' },
+  '1': { label: 'Track clear',          color: FLAG_COLORS.green },
+  '2': { label: 'Yellow flag',          color: FLAG_COLORS.yellow },
+  '3': { label: 'Yellow flag',          color: FLAG_COLORS.yellow },
+  '4': { label: 'Safety Car',           color: FLAG_COLORS.safetyCar },
+  '5': { label: 'Red flag',             color: FLAG_COLORS.red },
+  '6': { label: 'Virtual Safety Car',   color: FLAG_COLORS.safetyCar },
+  '7': { label: 'VSC ending',           color: FLAG_COLORS.safetyCar },
 };
 
 function classifyCategory(msg) {
@@ -83,19 +90,21 @@ function toMs(ts) {
 }
 
 /* -- Driver chip --------------------------------------------------------- */
-function DriverChip({ abbr, color }) {
+// The driver's code (the cue) on a tint of his colour, the team bar at >= 3:1
+function DriverChip({ abbr }) {
   if (!abbr) return null;
+  const st = driverStyle(abbr, SURFACES.panel);
   return (
     <span style={{
       display: 'inline-block',
-      padding: '1px 6px',
+      padding: '0 6px',
       borderRadius: 3,
-      fontSize: 10,
+      fontSize: CHART_FONT.label,
       fontWeight: 800,
       letterSpacing: '0.04em',
-      background: `${color}26`,
-      borderLeft: `3px solid ${color}`,
-      color: '#fff',
+      background: withAlpha(st.color, 0.15),
+      borderLeft: `3px solid ${st.mark}`,
+      color: TEXT_COLORS.primary,
       fontFamily: "'JetBrains Mono', monospace",
     }}>
       {abbr}
@@ -254,7 +263,7 @@ export default function RaceControlPanel() {
         abbr,
         status: info?.status || 'Out',
         lap: st?.retiredLap ?? info?.lastLap ?? '?',
-        color: getDriverColor(abbr),
+        mark: driverStyle(abbr, SURFACES.page).mark,
       });
     }
     return out.sort((a, b) => (Number(a.lap) || 0) - (Number(b.lap) || 0));
@@ -270,86 +279,79 @@ export default function RaceControlPanel() {
   }, [counts]);
 
   /* -- Render ------------------------------------------------------------- */
+  const statusMeta = TRACK_STATUS_META[String(currentFlagStatus || '1')] || TRACK_STATUS_META['1'];
+  const statusChip = tintedChip(statusMeta.color, 0.14, SURFACES.panel);
+  const showRail = (showRetirements && retirements.length > 0) || (showTeamRadio && teamRadios.length > 0);
   return (
     <div className="race-control-panel" style={{
       width: '100%', height: '100%',
       display: 'flex', flexDirection: 'column',
-      background: 'rgba(10,10,20,0.96)',
-      color: '#e0e0e0',
+      background: SURFACES.panel,
+      color: TEXT_COLORS.primary,
       fontFamily: "'Titillium Web', 'Inter', sans-serif",
       overflow: 'hidden',
     }}>
       {/* Header strip */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 14px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        background: 'linear-gradient(90deg, rgba(225,6,0,0.18) 0%, rgba(0,0,0,0) 60%)',
+        padding: '6px 14px',
+        borderBottom: `1px solid ${GRID_COLORS.grid}`,
+        background: `linear-gradient(90deg, ${withAlpha(UI_COLORS.accent, 0.18)} 0%, transparent 60%)`,
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{
-            width: 10, height: 10, borderRadius: '50%',
-            background: isLiveMode && liveConnected ? '#e10600' : '#666',
-            boxShadow: isLiveMode && liveConnected ? '0 0 10px rgba(225,6,0,0.6)' : 'none',
-            animation: isLiveMode && liveConnected ? 'livePulse 1.5s ease-in-out infinite' : 'none',
-          }} />
+          <span
+            title={isLiveMode && liveConnected ? 'Live: connected' : 'Not live'}
+            style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: isLiveMode && liveConnected ? UI_COLORS.accent : TEXT_COLORS.muted,
+              boxShadow: isLiveMode && liveConnected ? `0 0 10px ${withAlpha(UI_COLORS.accent, 0.6)}` : 'none',
+              animation: isLiveMode && liveConnected ? 'livePulse 1.5s ease-in-out infinite' : 'none',
+            }}
+          />
           <span style={{
             fontFamily: "'Formula1', 'Titillium Web', sans-serif",
             fontWeight: 800, letterSpacing: '0.10em', textTransform: 'uppercase',
-            fontSize: 12, color: '#fff',
+            fontSize: CHART_FONT.data, color: TEXT_COLORS.primary,
           }}>Race Control</span>
-          <span style={{ fontSize: 10, color: '#7a7f9a', letterSpacing: '0.06em' }}>
-            LAP <strong style={{ color: '#fff' }}>{currentLap}</strong>{totalRaceLaps ? ` / ${totalRaceLaps}` : ''}
+          <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary, letterSpacing: '0.06em' }}>
+            LAP <strong style={{ color: TEXT_COLORS.primary }}>{currentLap}</strong>{totalRaceLaps ? ` / ${totalRaceLaps}` : ''}
           </span>
         </div>
 
-        {/* Track status pill (mirrors what TrackMap shows) */}
-        {(() => {
-          const meta = TRACK_STATUS_META[String(currentFlagStatus || '1')] || TRACK_STATUS_META['1'];
-          return (
-            <span style={{
-              padding: '3px 10px', borderRadius: 4,
-              fontSize: 10, fontWeight: 800, letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              background: `${meta.color}20`, color: meta.color,
-              border: `1px solid ${meta.color}55`,
-            }}>{meta.label}</span>
-          );
-        })()}
+        {/* Track status pill (mirrors what TrackMap shows): the label is the cue, the colour repeats it */}
+        <span style={{
+          padding: '2px 10px', borderRadius: 4,
+          fontSize: CHART_FONT.label, fontWeight: 800, letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          background: statusChip.background, color: statusChip.color,
+          border: `1px solid ${statusChip.borderColor}`,
+        }}>{statusMeta.label}</span>
       </div>
 
       {/* Filter chips */}
       <div style={{
         display: 'flex', flexWrap: 'wrap', gap: 6,
-        padding: '8px 14px',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        padding: '6px 14px',
+        borderBottom: `1px solid ${GRID_COLORS.grid}`,
         flexShrink: 0,
       }}>
         {categories.map((cat) => {
-          const meta = CATEGORY_META[cat] || { color: '#888' };
+          const meta = CATEGORY_META[cat] || { color: TEXT_COLORS.muted, icon: '' };
           const active = filter === cat;
           return (
             <button
               key={cat}
+              type="button"
               onClick={() => setFilter(cat)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '4px 10px', borderRadius: 4,
-                background: active ? `${meta.color}30` : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${active ? meta.color + '88' : 'rgba(255,255,255,0.06)'}`,
-                color: active ? '#fff' : '#bbc',
-                fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                textTransform: 'uppercase', cursor: 'pointer',
-                fontFamily: "'JetBrains Mono', monospace",
-              }}
+              aria-pressed={active}
+              style={chipButton(active, meta.color)}
             >
-              <span style={{
-                display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
-                background: meta.color || '#888',
-              }} />
+              {cat !== 'All' && (
+                <span aria-hidden="true" style={{ color: textColor(meta.color, SURFACES.panel), fontWeight: 800 }}>{meta.icon}</span>
+              )}
               {cat === 'All' ? 'All' : (CATEGORY_META[cat]?.label || cat)}
-              <span style={{ color: '#888', fontSize: 9 }}>{counts[cat] ?? 0}</span>
+              <span style={{ color: TEXT_COLORS.secondary }}>{counts[cat] ?? 0}</span>
             </button>
           );
         })}
@@ -357,55 +359,32 @@ export default function RaceControlPanel() {
         <span style={{ flex: 1 }} />
 
         <button
+          type="button"
           onClick={toggleAutoplay}
+          aria-pressed={!!autoplay}
           title={`Auto-play new team radios as they arrive — scoped to selected/focus drivers, queued chronologically. ${autoplayHint}.`}
-          style={{
-            padding: '4px 10px', borderRadius: 4,
-            background: autoplay ? 'rgba(34,197,94,0.16)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${autoplay ? '#22c55e88' : 'rgba(255,255,255,0.06)'}`,
-            color: autoplay ? '#86efac' : '#bbc',
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-            textTransform: 'uppercase', cursor: 'pointer',
-            fontFamily: "'JetBrains Mono', monospace",
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-          }}
+          style={toggleButton(autoplay)}
         >
-          <span style={{
-            display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
-            background: autoplay ? '#22c55e' : '#555',
-          }} />
-          Auto-play
+          {autoplay ? '●' : '○'} Auto-play
         </button>
 
         <button
+          type="button"
           onClick={() => setShowTeamRadio((v) => !v)}
+          aria-pressed={showTeamRadio}
           title="Team radio audio (F1 doesn't ship transcripts — audio only)"
-          style={{
-            padding: '4px 10px', borderRadius: 4,
-            background: showTeamRadio ? 'rgba(245,166,35,0.16)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${showTeamRadio ? '#f5a62388' : 'rgba(255,255,255,0.06)'}`,
-            color: showTeamRadio ? '#f5a623' : '#bbc',
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-            textTransform: 'uppercase', cursor: 'pointer',
-            fontFamily: "'JetBrains Mono', monospace",
-          }}
+          style={toggleButton(showTeamRadio)}
         >
-          Radio <span style={{ color: '#888', fontSize: 9 }}>{teamRadios.length}</span>
+          {showTeamRadio ? '●' : '○'} Radio <span style={{ color: TEXT_COLORS.secondary }}>{teamRadios.length}</span>
         </button>
 
         <button
+          type="button"
           onClick={() => setShowRetirements((v) => !v)}
-          style={{
-            padding: '4px 10px', borderRadius: 4,
-            background: showRetirements ? 'rgba(239,68,68,0.16)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${showRetirements ? '#ef444488' : 'rgba(255,255,255,0.06)'}`,
-            color: showRetirements ? '#fca5a5' : '#bbc',
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-            textTransform: 'uppercase', cursor: 'pointer',
-            fontFamily: "'JetBrains Mono', monospace",
-          }}
+          aria-pressed={showRetirements}
+          style={toggleButton(showRetirements)}
         >
-          DNFs <span style={{ color: '#888', fontSize: 9 }}>{retirements.length}</span>
+          {showRetirements ? '●' : '○'} DNFs <span style={{ color: TEXT_COLORS.secondary }}>{retirements.length}</span>
         </button>
       </div>
 
@@ -413,171 +392,192 @@ export default function RaceControlPanel() {
            src/components/ui/RadioPipToast.jsx. This panel is now purely
            a list / transcript browser. */}
 
-      {/* Body: feed + side rail (DNFs + Team Radio stacked) */}
+      {/* Body: feed + side rail (DNFs + Team Radio stacked). Every list shows
+          the rows that fit and pages through the rest (newest first): no scroll */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns:
-          (showRetirements && retirements.length > 0) || (showTeamRadio && teamRadios.length > 0)
-            ? '1fr 260px'
-            : '1fr',
+        gridTemplateColumns: showRail ? 'minmax(0, 1fr) minmax(0, 260px)' : 'minmax(0, 1fr)',
         gap: 0, flex: 1, minHeight: 0, overflow: 'hidden',
       }}>
         {/* Feed */}
-        <div style={{
-          overflowY: 'auto', padding: '8px 14px',
-          fontSize: 12,
-        }}>
+        <div style={{ padding: '6px 14px', fontSize: CHART_FONT.data, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           {visible.length === 0 ? (
             <div style={{
-              color: '#666', fontSize: 11, padding: '24px 0', textAlign: 'center',
+              color: TEXT_COLORS.secondary, fontSize: CHART_FONT.data, padding: '24px 0', textAlign: 'center',
             }}>
               {isLiveMode
                 ? 'No race control messages yet. They appear as stewards announce them live.'
                 : 'No race control messages for this session.'}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {visible.map((item, i) => {
+            <PagedRows
+              items={visible}
+              rowH={FEED_ROW_H()}
+              what="messages"
+              gap={4}
+              keyOf={(item, i) => `${item.kind}-${toMs(item.timestamp)}-${i}`}
+              renderItem={(item, i) => {
                 const meta = CATEGORY_META[item.category] || CATEGORY_META.Other;
                 const flagMeta = item.flag ? FLAG_META[item.flag] : null;
                 const abbr = item.driverNum ? numberToAbbr[item.driverNum] : null;
                 const accent = flagMeta?.color || meta.color;
+                const flagChip = flagMeta ? tintedChip(flagMeta.color, 0.14, SURFACES.panel) : null;
+                const time = item.replayClock != null ? formatReplayClock(item.replayClock) : formatTime(item.timestamp);
                 return (
-                  <div key={i} style={{
-                    display: 'grid',
-                    gridTemplateColumns: '64px 56px 18px 1fr',
-                    gap: 8, alignItems: 'flex-start',
-                    padding: '6px 8px',
-                    borderRadius: 4,
-                    background: i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
-                    borderLeft: `2px solid ${accent}`,
-                  }}>
+                  <div
+                    className="rc-row"
+                    // a message long enough to pass two lines also sits whole in the tooltip
+                    title={(item.message || '').length > LONG_MESSAGE ? item.message : undefined}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '64px 44px 20px minmax(0, 1fr)',
+                      gap: 8, alignItems: 'flex-start', height: '100%', boxSizing: 'border-box',
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      background: i % 2 === 0 ? withAlpha(TEXT_COLORS.primary, 0.02) : 'transparent',
+                      borderLeft: `2px solid ${markColor(accent, SURFACES.panel)}`,
+                      overflow: 'hidden',
+                    }}
+                  >
                     <span style={{
-                      color: '#777', fontSize: 10,
+                      color: TEXT_COLORS.secondary, fontSize: CHART_FONT.data,
                       fontFamily: "'JetBrains Mono', monospace",
                       fontVariantNumeric: 'tabular-nums',
-                    }}>{item.replayClock != null ? formatReplayClock(item.replayClock) : formatTime(item.timestamp)}</span>
-                    <span style={{ color: '#888', fontSize: 10, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 700 }}>
+                    }}>{time}</span>
+                    <span style={{ color: TEXT_COLORS.secondary, fontSize: CHART_FONT.data, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 700 }}>
                       {item.lap != null ? `L${item.lap}` : '—'}
                     </span>
                     <span style={{
-                      width: 18, height: 18, borderRadius: 3,
-                      background: `${accent}33`, color: accent,
+                      width: 20, height: 18, borderRadius: 3,
+                      background: withAlpha(accent, 0.2), color: textColor(accent, SURFACES.panel),
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                       fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 9, fontWeight: 800,
+                      fontSize: CHART_FONT.label, fontWeight: 800,
                     }} title={meta.label}>
                       {meta.icon}
                     </span>
-                    <span style={{ color: '#dde', lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      {abbr && <DriverChip abbr={abbr} color={getDriverColor(abbr)} />}
-                      {flagMeta && (
+                    <span style={{
+                      color: TEXT_COLORS.primary, lineHeight: 1.35, minWidth: 0,
+                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                    }}>
+                      {abbr && <DriverChip abbr={abbr} />}{abbr ? ' ' : ''}
+                      {flagChip && (
                         <span style={{
-                          fontSize: 9, fontWeight: 800, letterSpacing: '0.06em',
+                          fontSize: CHART_FONT.label, fontWeight: 800, letterSpacing: '0.06em',
                           textTransform: 'uppercase',
-                          padding: '1px 5px', borderRadius: 3,
-                          background: `${flagMeta.color}20`, color: flagMeta.color,
-                          border: `1px solid ${flagMeta.color}55`,
+                          padding: '0 5px', borderRadius: 3, marginRight: 6,
+                          background: flagChip.background, color: flagChip.color,
+                          border: `1px solid ${flagChip.borderColor}`,
                         }}>{flagMeta.label}</span>
                       )}
                       <span>{item.message || meta.label}</span>
                     </span>
                   </div>
                 );
-              })}
-            </div>
+              }}
+            />
           )}
         </div>
 
         {/* Right rail — DNFs on top, Team Radio below */}
-        {((showRetirements && retirements.length > 0) || (showTeamRadio && teamRadios.length > 0)) && (
+        {showRail && (
           <aside style={{
-            borderLeft: '1px solid rgba(255,255,255,0.06)',
-            background: 'rgba(0,0,0,0.25)',
+            borderLeft: `1px solid ${GRID_COLORS.grid}`,
+            background: SURFACES.page,
             display: 'flex', flexDirection: 'column',
-            overflow: 'hidden',
+            overflow: 'hidden', minHeight: 0,
           }}>
             {/* DNFs section */}
             {showRetirements && retirements.length > 0 && (
-              <div style={{ padding: '8px 12px', overflowY: 'auto', flexShrink: 0, maxHeight: '40%' }}>
+              <div style={{
+                padding: '6px 12px', flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0,
+                maxHeight: showTeamRadio && teamRadios.length > 0 ? '40%' : '100%', overflow: 'hidden',
+              }}>
                 <div style={{
-                  fontSize: 10, color: '#fca5a5', letterSpacing: '0.08em',
-                  textTransform: 'uppercase', fontWeight: 800, marginBottom: 8,
+                  fontSize: CHART_FONT.label, color: TEXT_COLORS.primary, letterSpacing: '0.08em',
+                  textTransform: 'uppercase', fontWeight: 800, marginBottom: 6, flexShrink: 0,
                 }}>Out of session</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {retirements.map((r) => (
-                    <div key={r.abbr} style={{
+                <PagedRows
+                  items={retirements}
+                  rowH={DNF_ROW_H()}
+                  what="drivers"
+                  gap={4}
+                  keyOf={(r) => r.abbr}
+                  renderItem={(r) => (
+                    <div style={{
                       display: 'grid',
-                      gridTemplateColumns: '38px 1fr auto',
-                      gap: 8, alignItems: 'center',
-                      padding: '4px 6px', borderRadius: 3,
-                      background: 'rgba(239,68,68,0.06)',
-                      borderLeft: `3px solid ${r.color}`,
+                      gridTemplateColumns: '38px minmax(0, 1fr) auto',
+                      gap: 8, alignItems: 'center', height: '100%', boxSizing: 'border-box',
+                      padding: '2px 6px', borderRadius: 3,
+                      background: withAlpha(TEXT_COLORS.primary, 0.04),
+                      borderLeft: `3px solid ${r.mark}`,
                     }}>
                       <span style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontWeight: 800, fontSize: 11, color: '#fff',
+                        fontWeight: 800, fontSize: CHART_FONT.data, color: TEXT_COLORS.primary,
                       }}>{r.abbr}</span>
-                      <span style={{ fontSize: 10, color: '#dde', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: CHART_FONT.data, color: TEXT_COLORS.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.status}>
                         {r.status}
                       </span>
                       <span style={{
-                        fontSize: 10, color: '#888',
+                        fontSize: CHART_FONT.data, color: TEXT_COLORS.secondary,
                         fontFamily: "'JetBrains Mono', monospace",
                       }}>L{r.lap}</span>
                     </div>
-                  ))}
-                </div>
+                  )}
+                />
               </div>
             )}
 
             {/* Team Radio section — audio only (F1's TeamRadio topic carries no transcripts) */}
             {showTeamRadio && (
               <div style={{
-                padding: '8px 12px',
-                overflowY: 'auto',
-                flex: 1, minHeight: 0,
+                padding: '6px 12px',
+                flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden',
                 borderTop: showRetirements && retirements.length > 0
-                  ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                  ? `1px solid ${GRID_COLORS.grid}` : 'none',
               }}>
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  marginBottom: 8,
+                  marginBottom: 6, flexShrink: 0,
                 }}>
                   <span style={{
-                    fontSize: 10, color: '#f5a623', letterSpacing: '0.08em',
+                    fontSize: CHART_FONT.label, color: TEXT_COLORS.primary, letterSpacing: '0.08em',
                     textTransform: 'uppercase', fontWeight: 800,
                   }}>Team Radio</span>
-                  <span style={{ fontSize: 9, color: '#666' }} title="Audio is from F1's SignalR feed; transcripts are produced locally by faster-whisper (tiny.en).">
+                  <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary }} title="Audio is from F1's SignalR feed; transcripts are produced locally by faster-whisper (tiny.en).">
                     audio + auto-transcript
                   </span>
                 </div>
                 {teamRadios.length === 0 ? (
-                  <div style={{ color: '#666', fontSize: 10, padding: '12px 0', textAlign: 'center' }}>
+                  <div style={{ color: TEXT_COLORS.secondary, fontSize: CHART_FONT.data, padding: '12px 0', textAlign: 'center' }}>
                     {isLiveMode
                       ? 'No team radio yet — they appear when teams go on-air during the session.'
                       : 'No team radio captures for this session.'}
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {/* newest first */}
-                    {[...teamRadios].reverse().map((r, i) => {
+                  <PagedRows
+                    items={[...teamRadios].reverse()}
+                    rowH={RADIO_ROW_H()}
+                    what="radios"
+                    gap={6}
+                    keyOf={(r, i) => `${r.audio_url}-${i}`}
+                    renderItem={(r) => {
                       const abbr = r.driver || numberToAbbr[r.driver_number] || '???';
-                      const color = getDriverColor(abbr);
                       const status = r.transcript_status;
                       const transcript = r.transcript;
                       return (
-                        <div key={`${r.audio_url}-${i}`} style={{
-                          padding: '5px 6px',
+                        <div style={{
+                          padding: '4px 6px', height: '100%', boxSizing: 'border-box', overflow: 'hidden',
                           borderRadius: 3,
-                          background: 'rgba(245,166,35,0.05)',
-                          borderLeft: `3px solid ${color}`,
-                          display: 'flex', flexDirection: 'column', gap: 4,
+                          background: withAlpha(TEXT_COLORS.primary, 0.04),
+                          borderLeft: `3px solid ${driverStyle(abbr).mark}`,
+                          display: 'flex', flexDirection: 'column', gap: 3,
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
-                            <DriverChip abbr={abbr} color={color} />
+                            <DriverChip abbr={abbr} />
                             <span style={{
-                              fontSize: 9, color: '#888',
+                              fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary,
                               fontFamily: "'JetBrains Mono', monospace",
                               fontVariantNumeric: 'tabular-nums',
                             }}>{formatTime(r.timestamp)}</span>
@@ -585,47 +585,114 @@ export default function RaceControlPanel() {
                           <audio
                             controls
                             preload="none"
-                            style={{ width: '100%', height: 24 }}
+                            style={{ width: '100%', height: 24, flexShrink: 0 }}
                             src={r.audio_url}
                           >
                             Your browser does not support the audio element.
                           </audio>
-                          {/* Auto-transcript (faster-whisper, best effort) */}
+                          {/* Auto-transcript (faster-whisper, best effort): two lines, the rest in the tooltip */}
                           {status === 'queued' && (
-                            <span style={{ fontSize: 9, color: '#777', fontStyle: 'italic' }}>
+                            <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary, fontStyle: 'italic' }}>
                               transcribing…
                             </span>
                           )}
                           {status === 'ok' && transcript && (
                             <span style={{
-                              fontSize: 11, color: '#dde', lineHeight: 1.35,
+                              fontSize: CHART_FONT.data, color: TEXT_COLORS.primary, lineHeight: 1.35,
                               fontStyle: 'italic',
-                              background: 'rgba(255,255,255,0.03)',
-                              padding: '4px 6px', borderRadius: 3,
-                            }} title="Auto-transcribed by faster-whisper (tiny.en) — radio audio is noisy, expect occasional errors.">
+                              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                            }} title={`“${transcript}” — auto-transcribed by faster-whisper (tiny.en): radio audio is noisy, expect occasional errors.`}>
                               “{transcript}”
                             </span>
                           )}
                           {(status === 'empty' || (status === 'ok' && !transcript)) && (
-                            <span style={{ fontSize: 9, color: '#777' }}>
+                            <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary }}>
                               (no speech detected)
                             </span>
                           )}
                           {status === 'download_failed' && (
-                            <span style={{ fontSize: 9, color: '#f87171' }}>
+                            <span style={{ fontSize: CHART_FONT.label, color: textColor(FLAG_COLORS.red, SURFACES.page) }}>
                               (transcript unavailable — download failed)
                             </span>
                           )}
                         </div>
                       );
-                    })}
-                  </div>
+                    }}
+                  />
                 )}
               </div>
             )}
           </aside>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Rows of the lists (px at the data font token) and the pager ──────
+const LINE = () => Math.ceil(chartFontPx('data') * 1.4);
+// a message: two lines (a longer one whole in the row's tooltip)
+const FEED_ROW_H = () => 2 * LINE() + 8;
+const LONG_MESSAGE = 80;
+const DNF_ROW_H = () => LINE() + 8;
+// a radio: chip line, the audio control, two lines of transcript
+const RADIO_ROW_H = () => LINE() + 24 + 2 * LINE() + 16;
+const PAGER_H = 22;
+
+/** A filter / toggle chip: its icon or ●/○ carries the state, the tint repeats it. */
+function chipButton(active, color) {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '2px 10px', borderRadius: 4,
+    background: active ? withAlpha(color, 0.2) : withAlpha(TEXT_COLORS.primary, 0.04),
+    border: `1px solid ${active ? markColor(color, SURFACES.panel) : GRID_COLORS.grid}`,
+    color: TEXT_COLORS.primary,
+    fontSize: CHART_FONT.label, fontWeight: 700, letterSpacing: '0.04em',
+    textTransform: 'uppercase', cursor: 'pointer',
+    fontFamily: "'JetBrains Mono', monospace",
+  };
+}
+function toggleButton(on) {
+  return {
+    ...chipButton(on, UI_COLORS.brush),
+    color: on ? TEXT_COLORS.primary : TEXT_COLORS.secondary,
+  };
+}
+
+/**
+ * Rows of one height fitted to the box (chartBox.fitRows), paged when they
+ * do not fit: page 1 holds the newest. An unmeasured box (server render)
+ * shows every row.
+ */
+function PagedRows({ items, rowH, what, gap = 0, keyOf, renderItem }) {
+  const boxRef = useRef(null);
+  const box = useBoxSize(boxRef);
+  const [page, setPage] = useState(0);
+  const step = rowH + gap;
+  const fit = fitRows(box.height, items.length, { rowMin: step, rowMax: step, rowDefault: step, pagerH: PAGER_H });
+  const pg = pageOf(items, page, fit.perPage);
+  const btn = {
+    fontSize: CHART_FONT.label, color: TEXT_COLORS.primary, background: 'transparent',
+    border: `1px solid ${GRID_COLORS.rule}`, borderRadius: 3, padding: '0 6px', cursor: 'pointer',
+  };
+  return (
+    <div ref={boxRef} className="rc-list" style={{ flex: 1, minHeight: Math.min(step, 40), display: 'flex', flexDirection: 'column', gap, overflow: 'hidden' }}>
+      {pg.rows.map((item, i) => (
+        <div key={keyOf(item, pg.first - 1 + i)} style={{ height: rowH, flexShrink: 0 }}>
+          {renderItem(item, pg.first - 1 + i)}
+        </div>
+      ))}
+      {fit.paged && (
+        <div className="rc-pager" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, height: PAGER_H, flexShrink: 0,
+          fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary, marginTop: 'auto',
+        }}
+        >
+          <button type="button" aria-label={`Newer ${what}`} disabled={pg.page === 0} onClick={() => setPage(pg.page - 1)} style={btn}>{'◀'}</button>
+          <span>{what} {pg.first}{'–'}{pg.last} of {items.length}</span>
+          <button type="button" aria-label={`Older ${what}`} disabled={pg.page >= pg.pages - 1} onClick={() => setPage(pg.page + 1)} style={btn}>{'▶'}</button>
+        </div>
+      )}
     </div>
   );
 }

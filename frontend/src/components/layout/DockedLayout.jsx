@@ -40,6 +40,12 @@ const VIZ_TABS = [
 ];
 
 const SPLITTER_SIZE = 5;
+// Tab picker menu: a grid of items, at most PICKER_ROWS rows per column and
+// PICKER_COLUMNS columns, so every view is listed without a scrollbar
+const PICKER_ROWS = 9;
+const PICKER_COLUMNS = 3;
+const PICKER_ITEM_W = 150;
+const PICKER_ITEM_H = 28;
 
 /* ────────────────────── Splitter ────────────────────── */
 /**
@@ -82,17 +88,10 @@ function Splitter({ direction, containerRef, ratio, onRatioChange }) {
   return (
     <div
       onMouseDown={handleMouseDown}
-      style={{
-        flexShrink: 0,
-        [isH ? 'width' : 'height']: SPLITTER_SIZE,
-        [isH ? 'height' : 'width']: '100%',
-        cursor: isH ? 'col-resize' : 'row-resize',
-        background: 'rgba(255,255,255,0.04)',
-        transition: 'background 0.15s',
-        zIndex: 5,
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(100,180,255,0.25)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+      className={`docked-splitter docked-splitter--${isH ? 'col' : 'row'}`}
+      style={{ [isH ? 'width' : 'height']: SPLITTER_SIZE }}
+      role="separator"
+      aria-orientation={isH ? 'vertical' : 'horizontal'}
     />
   );
 }
@@ -106,8 +105,11 @@ function TabPickerDropdown({ availableTabs, onAddTab, onClose, anchorRef }) {
   React.useEffect(() => {
     if (!anchorRef.current) return;
     const r = anchorRef.current.getBoundingClientRect();
-    const dropH = Math.min(260, availableTabs.length * 28 + 8);
-    const dropW = 160;
+    // Every view fits without a scrollbar: the menu is a grid of up to
+    // PICKER_COLUMNS columns (CSS .docked-tab-picker)
+    const cols = Math.min(PICKER_COLUMNS, Math.max(1, Math.ceil(availableTabs.length / PICKER_ROWS)));
+    const dropH = Math.ceil(availableTabs.length / cols) * PICKER_ITEM_H + 8;
+    const dropW = cols * PICKER_ITEM_W + 8;
     let top = r.bottom + 2;
     let left = r.left;
     // If dropdown would go below viewport, open upward
@@ -118,7 +120,7 @@ function TabPickerDropdown({ availableTabs, onAddTab, onClose, anchorRef }) {
     if (left + dropW > window.innerWidth) {
       left = Math.max(4, window.innerWidth - dropW - 4);
     }
-    setPos({ top, left });
+    setPos({ top, left, cols });
   }, [anchorRef, availableTabs.length]);
 
   // Close on outside click — but NOT if clicking inside the dropdown itself
@@ -142,27 +144,22 @@ function TabPickerDropdown({ availableTabs, onAddTab, onClose, anchorRef }) {
 
   // Render via portal to <body> so no parent overflow clips it
   return ReactDOM.createPortal(
-    <div ref={dropdownRef} style={{
-      position: 'fixed', top: pos.top, left: pos.left, zIndex: 10000,
-      background: 'rgba(25,25,50,0.98)',
-      border: '1px solid rgba(255,255,255,0.12)',
-      borderRadius: 4, padding: 4, minWidth: 140,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
-      maxHeight: 260, overflowY: 'auto',
-    }}>
+    <div
+      ref={dropdownRef}
+      className="docked-tab-picker"
+      role="menu"
+      style={{ top: pos.top, left: pos.left, gridTemplateColumns: `repeat(${pos.cols}, ${PICKER_ITEM_W}px)` }}
+    >
       {availableTabs.map((t) => (
-        <div
+        <button
           key={t.id}
+          type="button"
+          role="menuitem"
+          className="docked-tab-picker__item"
           onClick={() => { onAddTab(t.id); onClose(); }}
-          style={{
-            padding: '5px 10px', cursor: 'pointer', fontSize: 11,
-            color: 'rgba(255,255,255,0.75)', borderRadius: 3,
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(100,180,255,0.15)'; e.currentTarget.style.color = '#fff'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
         >
           {t.label}
-        </div>
+        </button>
       ))}
     </div>,
     document.body
@@ -182,21 +179,10 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
   const availableTabs = VIZ_TABS.filter((t) => !allDockedTabs.includes(t.id));
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      width: '100%', height: '100%',
-      background: 'rgba(10,10,20,0.95)',
-      borderRadius: 4,
-      border: '1px solid rgba(255,255,255,0.06)',
-    }}>
-      {/* Tab bar */}
-      <div style={{
-        display: 'flex', alignItems: 'center',
-        height: 28, minHeight: 28, flexShrink: 0,
-        background: 'rgba(20,20,40,0.98)',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-        overflowX: 'auto', overflowY: 'visible',
-      }}>
+    <div className="docked-pane">
+      {/* Tab bar: tabs shrink (ellipsis, full name in the title) instead of
+          scrolling sideways */}
+      <div className="docked-pane__tabs">
         {tabs.map((tabId) => {
           const isActive = tabId === activeTab;
           const tabInfo = VIZ_TABS.find((t) => t.id === tabId) || { label: tabId };
@@ -204,27 +190,14 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
             <div
               key={tabId}
               onClick={() => onTabChange(tabId)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '0 10px', height: '100%',
-                cursor: 'pointer', fontSize: 10,
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? '#fff' : 'rgba(255,255,255,0.45)',
-                background: isActive ? 'rgba(255,255,255,0.06)' : 'transparent',
-                borderRight: '1px solid rgba(255,255,255,0.04)',
-                whiteSpace: 'nowrap', transition: 'all 0.12s',
-                borderBottom: isActive ? '2px solid rgba(100,180,255,0.7)' : '2px solid transparent',
-              }}
+              className={`docked-pane__tab${isActive ? ' docked-pane__tab--active' : ''}`}
+              title={tabInfo.label}
             >
-              <span>{tabInfo.label}</span>
+              <span className="docked-pane__tab-label">{tabInfo.label}</span>
               <span
                 onClick={(e) => { e.stopPropagation(); onCloseTab(tabId); }}
-                style={{
-                  marginLeft: 4, fontSize: 12, lineHeight: 1,
-                  color: 'rgba(255,255,255,0.25)', cursor: 'pointer',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = '#ff5555'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.25)'; }}
+                className="docked-pane__tab-close"
+                title={`Close ${tabInfo.label}`}
               >
                 ×
               </span>
@@ -233,7 +206,7 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
         })}
 
         {/* Spacer */}
-        <div style={{ flex: 1 }} />
+        <div className="docked-pane__spacer" />
 
         {/* Help button — opens the per-chart help overlay for the
             currently-active tab (H10/V10.1). Hidden if the active tab
@@ -242,15 +215,7 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
           <button
             type="button"
             onClick={() => openHelp(activeTab, activeHelp.title)}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              padding: '0 6px', height: 28,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-              color: 'rgba(255,255,255,0.35)',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#8ab4f8'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; }}
+            className="docked-pane__icon-btn docked-pane__icon-btn--help"
             title={activeHelp.summary || `About ${activeHelp.title || activeTab}`}
             aria-label={`About ${activeHelp.title || activeTab}`}
           >
@@ -266,14 +231,9 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
         {/* Add tab to this pane */}
         <button
           ref={addBtnRef}
+          type="button"
           onClick={() => setShowTabPicker((v) => !v)}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            padding: '0 6px', height: 28, display: 'flex', alignItems: 'center', flexShrink: 0,
-            color: 'rgba(255,255,255,0.3)', fontSize: 14,
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.3)'; }}
+          className="docked-pane__icon-btn docked-pane__icon-btn--add"
           title="Add tab to this pane"
         >
           +
@@ -289,14 +249,9 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
 
         {/* Close entire pane */}
         <button
+          type="button"
           onClick={onClosePane}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            padding: '0 6px', height: 28, display: 'flex', alignItems: 'center', flexShrink: 0,
-            color: 'rgba(255,255,255,0.2)', fontSize: 12,
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#ff5555'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.2)'; }}
+          className="docked-pane__icon-btn docked-pane__icon-btn--close"
           title="Close this pane"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -306,12 +261,9 @@ function DockedPane({ pane, onTabChange, onAddTab, onCloseTab, onClosePane, vizC
         </button>
       </div>
       {/* Content */}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      <div className="docked-pane__content">
         {Component ? <Component /> : (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            height: '100%', color: 'rgba(255,255,255,0.2)', fontSize: 12,
-          }}>
+          <div className="docked-pane__empty">
             Select a visualization
           </div>
         )}
@@ -336,14 +288,9 @@ function SplitPane({ node, onUpdate, vizComponents, allDockedTabs }) {
   return (
     <div
       ref={containerRef}
-      style={{
-        display: 'flex',
-        flexDirection: isH ? 'row' : 'column',
-        width: '100%', height: '100%',
-        overflow: 'hidden',
-      }}
+      className={`docked-split docked-split--${isH ? 'row' : 'column'}`}
     >
-      <div style={{ [isH ? 'width' : 'height']: first, overflow: 'hidden', display: 'flex' }}>
+      <div className="docked-split__child" style={{ [isH ? 'width' : 'height']: first }}>
         <LayoutNode
           node={node.children[0]}
           vizComponents={vizComponents}
@@ -357,7 +304,7 @@ function SplitPane({ node, onUpdate, vizComponents, allDockedTabs }) {
         ratio={ratio}
         onRatioChange={handleRatioChange}
       />
-      <div style={{ [isH ? 'width' : 'height']: second, overflow: 'hidden', display: 'flex' }}>
+      <div className="docked-split__child" style={{ [isH ? 'width' : 'height']: second }}>
         <LayoutNode
           node={node.children[1]}
           vizComponents={vizComponents}
@@ -466,34 +413,21 @@ export default function DockedLayout({ vizComponents }) {
   if (!dockedLayout) return null;
 
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div className="docked-layout">
       {/* Layout toolbar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        height: 24, minHeight: 24, flexShrink: 0,
-        padding: '0 8px',
-        background: 'rgba(15,15,35,0.95)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-      }}>
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-          Layout
-        </span>
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>
+      <div className="docked-layout__toolbar">
+        <span className="docked-layout__label">Layout</span>
+        <span className="docked-layout__count">
           {paneCount} / {MAX_PANES} panes
         </span>
 
-        <div style={{ flex: 1 }} />
+        <div className="docked-pane__spacer" />
 
         {/* Cycle arrangement */}
         <button
+          type="button"
           onClick={arrangeOverlays}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'rgba(255,255,255,0.35)', fontSize: 10, padding: '2px 6px',
-            display: 'flex', alignItems: 'center', gap: 4,
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; }}
+          className="docked-layout__btn"
           title="Cycle layout arrangement (Ctrl+G)"
         >
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -507,14 +441,9 @@ export default function DockedLayout({ vizComponents }) {
 
         {/* Exit docked layout */}
         <button
+          type="button"
           onClick={closeAllOverlays}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'rgba(255,255,255,0.35)', fontSize: 10, padding: '2px 6px',
-            display: 'flex', alignItems: 'center', gap: 4,
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = '#ff6b6b'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.35)'; }}
+          className="docked-layout__btn docked-layout__btn--exit"
           title="Exit layout mode (X)"
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -526,7 +455,7 @@ export default function DockedLayout({ vizComponents }) {
       </div>
 
       {/* Layout tree */}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      <div className="docked-layout__tree">
         <LayoutNode
           node={dockedLayout}
           vizComponents={vizComponents}

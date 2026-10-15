@@ -2,9 +2,14 @@
    Shortcut Hints — Robinhood Legend Design System
    ========================================================================== */
 
+/* A transient card above the bottom chrome (timeline + dock), never over the
+   dock's fixed Layouts / Cmd K / Settings buttons: it shows for 5 s after the
+   session opens or after a key press, then hides completely (no faded,
+   low-contrast state, V13); it never takes a click (pointer-events none),
+   so it can never block what is under it. */
 .shortcut-hints {
   position: fixed;
-  bottom: 10px;
+  bottom: calc(var(--chrome-bottom) + 8px);
   right: 16px;
   z-index: 800;
   display: flex;
@@ -15,16 +20,14 @@
   border: 1px solid var(--rh-border, #2A2A2A);
   border-radius: var(--rh-radius-lg, 10px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  transition: opacity 0.3s ease;
-  pointer-events: auto;
+  transition: opacity 0.3s ease, visibility 0s linear 0s;
+  pointer-events: none;
 }
 
-.shortcut-hints--faded {
-  opacity: 0.25;
-}
-
-.shortcut-hints:hover {
-  opacity: 1 !important;
+.shortcut-hints--hidden {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0s linear 0.3s;
 }
 
 .shortcut-hint {
@@ -39,7 +42,7 @@
   border-radius: var(--rh-radius-xs, 5px);
   background: var(--rh-surface-hover, #222);
   border: 1px solid var(--rh-border-strong, #333);
-  font-size: 10px;
+  font-size: var(--font-size-label);
   font-family: var(--rh-font-mono);
   font-weight: 600;
   color: var(--rh-text-muted, #666);
@@ -48,7 +51,7 @@
 }
 
 .shortcut-hint-label {
-  font-size: 10px;
+  font-size: var(--font-size-label);
   color: var(--rh-text-dimmed, #444);
   font-family: var(--rh-font-sans);
   white-space: nowrap;
@@ -80,6 +83,7 @@
 @media (hover: none), (max-width: 768px) {
   .shortcut-hints-trigger {
     display: block;
+    pointer-events: auto;
   }
 }
 

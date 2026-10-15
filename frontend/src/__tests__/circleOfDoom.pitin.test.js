@@ -317,16 +317,16 @@ describe('help texts of this round (chartHelp.js, App.jsx)', () => {
     expect(circle).toMatch(/no stops by the other cars unless "rivals stop" is on/);
     expect(circle).toMatch(/fresh-tyre delta/);
     const undercut = all(CHART_HELP.undercut);
-    // every row read at one lap, the flag, whatever the table length (D2); stints held to their P90 length
+    // every column read at one lap, the flag, whatever their number (D2); stints held to their P90 length
     expect(undercut).toMatch(/the projected gap to the rival at the flag/);
-    expect(undercut).toMatch(/the same lap for every row whatever the table length/);
-    expect(undercut).toMatch(/pace difference the same in every row/);
+    expect(undercut).toMatch(/the same lap for every column whatever their number/);
+    expect(undercut).toMatch(/pace difference the same in every column/);
     expect(undercut).toContain(`${Math.round(STINT_FEASIBLE_QUANTILE * 100)} % of the sets of its compound`);
     expect(undercut).toMatch(/charged an extra stop/);
     expect(undercut).toMatch(/dropped \(back to the likely lap\) once the rival has passed it or has changed tyres/);
     expect(undercut).not.toMatch(/the end of the table/);
     expect(undercut).toContain(`${PRIORS.degradation.MEDIUM.minFitLaps} MEDIUM`);
-    expect(undercut).toMatch(/The rival stops in every row, before or after the focus/);
+    expect(undercut).toMatch(/The rival stops in every column, before or after the focus/);
     expect(undercut).toMatch(/No traffic/);
     expect(undercut).toContain(`${FUEL_EFFECT_S_PER_LAP.toFixed(3)} s/lap`);
     const mc = `${all(CHART_HELP.prediction)} ${all(CHART_HELP.simulator)}`;

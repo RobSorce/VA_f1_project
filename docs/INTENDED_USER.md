@@ -18,7 +18,7 @@
 - The Tyre Degradation chart shows the linear regression slope of lap time vs tyre life, indicating when performance drops off.
 - Double-clicking a driver triggers LSTM prediction, showing forecast lap times for the next 5 laps.
 - The Strategy Timeline shows all drivers' pit stop history, ghost pit stops (predicted), and undercut windows.
-- Brushing a lap range on the LapTimeChart triggers a degradation regression to quantify the rate of pace loss.
+- Setting a lap range (the Position Tracker brush, the Timing Sheet's lap-range bar, a stint on the Strategy Timeline) triggers a degradation regression to quantify the rate of pace loss.
 
 ### 2. Cross-race strategy pattern analysis
 **Scenario**: Before a race weekend, the strategist reviews historical data to identify which strategy patterns (1-stop, 2-stop, early vs late pit) have been most successful at the upcoming circuit.
@@ -35,8 +35,8 @@
 **How the system supports this**:
 - Select two drivers in the Leaderboard and press `C` to enter compare mode.
 - The Driver Compare Panel shows head-to-head lap times, sector splits, tyre degradation slopes, and consistency metrics.
-- The Lap Delta Chart shows cumulative time difference between the two drivers, with red/green shading for behind/ahead.
-- The Race Pace Grid classifies each driver-lap as green (competitive), yellow (normal), or red (slow) relative to the field median.
+- The Lap Delta Chart shows cumulative time difference between the two drivers, with hatched shading for behind (orange, +) and ahead (blue, −).
+- The Race Pace Grid classifies each driver-lap against that driver's median lap: blue (more than 0.3 s faster), normal, yellow (+0.5 s) or orange (+2 s), with the session and personal bests in purple ◆ and green ●.
 
 ## Why This User, Not a General Audience
 

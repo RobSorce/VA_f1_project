@@ -1,5 +1,10 @@
 import { useF1Store } from '../../store/useF1Store';
 import { seasonHasDrs, sessionSeasonOf } from '../../utils/seasons';
+import { getDriverColor, markColor, SURFACES } from '../../utils/colors';
+
+// Team dot of a driver command: the driver's palette colour (team colour or
+// teammate tint, V3) as a mark on the menu surface, never FastF1's raw TeamColor
+const driverDot = (abbr) => markColor(getDriverColor(abbr), SURFACES.elevated);
 
 /**
  * Simple fuzzy match — checks if all characters in query appear in target in order.
@@ -137,7 +142,7 @@ export function createCommandRegistry() {
           id: `select-driver-${d.Abbreviation}`,
           label: `${d.FullName || d.BroadcastName || d.Abbreviation} (${d.Abbreviation})`,
           category: 'Drivers',
-          teamColor: d.TeamColor,
+          teamColor: driverDot(d.Abbreviation),
           teamName: d.TeamName,
           action: () => {
             const state = getState();
@@ -161,7 +166,7 @@ export function createCommandRegistry() {
           id: `focus-driver-${d.Abbreviation}`,
           label: `Focus ${d.FullName || d.BroadcastName || d.Abbreviation} (${d.Abbreviation})`,
           category: 'Drivers',
-          teamColor: d.TeamColor,
+          teamColor: driverDot(d.Abbreviation),
           teamName: d.TeamName,
           action: () => {
             const state = getState();

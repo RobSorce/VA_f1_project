@@ -10,12 +10,51 @@
  */
 import { isLapCompleted, lapStartTime } from '../raceTime';
 import { driverStateAt, nonFinisherMap } from '../driverState';
+import { STATUS_COLORS, STATUS_GLYPHS } from '../colors';
 
+// Timing colours: the one STATUS_COLORS map of utils/colors.js, each with its
+// glyph (◆ overall best, ● personal best) so colour is never the only cue
 const TIME_COLORS = {
-  overall_best: '#A020F0',
-  personal_best: '#00FF00',
-  normal: 'var(--color-text-primary)',
+  overall_best: STATUS_COLORS.overallBest,
+  personal_best: STATUS_COLORS.personalBest,
+  normal: STATUS_COLORS.normal,
 };
+const TIME_GLYPHS = {
+  overall_best: STATUS_GLYPHS.overallBest,
+  personal_best: STATUS_GLYPHS.personalBest,
+  normal: '',
+};
+
+/**
+ * Legend rows of the sectors panel (V4), per tab: every colour the tab draws
+ * with the glyph or shape drawn next to it.
+ *
+ * @param {'live'|'best'|'speeds'} view
+ * @returns {Array<{label:string, color:string, glyph?:string, shape:string}>}
+ */
+export function sectorsLegend(view) {
+  if (view === 'live') {
+    return [
+      { label: 'Session best', color: STATUS_COLORS.overallBest, glyph: STATUS_GLYPHS.overallBest, shape: 'glyph' },
+      { label: 'Personal best', color: STATUS_COLORS.personalBest, glyph: STATUS_GLYPHS.personalBest, shape: 'glyph' },
+      { label: 'Other sector', color: STATUS_COLORS.normal, glyph: '31.2', shape: 'glyph' },
+      { label: 'Sector running', color: STATUS_COLORS.running, glyph: '12.3', shape: 'glyph' },
+    ];
+  }
+  const best = view === 'speeds' ? 'Fastest' : 'Session best';
+  return [
+    { label: best, color: STATUS_COLORS.overallBest, glyph: STATUS_GLYPHS.overallBest, shape: 'glyph' },
+    ...(view === 'best'
+      ? [
+        { label: 'Bar: closeness to the best (full = best)', color: STATUS_COLORS.overallBest, shape: 'square' },
+        { label: 'Other drivers', color: SECTOR_BAR_COLOR, shape: 'square' },
+      ]
+      : []),
+  ];
+}
+
+// Bar of a driver who does not hold the best sector (neutral: rank is the text)
+export const SECTOR_BAR_COLOR = STATUS_COLORS.running;
 
 export const SPEED_COLS = [
   { key: 'SpeedI1', label: 'Sector 1' },
@@ -90,13 +129,15 @@ export function sectorsPanelData(lapTimes, sessionNow, { dnfMap = {}, replayActi
     const sectors = [1, 2, 3].map((s) => {
       const val = isLive ? st.visibleSectors[`s${s}`] : positiveTime(d[`Sector${s}TimeSeconds`]);
       const show = val != null;
-      let color = TIME_COLORS.normal;
+      let status = 'normal';
       if (show) {
         const tolerance = 0.001;
-        if (val <= sessionBests[s] + tolerance) color = TIME_COLORS.overall_best;
-        else if (val <= pb[s] + tolerance) color = TIME_COLORS.personal_best;
+        if (val <= sessionBests[s] + tolerance) status = 'overall_best';
+        else if (val <= pb[s] + tolerance) status = 'personal_best';
       }
-      return { val, show: isLive ? show : true, color };
+      return {
+        val, show: isLive ? show : true, color: TIME_COLORS[status], glyph: TIME_GLYPHS[status],
+      };
     });
 
     // Live chronometer for the sector being run (replay only)

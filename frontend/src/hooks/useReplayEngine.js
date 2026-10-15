@@ -7,13 +7,15 @@ import {
 import { causalKey } from '../utils/strategyViews';
 
 // ── Status code mapping ──────────────────────────────────────────
+// Events carry no colour: the timeline draws each type in its utils/colors.js
+// colour (TimelinePlayer.jsx), with its label or glyph
 const STATUS_MAP = {
-  '1': { type: 'GREEN_FLAG', color: '#00ff00', label: 'Green Flag' },
-  '2': { type: 'YELLOW_FLAG', color: '#ffcc00', label: 'Yellow Flag' },
-  '4': { type: 'SAFETY_CAR', color: '#ffcc00', label: 'Safety Car' },
-  '5': { type: 'RED_FLAG', color: '#ff0000', label: 'Red Flag' },
-  '6': { type: 'VSC', color: '#ff8c00', label: 'Virtual Safety Car' },
-  '7': { type: 'VSC', color: '#ff8c00', label: 'Virtual Safety Car' },
+  '1': { type: 'GREEN_FLAG', label: 'Green Flag' },
+  '2': { type: 'YELLOW_FLAG', label: 'Yellow Flag' },
+  '4': { type: 'SAFETY_CAR', label: 'Safety Car' },
+  '5': { type: 'RED_FLAG', label: 'Red Flag' },
+  '6': { type: 'VSC', label: 'Virtual Safety Car' },
+  '7': { type: 'VSC', label: 'Virtual Safety Car' },
 };
 
 function finite(v) {
@@ -64,7 +66,7 @@ function formatLapTime(sec) {
  * @param {number} [p.sessionTimeOffset=0] - session seconds at replay time 0
  * @param {number} [p.sessionNow=Infinity] - session seconds (store getSessionNow)
  * @returns {Array<Object>} events: {type, lap, startLap, endLap, startTime, endTime,
- *   startTimeFraction, endTimeFraction, ongoing, description, color}
+ *   startTimeFraction, endTimeFraction, ongoing, description}
  */
 export function buildTrackStatusEvents({
   trackStatus, lapTimes, frames, maxLap, sessionTimeOffset = 0, sessionNow = Infinity,
@@ -136,7 +138,6 @@ export function buildTrackStatusEvents({
       endTimeFraction: fraction(shownEnd ?? start),
       ongoing,
       description: period.message || mapping.label,
-      color: mapping.color,
     });
   }
   return events;
@@ -195,7 +196,6 @@ export function fastestLapEvent(lapTimes, sessionNow = Infinity) {
     startLap: entry.LapNumber,
     endLap: entry.LapNumber,
     description: `${label}: ${entry.Driver || 'Unknown'} (${formatLapTime(best)})`,
-    color: '#a855f7',
     driver: entry.Driver,
   };
 }
@@ -239,7 +239,7 @@ export function positionChangeEvents(lapTimes, sessionNow = Infinity) {
         startLap: lap,
         endLap: lap,
         description: `${driver} ${change > 0 ? 'gained' : 'lost'} ${Math.abs(change)} positions on lap ${lap}`,
-        color: change > 0 ? '#22c55e' : '#ef4444',
+        change,
         driver,
       });
     }
@@ -301,7 +301,6 @@ export function useReplayEngine() {
       startTimeFraction: 0,
       endTimeFraction: 0,
       description: 'Race start',
-      color: '#00ff00',
     });
 
     // Track status periods on the leader's lap (live mode: no offset, the
@@ -340,7 +339,6 @@ export function useReplayEngine() {
             driver: drv,
             compound,
             description: `${drv} pit stop → ${compound} (lap ${pitLap})`,
-            color: '#00bfff',
           });
         }
       }
@@ -356,7 +354,6 @@ export function useReplayEngine() {
           count: pits.length,
           drivers: pits.map((p) => p.driver),
           description: `Lap ${lapNum}: ${pits.length} pit stop${pits.length > 1 ? 's' : ''} (${driverNames})`,
-          color: '#00bfff',
         });
       }
     }
@@ -376,7 +373,6 @@ export function useReplayEngine() {
         startLap: maxLap,
         endLap: maxLap,
         description: 'Race finish',
-        color: '#ffffff',
       });
     }
 

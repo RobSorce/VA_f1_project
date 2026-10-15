@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:demo": "vite build --mode demo",
     "preview": "vite preview",
+    "check:demo": "node scripts/serve_dist_check.mjs",
     "test": "vitest run"
   },
   "dependencies": {

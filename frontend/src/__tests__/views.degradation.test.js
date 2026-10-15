@@ -60,7 +60,6 @@ const {
 } = await import('../utils/raceTime.js');
 const { stintsByDriver } = await import('../utils/stints.js');
 const { driverCompletedLaps, groupLapsByStint } = await import('../utils/strategyViews.js');
-const { consistencyStats } = await import('../utils/views/consistencyPanel.js');
 const {
   hasCachedSession, loadCachedSession, listCachedRaces, CACHE_DIR,
 } = await import('./helpers/cachedSession.js');
@@ -361,7 +360,8 @@ describe.skipIf(!haveMonza)('G4 Tyre Degradation chart on the shared definition 
       degradationRegression: { slope: -0.1414, lap_start: 10, lap_end: 25, lap_end_used: 25 },
     });
     const rawOnly = text(TireDegradation);
-    expect(rawOnly).toContain('-141 ms/lap');
+    // signed with a true minus sign (utils/colors.js signedDelta, V1)
+    expect(rawOnly).toContain('−141 ms/lap');
     expect(rawOnly).not.toContain('fuel-corr.* +');
     expect(rawOnly).not.toMatch(/\+\s*ms\/lap/);
     // the component no longer fits on its own nor hard-codes the constant
@@ -375,8 +375,6 @@ describe.skipIf(!haveMonza)('G5 consistency on the shared definition (Monza 2024
   const byDriver = Object.fromEntries(view.drivers.map((d) => [d.driver, d]));
 
   it('every classified finisher: σ = consistencySigma, <= 0.8 s; lap 1 / pit / non-green laps do not count', () => {
-    const old = consistencyStats(LT, Infinity);
-    const oldBy = Object.fromEntries(old.drivers.map((d) => [d.driver, d]));
     const rows = [];
     expect(FINISHERS.length).toBe(19);
     for (const drv of FINISHERS) {
@@ -386,13 +384,12 @@ describe.skipIf(!haveMonza)('G5 consistency on the shared definition (Monza 2024
       expect(d.sample_size).toBe(c.n);
       expect(d.outliers).toBe(c.outliers);
       expect(d.std_dev).toBeLessThanOrEqual(0.8);
-      rows.push(`${drv} new ${d.std_dev.toFixed(3)} (n ${d.sample_size}, ${c.stints} stints) | old ${oldBy[drv].std_dev.toFixed(3)} (n ${oldBy[drv].sample_size})`);
+      rows.push(`${drv} ${d.std_dev.toFixed(3)} (n ${d.sample_size}, ${c.stints} stints)`);
     }
-    console.log(`Monza consistency sigma per finisher (new = residual sigma of per-stint fits | old = population sigma of all non-pit laps):\n  ${rows.join('\n  ')}`);
-    // Lap 1 of every driver made 20 s slower: nothing changes (the old σ did)
+    console.log(`Monza consistency sigma per finisher (residual sigma of per-stint fits):\n  ${rows.join('\n  ')}`);
+    // Lap 1 of every driver made 20 s slower: nothing changes (lap 1 is not a clean lap)
     const alt = LT.map((r) => (r.LapNumber === 1 ? { ...r, LapTimeSeconds: r.LapTimeSeconds + 20 } : r));
     expect(consistencyView(alt, Infinity)).toEqual(view);
-    expect(consistencyStats(alt, Infinity)).not.toEqual(old);
     // a lap made non-green (VSC) leaves the sample
     const lec = byDriver.LEC;
     const vsc = LT.map((r) => (r.Driver === 'LEC' && r.LapNumber === 30 ? { ...r, TrackStatus: '6' } : r));

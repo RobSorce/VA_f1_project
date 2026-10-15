@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
+// The GitHub Pages site (static demo, src/utils/demoMode.js) is the build of
+// mode 'demo' (npm run build:demo, .github/workflows/deploy.yml), served under
+// /<repository>/: DEMO_BASE (the workflow sets it from the repository name),
+// else the repository's name today. Every other build keeps relative URLs.
+const DEFAULT_DEMO_BASE = '/VA_f1_project/';
+
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  base: './',
+  base: mode === 'demo' ? (process.env.DEMO_BASE || DEFAULT_DEMO_BASE) : './',
   server: {
     port: 5173,
     proxy: {
@@ -19,4 +25,4 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
   },
-});
+}));

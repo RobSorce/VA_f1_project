@@ -1,8 +1,12 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { countryFlag } from '../../utils/colors';
+import {
+  countryFlag, CHART_FONT, TEXT_COLORS, GRID_COLORS, textColor, markColor, contrastText, SURFACES,
+} from '../../utils/colors';
+import { championshipStyles, championshipStandingsLegend } from '../../utils/views/championshipChart';
 import Panel from '../ui/Panel';
+import Legend from '../ui/Legend';
 
 export default function ChampionshipStandings() {
   const svgRef = useRef(null);
@@ -38,6 +42,18 @@ export default function ChampionshipStandings() {
     return filtered;
   }, [championshipData, isDriverView, round]);
 
+  // Colour and dash of every bar (V3): the championship chart's rule, so a
+  // driver has the same colour in both views of the tab and two (or three)
+  // drivers of a team never share a bar colour (palette team colour, then the
+  // teammate tints; never the backend's raw TeamColor)
+  const styles = useMemo(() => championshipStyles(entries, isDriverView), [entries, isDriverView]);
+  // Legend (V4 r2): every team's bar colour (first driver and teammate tint)
+  // and the teammate patterns drawn inside the bars
+  const legendItems = useMemo(
+    () => championshipStandingsLegend(entries, styles, isDriverView, SURFACES.panel),
+    [entries, styles, isDriverView],
+  );
+
   useEffect(() => {
     if (!svgRef.current || entries.length === 0) return;
 
@@ -70,31 +86,35 @@ export default function ChampionshipStandings() {
     g.append('g')
       .attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(x).ticks(6).tickFormat(d3.format('d')))
-      .attr('color', 'rgba(255,255,255,0.4)')
+      .attr('color', GRID_COLORS.axis)
       .selectAll('text')
-      .style('font-size', '8px')
-      .attr('fill', 'rgba(255,255,255,0.5)');
+      .style('font-size', CHART_FONT.data)
+      .attr('fill', TEXT_COLORS.secondary);
 
     // X axis label
     g.append('text').attr('text-anchor', 'middle')
       .attr('x', innerW / 2).attr('y', innerH + margin.bottom - 2)
-      .attr('fill', 'rgba(255,255,255,0.35)').attr('font-size', '8px')
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
       .attr('font-weight', 600).text('Points');
 
     // Grid lines
     g.append('g')
       .call(d3.axisBottom(x).ticks(6).tickSize(innerH).tickFormat(''))
-      .attr('color', 'rgba(255,255,255,0.04)')
+      .attr('color', GRID_COLORS.grid)
       .select('.domain').remove();
 
     // Bars
     entries.forEach((entry, i) => {
       const key = isDriverView ? entry.abbr : entry.team;
-      const color = entry.teamColor || '#888';
+      const style = styles[key] || { color: TEXT_COLORS.muted, dash: null };
+      // Bars >= 3:1 on the panel (markColor, drawn opaque), names >= 4.5:1 (textColor)
+      const color = markColor(style.color, SURFACES.panel);
+      const nameColor = textColor(style.color, SURFACES.panel);
       const isHigh = isDriverView ? highlightedDriver === entry.abbr : false;
       const isSelected = isDriverView ? selectedDrivers.includes(entry.abbr) : false;
+      // Focus + context: a context bar is faded on purpose; its text is never
+      // faded, it turns to the muted text colour (>= 4.5:1, COLOR_ENCODING.md)
       const isDimmed = (selectedDrivers.length > 0 || highlightedDriver) && !isHigh && !isSelected;
-      const opacity = isDimmed ? 0.15 : isHigh ? 1 : 0.85;
       const yPos = yOffset + i * (barHeight + barGap);
 
       const barG = g.append('g').style('cursor', 'pointer');
@@ -116,19 +136,34 @@ export default function ChampionshipStandings() {
         .attr('width', barW)
         .attr('height', barHeight)
         .attr('fill', color)
-        .attr('fill-opacity', opacity * 0.7)
+        .attr('fill-opacity', isDimmed ? 0.2 : 1)
         .attr('rx', 3)
-        .attr('stroke', isHigh ? '#fff' : 'none')
+        // the hovered bar: a white outline
+        .attr('stroke', isHigh ? TEXT_COLORS.primary : 'none')
         .attr('stroke-width', isHigh ? 1 : 0);
+
+      // The teammate's bar carries the chart's teammate dash as a line along
+      // its middle, in the text colour of the bar (contrastText, >= 4.5:1 on
+      // it): the pattern reads on the bar (V3 r2: a dashed outline in the
+      // bar's own colour was invisible)
+      if (style.dash && barW > 8) {
+        barG.append('line')
+          .attr('class', 'standings-teammate-dash')
+          .attr('x1', 3).attr('x2', barW - 3)
+          .attr('y1', yPos + barHeight / 2).attr('y2', yPos + barHeight / 2)
+          .attr('stroke', contrastText(color))
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', style.dash)
+          .attr('stroke-opacity', isDimmed ? 0.2 : 1);
+      }
 
       // Points label at end of bar
       barG.append('text')
         .attr('x', barW + 5)
         .attr('y', yPos + barHeight / 2)
         .attr('dy', '0.35em')
-        .attr('fill', 'rgba(255,255,255,0.7)')
-        .attr('fill-opacity', isDimmed ? 0.3 : 1)
-        .style('font-size', '9px')
+        .attr('fill', isDimmed ? TEXT_COLORS.muted : TEXT_COLORS.secondary)
+        .style('font-size', CHART_FONT.data)
         .style('font-weight', 600)
         .style('font-family', "'Formula1', 'Titillium Web', sans-serif")
         .text(entry.totalPoints);
@@ -144,9 +179,8 @@ export default function ChampionshipStandings() {
         .attr('y', yPos + barHeight / 2)
         .attr('dy', '0.35em')
         .attr('text-anchor', 'end')
-        .attr('fill', color)
-        .attr('fill-opacity', isDimmed ? 0.3 : 0.9)
-        .style('font-size', '9px')
+        .attr('fill', isDimmed ? TEXT_COLORS.muted : nameColor)
+        .style('font-size', CHART_FONT.data)
         .style('font-weight', 700)
         .style('font-family', "'Formula1', 'Titillium Web', sans-serif")
         .text(`${entry.position}. ${flag} ${label}${gapStr}`);
@@ -169,7 +203,7 @@ export default function ChampionshipStandings() {
         });
     });
 
-  }, [entries, isDriverView, highlightedDriver, selectedDrivers, setHighlightedDriver, toggleDriver]);
+  }, [entries, styles, isDriverView, highlightedDriver, selectedDrivers, setHighlightedDriver, toggleDriver]);
 
   if (!championshipData) {
     return (
@@ -177,7 +211,7 @@ export default function ChampionshipStandings() {
         <div style={{
           width: '100%', height: '100%', display: 'flex',
           alignItems: 'center', justifyContent: 'center',
-          color: 'rgba(255,255,255,0.4)', fontSize: '11px',
+          color: TEXT_COLORS.muted, fontSize: CHART_FONT.data,
         }}>
           No championship data loaded
         </div>
@@ -187,8 +221,12 @@ export default function ChampionshipStandings() {
 
   return (
     <Panel title={`Standings ${championshipData.year || ''}`}>
-      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-        <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        {/* Marks of the bars: team colours, teammate patterns */}
+        {legendItems.length > 0 && <Legend items={legendItems} />}
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
+        </div>
       </div>
     </Panel>
   );

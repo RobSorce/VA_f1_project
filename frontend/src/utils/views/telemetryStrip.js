@@ -94,7 +94,7 @@ export function truncateToNow(samples, cutNow) {
  * @param {Array<{driver: string, lap: number, inProgress: boolean}>} targets - telemetryTargets output
  * @param {Object} cache - store.telemetryCache: { 'DRV-lap-R': samples }
  * @param {Object} opts
- * @param {string} opts.cacheKeySuffix - '-R' or '-Q' (the store's cache key suffix)
+ * @param {string} opts.cacheKeySuffix - the store's cache key suffix, '-<year>-<round>-<type>' (useF1Store.js telemetryKeySuffix)
  * @param {number} opts.cutNow - session seconds (Infinity keeps every sample)
  * @param {'distance'|'time'} [opts.xAxisMode='distance'] - time mode: Distance = the lap
  *   Time, _origDistance = metres

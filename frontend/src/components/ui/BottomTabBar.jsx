@@ -6,10 +6,12 @@ import DockContextMenu from './DockContextMenu';
 import DockOverflowPopover from './DockOverflowPopover';
 import LayoutDockPopover from './LayoutDockPopover';
 import DockCustomizePopover from './DockCustomizePopover';
+import { dockCapacity } from '../../utils/dockCapacity';
 
 const HOVER_ZONE_HEIGHT = 12;
-const DOCK_ITEM_WIDTH = 72;
-const FIXED_OVERHEAD = 160; // Pit Wall (implicit in items) + separators + ⋯ + command palette + settings
+// Width of the ⋯ overflow button (6 + 10 px padding each side, 18 px icon),
+// reserved only when some dock items do not fit
+const OVERFLOW_BUTTON_W = 44;
 
 /* ── SLOT lookup (memoized once) ───────────────────────────────── */
 const SLOT_BY_ID = new Map(SLOT_OPTIONS.map((o) => [o.id, o]));
@@ -74,7 +76,8 @@ export default function BottomTabBar() {
   const [layoutsAnchorRect, setLayoutsAnchorRect] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [customizeAnchor, setCustomizeAnchor] = useState(null);
-  const [capacity, setCapacity] = useState(dockItems.length);
+  // Items shown on the dock's one row; Infinity = render all and measure
+  const [capacity, setCapacity] = useState(Infinity);
   const [dragId, setDragId] = useState(null);
   const [dropTargetId, setDropTargetId] = useState(null);
 
@@ -82,6 +85,7 @@ export default function BottomTabBar() {
   const overflowBtnRef = useRef(null);
   const layoutsBtnRef = useRef(null);
   const hideTimerRef = useRef(null);
+  const itemEls = useRef(new Map());
 
   /* ── Persist dock items ─────────────────────────────────────── */
   useEffect(() => {
@@ -105,20 +109,35 @@ export default function BottomTabBar() {
   }, [dockItems]);
 
   /* ── Capacity measurement (overflow handling) ───────────────── */
-  useLayoutEffect(() => {
-    const measure = () => {
-      const vw = window.innerWidth;
-      const usable = Math.min(vw - 40, 1800) - FIXED_OVERHEAD;
-      const cap = Math.max(1, Math.floor(usable / DOCK_ITEM_WIDTH));
-      setCapacity(cap);
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+  // The dock never scrolls (V13): with every item rendered, the real button
+  // widths (labels follow the type tokens) and the fixed buttons are measured,
+  // and dockCapacity says how many items fit next to the ⋯ button. A resize
+  // or a change of the items renders them all again and re-measures.
+  useLayoutEffect(() => { setCapacity(Infinity); }, [displayTabs]);
+  useEffect(() => {
+    const reset = () => setCapacity(Infinity);
+    window.addEventListener('resize', reset);
+    return () => window.removeEventListener('resize', reset);
   }, []);
+  useLayoutEffect(() => {
+    if (capacity !== Infinity) return;
+    const nav = navRef.current;
+    if (!nav || typeof window === 'undefined') return;
+    const cs = window.getComputedStyle(nav);
+    const gap = parseFloat(cs.columnGap) || 0;
+    const items = new Set(itemEls.current.values());
+    let fixedWidth = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    for (const el of nav.children) {
+      if (!items.has(el)) fixedWidth += el.getBoundingClientRect().width + gap;
+    }
+    const widths = displayTabs.map((o) => itemEls.current.get(o.id)?.getBoundingClientRect().width || 0);
+    const available = parseFloat(cs.maxWidth) || window.innerWidth - 40;
+    const cap = dockCapacity(widths, { available, fixedWidth, overflowWidth: OVERFLOW_BUTTON_W, gap });
+    if (cap < displayTabs.length) setCapacity(cap);
+  }, [capacity, displayTabs]);
 
   const overflowing = displayTabs.length > capacity;
-  const visibleTabs = overflowing ? displayTabs.slice(0, Math.max(1, capacity - 1)) : displayTabs;
+  const visibleTabs = overflowing ? displayTabs.slice(0, Math.max(1, capacity)) : displayTabs;
   const overflowTabs = overflowing ? displayTabs.slice(visibleTabs.length) : [];
 
   /* ── Active / open state ────────────────────────────────────── */
@@ -251,6 +270,7 @@ export default function BottomTabBar() {
         {visibleTabs.map((opt) => (
           <DockButton
             key={opt.id}
+            ref={(el) => { if (el) itemEls.current.set(opt.id, el); else itemEls.current.delete(opt.id); }}
             option={opt}
             isOpen={isTabOpen(opt.id)}
             isDragging={dragId === opt.id}

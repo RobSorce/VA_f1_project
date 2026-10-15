@@ -307,14 +307,18 @@ describe.skipIf(!haveMonza)('Monza 2024: three replay moments, focus LEC', () =>
     for (const d of ['SAI', 'PIA']) {
       expect(text).toContain(`${d} ${signed(gapSeconds('LEC', d, st))}`);
     }
-    // cars the stop concerns keep full opacity; the others are dimmed to 0.3
+    // cars the stop concerns keep their colour; the others are dimmed to the
+    // muted text colour, never faded (no opacity on a label: text >= 4.5:1)
     const label = (d) => attrsOf(markup, new RegExp(`<text class="cod-label[^"]*"[^>]*data-driver="${d}"[^>]*>`));
-    for (const x of win.wouldPassFocus) expect(label(x.driver).opacity).toBe('1');
-    expect(label('PIA').opacity).toBe('1');
-    const dimmed = [...markup.matchAll(/<text class="cod-label cod-label--dim"[^>]*opacity="0.3"/g)];
+    for (const x of win.wouldPassFocus) expect(label(x.driver).class).not.toContain('cod-label--dim');
+    expect(label('PIA').class).not.toContain('cod-label--dim');
+    expect(markup).not.toMatch(/<text class="cod-label[^"]*"[^>]*opacity=/);
+    const dimmed = [...markup.matchAll(/<text class="cod-label cod-label--dim"[^>]*><tspan class="cod-label__code" fill="#A3A7B7"/g)];
     expect(dimmed.length).toBeGreaterThan(0);
-    // overlap removal along the angle: no two label boxes intersect, all in the slot, off the ring
-    expect(labelBoxes(markup).length).toBe(st.cars.length + 1);
+    // overlap removal along the angle: no two label boxes intersect, all in the
+    // slot, off the ring; a label left out of a crowded ring is counted
+    const hidden = Number((markup.match(/data-hidden-labels="(\d+)"/) || [])[1]);
+    expect(labelBoxes(markup).length + hidden).toBe(st.cars.length + 1);
     expect(labelProblems(markup, FALLBACK)).toEqual({ overlaps: 0, outside: 0, onRing: 0 });
   });
 
@@ -501,9 +505,11 @@ describe.skipIf(!haveMonza)('coordination with the Track Map: a selection made t
     expect(markup).toMatch(/<g class="cod-car cod-car--selected" data-driver="HAM"[^>]*>(<circle[^>]*>(<\/circle>)?)*<circle class="cod-select-ring"/);
     expect((markup.match(/<circle class="cod-select-ring"/g) || []).length).toBe(1);
     const label = (d) => attrsOf(markup, new RegExp(`<text class="cod-label[^"]*"[^>]*data-driver="${d}"[^>]*>`));
-    expect(label('HAM').opacity).toBe('1');
+    expect(label('HAM').class).not.toContain('cod-label--dim');
     expect(label('HAM').class).toContain('cod-label--selected');
-    expect(label('ALB').opacity).toBe('0.3');
+    // a context label is drawn in the muted text colour (never faded)
+    expect(label('ALB').class).toContain('cod-label--dim');
+    expect(markup).toMatch(/data-driver="ALB"[^>]*><tspan class="cod-label__code" fill="#A3A7B7"/);
     expect(textOf(markup)).toContain('selected car');
   });
 
@@ -512,7 +518,7 @@ describe.skipIf(!haveMonza)('coordination with the Track Map: a selection made t
     const markup = html();
     for (const d of ['ZHO', 'HAM']) {
       expect(markup).toMatch(new RegExp(`data-driver="${d}"[^>]*>(<circle[^>]*>(</circle>)?)*<circle class="cod-select-ring"`));
-      expect(attrsOf(markup, new RegExp(`<text class="cod-label[^"]*"[^>]*data-driver="${d}"[^>]*>`)).opacity).toBe('1');
+      expect(attrsOf(markup, new RegExp(`<text class="cod-label[^"]*"[^>]*data-driver="${d}"[^>]*>`)).class).not.toContain('cod-label--dim');
     }
   });
 });
@@ -620,7 +626,16 @@ describe.skipIf(!haveMonza || !haveChina)('inside the pit lane: the hover gap re
         const markup = htmlAt(size);
         expect(markup).toMatch(new RegExp(`data-gap="VER-${hover}"`));
         const inner = innerOf(markup);
-        expect(inner.gap).not.toBeNull();
+        // at the data type (>= 11 px) the 427 x 239 slot can leave the readout
+        // no room inside the ring even with the notes stepped aside: it is then
+        // in the hovered car's tooltip ("Gap to VER"); the other slots draw it
+        const place = (markup.match(/data-gap-place="([a-z]+)"/) || [])[1];
+        if (size === PIT_WALL_1680 && place === 'tooltip') {
+          expect(inner.gap).toBeNull();
+        } else {
+          expect(place).toBe('ring');
+          expect(inner.gap).not.toBeNull();
+        }
         expect(innerProblems(markup, size)).toEqual({
           gapOnCentre: 0, outsideRoom: 0, pitCarOnText: 0, centreClamped: 0,
         });

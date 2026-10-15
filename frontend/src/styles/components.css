@@ -51,7 +51,7 @@
 }
 
 .panel--focused .panel-title {
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
 }
 
 [data-theme="light"] .panel--focused {
@@ -85,9 +85,9 @@
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-family: var(--font-mono, monospace);
-  color: rgba(255, 255, 255, 0.25);
+  color: var(--color-text-muted);
   line-height: 1.3;
   margin-left: 6px;
   opacity: 0;
@@ -191,6 +191,12 @@
   min-height: 0;
 }
 
+/* A dense view (the Strategy Timeline): half the content padding, so a low
+   pane keeps its rows (repair_strategy_fit.txt) */
+.panel--dense > .panel-content {
+  padding: var(--spacing-sm);
+}
+
 /* --------------------------------------------------------------------------
    Buttons
    -------------------------------------------------------------------------- */
@@ -290,7 +296,7 @@
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: var(--font-size-xs);
   color: var(--color-text-primary);
-  background: var(--glass-bg-heavy);
+  background: var(--glass-bg-opaque);
   border: var(--glass-border);
   border-radius: var(--radius-lg);
   box-shadow:
@@ -329,7 +335,7 @@
 }
 
 .tooltip-team {
-  font-size: 9px;
+  font-size: var(--font-size-label);
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -343,20 +349,20 @@
 }
 
 .tooltip-throttle {
-  color: #00e676;
+  color: var(--channel-throttle);
 }
 
 .tooltip-brake {
-  color: #ff5252;
+  color: var(--channel-brake);
 }
 
 .drs-on {
-  color: #00ff00;
+  color: var(--channel-throttle);
   font-weight: 700;
 }
 
 .drs-avail {
-  color: #ffd700;
+  color: var(--sector-yellow);
 }
 
 .drs-off {
@@ -402,7 +408,7 @@
 
 .mfd-card__tab {
   padding: 2px 8px;
-  font-size: 8px;
+  font-size: var(--font-size-label);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -487,16 +493,16 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  font-size: 9px;
+  font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
 }
 
-.tyre-indicator--soft { background-color: var(--tyre-soft); color: #fff; }
+.tyre-indicator--soft { background-color: var(--tyre-soft); color: #000; }
 .tyre-indicator--medium { background-color: var(--tyre-medium); color: #000; }
 .tyre-indicator--hard { background-color: var(--tyre-hard); color: #000; }
 .tyre-indicator--intermediate { background-color: var(--tyre-intermediate); color: #000; }
-.tyre-indicator--wet { background-color: var(--tyre-wet); color: #fff; }
+.tyre-indicator--wet { background-color: var(--tyre-wet); color: #000; }
 
 /* --------------------------------------------------------------------------
    Status Pill
@@ -649,7 +655,7 @@
   left: 0;
   bottom: 0;
   width: 400px;
-  background: var(--glass-bg-heavy);
+  background: var(--glass-bg-opaque);
   backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
   -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(1.5);
   border-right: var(--glass-border);
@@ -859,7 +865,7 @@
 
 .session-menu__race-item--selected .session-menu__race-round {
   background: rgba(225, 6, 0, 0.25);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
 }
 
 /* Race info text */
@@ -884,7 +890,7 @@
 }
 
 .session-menu__race-detail {
-  font-size: 0.625rem;
+  font-size: var(--font-size-label);
   color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -896,7 +902,7 @@
   display: inline-flex;
   align-items: center;
   padding: 1px 6px;
-  font-size: 0.5625rem;
+  font-size: var(--font-size-label);
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -910,7 +916,7 @@
 /* Check icon for selected */
 .session-menu__check-icon {
   flex-shrink: 0;
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
 }
 
 /* Session type pills */
@@ -944,14 +950,14 @@
 .session-menu__pill--active {
   background: rgba(225, 6, 0, 0.15);
   border-color: var(--color-f1-red);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
   box-shadow: 0 0 8px rgba(225, 6, 0, 0.2);
 }
 
 .session-menu__pill--active:hover {
   background: rgba(225, 6, 0, 0.2);
   border-color: var(--color-f1-red);
-  color: var(--color-f1-red);
+  color: var(--color-f1-red-text);
 }
 
 /* Load button */
@@ -1059,8 +1065,8 @@
 }
 
 @keyframes livePulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 4px rgba(225, 6, 0, 0.4); }
-  50% { opacity: 0.6; box-shadow: 0 0 12px rgba(225, 6, 0, 0.8); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px color-mix(in srgb, var(--color-f1-red) 40%, transparent); }
+  50% { opacity: 0.6; box-shadow: 0 0 12px color-mix(in srgb, var(--color-f1-red) 80%, transparent); }
 }
 
 /* LIVE badge */
@@ -1070,7 +1076,7 @@
   padding: 1px 6px;
   background: #e10600;
   color: #fff;
-  font-size: 9px;
+  font-size: var(--font-size-label);
   font-weight: 800;
   letter-spacing: 0.05em;
   border-radius: 3px;

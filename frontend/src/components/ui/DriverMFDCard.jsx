@@ -1,7 +1,10 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS } from '../../utils/colors';
+import {
+  getDriverColor, getDriverDash, markColor, textColor, withAlpha, tyreColor, tyreLetter, contrastText,
+  STATUS_COLORS, STATUS_GLYPHS, TEXT_COLORS, CHART_FONT, UNKNOWN_TEAM_COLOR,
+} from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { completedLaps, isLapCompleted, activeSegmentWindow } from '../../utils/raceTime';
 import { qualifyingOrder } from '../../utils/driverState';
@@ -131,7 +134,10 @@ export default function DriverMFDCard() {
     return posData;
   }, [highlightedDriver, doneLaps, isQualifyingReplay, segmentStart]);
 
-  const color = highlightedDriver ? getDriverColor(highlightedDriver) : '#888';
+  const color = highlightedDriver ? getDriverColor(highlightedDriver) : UNKNOWN_TEAM_COLOR;
+  // line / dot >= 3:1, teammate dashed (V3); name text >= 4.5:1
+  const mark = markColor(color);
+  const dash = highlightedDriver ? getDriverDash(highlightedDriver) : null;
 
   // SVG sparkline for position — must be before early return to keep hooks order stable
   const sparklineSvg = useMemo(() => {
@@ -142,13 +148,13 @@ export default function DriverMFDCard() {
     const lineGen = d3.line().x((d) => xScale(d.lap)).y((d) => yScale(d.pos)).curve(d3.curveMonotoneX);
     return (
       <svg width={w} height={h} style={{ display: 'block' }}>
-        <path d={lineGen(posHistory)} fill="none" stroke={color} strokeWidth={1.5} />
+        <path d={lineGen(posHistory)} fill="none" stroke={mark} strokeWidth={1.5} strokeDasharray={dash || undefined} />
         {posHistory.length > 0 && (
-          <circle cx={xScale(posHistory[posHistory.length - 1].lap)} cy={yScale(posHistory[posHistory.length - 1].pos)} r={3} fill={color} />
+          <circle cx={xScale(posHistory[posHistory.length - 1].lap)} cy={yScale(posHistory[posHistory.length - 1].pos)} r={3} fill={mark} />
         )}
       </svg>
     );
-  }, [posHistory, color]);
+  }, [posHistory, mark, dash]);
 
   const handleCardEnter = useCallback(() => {
     // Cancel the leaderboard's delayed clear so the card stays visible
@@ -201,13 +207,13 @@ export default function DriverMFDCard() {
         background: 'rgba(10, 10, 25, 0.88)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        border: `1.5px solid ${color}44`,
+        border: `1.5px solid ${withAlpha(color, 0.27)}`,
         borderRadius: 10,
-        boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 12px ${color}22`,
+        boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 12px ${withAlpha(color, 0.13)}`,
         overflow: 'hidden',
         fontFamily: 'var(--font-primary)',
-        fontSize: '10px',
-        color: 'rgba(255,255,255,0.85)',
+        fontSize: CHART_FONT.data,
+        color: TEXT_COLORS.primary,
       }}
     >
       {/* Header */}
@@ -216,14 +222,14 @@ export default function DriverMFDCard() {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '6px 10px',
-        borderBottom: `1px solid ${color}33`,
-        background: `linear-gradient(135deg, ${color}18, transparent)`,
+        borderBottom: `1px solid ${withAlpha(color, 0.2)}`,
+        background: `linear-gradient(135deg, ${withAlpha(color, 0.09)}, transparent)`,
       }}>
         <div>
-          <div style={{ fontWeight: 900, fontSize: '12px', color, letterSpacing: '0.06em' }}>
+          <div style={{ fontWeight: 900, fontSize: '12px', color: textColor(color), letterSpacing: '0.06em' }}>
             {highlightedDriver}
           </div>
-          <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, textTransform: 'uppercase' }}>
             {teamName}
           </div>
         </div>
@@ -234,13 +240,13 @@ export default function DriverMFDCard() {
               onClick={() => setPage(i)}
               style={{
                 padding: '1px 5px',
-                fontSize: '7px',
+                fontSize: CHART_FONT.label,
                 fontWeight: 700,
                 borderRadius: 3,
                 cursor: 'pointer',
-                background: i === page ? `${color}30` : 'rgba(255,255,255,0.06)',
-                color: i === page ? color : 'rgba(255,255,255,0.4)',
-                border: `1px solid ${i === page ? `${color}55` : 'transparent'}`,
+                background: i === page ? withAlpha(color, 0.19) : 'rgba(255,255,255,0.06)',
+                color: i === page ? TEXT_COLORS.primary : TEXT_COLORS.muted,
+                border: `1px solid ${i === page ? mark : 'transparent'}`,
                 letterSpacing: '0.04em',
               }}
             >
@@ -259,22 +265,22 @@ export default function DriverMFDCard() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{
                     width: 28, height: 28, borderRadius: '50%',
-                    background: TYRE_COLORS[tyreInfo.compound] || '#888',
+                    background: tyreColor(tyreInfo.compound),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '11px', fontWeight: 900,
-                    color: tyreInfo.compound === 'HARD' || tyreInfo.compound === 'MEDIUM' ? '#000' : '#fff',
+                    fontSize: CHART_FONT.data, fontWeight: 900,
+                    color: contrastText(tyreColor(tyreInfo.compound)),
                   }}>
-                    {tyreInfo.compound[0]}
+                    {tyreLetter(tyreInfo.compound)}
                   </span>
                   <div>
                     <div style={{ fontWeight: 700 }}>{tyreInfo.compound}</div>
-                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>
+                    <div style={{ fontSize: CHART_FONT.data, color: TEXT_COLORS.muted }}>
                       {tyreInfo.tyreLife != null ? `${tyreInfo.tyreLife} laps old` : 'Unknown age'}
                     </div>
                   </div>
                 </div>
                 {driverLaps.length > 0 && (
-                  <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}>
+                  <div style={{ fontSize: CHART_FONT.data, color: TEXT_COLORS.secondary }}>
                     Last lap: {fmtTime(driverLaps[driverLaps.length - 1]?.LapTimeSeconds)}
                   </div>
                 )}
@@ -287,17 +293,20 @@ export default function DriverMFDCard() {
                     ].map(({ label, val, sb, pb }) => {
                       const isSB = val > 0 && val <= sb + 0.001;
                       const isPB = val > 0 && val <= pb + 0.001;
+                      // timing colour + glyph (◆ session best, ● personal best)
+                      const status = isSB ? 'overallBest' : isPB ? 'personalBest' : null;
                       return (
                         <div key={label} style={{
                           flex: 1, textAlign: 'center', padding: '3px 2px',
                           borderRadius: 4,
-                          background: isSB ? 'rgba(160,32,240,0.2)' : isPB ? 'rgba(0,255,0,0.12)' : 'rgba(255,255,255,0.04)',
+                          background: status ? withAlpha(STATUS_COLORS[status], 0.14) : 'rgba(255,255,255,0.04)',
                         }}>
-                          <div style={{ fontSize: '7px', color: 'rgba(255,255,255,0.35)', marginBottom: 1 }}>{label}</div>
+                          <div style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, marginBottom: 1 }}>{label}</div>
                           <div style={{
-                            fontSize: '10px', fontWeight: 600, fontFamily: 'var(--font-mono)',
-                            color: isSB ? '#A855F7' : isPB ? '#22C55E' : 'rgba(255,255,255,0.8)',
+                            fontSize: CHART_FONT.data, fontWeight: 600, fontFamily: 'var(--font-mono)',
+                            color: status ? STATUS_COLORS[status] : TEXT_COLORS.primary,
                           }}>
+                            {status && val > 0 ? `${STATUS_GLYPHS[status]} ` : ''}
                             {val > 0 ? val.toFixed(3) : '—'}
                           </div>
                         </div>
@@ -307,7 +316,7 @@ export default function DriverMFDCard() {
                 )}
               </div>
             ) : (
-              <div style={{ color: 'rgba(255,255,255,0.3)' }}>No tyre data</div>
+              <div style={{ color: TEXT_COLORS.muted }}>No tyre data</div>
             )}
           </div>
         )}
@@ -315,7 +324,7 @@ export default function DriverMFDCard() {
         {page === 1 && paceStats && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <Row label="Average" value={fmtTime(paceStats.avg)} />
-            <Row label="Best" value={fmtTime(paceStats.best)} valueColor="#a855f7" />
+            <Row label="Best" value={fmtTime(paceStats.best)} />
             <Row label="Consistency" value={`\u00B1${paceStats.consistency.toFixed(3)}s`} />
             <Row label="Laps" value={String(driverLaps.length)} />
           </div>
@@ -325,26 +334,26 @@ export default function DriverMFDCard() {
           <div>
             {posHistory.length > 0 ? (
               <>
-                <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>
+                <div style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, marginBottom: 4 }}>
                   Position by lap (P{posHistory[posHistory.length - 1]?.pos} current)
                 </div>
                 {sparklineSvg}
               </>
             ) : (
-              <div style={{ color: 'rgba(255,255,255,0.3)' }}>No position data</div>
+              <div style={{ color: TEXT_COLORS.muted }}>No position data</div>
             )}
           </div>
         )}
 
         {page === 3 && (
-          <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>
+          <div style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted }}>
             {pcaEmbeddings?.points ? (
               (() => {
                 const point = pcaEmbeddings.points.find((p) => p.driver === highlightedDriver);
                 if (!point) return <span>No feature data for this driver</span>;
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <span style={{ color: 'rgba(255,255,255,0.6)' }}>PCA Embedding</span>
+                    <span style={{ color: TEXT_COLORS.secondary }}>PCA Embedding</span>
                     <Row label="x" value={point.x.toFixed(2)} />
                     <Row label="y" value={point.y.toFixed(2)} />
                     <Row label="Team" value={point.team} />
@@ -365,8 +374,8 @@ export default function DriverMFDCard() {
 function Row({ label, value, valueColor }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ color: 'rgba(255,255,255,0.45)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: '9px' }}>{label}</span>
-      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '10px', color: valueColor || 'rgba(255,255,255,0.85)' }}>{value}</span>
+      <span style={{ color: TEXT_COLORS.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: CHART_FONT.label }}>{label}</span>
+      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: CHART_FONT.data, color: valueColor || TEXT_COLORS.primary }}>{value}</span>
     </div>
   );
 }

@@ -1,7 +1,10 @@
-import React, { useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor, TYRE_COLORS, getTyreTextColor } from '../../utils/colors';
+import {
+  getDriverColor, TYRE_COLORS, TYRE_LABELS, getTyreTextColor, tyreColor, tyreLetter, textColor, tintedChip, withAlpha,
+  STATUS_COLORS, TEXT_COLORS, GRID_COLORS, UI_COLORS, SURFACES, CHART_FONT, chartFontPx,
+} from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
 import { deriveStints } from '../../utils/stints';
 import { focusForecast } from '../../utils/forecast';
@@ -11,9 +14,28 @@ import {
 } from '../../utils/strategyViews';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
+import { useBoxSize, fitRows, pageOf } from '../../utils/views/chartBox';
+
+// Driver rows fitted to the pane (V13): a row is never lower than the data
+// type needs (its label, the STOPS badge of 16 px and the bar, 20 px at 11 px
+// type); the drivers that do not fit are paged with the pager under the chart
+const ROW_MIN_PAD = 9;
+// Columns of rows side by side: at most 3, each at least 340 px wide (its
+// 96 px label area, 16 px gap and >= 228 px of laps: >= 4 px a lap)
+const MAX_COLS = 3;
+const COL_MIN_W = 340;
+const COL_GAP = 16;
+const pagerBtn = {
+  fontSize: CHART_FONT.label, color: TEXT_COLORS.primary, background: 'transparent',
+  border: `1px solid ${GRID_COLORS.rule}`, borderRadius: 3, padding: '0 6px', cursor: 'pointer',
+};
+const MARGIN = { top: 12, right: 18, bottom: 28, left: 96 };
 
 export default function StrategyTimeline({ showOverlays = false }) {
   const svgRef = useRef(null);
+  const boxRef = useRef(null);
+  const box = useBoxSize(boxRef);
+  const [page, setPage] = useState(0);
   const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -71,15 +93,43 @@ export default function StrategyTimeline({ showOverlays = false }) {
   // outline marker; the stop counts at the pit exit
   const inPitLane = useMemo(() => pitLaneNow(lapTimes || [], sessionNow), [lapTimes, causal]);
 
+  // Legend (V4): every mark of the chart. Compounds as their badge (FIA
+  // colour + letter, as in the bars' labels), the pit-stop diamonds, the
+  // hatched predicted stints, the lap-range band and the overlays
   const legendItems = [
-    { label: 'Soft', color: TYRE_COLORS.SOFT, shape: 'circle' },
-    { label: 'Medium', color: TYRE_COLORS.MEDIUM, shape: 'circle' },
-    { label: 'Hard', color: TYRE_COLORS.HARD, shape: 'circle' },
-    { label: 'Inter', color: TYRE_COLORS.INTERMEDIATE, shape: 'circle' },
-    { label: 'Wet', color: TYRE_COLORS.WET, shape: 'circle' },
-    { label: 'Predicted', color: '#888', shape: 'line' },
-    ...(showOverlays ? [{ label: 'Gemini', color: '#f5a623', shape: 'line' }] : []),
+    ...['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'].map((c) => ({
+      label: c === 'INTERMEDIATE' ? 'Inter' : c[0] + c.slice(1).toLowerCase(),
+      color: TYRE_COLORS[c], glyph: TYRE_LABELS[c], shape: 'badge',
+    })),
+    { label: 'Pit stop', color: TEXT_COLORS.primary, glyph: '◆', shape: 'glyph' },
+    { label: 'In pit lane', color: TEXT_COLORS.primary, glyph: '◇', shape: 'glyph' },
+    { label: 'Predicted (hatched)', color: TEXT_COLORS.secondary, shape: 'band' },
+    ...(selectedLapRange ? [{ label: 'Lap range', color: UI_COLORS.brush, shape: 'band', fill: UI_COLORS.brushFill }] : []),
+    ...(simulatorStrategy?.stints?.length ? [{ label: 'Simulator', color: TEXT_COLORS.secondary, shape: 'line', dash: '4,3' }] : []),
+    ...(showOverlays ? [{ label: 'Gemini', color: STATUS_COLORS.predicted, shape: 'band' }] : []),
   ];
+
+  // Drivers (alphabetical) and the page of them that fits the chart's height
+  const driverList = useMemo(() => [...new Set(strategies.map((d) => d.Driver))].sort(), [strategies]);
+  const rowMin = Math.ceil(chartFontPx('data') + ROW_MIN_PAD);
+  // a wide, low pane holds up to three columns of rows (each with its own
+  // label area); one column whenever every driver fits in one
+  const rowsFit = fitRows(box.height - MARGIN.top - MARGIN.bottom, driverList.length, { rowMin, rowMax: 1000 });
+  const maxCols = box.width > 0
+    ? Math.max(1, Math.min(MAX_COLS, Math.floor((box.width - MARGIN.right) / COL_MIN_W))) : 1;
+  const nCols = rowsFit.paged ? maxCols : 1;
+  const fit = { perPage: rowsFit.perPage * nCols, paged: rowsFit.perPage * nCols < driverList.length };
+  const pg = pageOf(driverList, page, fit.perPage);
+  const shownDrivers = pg.rows;
+  const perCol = Math.ceil(shownDrivers.length / nCols) || 1;
+  const columnsShown = Array.from({ length: Math.ceil(shownDrivers.length / perCol) || 1 },
+    (_, i) => shownDrivers.slice(i * perCol, i * perCol + perCol));
+  const shownKey = columnsShown.map((c) => c.join(',')).join('|');
+  // The focus driver's page comes up when the focus changes
+  useEffect(() => {
+    const i = focusDriver ? driverList.indexOf(focusDriver) : -1;
+    if (i >= 0 && fit.perPage > 0) setPage(Math.floor(i / fit.perPage));
+  }, [focusDriver, fit.perPage, driverList]);
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -95,8 +145,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
     const rect = container.getBoundingClientRect();
     const width = Math.round(rect.width) || 600;
     const height = Math.round(rect.height) || 350;
-    const margin = { top: 12, right: 18, bottom: 28, left: 96 };
-    const innerW = width - margin.left - margin.right;
+    const margin = MARGIN;
     const innerH = height - margin.top - margin.bottom;
 
     const svg = d3.select(svgRef.current);
@@ -110,17 +159,14 @@ export default function StrategyTimeline({ showOverlays = false }) {
         .attr('id', `hatch-${compound}`)
         .attr('patternUnits', 'userSpaceOnUse')
         .attr('width', 6).attr('height', 6);
-      pat.append('rect').attr('width', 6).attr('height', 6).attr('fill', TYRE_COLORS[compound] || '#888');
+      pat.append('rect').attr('width', 6).attr('height', 6).attr('fill', tyreColor(compound));
       pat.append('line')
         .attr('x1', 0).attr('y1', 0).attr('x2', 6).attr('y2', 6)
         .attr('stroke', 'rgba(0,0,0,0.3)').attr('stroke-width', 2);
     });
 
-    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
-
     // Group strategies by driver
     const driverStrats = d3.group(strategies, (d) => d.Driver);
-    const driverList = Array.from(driverStrats.keys()).sort();
 
     // Find max lap: the race length, so the axis does not grow as laps complete
     let maxLap = totalRaceLaps || storeMaxLap || 0;
@@ -129,377 +175,402 @@ export default function StrategyTimeline({ showOverlays = false }) {
       if (end > maxLap) maxLap = end;
     });
 
-    // Scales
+    // Columns of the page's drivers side by side (one lap scale for all)
+    const colW = (width - margin.right) / columnsShown.length;
+    const innerW = colW - margin.left - (columnsShown.length > 1 ? COL_GAP : 0);
     const x = d3.scaleLinear().domain([1, maxLap]).range([0, innerW]);
-    const y = d3.scaleBand()
-      .domain(driverList)
-      .range([0, innerH])
-      .padding(0.15);
 
-    // Gridlines (subtle vertical lines per 5 laps for readability)
-    const xTicks = x.ticks(Math.min(10, maxLap));
-    g.append('g').attr('class', 'grid-lines')
-      .selectAll('line')
-      .data(xTicks)
-      .join('line')
-      .attr('x1', d => x(d)).attr('x2', d => x(d))
-      .attr('y1', 0).attr('y2', innerH)
-      .attr('stroke', 'rgba(255,255,255,0.04)')
-      .attr('stroke-width', 1);
+    columnsShown.forEach((rowsShown, ci) => {
+      const g = svg.append('g').attr('transform', `translate(${ci * colW + margin.left},${margin.top})`);
+      const y = d3.scaleBand()
+        .domain(rowsShown)
+        .range([0, innerH])
+        .padding(0.15);
 
-    // Axis
-    g.append('g').attr('transform', `translate(0,${innerH})`)
-      .call(d3.axisBottom(x).ticks(Math.min(10, maxLap)).tickFormat(d3.format('d')));
-    // X axis label
-    g.append('text').attr('text-anchor', 'middle')
-      .attr('x', innerW / 2).attr('y', innerH + margin.bottom - 4)
-      .attr('fill', 'rgba(255,255,255,0.4)').attr('font-size', '9px')
-      .attr('font-weight', 600).text('Lap');
-
-    // Driver labels: colored by team, bolder
-    g.append('g').call(d3.axisLeft(y))
-      .selectAll('text')
-      .attr('font-weight', 800)
-      .attr('font-size', 11)
-      .attr('font-family', 'var(--font-display)')
-      .each(function (driver) {
-        d3.select(this).attr('fill', getDriverColor(driver));
-      });
-
-    // Pit stop count per driver: tyre changes visible at sessionNow (the count
-    // steps up at the pit exit, together with the new bar: bars - 1)
-    const pitCountMap = pitCountsByDriver(pitMarkers);
-
-    // Horizontal row separators (subtle lines between drivers)
-    driverList.forEach((driver) => {
-      g.append('line')
-        .attr('x1', 0).attr('x2', innerW)
-        .attr('y1', y(driver) + y.bandwidth() + y.step() * y.padding() / 2)
-        .attr('y2', y(driver) + y.bandwidth() + y.step() * y.padding() / 2)
-        .attr('stroke', 'rgba(255,255,255,0.03)')
+      // Gridlines (subtle vertical lines per 5 laps for readability)
+      const xTicks = x.ticks(Math.min(10, maxLap));
+      g.append('g').attr('class', 'grid-lines')
+        .selectAll('line')
+        .data(xTicks)
+        .join('line')
+        .attr('x1', d => x(d)).attr('x2', d => x(d))
+        .attr('y1', 0).attr('y2', innerH)
+        .attr('stroke', GRID_COLORS.grid)
         .attr('stroke-width', 1);
-    });
 
-    // Add pit count badges to the left of driver names on y-axis
-    driverList.forEach((driver) => {
-      const pits = pitCountMap[driver] || 0;
-      // Filled circle pill so the count reads at a glance even at small font.
-      const cx = -78;
-      const cy = y(driver) + y.bandwidth() / 2;
-      g.append('rect')
-        .attr('x', cx - 11).attr('y', cy - 8)
-        .attr('width', 22).attr('height', 16)
-        .attr('rx', 4)
-        .attr('fill', pits > 0 ? 'rgba(229, 57, 53, 0.18)' : 'rgba(255,255,255,0.04)')
-        .attr('stroke', pits > 0 ? 'rgba(229, 57, 53, 0.50)' : 'rgba(255,255,255,0.10)')
-        .attr('stroke-width', 1);
-      g.append('text')
-        .attr('class', 'pit-count-badge')
-        .attr('x', cx)
-        .attr('y', cy)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .attr('font-size', 10)
+      // Axis
+      g.append('g').attr('transform', `translate(0,${innerH})`)
+        .call(d3.axisBottom(x).ticks(Math.min(10, maxLap)).tickFormat(d3.format('d')))
+        .selectAll('text').style('font-size', CHART_FONT.data).attr('fill', TEXT_COLORS.muted);
+      // X axis label
+      g.append('text').attr('text-anchor', 'middle')
+        .attr('x', innerW / 2).attr('y', innerH + margin.bottom - 4)
+        .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
+        .attr('font-weight', 600).text('Lap');
+
+      // Driver labels: in the driver's colour (teammate tint, V3), >= 4.5:1
+      g.append('g').call(d3.axisLeft(y))
+        .selectAll('text')
         .attr('font-weight', 800)
-        .attr('font-family', 'var(--font-mono)')
-        .attr('fill', pits > 0 ? '#ff7878' : 'rgba(255,255,255,0.45)')
-        .text(`${pits}P`);
-    });
+        .style('font-size', CHART_FONT.data)
+        .attr('font-family', 'var(--font-display)')
+        .each(function (driver) {
+          d3.select(this).attr('fill', textColor(getDriverColor(driver)));
+        });
 
-    // Y-axis label — header above the column, explains what the badges mean.
-    g.append('text')
-      .attr('x', -78).attr('y', -2)
-      .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.55)')
-      .attr('font-size', 8.5)
-      .attr('font-weight', 700)
-      .attr('font-family', 'var(--font-display)')
-      .attr('letter-spacing', '0.08em')
-      .text('STOPS');
-    g.append('text')
-      .attr('x', -34).attr('y', -2)
-      .attr('text-anchor', 'middle')
-      .attr('fill', 'rgba(255,255,255,0.55)')
-      .attr('font-size', 8.5)
-      .attr('font-weight', 700)
-      .attr('font-family', 'var(--font-display)')
-      .attr('letter-spacing', '0.08em')
-      .text('DRIVER');
+      // Pit stop count per driver: tyre changes visible at sessionNow (the count
+      // steps up at the pit exit, together with the new bar: bars - 1)
+      const pitCountMap = pitCountsByDriver(pitMarkers);
 
-    // Draw stints (already causal: a bar covers the laps completed at sessionNow;
-    // a stint just begun is a sliver at its first lap)
-    driverStrats.forEach((stints, driver) => {
-      const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(driver);
+      // Horizontal row separators (subtle lines between drivers)
+      rowsShown.forEach((driver) => {
+        g.append('line')
+          .attr('x1', 0).attr('x2', innerW)
+          .attr('y1', y(driver) + y.bandwidth() + y.step() * y.padding() / 2)
+          .attr('y2', y(driver) + y.bandwidth() + y.step() * y.padding() / 2)
+          .attr('stroke', GRID_COLORS.grid)
+          .attr('stroke-width', 1);
+      });
 
-      stints.forEach((stint) => {
-        const lapStart = stint.LapStart;
-        const length = stint.StintLength;
-        const compound = stint.Compound;
-
-        const barW = Math.max(2, x(lapStart + length) - x(lapStart));
-
-        const compoundDimmed = highlightedCompound && highlightedCompound !== compound;
-        let barOpacity = isSelected ? 0.85 : 0.2;
-        if (compoundDimmed) barOpacity *= 0.3;
-        barOpacity = Math.max(barOpacity, 0.12); // floor: always perceptible
-
+      // Add pit count badges to the left of driver names on y-axis
+      rowsShown.forEach((driver) => {
+        const pits = pitCountMap[driver] || 0;
+        // Filled circle pill so the count reads at a glance even at small font.
+        const cx = -78;
+        const cy = y(driver) + y.bandwidth() / 2;
+        // pit colour tint behind, its text lifted to 4.5:1 on it (tintedChip)
+        const chip = tintedChip(STATUS_COLORS.pit, 0.18, SURFACES.panel);
         g.append('rect')
-          .attr('class', 'stint-bar')
-          .attr('data-driver', driver)
-          .attr('data-compound', compound)
-          .attr('x', x(lapStart))
-          .attr('y', y(driver))
-          .attr('width', barW)
-          .attr('height', y.bandwidth())
+          .attr('x', cx - 11).attr('y', cy - 8)
+          .attr('width', 22).attr('height', 16)
           .attr('rx', 4)
-          .attr('fill', TYRE_COLORS[compound] || '#888')
-          .attr('opacity', barOpacity)
-          .on('click', () => {
-            toggleDriver(driver);
-            setSelectedStint({
-              driver,
-              stintNumber: stint.StintNumber || 0,
-              compound,
-              lapStart,
-              stintLength: length,
-              ongoing: stint.ongoing,
-            });
-          })
-          .on('dblclick', () => {
-            // Pre-fill simulator with this driver's strategy so far; the
-            // ongoing stint is extended to the flag as the editable baseline
-            const simStints = simulatorStints(driverStrats.get(driver) || [], maxLap);
-            if (simStints.length > 0) {
-              setSimulatorStrategy({ driver, stints: simStints });
-            }
-          })
-          .on('mouseenter', function (event) {
-            setHighlightedDriver(driver);
-            let tt = d3.select('.strat-tooltip');
-            if (!tt.size()) tt = d3.select('body').append('div').attr('class', 'tooltip strat-tooltip');
-            tt.html(
-              `<div class="tooltip-title" style="color:${getDriverColor(driver)}">${driver}</div>` +
-              `<div class="tooltip-row"><span class="tooltip-label">Compound</span><span class="tooltip-value" style="color:${TYRE_COLORS[compound] || '#888'}">${compound}</span></div>` +
-              `<div class="tooltip-row"><span class="tooltip-label">Laps</span><span class="tooltip-value">${stintLapsText(stint)}</span></div>` +
-              `<div class="tooltip-row"><span class="tooltip-label">Stint</span><span class="tooltip-value">#${stint.StintNumber || ''}</span></div>` +
-              `<div class="tooltip-row"><span class="tooltip-label">Pit Stops</span><span class="tooltip-value">${pitCountMap[driver] || 0}</span></div>`
-            ).style('left', event.pageX + 12 + 'px').style('top', event.pageY - 10 + 'px')
-              .classed('visible', true).style('opacity', 1);
-          })
-          .on('mousemove', function (event) {
-            d3.select('.strat-tooltip')
-              .style('left', event.pageX + 12 + 'px').style('top', event.pageY - 10 + 'px');
-          })
-          .on('mouseleave', () => {
-            setHighlightedDriver(null);
-            d3.select('.strat-tooltip').classed('visible', false).style('opacity', 0);
-          });
-
-        // Label inside bar: compound initial + lap count
-        if (barW > 24) {
-          g.append('text')
-            .attr('class', 'stint-bar-label')
-            .attr('x', x(lapStart) + barW / 2)
-            .attr('y', y(driver) + y.bandwidth() / 2)
-            .attr('fill', getTyreTextColor(compound))
-            .text(`${compound[0]}${length}`);
-        }
+          .attr('fill', pits > 0 ? chip.background : 'rgba(255,255,255,0.04)')
+          .attr('stroke', pits > 0 ? chip.borderColor : 'rgba(255,255,255,0.30)')
+          .attr('stroke-width', 1);
+        g.append('text')
+          .attr('class', 'pit-count-badge')
+          .attr('x', cx)
+          .attr('y', cy)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .style('font-size', CHART_FONT.data)
+          .attr('font-weight', 800)
+          .attr('font-family', 'var(--font-mono)')
+          .attr('fill', pits > 0 ? chip.color : TEXT_COLORS.muted)
+          .text(`${pits}P`);
       });
-    });
 
-    // Pit stop markers: one diamond per tyre change visible at sessionNow
-    // (from the pit exit), labelled with that stop's pit loss
-    // (utils/strategyViews.js formatStopLoss): measured "26.8s", race median
-    // "≈24.7s" for a stop that cannot be measured, fallback "22.0s*" before
-    // any measured green stop, no number while the stop is being measured
-    // and outside race sessions. A label that would overlap the previous one
-    // on the row is left out; the tooltip always has it.
-    const halfBand = y.bandwidth() / 2;
-    // Only the markers drawn reserve room for a label; pills are compared
-    // across rows too (tight rows: adjacent rows' pills would overlap)
-    const drawnMarkers = pitMarkers.filter((m) => y(m.Driver) != null
-      && (selectedDrivers.length === 0 || selectedDrivers.includes(m.Driver)));
-    layoutStopLabels(drawnMarkers, x, { yOf: (d) => y(d) }).forEach((stop) => {
-      const driver = stop.Driver;
-      if (y(driver) == null) return;
-      const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(driver);
-      if (!isSelected) return;
-
-      const pitX = stop.x;
-      const pitY = y(driver);
-      const marker = g.append('g').attr('class', 'pit-marker').attr('data-source', stop.source);
-      marker.append('title').text(
-        `${driver} pit stop, lap ${stop.inLap}: ${stop.fromCompound} → ${stop.toCompound}\n${describeStopLoss(stop)}`,
-      );
-      // Diamond marker (dimmer while the stop is being measured)
-      marker.append('path')
-        .attr('d', `M${pitX},${pitY - 2} l5,${halfBand + 2} l-5,${halfBand + 2} l-5,-${halfBand + 2} Z`)
-        .attr('fill', stop.source === 'pending' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.9)')
-        .attr('stroke', 'rgba(0,0,0,0.5)')
-        .attr('stroke-width', 0.7);
-      if (!stop.showLabel) return;
-      // Pit-loss label — background pill for readability, sized to the text
-      marker.append('rect')
-        .attr('x', pitX - stop.pillW / 2)
-        .attr('y', pitY - 14)
-        .attr('width', stop.pillW)
-        .attr('height', 11)
-        .attr('rx', 3)
-        .attr('fill', 'rgba(10,10,25,0.85)')
-        .attr('stroke', 'rgba(255,255,255,0.12)')
-        .attr('stroke-width', 0.5);
-      marker.append('text')
-        .attr('class', 'pit-loss-label')
-        .attr('x', pitX)
-        .attr('y', pitY - 6)
+      // Y-axis label — header above the column, explains what the badges mean.
+      g.append('text')
+        .attr('x', -78).attr('y', -2)
         .attr('text-anchor', 'middle')
-        .attr('fill', stop.source === 'measured' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)')
-        .attr('font-size', 8)
+        .attr('fill', TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.label)
         .attr('font-weight', 700)
-        .attr('font-family', 'var(--font-mono)')
-        .text(stop.label);
-    });
+        .attr('font-family', 'var(--font-display)')
+        .attr('letter-spacing', '0.08em')
+        .text('STOPS');
+      g.append('text')
+        .attr('x', -34).attr('y', -2)
+        .attr('text-anchor', 'middle')
+        .attr('fill', TEXT_COLORS.muted)
+        .style('font-size', CHART_FONT.label)
+        .attr('font-weight', 700)
+        .attr('font-family', 'var(--font-display)')
+        .attr('letter-spacing', '0.08em')
+        .text('DRIVER');
 
-    // Cars in the pit lane now: outline diamond at the in-lap; the old set is
-    // still the current one and the stop counts at the pit exit
-    inPitLane.forEach((p) => {
-      if (y(p.Driver) == null) return;
-      const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(p.Driver);
-      if (!isSelected) return;
-      const pitX = x(p.inLap + 0.5);
-      const pitY = y(p.Driver);
-      const marker = g.append('g').attr('class', 'pit-lane-marker');
-      marker.append('title').text(`${p.Driver} in the pit lane (entered on lap ${p.inLap})`);
-      marker.append('path')
-        .attr('d', `M${pitX},${pitY - 2} l5,${halfBand + 2} l-5,${halfBand + 2} l-5,-${halfBand + 2} Z`)
-        .attr('fill', 'none')
-        .attr('stroke', 'rgba(255,255,255,0.85)')
-        .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '2,1.5');
-    });
+      const fontPxBar = chartFontPx('data');
+      // Draw stints (already causal: a bar covers the laps completed at sessionNow;
+      // a stint just begun is a sliver at its first lap)
+      driverStrats.forEach((stints, driver) => {
+        if (y(driver) == null) return; // on another page
+        const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(driver);
 
-    // Predicted stints of the focus driver's forecast (utils/forecast.js)
-    const forecast = focusForecast(lstmPredictions, focusDriver);
-    if (Array.isArray(forecast?.predicted_stints)) {
-      forecast.predicted_stints.forEach((stint) => {
-        const driver = stint.driver;
-        if (y(driver) == null) return;
-        const compound = (stint.compound || 'MEDIUM').toUpperCase();
+        stints.forEach((stint) => {
+          const lapStart = stint.LapStart;
+          const length = stint.StintLength;
+          const compound = stint.Compound;
 
-        g.append('rect')
-          .attr('class', 'stint-bar stint-bar--predicted')
-          .attr('x', x(stint.lap_start))
-          .attr('y', y(driver))
-          .attr('width', Math.max(2, x(stint.lap_start + stint.length) - x(stint.lap_start)))
-          .attr('height', y.bandwidth())
-          .attr('rx', 3)
-          .attr('fill', `url(#hatch-${compound})`);
-      });
-    }
+          const barW = Math.max(2, x(lapStart + length) - x(lapStart));
 
-    // PCA ghost rows
-    if (pcaStrategyAnalysis?.strategies) {
-      const ghostY = innerH + 5;
-      pcaStrategyAnalysis.strategies.forEach((strat, i) => {
-        const rowY = ghostY + i * 18;
-        (strat.stints || []).forEach((stint) => {
-          const compound = (stint.compound || 'MEDIUM').toUpperCase();
+          const compoundDimmed = highlightedCompound && highlightedCompound !== compound;
+          // full colour when selected (the label inside keeps its contrastText
+          // contrast); unselected bars are context, faded on purpose
+          let barOpacity = isSelected ? 1 : 0.2;
+          if (compoundDimmed) barOpacity *= 0.3;
+          barOpacity = Math.max(barOpacity, 0.12); // floor: always perceptible
+
           g.append('rect')
-            .attr('class', 'stint-bar stint-bar--pca-ghost')
-            .attr('x', x(stint.lap_start || 1))
-            .attr('y', rowY)
-            .attr('width', Math.max(2, x((stint.lap_start || 1) + (stint.length || 10)) - x(stint.lap_start || 1)))
-            .attr('height', 14)
-            .attr('rx', 2)
-            .attr('fill', TYRE_COLORS[compound] || '#888');
-        });
-      });
-    }
-
-    // Gemini overlay rows
-    if (showOverlays && geminiOverlays?.length) {
-      geminiOverlays.forEach((scenario, i) => {
-        const driver = scenario.driver || driverList[0];
-        if (!y(driver)) return;
-
-        (scenario.stints || []).forEach((stint) => {
-          const compound = (stint.compound || 'MEDIUM').toUpperCase();
-          g.append('rect')
-            .attr('class', 'stint-bar stint-bar--gemini')
-            .attr('x', x(stint.lap_start || 1))
-            .attr('y', y(driver) - 3)
-            .attr('width', Math.max(2, x((stint.lap_start || 1) + (stint.length || 10)) - x(stint.lap_start || 1)))
-            .attr('height', y.bandwidth() + 6)
-            .attr('rx', 3)
-            .attr('fill', 'var(--color-gemini-ghost)');
-        });
-      });
-    }
-
-    // Simulator strategy ghost overlay
-    if (simulatorStrategy?.stints?.length && simulatorStrategy.driver) {
-      const driver = simulatorStrategy.driver;
-      if (y(driver) != null) {
-        simulatorStrategy.stints.forEach((stint) => {
-          const compound = (stint.compound || 'MEDIUM').toUpperCase();
-          const lapStart = stint.lapStart || 1;
-          const length = stint.length || 10;
-          g.append('rect')
+            .attr('class', 'stint-bar')
+            .attr('data-driver', driver)
+            .attr('data-compound', compound)
             .attr('x', x(lapStart))
-            .attr('y', y(driver) - 4)
-            .attr('width', Math.max(2, x(lapStart + length) - x(lapStart)))
-            .attr('height', y.bandwidth() + 8)
+            .attr('y', y(driver))
+            .attr('width', barW)
+            .attr('height', y.bandwidth())
             .attr('rx', 4)
-            .attr('fill', 'none')
-            .attr('stroke', TYRE_COLORS[compound] || '#888')
-            .attr('stroke-width', 2)
-            .attr('stroke-dasharray', '4,3')
-            .attr('opacity', 0.7);
-          // Compound label above
-          g.append('text')
-            .attr('x', x(lapStart) + 4)
-            .attr('y', y(driver) - 6)
-            .attr('fill', TYRE_COLORS[compound] || '#888')
-            .attr('font-size', '7px')
-            .attr('font-weight', 700)
-            .text(`SIM: ${compound[0]} L${lapStart}–${lapStart + length - 1}`);
+            .attr('fill', tyreColor(compound))
+            .attr('opacity', barOpacity)
+            .on('click', () => {
+              toggleDriver(driver);
+              setSelectedStint({
+                driver,
+                stintNumber: stint.StintNumber || 0,
+                compound,
+                lapStart,
+                stintLength: length,
+                ongoing: stint.ongoing,
+              });
+            })
+            .on('dblclick', () => {
+              // Pre-fill simulator with this driver's strategy so far; the
+              // ongoing stint is extended to the flag as the editable baseline
+              const simStints = simulatorStints(driverStrats.get(driver) || [], maxLap);
+              if (simStints.length > 0) {
+                setSimulatorStrategy({ driver, stints: simStints });
+              }
+            })
+            .on('mouseenter', function (event) {
+              setHighlightedDriver(driver);
+              let tt = d3.select('.strat-tooltip');
+              if (!tt.size()) tt = d3.select('body').append('div').attr('class', 'tooltip strat-tooltip');
+              tt.html(
+                `<div class="tooltip-title" style="color:${textColor(getDriverColor(driver), SURFACES.elevated)}">${driver}</div>` +
+                `<div class="tooltip-row"><span class="tooltip-label">Compound</span><span class="tooltip-value" style="color:${textColor(tyreColor(compound), SURFACES.elevated)}">${compound}</span></div>` +
+                `<div class="tooltip-row"><span class="tooltip-label">Laps</span><span class="tooltip-value">${stintLapsText(stint)}</span></div>` +
+                `<div class="tooltip-row"><span class="tooltip-label">Stint</span><span class="tooltip-value">#${stint.StintNumber || ''}</span></div>` +
+                `<div class="tooltip-row"><span class="tooltip-label">Pit Stops</span><span class="tooltip-value">${pitCountMap[driver] || 0}</span></div>`
+              ).style('left', event.pageX + 12 + 'px').style('top', event.pageY - 10 + 'px')
+                .classed('visible', true).style('opacity', 1);
+            })
+            .on('mousemove', function (event) {
+              d3.select('.strat-tooltip')
+                .style('left', event.pageX + 12 + 'px').style('top', event.pageY - 10 + 'px');
+            })
+            .on('mouseleave', () => {
+              setHighlightedDriver(null);
+              d3.select('.strat-tooltip').classed('visible', false).style('opacity', 0);
+            });
+
+          // Label inside the bar: compound letter + lap count where it fits,
+          // else the letter alone (V1: a stint is never told by its colour
+          // only; soft / intermediate are CIEDE2000 5.7 apart under
+          // deuteranopia); only a sliver under one letter has none (tooltip)
+          const full = `${tyreLetter(compound)}${length}`;
+          const label = barW >= full.length * fontPxBar * 0.62 + 6 ? full
+            : barW >= fontPxBar * 0.7 + 4 ? tyreLetter(compound) : '';
+          if (label) {
+            g.append('text')
+              .attr('class', 'stint-bar-label')
+              .attr('x', x(lapStart) + barW / 2)
+              .attr('y', y(driver) + y.bandwidth() / 2)
+              .attr('fill', getTyreTextColor(compound))
+              .text(label);
+          }
+        });
+      });
+
+      // Pit stop markers: one diamond per tyre change visible at sessionNow
+      // (from the pit exit), labelled with that stop's pit loss
+      // (utils/strategyViews.js formatStopLoss): measured "26.8s", race median
+      // "≈24.7s" for a stop that cannot be measured, fallback "22.0s*" before
+      // any measured green stop, no number while the stop is being measured
+      // and outside race sessions. A label that would overlap the previous one
+      // on the row is left out; the tooltip always has it.
+      const halfBand = y.bandwidth() / 2;
+      // Only the markers drawn reserve room for a label; pills are compared
+      // across rows too (tight rows: adjacent rows' pills would overlap)
+      const drawnMarkers = pitMarkers.filter((m) => y(m.Driver) != null
+        && (selectedDrivers.length === 0 || selectedDrivers.includes(m.Driver)));
+      // pill sized to the data font (>= 11 px): width per character and height
+      const fontPx = chartFontPx('data');
+      const pillH = Math.ceil(fontPx + 3);
+      const pillTop = pillH + 3;
+      layoutStopLabels(drawnMarkers, x, {
+        yOf: (d) => y(d), charWidth: fontPx * 0.62, pillH, pillTop,
+      }).forEach((stop) => {
+        const driver = stop.Driver;
+        if (y(driver) == null) return;
+        const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(driver);
+        if (!isSelected) return;
+
+        const pitX = stop.x;
+        const pitY = y(driver);
+        const marker = g.append('g').attr('class', 'pit-marker').attr('data-source', stop.source);
+        marker.append('title').text(
+          `${driver} pit stop, lap ${stop.inLap}: ${stop.fromCompound} → ${stop.toCompound}\n${describeStopLoss(stop)}`,
+        );
+        // Diamond marker (dimmer while the stop is being measured)
+        marker.append('path')
+          .attr('d', `M${pitX},${pitY - 2} l5,${halfBand + 2} l-5,${halfBand + 2} l-5,-${halfBand + 2} Z`)
+          .attr('fill', stop.source === 'pending' ? TEXT_COLORS.muted : TEXT_COLORS.primary)
+          .attr('stroke', SURFACES.page)
+          .attr('stroke-width', 0.7);
+        if (!stop.showLabel) return;
+        // Pit-loss label — background pill for readability, sized to the text
+        marker.append('rect')
+          .attr('x', pitX - stop.pillW / 2)
+          .attr('y', pitY - pillTop)
+          .attr('width', stop.pillW)
+          .attr('height', pillH)
+          .attr('rx', 3)
+          .attr('fill', 'rgba(10,10,25,0.85)')
+          .attr('stroke', 'rgba(255,255,255,0.30)')
+          .attr('stroke-width', 0.5);
+        marker.append('text')
+          .attr('class', 'pit-loss-label')
+          .attr('x', pitX)
+          .attr('y', pitY - pillTop + pillH / 2)
+          .attr('dominant-baseline', 'central')
+          .attr('text-anchor', 'middle')
+          .attr('fill', stop.source === 'measured' ? TEXT_COLORS.primary : TEXT_COLORS.secondary)
+          .style('font-size', CHART_FONT.data)
+          .attr('font-weight', 700)
+          .attr('font-family', 'var(--font-mono)')
+          .text(stop.label);
+      });
+
+      // Cars in the pit lane now: outline diamond at the in-lap; the old set is
+      // still the current one and the stop counts at the pit exit
+      inPitLane.forEach((p) => {
+        if (y(p.Driver) == null) return;
+        const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(p.Driver);
+        if (!isSelected) return;
+        const pitX = x(p.inLap + 0.5);
+        const pitY = y(p.Driver);
+        const marker = g.append('g').attr('class', 'pit-lane-marker');
+        marker.append('title').text(`${p.Driver} in the pit lane (entered on lap ${p.inLap})`);
+        marker.append('path')
+          .attr('d', `M${pitX},${pitY - 2} l5,${halfBand + 2} l-5,${halfBand + 2} l-5,-${halfBand + 2} Z`)
+          .attr('fill', 'none')
+          .attr('stroke', TEXT_COLORS.primary)
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '2,1.5');
+      });
+
+      // Predicted stints of the focus driver's forecast (utils/forecast.js)
+      const forecast = focusForecast(lstmPredictions, focusDriver);
+      if (Array.isArray(forecast?.predicted_stints)) {
+        forecast.predicted_stints.forEach((stint) => {
+          const driver = stint.driver;
+          if (y(driver) == null) return;
+          const compound = (stint.compound || 'MEDIUM').toUpperCase();
+
+          g.append('rect')
+            .attr('class', 'stint-bar stint-bar--predicted')
+            .attr('x', x(stint.lap_start))
+            .attr('y', y(driver))
+            .attr('width', Math.max(2, x(stint.lap_start + stint.length) - x(stint.lap_start)))
+            .attr('height', y.bandwidth())
+            .attr('rx', 3)
+            .attr('fill', `url(#hatch-${compound})`);
         });
       }
-    }
 
-    // Current lap indicator line
-    if (currentLap > 0 && currentLap <= maxLap) {
-      g.append('line')
-        .attr('x1', x(currentLap)).attr('x2', x(currentLap))
-        .attr('y1', -4).attr('y2', innerH)
-        .attr('stroke', 'rgba(255,255,255,0.35)')
-        .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '3,3')
-        .attr('pointer-events', 'none');
-      g.append('text')
-        .attr('x', x(currentLap))
-        .attr('y', -6)
-        .attr('text-anchor', 'middle')
-        .attr('fill', 'rgba(255,255,255,0.5)')
-        .attr('font-size', 7)
-        .attr('font-weight', 600)
-        .text(`L${currentLap}`);
-    }
+      // PCA ghost rows (under the first column)
+      if (ci === 0 && pcaStrategyAnalysis?.strategies) {
+        const ghostY = innerH + 5;
+        pcaStrategyAnalysis.strategies.forEach((strat, i) => {
+          const rowY = ghostY + i * 18;
+          (strat.stints || []).forEach((stint) => {
+            const compound = (stint.compound || 'MEDIUM').toUpperCase();
+            g.append('rect')
+              .attr('class', 'stint-bar stint-bar--pca-ghost')
+              .attr('x', x(stint.lap_start || 1))
+              .attr('y', rowY)
+              .attr('width', Math.max(2, x((stint.lap_start || 1) + (stint.length || 10)) - x(stint.lap_start || 1)))
+              .attr('height', 14)
+              .attr('rx', 2)
+              .attr('fill', tyreColor(compound));
+          });
+        });
+      }
 
-    // Selected lap range highlight
-    if (selectedLapRange) {
-      const [lo, hi] = selectedLapRange;
-      g.append('rect')
-        .attr('x', x(lo))
-        .attr('y', 0)
-        .attr('width', Math.max(1, x(hi) - x(lo)))
-        .attr('height', innerH)
-        .attr('fill', 'rgba(100,180,255,0.08)')
-        .attr('stroke', 'rgba(100,180,255,0.3)')
-        .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '4,2')
-        .attr('pointer-events', 'none');
-    }
+      // Gemini overlay rows
+      if (showOverlays && geminiOverlays?.length) {
+        geminiOverlays.forEach((scenario, i) => {
+          const driver = scenario.driver || rowsShown[0];
+          if (!y(driver)) return;
+
+          (scenario.stints || []).forEach((stint) => {
+            const compound = (stint.compound || 'MEDIUM').toUpperCase();
+            g.append('rect')
+              .attr('class', 'stint-bar stint-bar--gemini')
+              .attr('x', x(stint.lap_start || 1))
+              .attr('y', y(driver) - 3)
+              .attr('width', Math.max(2, x((stint.lap_start || 1) + (stint.length || 10)) - x(stint.lap_start || 1)))
+              .attr('height', y.bandwidth() + 6)
+              .attr('rx', 3)
+              .attr('fill', withAlpha(STATUS_COLORS.predicted, 0.25));
+          });
+        });
+      }
+
+      // Simulator strategy ghost overlay
+      if (simulatorStrategy?.stints?.length && simulatorStrategy.driver) {
+        const driver = simulatorStrategy.driver;
+        if (y(driver) != null) {
+          simulatorStrategy.stints.forEach((stint) => {
+            const compound = (stint.compound || 'MEDIUM').toUpperCase();
+            const lapStart = stint.lapStart || 1;
+            const length = stint.length || 10;
+            g.append('rect')
+              .attr('x', x(lapStart))
+              .attr('y', y(driver) - 4)
+              .attr('width', Math.max(2, x(lapStart + length) - x(lapStart)))
+              .attr('height', y.bandwidth() + 8)
+              .attr('rx', 4)
+              .attr('fill', 'none')
+              .attr('stroke', tyreColor(compound))
+              .attr('stroke-width', 2)
+              .attr('stroke-dasharray', '4,3');
+            // Compound label above (letter = the cue of the compound colour)
+            g.append('text')
+              .attr('x', x(lapStart) + 4)
+              .attr('y', y(driver) - 6)
+              .attr('fill', textColor(tyreColor(compound), SURFACES.panel))
+              .style('font-size', CHART_FONT.label)
+              .attr('font-weight', 700)
+              .text(`SIM: ${tyreLetter(compound)} L${lapStart}–${lapStart + length - 1}`);
+          });
+        }
+      }
+
+      // Current lap indicator line
+      if (currentLap > 0 && currentLap <= maxLap) {
+        g.append('line')
+          .attr('x1', x(currentLap)).attr('x2', x(currentLap))
+          .attr('y1', -4).attr('y2', innerH)
+          .attr('stroke', GRID_COLORS.rule)
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '3,3')
+          .attr('pointer-events', 'none');
+        g.append('text')
+          .attr('x', x(currentLap))
+          .attr('y', -6)
+          .attr('text-anchor', 'middle')
+          .attr('fill', TEXT_COLORS.muted)
+          .style('font-size', CHART_FONT.label)
+          .attr('font-weight', 600)
+          .text(`L${currentLap}`);
+      }
+
+      // Selected lap range highlight
+      if (selectedLapRange) {
+        const [lo, hi] = selectedLapRange;
+        g.append('rect')
+          .attr('x', x(lo))
+          .attr('y', 0)
+          .attr('width', Math.max(1, x(hi) - x(lo)))
+          .attr('height', innerH)
+          .attr('fill', UI_COLORS.brushFill)
+          .attr('stroke', UI_COLORS.brush)
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '4,2')
+          .attr('pointer-events', 'none');
+      }
+    });
 
     // Stint click → set selectedLapRange
     svg.selectAll('.stint-bar').on('click.laprange', function () {
@@ -517,7 +588,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
     return () => {
       d3.select('body').select('.strat-tooltip').remove();
     };
-  }, [strategies, pitMarkers, inPitLane, storeMaxLap, totalRaceLaps, selectedDrivers, currentLap, lstmPredictions, focusDriver, pcaStrategyAnalysis, geminiOverlays, showOverlays, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound, selectedLapRange, setSelectedLapRange, simulatorStrategy]);
+  }, [strategies, pitMarkers, inPitLane, storeMaxLap, totalRaceLaps, selectedDrivers, currentLap, lstmPredictions, focusDriver, pcaStrategyAnalysis, geminiOverlays, showOverlays, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound, selectedLapRange, setSelectedLapRange, simulatorStrategy, shownKey, box.width, box.height]);
 
   // Lightweight highlight effect — updates opacity without full redraw
   useEffect(() => {
@@ -528,7 +599,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
       const driver = el.attr('data-driver');
       if (!driver) return;
       const isSelected = selectedDrivers.length === 0 || selectedDrivers.includes(driver);
-      const baseOpacity = isSelected ? 0.85 : 0.2;
+      const baseOpacity = isSelected ? 1 : 0.2;
       const isHl = highlightedDriver && driver === highlightedDriver;
       const isDimmed = highlightedDriver && driver !== highlightedDriver;
       el.attr('opacity', isDimmed ? Math.min(baseOpacity, 0.15) : isHl ? Math.min(1, baseOpacity + 0.15) : baseOpacity);
@@ -536,15 +607,36 @@ export default function StrategyTimeline({ showOverlays = false }) {
   }, [highlightedDriver, selectedDrivers]);
 
   return (
-    <Panel title="Strategy Timeline" controls={<Legend items={legendItems} shape="circle" />} focused={focusedView === 'strategy'} shortcutKey="7">
-      <div className="viz-container">
+    <Panel
+      title="Strategy Timeline"
+      className="panel--dense"
+      controls={(
+        <>
+          {fit.paged && (
+            <div className="strategy-timeline__pager" style={{
+              display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+              fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary, whiteSpace: 'nowrap',
+            }}
+            >
+              <button type="button" aria-label="Previous drivers" disabled={pg.page === 0} onClick={() => setPage(pg.page - 1)} style={pagerBtn}>{'\u25C0'}</button>
+              <span>Drivers {pg.first}{'\u2013'}{pg.last} of {driverList.length}</span>
+              <button type="button" aria-label="Next drivers" disabled={pg.page >= pg.pages - 1} onClick={() => setPage(pg.page + 1)} style={pagerBtn}>{'\u25B6'}</button>
+            </div>
+          )}
+          <Legend items={legendItems} />
+        </>
+      )}
+      focused={focusedView === 'strategy'}
+      shortcutKey="7"
+    >
+      <div ref={boxRef} className="viz-container">
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
         {strategies.length === 0 && (
           <div
             className="strategy-timeline__empty"
             style={{
               position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'center', padding: 12,
+              fontSize: CHART_FONT.data, color: TEXT_COLORS.muted, textAlign: 'center', padding: 12,
             }}
           >
             {lapTimes?.length
@@ -556,8 +648,8 @@ export default function StrategyTimeline({ showOverlays = false }) {
       <div
         className="strategy-timeline__legend"
         style={{
-          flexShrink: 0, padding: '2px 10px 4px', fontSize: 9, lineHeight: 1.3,
-          color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          flexShrink: 0, padding: '2px 10px 4px', fontSize: CHART_FONT.label, lineHeight: 1.3,
+          color: TEXT_COLORS.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}
         title={isRace ? PIT_LOSS_LEGEND : undefined}
       >

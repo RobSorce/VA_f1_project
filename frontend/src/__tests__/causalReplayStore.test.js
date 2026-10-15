@@ -315,6 +315,17 @@ describe.skipIf(!haveRace)('causal replay analytics in the store (Monza 2024)', 
       const row = session.lap_times.find((x) => x.Driver === r.driver && x.LapNumber === lastDone);
       expect(r.position).toBe(row.Position);
     }
+    // Laps to the stop: the race's stint-life survival at now (the Race
+    // Situation map's estimatedLapsToPit), no fixed table per compound (P12)
+    const { estimatedLapsToPit } = await import('../utils/raceSituationFeatures.js');
+    const { stintLifeEstimate } = await import('../utils/raceSimulation.js');
+    const life = stintLifeEstimate(session.lap_times, { sessionNow: now, running: false, dnfMap: store().dnfMap });
+    for (const r of rivals) {
+      const want = estimatedLapsToPit(life, r.compound, r.tyreAge);
+      expect(r.estPitIn).toBe(want.laps);
+      expect(r.estPitInSource).toBe(want.source);
+    }
+    console.log(`rival context at leader lap ${store().currentLap}: ${rivals.map((r) => `${r.driver} ${r.compound} age ${r.tyreAge} -> pit in ${r.estPitIn} (${r.estPitInSource})`).join('; ')}`);
   });
 
   it('the focus-driver pit trigger fires at the pit exit, not at the lap change before it', () => {

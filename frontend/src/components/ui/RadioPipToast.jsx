@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
-import { getDriverColor } from '../../utils/colors';
+import {
+  getDriverColor, CHART_FONT, TEXT_COLORS, FLAG_COLORS, UI_COLORS, STATUS_COLORS, withAlpha,
+  UNKNOWN_TEAM_COLOR,
+} from '../../utils/colors';
 
 /**
  * Floating "Picture-in-Picture" toast for live team-radio playback.
@@ -162,7 +165,7 @@ export default function RadioPipToast() {
   const abbr = liveCurrent
     ? (liveCurrent.driver || numberToAbbr.current[liveCurrent.driver_number] || '???')
     : '';
-  const color = abbr ? getDriverColor(abbr) : '#888';
+  const color = abbr ? getDriverColor(abbr) : UNKNOWN_TEAM_COLOR;
   const transcript = liveCurrent?.transcript;
   const transcriptStatus = liveCurrent?.transcript_status;
 
@@ -196,7 +199,7 @@ export default function RadioPipToast() {
             borderLeft: `4px solid ${color}`,
             borderRadius: 8,
             boxShadow: '0 18px 36px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)',
-            color: '#e0e0e0',
+            color: TEXT_COLORS.primary,
             fontFamily: "'Titillium Web', 'Inter', sans-serif",
             overflow: 'hidden',
           }}
@@ -210,20 +213,20 @@ export default function RadioPipToast() {
           }}>
             <span style={{
               width: 8, height: 8, borderRadius: '50%',
-              background: '#e10600',
-              boxShadow: '0 0 8px rgba(225,6,0,0.7)',
+              background: UI_COLORS.accent,
+              boxShadow: `0 0 8px ${withAlpha(UI_COLORS.accent, 0.7)}`,
               animation: 'livePulse 1.2s ease-in-out infinite',
             }} />
             <span style={{
-              fontSize: 9, fontWeight: 800, letterSpacing: '0.10em',
-              textTransform: 'uppercase', color: '#fff',
+              fontSize: CHART_FONT.label, fontWeight: 800, letterSpacing: '0.10em',
+              textTransform: 'uppercase', color: TEXT_COLORS.primary,
             }}>Team Radio</span>
 
             <span style={{
               padding: '2px 7px', borderRadius: 3,
               background: `${color}30`, borderLeft: `3px solid ${color}`,
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 11, fontWeight: 800, color: '#fff',
+              fontSize: CHART_FONT.data, fontWeight: 800, color: TEXT_COLORS.primary,
               letterSpacing: '0.04em',
             }}>{abbr}</span>
 
@@ -239,7 +242,7 @@ export default function RadioPipToast() {
               title={muted ? 'Unmute' : 'Mute'}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: muted ? '#f87171' : '#bbc',
+                color: muted ? FLAG_COLORS.red : TEXT_COLORS.secondary,
                 padding: 2,
               }}
             >
@@ -267,7 +270,7 @@ export default function RadioPipToast() {
               title="Dismiss"
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: '#bbc', padding: 2,
+                color: TEXT_COLORS.secondary, padding: 2,
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -287,10 +290,10 @@ export default function RadioPipToast() {
                 onClick={handleManualResume}
                 style={{
                   width: '100%', padding: '10px',
-                  background: 'rgba(245,166,35,0.16)',
-                  border: '1px solid #f5a62388',
+                  background: withAlpha(STATUS_COLORS.predicted, 0.16),
+                  border: `1px solid ${withAlpha(STATUS_COLORS.predicted, 0.53)}`,
                   borderRadius: 6,
-                  color: '#f5a623',
+                  color: STATUS_COLORS.predicted,
                   fontSize: 11, fontWeight: 700,
                   letterSpacing: '0.06em', textTransform: 'uppercase',
                   cursor: 'pointer',
@@ -316,21 +319,21 @@ export default function RadioPipToast() {
 
                 {/* Transcript */}
                 {transcriptStatus === 'queued' && (
-                  <div style={{ fontSize: 10, color: '#888', fontStyle: 'italic' }}>
+                  <div style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, fontStyle: 'italic' }}>
                     transcribing…
                   </div>
                 )}
                 {transcriptStatus === 'ok' && transcript && (
                   <div style={{
-                    fontSize: 13, color: '#fff',
+                    fontSize: 13, color: TEXT_COLORS.primary,
                     lineHeight: 1.4, fontStyle: 'italic',
                   }}>“{transcript}”</div>
                 )}
                 {(transcriptStatus === 'empty' || (transcriptStatus === 'ok' && !transcript)) && (
-                  <div style={{ fontSize: 10, color: '#888' }}>(no speech detected)</div>
+                  <div style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted }}>(no speech detected)</div>
                 )}
                 {transcriptStatus === 'download_failed' && (
-                  <div style={{ fontSize: 10, color: '#f87171' }}>transcript unavailable</div>
+                  <div style={{ fontSize: CHART_FONT.label, color: FLAG_COLORS.red }}>transcript unavailable</div>
                 )}
               </>
             )}

@@ -70,6 +70,6 @@ This is the VA requirement: dimensionality reduction integrated in the analysis 
 
 5. **Analysis panel.** `PCAAnalysisPanel.jsx` shows the label, N, a forest plot of g with its interval, the baseline band and the threshold, the strategies and the pit windows; clicking a pit window sets `selectedLapRange`.
 
-6. **Cross-view coordination.** When `selectedLapRange` is set, `LapTimeChart`, `TrackMap` and `StrategyTimeline` dim the out-of-range laps, focusing the strategist on the laps of interest.
+6. **Cross-view coordination** (`docs/COORDINATION_GRAPH.md`, sections 2 and 4, with the tables generated from the code). The lasso also selects the drivers of the selected rows (`selectedDrivers`) in every view, and `StrategyTimeline` draws the selection's tyre strategies (`pcaStrategyAnalysis`) as extra rows under the drivers. A pit window clicked in the panel sets the one lap range of the dashboard (`selectedLapRange`, equal to `brushLapRange`): `StrategyTimeline` shades those laps, the Timing Sheet (`LapTimeChart`) filters its rows to them and shows them on its lap-range bar, the Position Tracker moves its brush to them, `TireDegradation` fits them and `TelemetryStrip` in laps mode compares them. The biplot itself does not react to a lap range, and the Track Map has no lap-range view.
 
 This chain (lasso on the biplot -> backend comparison of the selection -> cross-view highlighting) is analytics triggered by visual interaction, integrated in the analysis flow.
