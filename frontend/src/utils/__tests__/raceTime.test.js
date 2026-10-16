@@ -222,8 +222,7 @@ describe('resolveSessionNow', () => {
 });
 
 describe.skipIf(!hasCachedSession(2024, 16))('race clock on cached Monza 2024 (R16)', () => {
-  const s = loadCachedSession(2024, 16);
-  const rows = s.lap_times;
+  const rows = hasCachedSession(2024, 16) ? loadCachedSession(2024, 16).lap_times : [];
 
   it('offset is the race start: the shared LapStartTime of lap 1', () => {
     const offset = computeSessionTimeOffset(rows);

@@ -87,7 +87,7 @@ Optional, with the virtual environment active and from `backend/`:
 - Team-radio transcription in live mode: `pip install faster-whisper` (model chosen by `VA_WHISPER_MODEL`).
 - Rebuild the PCA from the cached races: `python -m scripts.pca_rebuild` (it rewrites `data/processed/`).
 - Retrain the forecast: `python -m model.prepare_data`, then `python -m model.train`, then `python -m scripts.evaluate_forecast` (it chooses the method the app serves). These steps read the cached races.
-- Backend tests: `pip install pytest`, then `python -m pytest -q tests`.
+- Backend tests: `pip install pytest`, then `python -m pytest -q tests`. The tests that need cached races are skipped while the caches are empty (a fresh clone); the frontend tests follow the same rule.
 
 ### Frontend (Vite, http://localhost:5173)
 

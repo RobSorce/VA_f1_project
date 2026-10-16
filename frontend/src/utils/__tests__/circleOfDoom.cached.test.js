@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import {
   referenceLap, circleState, gapSeconds, lapOffset, pitWindow, rankByCrossing, rejoinDistribution,
   rejoinProbabilities, circleMemoKey, circleStateKey, ringRelations, phaseAt, wrapPhase, PHASE_MAX, TRAFFIC_GAP_S,
@@ -22,11 +22,16 @@ function actualPositionAt(lapTimes, d, n) {
 }
 
 describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16), lap 15 before LEC stops', () => {
-  const lapTimes = loadCachedSession(2024, 16).lap_times;
   // LEC runs lap 15 (started 4542.276); pit entry at 4628.772
   const NOW = 4600;
-  const st = circleState(lapTimes, { sessionNow: NOW });
-  const est = estimatePitLoss(lapTimes, { sessionNow: NOW });
+  let lapTimes;
+  let st;
+  let est;
+  beforeAll(() => {
+    lapTimes = loadCachedSession(2024, 16).lap_times;
+    st = circleState(lapTimes, { sessionNow: NOW });
+    est = estimatePitLoss(lapTimes, { sessionNow: NOW });
+  });
 
   it('reference lap: median of the green laps 10-14, a Monza race lap', () => {
     const ref = referenceLap(lapTimes, { sessionNow: NOW });
@@ -107,11 +112,18 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16), lap 15 before LE
 });
 
 describe.skipIf(!hasCachedSession(2024, 5))('China 2024 (R5) under the Safety Car (laps 23-31)', () => {
-  const lapTimes = loadCachedSession(2024, 5).lap_times;
-  const ver26 = row(lapTimes, 'VER', 26); // an SC lap: 157 s
-  const NOW = ver26.LapStartTime + 130;
-  const st = circleState(lapTimes, { sessionNow: NOW });
-  const est = estimatePitLoss(lapTimes, { sessionNow: NOW });
+  let lapTimes;
+  let ver26;
+  let NOW;
+  let st;
+  let est;
+  beforeAll(() => {
+    lapTimes = loadCachedSession(2024, 5).lap_times;
+    ver26 = row(lapTimes, 'VER', 26); // an SC lap: 157 s
+    NOW = ver26.LapStartTime + 130;
+    st = circleState(lapTimes, { sessionNow: NOW });
+    est = estimatePitLoss(lapTimes, { sessionNow: NOW });
+  });
 
   it('the reference lap reaches back to the green laps before the neutralisation', () => {
     expect(ver26.TrackStatus).not.toBe('1');
@@ -255,9 +267,13 @@ function drawnRing(focus, st, w) {
 const sorted = (list) => list.map((x) => x.driver).sort();
 
 describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024: last lap, threshold lists and traffic', () => {
-  const lapTimes = loadCachedSession(2024, 16).lap_times;
-  const flag = leaderLapEndTime(lapTimes, 53);
-  const at = (now) => ({ st: circleState(lapTimes, { sessionNow: now }), est: estimatePitLoss(lapTimes, { sessionNow: now }) });
+  let lapTimes;
+  let flag;
+  beforeAll(() => {
+    lapTimes = loadCachedSession(2024, 16).lap_times;
+    flag = leaderLapEndTime(lapTimes, 53);
+  });
+  const at =(now) => ({ st: circleState(lapTimes, { sessionNow: now }), est: estimatePitLoss(lapTimes, { sessionNow: now }) });
 
   it('no window after the chequered flag, nor past a lapped car\'s last lap', () => {
     expect(flag).toBeCloseTo(7831.479, 3);

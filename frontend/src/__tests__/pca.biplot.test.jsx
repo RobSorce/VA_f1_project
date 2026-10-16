@@ -166,7 +166,9 @@ describe('team colours (P5)', () => {
     expect(getTeamColor('Racing Bulls')).toBe(getTeamColor('RB'));
   });
 
-  it.skipIf(!fs.existsSync(CACHE_DIR))('every TeamName of the cached sessions maps to a colour', () => {
+  // the backend creates the cache directory (empty) when it starts: the test needs a session file in it
+  const haveSessions = fs.existsSync(CACHE_DIR) && fs.readdirSync(CACHE_DIR).some((n) => /^session_.*\.json$/.test(n));
+  it.skipIf(!haveSessions)('every TeamName of the cached sessions maps to a colour', () => {
     const names = new Set();
     for (const f of fs.readdirSync(CACHE_DIR).filter((n) => /^session_.*\.json$/.test(n))) {
       const raw = fs.readFileSync(path.join(CACHE_DIR, f), 'utf8').replace(/\bNaN\b/g, 'null');

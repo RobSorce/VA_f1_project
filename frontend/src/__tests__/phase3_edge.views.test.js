@@ -181,9 +181,8 @@ describe('live: a car still racing is never shown retired (feed rows, live now =
   // The live feed delivers each completed lap row as it ends (session Time,
   // Position: backend/live/data_normalizer.py _complete_lap): after k
   // deliveries the store holds the k rows that ended first.
-  const liveRaces = [[2024, 16], [2024, 3]].filter(([y, r]) => hasCachedSession(y, r));
-  for (const [year, round] of liveRaces) {
-    it(`${year} R${round}: the feed so far, every 10th delivery (Leaderboard render and raceStandings)`, () => {
+  for (const [year, round] of [[2024, 16], [2024, 3]]) {
+    it.skipIf(!hasCachedSession(year, round))(`${year} R${round}: the feed so far, every 10th delivery (Leaderboard render and raceStandings)`, () => {
       const s = loadCachedSession(year, round);
       const all = s.lap_times.filter((r) => Number.isFinite(r.Time) && r.Driver)
         .sort((a, b) => a.Time - b.Time);

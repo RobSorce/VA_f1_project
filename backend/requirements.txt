@@ -2,7 +2,7 @@
 
 ## Backend Python Dependencies
 
-fastf1>=3.4.0
+fastf1>=3.8.1  # older versions drop the 2026 car data (no DRS channel 45)
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 pandas>=2.1.0

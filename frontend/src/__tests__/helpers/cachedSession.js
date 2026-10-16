@@ -1,6 +1,11 @@
 // Test helper: load a cached race from backend/data/processed_cache.
 // The cache is git-ignored, so data-dependent tests must skip when it is absent
 // (fresh clone, CI): use `describe.skipIf(!hasCachedSession(2024, 16))`.
+// Vitest runs the body of a skipped describe when it collects the file, so a
+// load at describe level goes in beforeAll or behind a guard
+// (`hasCachedSession(2024, 16) ? loadCachedSession(2024, 16).lap_times : []`).
+// A test that loops over listCachedRaces() needs its own skipIf: with no cache
+// the loop is empty and the test would pass having checked nothing.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

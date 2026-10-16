@@ -138,7 +138,7 @@ describe.skipIf(!HAS_DATA)('no backend -> the static demo answers', () => {
     expect((await api.getSession(race.year, race.round)).lap_times.length).toBe(race.lap_rows);
   });
 
-  it('the session answer is the backend\'s cached payload; the frames are every frame_step-th cached frame', async () => {
+  it.skipIf(!MANIFEST.races.some((r) => hasCachedSession(r.year, r.round)))('the session answer is the backend\'s cached payload; the frames are every frame_step-th cached frame', async () => {
     backend.mode = 'down';
     for (const race of MANIFEST.races) {
       if (!hasCachedSession(race.year, race.round)) continue;

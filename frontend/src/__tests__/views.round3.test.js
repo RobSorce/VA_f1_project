@@ -140,7 +140,7 @@ describe('classified drivers who stopped before the flag are retired (R6)', () =
     }
   });
 
-  it('every cached race: the inferred non-finishers are retired from their stop, not before; finishers never', () => {
+  it.skipIf(!listCachedRaces().length)('every cached race: the inferred non-finishers are retired from their stop, not before; finishers never', () => {
     const races = listCachedRaces();
     let inferred = 0;
     for (const { year, round } of races) {

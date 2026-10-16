@@ -185,6 +185,9 @@ def test_analysis_says_what_clock_the_current_race_is_at():
 def test_a_race_not_started_has_no_rows():
     """session_now 0 (another session of the weekend on screen: the race has
     not started) leaves the race out of the biplot and of the analysis."""
+    # the race on screen and VER's race are read from the cache: skip without them
+    load_cached_session(2024, 16)
+    load_cached_session(2024, 1)
     emb = pc.pca_embeddings_at(2024, 16, 0.0)
     assert emb['current_race']['n_points'] == 0 and emb['current_race']['as_of_lap'] == 0
     assert not [p for p in emb['points'] if p['year'] == 2024 and p['round'] == 16]

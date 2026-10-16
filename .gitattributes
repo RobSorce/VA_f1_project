@@ -1,0 +1,14 @@
+# Text files are stored and checked out with LF on every platform. With
+# CRLF (git's default checkout on Windows) the scripts that start with a
+# "#!" line, and the tests that import them, fail to parse.
+* text=auto eol=lf
+
+# Binary files: never converted
+*.png binary
+*.jpg binary
+*.gz binary
+*.ttf binary
+*.zip binary
+*.npy binary
+*.pt binary
+*.pkl binary

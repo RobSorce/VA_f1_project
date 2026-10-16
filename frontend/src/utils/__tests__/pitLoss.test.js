@@ -286,7 +286,7 @@ describe.skipIf(!hasCachedSession(2024, 16))('stop labels over the Monza 2024 re
 });
 
 describe.skipIf(!hasCachedSession(2024, 16))('pit loss on cached Monza 2024 (R16)', () => {
-  const rows = loadCachedSession(2024, 16).lap_times;
+  const rows = hasCachedSession(2024, 16) ? loadCachedSession(2024, 16).lap_times : [];
 
   it('median within 26.8 +/- 1.5 s at the end of the race', () => {
     const est = estimatePitLoss(rows);

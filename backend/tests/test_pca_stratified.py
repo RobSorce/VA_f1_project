@@ -35,11 +35,12 @@ import random
 import numpy as np
 import pytest
 
-from conftest import load_cached_session
+from conftest import CACHE_DIR, load_cached_session
 from data.processors import pca_compute as pc
 from data.processors.stints import leader_lap_times
 
 PROGRESS = set(pc.PROGRESS_DEPENDENT_FEATURES)
+CACHED_RACES = sorted(CACHE_DIR.glob('session_*_R.json')) if CACHE_DIR.exists() else []
 
 
 def clock_after_lap(payload, lap):
@@ -74,6 +75,7 @@ def former_flags(df, ids, sel):
 
 # ── 1. the stratified baseline ──
 
+@pytest.mark.skipif(not CACHED_RACES, reason='processed cache missing')
 def test_progress_dependent_features_are_those_that_move_with_the_race():
     """The declared list is what scripts/pca_progress_features.py measures:
     rows at a quarter, half, three quarters of each cached race against the
