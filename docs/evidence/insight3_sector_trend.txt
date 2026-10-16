@@ -1,0 +1,31 @@
+Monza 2024 (R16): HARD stints of more than 15 clean laps: 25
+  ALB|2    35 laps: last third - first third  S1 -0.008  S2 -0.279  S3 -0.435  lap -0.722 s
+  ALO|2    21 laps: last third - first third  S1 0.181  S2 -0.135  S3 -0.072  lap -0.027 s
+  ALO|3    17 laps: last third - first third  S1 0.012  S2 -0.088  S3 -0.099  lap -0.175 s
+  BOT|1    31 laps: last third - first third  S1 0.148  S2 -0.188  S3 -0.124  lap -0.164 s
+  COL|2    36 laps: last third - first third  S1 0.098  S2 -0.109  S3 -0.181  lap -0.192 s
+  GAS|2    18 laps: last third - first third  S1 0.094  S2 0.528  S3 0.274  lap 0.896 s
+  GAS|3    21 laps: last third - first third  S1 -0.290  S2 -0.184  S3 -0.250  lap -0.724 s
+  HAM|2    20 laps: last third - first third  S1 -0.154  S2 -0.671  S3 -0.491  lap -1.316 s
+  HUL|2    25 laps: last third - first third  S1 0.048  S2 0.266  S3 -0.042  lap 0.271 s
+  HUL|3    19 laps: last third - first third  S1 -0.279  S2 0.042  S3 0.385  lap 0.148 s
+  LEC|2    37 laps: last third - first third  S1 0.047  S2 -0.130  S3 -0.089  lap -0.172 s
+  MAG|2    38 laps: last third - first third  S1 0.074  S2 -0.589  S3 -0.643  lap -1.159 s
+  NOR|2    16 laps: last third - first third  S1 -0.065  S2 -0.197  S3 -0.439  lap -0.701 s
+  NOR|3    20 laps: last third - first third  S1 -0.033  S2 -0.490  S3 -0.299  lap -0.822 s
+  OCO|1    29 laps: last third - first third  S1 0.371  S2 0.001  S3 -0.067  lap 0.305 s
+  PER|1    21 laps: last third - first third  S1 0.063  S2 0.011  S3 0.004  lap 0.078 s
+  PIA|2    20 laps: last third - first third  S1 -0.051  S2 -0.268  S3 -0.164  lap -0.483 s
+  RIC|2    41 laps: last third - first third  S1 -0.035  S2 -0.122  S3 -0.230  lap -0.386 s
+  RUS|2    20 laps: last third - first third  S1 -0.070  S2 -0.188  S3 -0.531  lap -0.789 s
+  RUS|3    19 laps: last third - first third  S1 -0.329  S2 -0.513  S3 -0.294  lap -1.136 s
+  SAI|2    33 laps: last third - first third  S1 0.009  S2 0.142  S3 0.073  lap 0.223 s
+  STR|1    17 laps: last third - first third  S1 0.082  S2 -0.282  S3 0.093  lap -0.108 s
+  VER|1    20 laps: last third - first third  S1 0.013  S2 -0.049  S3 -0.044  lap -0.081 s
+  VER|2    17 laps: last third - first third  S1 -0.025  S2 0.102  S3 -0.015  lap 0.062 s
+  ZHO|2    36 laps: last third - first third  S1 0.219  S2 0.244  S3 0.361  lap 0.824 s
+sector with the largest change: S1 in 16, S2 in 5, S3 in 4 of 25 stints
+  S1: median 0.012 s, range -0.329 to 0.371 s
+  S2: median -0.130 s, range -0.671 to 0.528 s
+  S3: median -0.099 s, range -0.643 to 0.385 s
+  lap: median -0.172 s

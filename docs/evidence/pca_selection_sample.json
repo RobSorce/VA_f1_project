@@ -1,0 +1,396 @@
+{
+ "common_patterns": [
+  {
+   "compound": "SOFT",
+   "avg_stint_length": 1.0,
+   "count": 1,
+   "total_laps": 1
+  },
+  {
+   "compound": "MEDIUM",
+   "avg_stint_length": 27.8,
+   "count": 5,
+   "total_laps": 139
+  },
+  {
+   "compound": "HARD",
+   "avg_stint_length": 26.0,
+   "count": 7,
+   "total_laps": 182
+  },
+  {
+   "compound": "INTERMEDIATE",
+   "avg_stint_length": 23.5,
+   "count": 2,
+   "total_laps": 47
+  }
+ ],
+ "pit_windows": [
+  {
+   "lap_start": 19,
+   "lap_end": 22,
+   "count": 3,
+   "median_lap": 20
+  },
+  {
+   "lap_start": 28,
+   "lap_end": 28,
+   "count": 1,
+   "median_lap": 28
+  },
+  {
+   "lap_start": 34,
+   "lap_end": 34,
+   "count": 1,
+   "median_lap": 34
+  },
+  {
+   "lap_start": 44,
+   "lap_end": 50,
+   "count": 4,
+   "median_lap": 48
+  },
+  {
+   "lap_start": 77,
+   "lap_end": 77,
+   "count": 1,
+   "median_lap": 77
+  }
+ ],
+ "strategies": [
+  {
+   "stints": [
+    {
+     "compound": "MEDIUM",
+     "lap_start": 1,
+     "length": 19
+    },
+    {
+     "compound": "HARD",
+     "lap_start": 20,
+     "length": 31
+    },
+    {
+     "compound": "HARD",
+     "lap_start": 51,
+     "length": 28
+    }
+   ],
+   "frequency": 0.4,
+   "count": 2
+  },
+  {
+   "stints": [
+    {
+     "compound": "MEDIUM",
+     "lap_start": 1,
+     "length": 22
+    },
+    {
+     "compound": "HARD",
+     "lap_start": 23,
+     "length": 27
+    },
+    {
+     "compound": "MEDIUM",
+     "lap_start": 50,
+     "length": 29
+    }
+   ],
+   "frequency": 0.2,
+   "count": 1
+  },
+  {
+   "stints": [
+    {
+     "compound": "INTERMEDIATE",
+     "lap_start": 1,
+     "length": 34
+    },
+    {
+     "compound": "HARD",
+     "lap_start": 35,
+     "length": 10
+    },
+    {
+     "compound": "INTERMEDIATE",
+     "lap_start": 45,
+     "length": 13
+    }
+   ],
+   "frequency": 0.2,
+   "count": 1
+  },
+  {
+   "stints": [
+    {
+     "compound": "HARD",
+     "lap_start": 1,
+     "length": 28
+    },
+    {
+     "compound": "MEDIUM",
+     "lap_start": 29,
+     "length": 49
+    },
+    {
+     "compound": "SOFT",
+     "lap_start": 78,
+     "length": 1
+    }
+   ],
+   "frequency": 0.2,
+   "count": 1
+  }
+ ],
+ "feature_importance": [
+  {
+   "feature": "sector3_delta_pct",
+   "label": "Sector 3 vs Field",
+   "unit": "%",
+   "selected_mean": -2.969,
+   "rest_mean": -0.076,
+   "g": -3.349,
+   "abs_g": 3.349,
+   "effect_size": 3.349,
+   "ci_low": -3.642,
+   "ci_high": -3.096,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.366,
+   "baseline_abs_g_p95": 0.918,
+   "exceeds_random": true,
+   "direction": "lower",
+   "magnitude": "large"
+  },
+  {
+   "feature": "sector1_delta_pct",
+   "label": "Sector 1 vs Field",
+   "unit": "%",
+   "selected_mean": -2.905,
+   "rest_mean": -0.019,
+   "g": -3.27,
+   "abs_g": 3.27,
+   "effect_size": 3.27,
+   "ci_low": -3.731,
+   "ci_high": -2.91,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.353,
+   "baseline_abs_g_p95": 0.911,
+   "exceeds_random": true,
+   "direction": "lower",
+   "magnitude": "large"
+  },
+  {
+   "feature": "pace_delta_pct",
+   "label": "Race Pace vs Field",
+   "unit": "%",
+   "selected_mean": -2.626,
+   "rest_mean": -0.09,
+   "g": -3.188,
+   "abs_g": 3.188,
+   "effect_size": 3.188,
+   "ci_low": -3.481,
+   "ci_high": -2.931,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.362,
+   "baseline_abs_g_p95": 0.908,
+   "exceeds_random": true,
+   "direction": "lower",
+   "magnitude": "large"
+  },
+  {
+   "feature": "sector2_delta_pct",
+   "label": "Sector 2 vs Field",
+   "unit": "%",
+   "selected_mean": -2.233,
+   "rest_mean": -0.063,
+   "g": -2.537,
+   "abs_g": 2.537,
+   "effect_size": 2.537,
+   "ci_low": -3.27,
+   "ci_high": -1.564,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.364,
+   "baseline_abs_g_p95": 0.898,
+   "exceeds_random": true,
+   "direction": "lower",
+   "magnitude": "large"
+  },
+  {
+   "feature": "best_lap_delta_pct",
+   "label": "Best Lap vs Field",
+   "unit": "%",
+   "selected_mean": -1.635,
+   "rest_mean": 0.001,
+   "g": -1.607,
+   "abs_g": 1.607,
+   "effect_size": 1.607,
+   "ci_low": -2.524,
+   "ci_high": -0.86,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.347,
+   "baseline_abs_g_p95": 0.875,
+   "exceeds_random": true,
+   "direction": "lower",
+   "magnitude": "large"
+  },
+  {
+   "feature": "grid_position",
+   "label": "Grid Position",
+   "unit": "",
+   "selected_mean": 2.2,
+   "rest_mean": 10.198,
+   "g": -1.395,
+   "abs_g": 1.395,
+   "effect_size": 1.395,
+   "ci_low": -1.593,
+   "ci_high": -1.184,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.367,
+   "baseline_abs_g_p95": 0.898,
+   "exceeds_random": false,
+   "direction": "lower",
+   "magnitude": "large"
+  },
+  {
+   "feature": "degradation_slope",
+   "label": "Tyre Degradation",
+   "unit": "s/lap",
+   "selected_mean": -0.049,
+   "rest_mean": 0.011,
+   "g": -0.623,
+   "abs_g": 0.623,
+   "effect_size": 0.623,
+   "ci_low": -1.345,
+   "ci_high": -0.22,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.344,
+   "baseline_abs_g_p95": 0.939,
+   "exceeds_random": false,
+   "direction": "lower",
+   "magnitude": "medium"
+  },
+  {
+   "feature": "recent_pace_delta_pct",
+   "label": "Last 5-Lap Pace vs Field",
+   "unit": "%",
+   "selected_mean": -0.483,
+   "rest_mean": 0.114,
+   "g": -0.6,
+   "abs_g": 0.6,
+   "effect_size": 0.6,
+   "ci_low": -1.477,
+   "ci_high": 0.042,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.355,
+   "baseline_abs_g_p95": 0.859,
+   "exceeds_random": false,
+   "direction": "lower",
+   "magnitude": "medium"
+  },
+  {
+   "feature": "consistency_pct",
+   "label": "Lap-Time Scatter",
+   "unit": "%",
+   "selected_mean": 0.817,
+   "rest_mean": 0.565,
+   "g": 0.571,
+   "abs_g": 0.571,
+   "effect_size": 0.571,
+   "ci_low": 0.338,
+   "ci_high": 0.917,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.338,
+   "baseline_abs_g_p95": 0.835,
+   "exceeds_random": false,
+   "direction": "higher",
+   "magnitude": "medium"
+  },
+  {
+   "feature": "pit_count",
+   "label": "Pit Stops",
+   "unit": "",
+   "selected_mean": 2.0,
+   "rest_mean": 1.682,
+   "g": 0.453,
+   "abs_g": 0.453,
+   "effect_size": 0.453,
+   "ci_low": 0.352,
+   "ci_high": 0.561,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.361,
+   "baseline_abs_g_p95": 0.742,
+   "exceeds_random": false,
+   "direction": "higher",
+   "magnitude": "small"
+  },
+  {
+   "feature": "avg_stint_length",
+   "label": "Avg Stint Length",
+   "unit": "laps",
+   "selected_mean": 24.6,
+   "rest_mean": 23.741,
+   "g": 0.136,
+   "abs_g": 0.136,
+   "effect_size": 0.136,
+   "ci_low": -0.311,
+   "ci_high": 0.426,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.361,
+   "baseline_abs_g_p95": 0.88,
+   "exceeds_random": false,
+   "direction": "higher",
+   "magnitude": "small"
+  },
+  {
+   "feature": "max_stint_length",
+   "label": "Longest Stint",
+   "unit": "laps",
+   "selected_mean": 34.6,
+   "rest_mean": 33.486,
+   "g": 0.107,
+   "abs_g": 0.107,
+   "effect_size": 0.107,
+   "ci_low": -0.368,
+   "ci_high": 0.834,
+   "n_selected": 5,
+   "n_rest": 529,
+   "baseline_abs_g": 0.353,
+   "baseline_abs_g_p95": 0.883,
+   "exceeds_random": false,
+   "direction": "higher",
+   "magnitude": "small"
+  }
+ ],
+ "statistics": {
+  "label": "Descriptive differences, not a test",
+  "effect_size": "Hedges' g: (selection mean - rest mean) / pooled SD x (1 - 3 / (4 df - 1)), df = N - 2",
+  "interval": "95% bootstrap percentile interval, 1000 resamples within each group, seed 20261014",
+  "baseline": "|g| of 1000 random selections of 5 rows (seed 20261014): mean per feature (baseline_abs_g) and 95% quantile (baseline_abs_g_p95)",
+  "baseline_max_abs_g_p95": 1.399,
+  "note": "The selection was drawn on a projection of these same features, so large |g| values are expected by construction. Baseline = |g| of random selections of the same size; exceeds_random marks a feature whose |g| is above the 95th percentile of the largest |g| over all features in those random selections."
+ },
+ "summary": "Selection of 5 race entries, compared with the other 529 (descriptive differences, not a test). Beyond what random selections of the same size show: much faster in sector 3 relative to the field (2.89%). Much faster relative to their race's field (race pace vs field, 2.54%). Most common strategy: MEDIUM -> HARD -> HARD (2-stop, 40% of the selection).",
+ "cluster_label": "Fast sectors, Fast pace",
+ "n_selected": 5,
+ "n_rest": 529,
+ "n_total": 534,
+ "_selection": [
+  "NOR_2025_8",
+  "LEC_2025_8",
+  "PIA_2025_8",
+  "NOR_2025_1",
+  "VER_2025_8"
+ ]
+}

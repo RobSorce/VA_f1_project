@@ -38,7 +38,7 @@ export default function ShortcutHints() {
   const hints = [
     { key: `${modKey}K`, label: 'Commands' },
     { key: 'Esc', label: 'Close Overlays' },
-    { key: '2-0', label: 'Views' },
+    { key: '1-0', label: 'Views' },
   ];
 
   if (!activeDriver) {

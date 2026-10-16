@@ -9,7 +9,9 @@
 // cache, executed in the backend venv) and compared with the chart's
 // per-stint fits (stintFits of utils/degradation.js, the rows of
 // tyreDegradationView) at each sampled clock and at the race end: every
-// number to 1e-6. Monza 2024; skips without the cache or the venv.
+// number to 1e-6. Monza 2024; skips without the cache or the venv. With
+// WRITE_EVIDENCE=1 the measurement is also written to
+// docs/evidence/g1_store_endpoint_vs_chart.txt.
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -95,9 +97,8 @@ print(json.dumps([{'all_drivers': o['all_drivers'], 'lap_count_per_driver': o['l
 
 const OUT = [];
 afterAll(() => {
-  if (!OUT.length) return;
-  const dir = path.resolve(HERE, '../../../notes/experiments/phase45c');
-  if (fs.existsSync(dir)) fs.writeFileSync(path.join(dir, 'g1_store_endpoint_vs_chart.txt'), `${OUT.join('\n')}\n`);
+  if (!OUT.length || !process.env.WRITE_EVIDENCE) return;
+  fs.writeFileSync(path.resolve(HERE, '../../../docs/evidence/g1_store_endpoint_vs_chart.txt'), `${OUT.join('\n')}\n`);
 });
 
 describe.skipIf(!HAVE)('G1: the store\'s brushed fit = the chart at every replay clock (Monza 2024, D6)', () => {

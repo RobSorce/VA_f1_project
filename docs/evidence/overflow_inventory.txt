@@ -1,0 +1,28 @@
+Scroll inventory (overflow auto|scroll|overlay), 2026-10-16
+Doc: docs/SCROLL_JUSTIFICATIONS.md, 23 inventory keys
+
+JUSTIFIED   frontend/src/components/CommandPalette/CommandBar.css:117  `CommandBar.css .sb-dropdown`  overflow-y: auto  -> row "Command bar results"
+JUSTIFIED   frontend/src/components/CommandPalette/CommandPalette.css:123  `CommandPalette.css .cp-results`  overflow-y: auto  -> row "Command palette results"
+JUSTIFIED   frontend/src/components/ShortcutCheatsheet/ShortcutCheatsheet.css:90  `ShortcutCheatsheet.css .cs-body`  overflow-y: auto  -> row "Shortcut cheatsheet"
+JUSTIFIED   frontend/src/styles/components.css:677  `components.css .session-menu`  overflow-y: auto  -> row "Session menu"
+JUSTIFIED   frontend/src/styles/components.css:811  `components.css .session-menu__race-list`  overflow-y: auto  -> row "Session menu"
+JUSTIFIED   frontend/src/styles/components.css:1195  `components.css .session-menu__mock-list`  overflow-y: auto  -> row "Session menu"
+JUSTIFIED   frontend/src/styles/dashboard.css:1471  `dashboard.css .session-screen`  overflow-y: auto  -> row "Session selector screen"
+JUSTIFIED   frontend/src/styles/dashboard.css:2284  `dashboard.css .dock-ctx-menu`  overflow-y: auto  -> row "Dock right-click menu"
+JUSTIFIED   frontend/src/styles/dashboard.css:2352  `dashboard.css .dock-overflow-popover__body`  overflow-y: auto  -> row "Dock overflow (⋯) popover"
+JUSTIFIED   frontend/src/styles/dashboard.css:2876  `dashboard.css .dock-customize-popover__body`  overflow-y: auto  -> row "Dock customise popover"
+JUSTIFIED   frontend/src/styles/dashboard.css:3052  `dashboard.css .help-overlay__body`  overflow-y: auto  -> row "Help overlay text"
+JUSTIFIED   frontend/src/styles/dashboard.css:3230  `dashboard.css .overlay-panel__content`  overflow: auto  -> row "Floating overlay window"
+JUSTIFIED   frontend/src/styles/dashboard.css:4271  `dashboard.css .consistency-card__details`  overflow-y: auto  -> row "Consistency expanded card (floating overlay near its minimum size only)"
+JUSTIFIED   frontend/src/styles/dashboard.css:4676  `dashboard.css .driver-grid__list`  overflow-y: auto  -> row "Driver selection grid"
+JUSTIFIED   frontend/src/styles/dashboard.css:4970  `dashboard.css .settings-tab`  overflow-y: auto  -> row "Settings"
+JUSTIFIED   frontend/src/styles/dashboard.css:7048  `dashboard.css .timing-sheet__body`  overflow-y: auto !important  -> row "Lap Times timing sheet"
+JUSTIFIED   frontend/src/styles/dashboard.css:7212  `dashboard.css .layout-builder`  overflow-y: auto  -> row "Layout builder"
+JUSTIFIED   frontend/src/styles/dashboard.css:7352  `dashboard.css .layout-dock-popover`  overflow-y: auto  -> row "Dock layouts popover"
+JUSTIFIED   frontend/src/styles/visualizations.css:1662  `visualizations.css .chat-messages`  overflow-y: auto  -> row "Strategy assistant chat log"
+JUSTIFIED   frontend/src/components/ui/GeminiFloatingButton.jsx:165  `GeminiFloatingButton.jsx:GeminiFloatingButton#1`  overflowY: 'auto'  -> row "Strategy assistant chat log"
+JUSTIFIED   frontend/src/components/ui/GeminiQuickQuery.jsx:44  `GeminiQuickQuery.jsx:answerTextStyle#1`  overflowY: 'auto'  -> row "AI Strategist quick answer (Pit Wall side column)"
+JUSTIFIED   frontend/src/components/visualizations/LapTimeChart.jsx:402  `LapTimeChart.jsx:LapTimeChart#1`  overflowY: 'auto'  -> row "Lap Times timing sheet"
+JUSTIFIED   frontend/src/components/visualizations/TimingTower.jsx:94  `TimingTower.jsx:bodyStyle#1`  overflowY: 'auto'  -> row "Timing Tower rows (Pit Wall)"
+
+Total 23 scroll areas (19 CSS, 4 inline/D3); justified 23; unjustified 0; stale rows 0

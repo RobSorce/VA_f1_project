@@ -123,7 +123,7 @@ export const PODIUM_PLACES = 3;
 // Sequential classes, brighter = better result: cividis at t = 1, 0.685 and
 // 0.37, the lowest t at which the colour still reaches 3:1 against the panel
 // background (scripts/pca_outcome_palette.mjs, output in
-// notes/experiments/phase67/pca_outcome_palette.txt: contrast 14.86 / 7.03 /
+// docs/evidence/pca_outcome_palette.txt: contrast 14.86 / 7.03 /
 // 3.07, L* 92.2 / 66.1 / 42.1)
 export const OUTCOME_CLASSES = [
   { key: 'podium', label: `Podium (P1–P${PODIUM_PLACES})`, color: OUTCOME_COLORS.podium },

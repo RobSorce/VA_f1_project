@@ -1,0 +1,34 @@
+Chrome text contrast (dark theme, WCAG 2.1), CSS of the working tree, 2026-10-16
+257 chrome text colours; FAIL 0; EXEMPT (disabled) 5
+
+Named chrome items (findings_2026-10-14.md section 2):
+  dock key cap                   .tab-kbd                                   5.18:1 (needs 4.5) OK  color var(--rh-text-dimmed, #444)
+  dock key cap (active tab)      .bottom-tab-bar__tab--active .tab-kbd      11.63:1 (needs 4.5) OK  color var(--rh-accent, #D5FD51)
+  dock tab label                 .bottom-tab-bar__tab                       5.67:1 (needs 4.5) OK  color var(--color-text-muted)
+  shortcut hint key              .shortcut-hint-key                         6.54:1 (needs 4.5) OK  color var(--rh-text-muted, #666)
+  shortcut hint label            .shortcut-hint-label                       6.00:1 (needs 4.5) OK  color var(--rh-text-dimmed, #444)
+  search bar key                 .search-bar__kbd                           6.54:1 (needs 4.5) OK  color var(--rh-text-muted, #666)
+  weather pill label             .weather-bar__pill-label                   6.37:1 (needs 4.5) OK  color var(--color-text-muted)
+  session badge                  .weather-bar__session-badge                6.42:1 (needs 4.5) OK  color var(--color-f1-red-text)
+  lap counter                    .timeline-player__lap-text                 6.15:1 (needs 4.5) OK  color var(--color-f1-red-text)
+  layout preset label            .layout-preset-bar__label                  7.89:1 (needs 4.5) OK  color var(--color-text-muted)
+  layout preset button           .layout-preset-bar__btn                    11.78:1 (needs 4.5) OK  color var(--color-text-secondary)
+  race details (session menu)    .session-menu__race-detail                 7.85:1 (needs 4.5) OK  color var(--color-text-muted)
+  timeline legend                .timeline-player__legend-item              7.54:1 (needs 4.5) OK  color var(--color-text-muted)
+  docked pane tab                .docked-pane__tab                          7.57:1 (needs 4.5) OK  color var(--color-text-muted)
+  docked layout label            .docked-layout__label                      7.88:1 (needs 4.5) OK  color var(--color-text-muted)
+  Pit Wall session bar lap       .session-info-bar__lap                     8.06:1 (needs 4.5) OK  color var(--color-text-muted)
+  Pit Wall focus toggle          .pitwall-layout__focus-toggle              11.15:1 (needs 4.5) OK  color var(--color-text-secondary)
+  live bar flag label            .timeline-player__flag-label               11.26:1 (needs 4.5) OK  color var(--color-text-secondary)
+
+All chrome rows below the threshold:
+
+Modifier opacity (BEM --modifier rules with 0 < opacity < 1, on the element or an ancestor): 8 text rows reached, 0 below the threshold
+  EXEMPT 2.48:1 (needs 4.5)  .bottom-tab-bar__tab under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
+  EXEMPT 3.58:1 (needs 4.5)  .bottom-tab-bar__tab:hover under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
+  EXEMPT 4.63:1 (needs 4.5)  .bottom-tab-bar__tab--active under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
+  EXEMPT 2.11:1 (needs 4.5)  .tab-kbd under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
+  EXEMPT 2.64:1 (needs 4.5)  .bottom-tab-bar__tab:hover .tab-kbd under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
+  EXEMPT 4.07:1 (needs 4.5)  .bottom-tab-bar__tab--active .tab-kbd under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
+  EXEMPT 4.63:1 (needs 4.5)  .bottom-tab-bar__remove-badge under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
+  EXEMPT 2.91:1 (needs 4.5)  .dock-ctx-menu__item under .dock-ctx-menu__item--disabled (opacity 0.40, frontend/src/styles/dashboard.css:2314) [disabled]

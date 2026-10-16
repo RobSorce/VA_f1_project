@@ -37,9 +37,14 @@
   /* Opaque neutrals = TEXT_COLORS of utils/colors.js: >= 4.5:1 on every dark
      surface, the elevated #242938 included (secondary 9.03:1, muted 6.05:1).
      The old white at 45 % alpha read 4.16:1 there (V13;
-     notes/experiments/phase9/layout_contrast_tokens.txt). */
+     docs/evidence/token_contrast.txt). */
   --color-text-secondary: #C9CCD6;
   --color-text-muted: #A3A7B7;
+  /* Text on the Track Map's overlays (corner key, HUD table, Layers
+     popover), drawn dark in both themes like the map: the dark-theme
+     secondary and muted, never overridden in the light theme */
+  --map-overlay-text: #C9CCD6;
+  --map-overlay-muted: #A3A7B7;
 
   --color-border: rgba(255, 255, 255, 0.08);
   --color-border-light: rgba(255, 255, 255, 0.12);
@@ -50,7 +55,7 @@
   --color-f1-red-dark: #b80500;
   /* F1 red for TEXT on dark or red-tinted chrome (lap counter, session
      badge, active pills, links): #e10600 reads 2.92-3.82:1 there, this
-     5.20-6.80:1 (layout_contrast_tokens.txt) */
+     5.20-6.80:1 (docs/evidence/token_contrast.txt) */
   --color-f1-red-text: #FF6B63;
   --color-accent-primary: #e10600;
   --color-accent-secondary: #15151e;
@@ -131,7 +136,7 @@
   --font-size-data: clamp(11px, calc(7.786px + 0.4286vh), 12.5px);
   /* Data text of a fixed-width table (the 480 px Pit Wall Timing Tower): its
      columns do not grow with the viewport, so its type stays at the data
-     floor (repair_tower_columns.txt: every cell fits at this size) */
+     floor (docs/evidence/tower_columns.txt: every cell fits at this size) */
   --font-size-data-fixed: 11px;
 
   /* rem steps; the two small ones never go under the data floor (the fluid
@@ -180,7 +185,7 @@
   /* Surfaces whose text lies over any content of the dashboard (tooltips, the
      session menu): opaque enough that the text keeps its contrast even over
      white (V13: at 0.42 a tooltip's contrast depended on the chart under it;
-     notes/experiments/phase9/repair2_contrast.txt) */
+     docs/evidence/contrast_pairs.txt) */
   --glass-bg-opaque: rgba(16, 16, 32, 0.94);
   --glass-bg-light: rgba(24, 24, 48, 0.20);
   --glass-blur: 40px;
@@ -214,7 +219,7 @@
      scroll. The chrome rows shrink with the viewport height so the panels
      keep the space: weather bar + collapsed timeline + dock (with its
      margin) take 127.5 px at 1536x750 and 144 px at 1920x1080
-     (notes/experiments/phase9/layout_fit.txt). */
+     (docs/evidence/layout_fit.txt). */
   --weather-bar-height: clamp(38px, 5.2vh, 44px);
   --timeline-height: clamp(36px, 4.8vh, 40px);
   --timeline-expanded-extra: 104px; /* event strip (SVG) + legend under the controls */
@@ -256,7 +261,7 @@
   /* Key caps, hints and placeholders sit on #141414 .. #2A2A2A: every text
      grey below reaches 4.5:1 on #2A2A2A (V13; #666 / #555 / #444 read
      2.77 / 2.13 / 1.63:1 on #222 and made keys and hints invisible;
-     layout_contrast_tokens.txt). */
+     docs/evidence/token_contrast.txt). */
   --rh-text-muted:       #A6A6A6;
   --rh-text-faint:       #9A9A9A;
   --rh-text-dimmed:      #939393;
@@ -306,11 +311,11 @@
   --color-bg-panel-header: rgba(247, 246, 243, 0.95);
 
   /* Text — high contrast for data readability (WCAG AA+) */
-  --color-text-primary: #111827;          /* 15.4:1 on white — AAA */
-  --color-text-secondary: #4B5563;        /* 7.0:1 on white — AAA */
+  --color-text-primary: #111827;          /* 17.74:1 on white, 16.41:1 on #F7F6F3 — AAA (docs/evidence/light_contrast.txt) */
+  --color-text-secondary: #4B5563;        /* 7.56:1 on white (AAA), 6.99:1 on #F7F6F3 (AA) (light_contrast.txt) */
   --color-text-muted: #5F6673;            /* 5.35:1 on #F7F6F3 — AA */
   /* F1 red for text on the light surfaces (6.35:1 on #F7F6F3, 5.91:1 on
-     #EFEEE9; notes/experiments/phase9/layout_contrast_tokens.txt) */
+     #EFEEE9; docs/evidence/token_contrast.txt) */
   --color-f1-red-text: #B80500;
 
   /* Borders — visible but refined */

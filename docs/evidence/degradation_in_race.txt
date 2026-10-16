@@ -1,0 +1,97 @@
+In-race degradation and lap noise (Monte Carlo lap model, src/utils/raceSimulation.js)
+Cached races: 30. Fits: utils/degradation.js (clean laps, fuel-corrected, OLS on TyreLife, MIN_FIT_LAPS = 8).
+
+=== B. Between / within race spread of the degradation (whole-race fits, races with >= 2 fits of the compound) ===
+withinSd = pooled sd of the fits inside a race; betweenSd = sd of the race means beyond what withinSd explains
+(variance of race means - withinSd^2 x mean of 1 / fits per race, at least 0); raceMean = mean of the race means.
+  compound  races  raceMean   withinSd  betweenSd    PRIORS raceMean / withinSd / betweenSd / races
+  SOFT         12   +0.0138   0.2402    0.1244      +0.0138 / 0.2402 / 0.1244 / 12
+  MEDIUM       27   +0.0282   0.0757    0.0798      +0.0282 / 0.0757 / 0.0798 / 27
+  HARD         28   +0.0174   0.0531    0.0610      +0.0174 / 0.0531 / 0.0610 / 28
+  ALL          30   +0.0070   0.1041    0.0976      +0.0070 / 0.1041 / 0.0976 / 30
+
+=== A. Partial stints: fit on the first k clean laps vs the whole stint (stints with >= 20 clean laps) ===
+sd = standard deviation of (partial slope - whole slope), s/lap of tyre age; mean = its mean. minFitLaps = the
+shortest k whose sd is below the compound's withinSd (section B): a shorter fit strays further from its own
+whole-stint slope than the stints of one race differ from one another, so the other stints say more about the
+wear ahead than it does. raceDegradation uses only fits with at least minFitLaps clean laps.
+  compound  stints  withinSd      k=8     k=9    k=10    k=11    k=12    k=13    k=14    k=15    k=16    k=17    k=18    k=19    k=20   minFitLaps (PRIORS)
+  SOFT          16  0.2402     0.2228  0.1759  0.1483  0.1145  0.0971  0.0771  0.0718  0.0593  0.0546  0.0624  0.0587  0.0560  0.0450   8 (8)
+    mean                      +0.0441 +0.0289 +0.0225 +0.0196 +0.0157 +0.0143 +0.0119 +0.0104 +0.0083 +0.0061 +0.0072 +0.0060 +0.0042
+  MEDIUM       216  0.0757     0.1201  0.1096  0.1030  0.0941  0.0814  0.0746  0.0695  0.0637  0.0536  0.0450  0.0425  0.0365  0.0315   13 (13)
+    mean                      -0.0102 -0.0059 -0.0077 -0.0092 -0.0095 -0.0102 -0.0104 -0.0101 -0.0066 -0.0038 +0.0014 -0.0005 -0.0027
+  HARD         365  0.0531     0.1108  0.0993  0.0884  0.0793  0.0709  0.0630  0.0571  0.0526  0.0486  0.0440  0.0404  0.0370  0.0334   15 (15)
+    mean                      -0.0050 -0.0040 -0.0055 -0.0062 -0.0069 -0.0062 -0.0053 -0.0045 -0.0041 -0.0035 -0.0030 -0.0024 -0.0014
+  ALL          664  0.1041     0.1749  0.1496  0.1304  0.1149  0.1017  0.0907  0.0830  0.0753  0.0686  0.0621  0.0570  0.0506  0.0453   12 (12)
+    mean                      -0.0420 -0.0318 -0.0278 -0.0249 -0.0227 -0.0205 -0.0184 -0.0160 -0.0135 -0.0114 -0.0080 -0.0069 -0.0060
+
+=== C. Lap noise: pooled residual sigma of the whole-race stint fits, per race ===
+Prior of a kind of race (computePriors, lapNoisePrior): the per-race variances as a scaled-inverse-chi-square, moments
+matched: nu0 = 4 + 2 / cv^2 (cv: coefficient of variation of the variances), s0 = sqrt(mean x (nu0 - 2) / nu0).
+lapNoiseFromFits uses s0 only before the race's first fit; from the first fit a race at its clock uses its own pooled
+sigma, sqrt(sse / dof) over its fits so far (no prior mixed in).
+  dry races  races 26: per-race sigma median 0.388, min 0.237, max 1.215; s0 0.408 s, nu0 5.32 (PRIORS 0.408 s, 5.32); residual dof per race median 795.5
+  wet races  races  4: per-race sigma median 1.113, min 0.696, max 1.628; s0 1.031 s, nu0 8.24 (PRIORS 1.031 s, 8.24); residual dof per race median 686
+  all races pooled (PRIORS.lapNoise.value, the former prior): 0.636 s
+  per race: 2024 R1 0.324, 2024 R2 0.514, 2024 R3 0.394, 2024 R4 1.215, 2024 R5 0.300, 2024 R6 0.322, 2024 R7 0.454, 2024 R8 0.799, 2024 R9 (wet) 1.628, 2024 R10 0.413, 2024 R11 0.300, 2024 R12 (wet) 1.283, 2024 R13 0.545, 2024 R14 0.371, 2024 R15 0.376, 2024 R16 0.401, 2024 R17 0.533, 2024 R18 0.492, 2024 R19 0.367, 2024 R20 0.333, 2024 R21 (wet) 0.912, 2024 R22 0.617, 2024 R23 0.403, 2024 R24 0.299, 2025 R1 (wet) 0.696, 2025 R6 0.247, 2025 R8 1.046, 2025 R16 0.237, 2025 R21 0.364, 2025 R24 0.382
+
+=== D. Monza 2024 (R16): what the lap model uses at every projection clock (lap-mode clock) ===
+used = degradationFor (fits used / fits too short, source); former = plain mean of every fit so far (the rule
+before: compoundDegradation of all fits, replacing the prior from the first fit). Lap noise: used (the race's own
+pooled sigma in brackets: the same from the first fit; before it the value used is the prior).
+  lap   MEDIUM used (n / short, source)   former      HARD used (n / short, source)   former      lap noise used (race's own)
+    5    +0.0282 ( 0 /  0, prior)               -     +0.0174 ( 0 /  0, prior)             -    0.408 (-)
+    6    +0.0282 ( 0 /  0, prior)               -     +0.0174 ( 0 /  0, prior)             -    0.408 (-)
+    7    +0.0282 ( 0 /  0, prior)               -     +0.0174 ( 0 /  0, prior)             -    0.408 (-)
+    8    +0.0282 ( 0 /  0, prior)               -     +0.0174 ( 0 /  0, prior)             -    0.408 (-)
+    9    +0.0282 ( 0 /  0, prior)               -     +0.0174 ( 0 /  0, prior)             -    0.408 (-)
+   10    +0.0282 ( 0 /  1, prior)         -0.0835     +0.0174 ( 0 /  0, prior)             -    0.163 (0.163)
+   11    +0.0282 ( 0 / 13, prior)         -0.1119     +0.0174 ( 0 /  5, prior)       -0.1750    0.438 (0.438)
+   12    +0.0282 ( 0 / 13, prior)         -0.0927     +0.0174 ( 0 /  5, prior)       -0.1444    0.425 (0.425)
+   13    +0.0282 ( 0 / 13, prior)         -0.0742     +0.0174 ( 0 /  5, prior)       -0.1131    0.414 (0.414)
+   14    +0.0282 ( 0 / 13, prior)         -0.0573     +0.0174 ( 0 /  5, prior)       -0.0968    0.413 (0.413)
+   15    +0.0140 ( 1 / 12, race )         -0.0385     +0.0174 ( 0 /  5, prior)       -0.0762    0.431 (0.431)
+   16    +0.0183 ( 5 /  8, race )         -0.0150     +0.0174 ( 0 /  6, prior)       -0.0610    0.393 (0.393)
+   17    +0.0204 ( 5 /  8, race )         -0.0116     +0.0174 ( 0 /  5, prior)       -0.0274    0.407 (0.407)
+   18    +0.0192 ( 6 /  7, race )         -0.0085     +0.0065 ( 2 /  4, race )       -0.0027    0.392 (0.392)
+   19    +0.0207 ( 6 /  7, race )         -0.0078     +0.0053 ( 4 /  2, race )       +0.0092    0.408 (0.408)
+   20    +0.0207 ( 6 /  7, race )         -0.0078     +0.0072 ( 5 /  1, race )       +0.0108    0.436 (0.436)
+   21    +0.0207 ( 6 /  7, race )         -0.0078     +0.0112 ( 5 /  2, race )       +0.0291    0.429 (0.429)
+   22    +0.0207 ( 6 /  7, race )         -0.0078     +0.0192 ( 5 /  4, race )       +0.0211    0.432 (0.432)
+   23    +0.0207 ( 6 /  7, race )         -0.0078     +0.0291 ( 6 /  3, race )       +0.0379    0.439 (0.439)
+   24    +0.0207 ( 6 /  7, race )         -0.0078     +0.0375 ( 6 /  4, race )       +0.0302    0.408 (0.408)
+   25    +0.0207 ( 6 /  7, race )         -0.0078     +0.0358 ( 6 /  4, race )       +0.0311    0.402 (0.402)
+   26    +0.0207 ( 6 /  7, race )         -0.0078     +0.0370 ( 6 /  8, race )       +0.0276    0.392 (0.392)
+   27    +0.0207 ( 6 /  7, race )         -0.0078     +0.0388 ( 6 / 11, race )       +0.0128    0.384 (0.384)
+   28    +0.0207 ( 6 /  7, race )         -0.0078     +0.0432 ( 7 / 11, race )       +0.0079    0.380 (0.380)
+   29    +0.0207 ( 6 /  7, race )         -0.0078     +0.0383 ( 8 / 10, race )       +0.0078    0.384 (0.384)
+   30    +0.0207 ( 6 /  7, race )         -0.0078     +0.0266 (10 / 10, race )       -0.0034    0.402 (0.402)
+   31    +0.0207 ( 6 /  7, race )         -0.0078     +0.0280 (10 / 10, race )       -0.0000    0.382 (0.382)
+   32    +0.0207 ( 6 /  7, race )         -0.0078     +0.0240 (10 / 10, race )       +0.0069    0.402 (0.402)
+   33    +0.0207 ( 6 /  7, race )         -0.0078     +0.0099 (14 /  6, race )       +0.0093    0.407 (0.407)
+   34    +0.0207 ( 6 /  7, race )         -0.0078     +0.0129 (16 /  5, race )       +0.0108    0.390 (0.390)
+   35    +0.0207 ( 6 /  7, race )         -0.0078     +0.0141 (16 /  6, race )       +0.0101    0.387 (0.387)
+   36    +0.0207 ( 6 /  7, race )         -0.0078     +0.0172 (17 /  5, race )       +0.0134    0.389 (0.389)
+   37    +0.0207 ( 6 /  7, race )         -0.0078     +0.0142 (18 /  4, race )       +0.0131    0.379 (0.379)
+   38    +0.0207 ( 6 /  7, race )         -0.0078     +0.0157 (18 /  4, race )       +0.0144    0.379 (0.379)
+   39    +0.0207 ( 6 /  7, race )         -0.0078     +0.0170 (18 /  4, race )       +0.0155    0.385 (0.385)
+   40    +0.0207 ( 6 /  7, race )         -0.0078     +0.0183 (19 /  3, race )       +0.0163    0.381 (0.381)
+   41    +0.0207 ( 6 /  7, race )         -0.0078     +0.0205 (19 /  3, race )       +0.0183    0.386 (0.386)
+   42    +0.0207 ( 6 /  8, race )         -0.0012     +0.0200 (19 /  4, race )       +0.0218    0.379 (0.379)
+   43    +0.0207 ( 6 /  8, race )         -0.0018     +0.0207 (19 /  4, race )       +0.0225    0.381 (0.381)
+   44    +0.0207 ( 6 /  8, race )         -0.0021     +0.0216 (19 /  5, race )       +0.0220    0.379 (0.379)
+   45    +0.0207 ( 6 /  9, race )         +0.0073     +0.0221 (19 /  6, race )       +0.0198    0.392 (0.392)
+   46    +0.0207 ( 6 /  8, race )         +0.0009     +0.0228 (19 /  8, race )       +0.0186    0.385 (0.385)
+   47    +0.0207 ( 6 / 10, race )         -0.0085     +0.0231 (19 /  8, race )       +0.0190    0.395 (0.395)
+   48    +0.0207 ( 6 / 10, race )         -0.0063     +0.0229 (19 /  9, race )       +0.0129    0.383 (0.383)
+   49    +0.0222 ( 7 / 10, race )         -0.0078     +0.0254 (20 /  8, race )       +0.0151    0.389 (0.389)
+   50    +0.0207 ( 7 / 10, race )         -0.0077     +0.0244 (20 /  9, race )       +0.0157    0.390 (0.390)
+   51    +0.0182 ( 7 / 10, race )         -0.0057     +0.0229 (20 /  9, race )       +0.0177    0.389 (0.389)
+   52    +0.0207 ( 8 / 10, race )         -0.0003     +0.0206 (21 /  8, race )       +0.0161    0.396 (0.396)
+  clocks 48: MEDIUM > 0 at 48 (min +0.0140; the prior at 10), HARD > 0 at 48 (min +0.0053; the prior at 13), lap noise in [0.3, 0.6] s at 47 (0.163 - 0.439 s)
+  race over: MEDIUM +0.0162 (fits used 9, short 9; every fit: mean +0.0065, n 18, negative 9), HARD +0.0162, lap noise 0.401 s
+
+=== E. Monza 2024: same-set lap-time change from the clock to lap 40 (projectLapTimes, no stop) ===
+  from lap 12: MEDIUM +0.79 s, HARD +0.49 s (degradation x 28 laps of tyre age)
+  from lap 30: MEDIUM +0.21 s, HARD +0.27 s (degradation x 10 laps of tyre age)
+

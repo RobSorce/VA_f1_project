@@ -9,8 +9,8 @@ races, and its random baseline draws the selection's mix of the two kinds
 (pit stops, stint lengths, tyre degradation) reach far larger |g| than the
 others, by the mix alone. The round-4 rule held every feature to the 95th
 percentile of the largest |g| over all features: that maximum was theirs, and
-pace, sectors, consistency and grid could almost never pass it (verifier r1,
-notes/experiments/phase7b/verify_r1/v_power.txt). The shipped rule, with rows
+pace, sectors, consistency and grid could almost never pass it (verifier r1;
+section 1 below repeats its design). The shipped rule, with rows
 of two kinds, holds each feature to its own threshold: the same quantile
 level of its own random |g| for every feature, chosen so that 5% of the random
 selections pass the threshold of some feature (pca_compute

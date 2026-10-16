@@ -1,0 +1,6 @@
+OK   1536x750 overview  pane 1225x257: body 1204x188 (data 11.00 px, header 57 px), 3 column(s) of >= 320 px, 2 page(s) with the pager: gap | laps | sectors  //  speeds | summary | tyres
+OK   1366x768 overview  pane 1088x264: body 1068x195 (data 11.08 px, header 57 px), 3 column(s) of >= 320 px, 2 page(s) with the pager: gap | laps | sectors  //  speeds | summary | tyres
+OK   1920x1080 overview  pane 1594x408: body 1574x336 (data 12.41 px, header 59 px), 4 column(s) of >= 320 px, 1 page(s): gap+laps | sectors+speeds | summary+tyres
+OK   2048x1100 overview  pane 1722x418: body 1702x346 (data 12.50 px, header 59 px), 5 column(s) of >= 320 px, 1 page(s): gap+laps | sectors+speeds | summary+tyres
+sections (px at 11 px data): gap 140, laps 166, sectors 100, speeds 124, summary 148, tyres 114; a chart is >= 140 px and takes what its column leaves
+Every section of the Driver Comparison fits a column of its page at the four target viewports: nothing is cut, nothing scrolls.

@@ -1,0 +1,326 @@
+Monte Carlo race simulation benchmark (src/utils/raceSimulation.js)
+Cached races: 30 (2024 R1, 2024 R2, 2024 R3, 2024 R4, 2024 R5, 2024 R6, 2024 R7, 2024 R8, 2024 R9, 2024 R10, 2024 R11, 2024 R12, 2024 R13, 2024 R14, 2024 R15, 2024 R16, 2024 R17, 2024 R18, 2024 R19, 2024 R20, 2024 R21, 2024 R22, 2024 R23, 2024 R24, 2025 R1, 2025 R6, 2025 R8, 2025 R16, 2025 R21, 2025 R24)
+HEAD = 7641b61 (committed raceSimulation.js, 100 sims, Math.random seeded here); new = working tree, 1000 sims
+
+=== 1. Priors (computePriors over every cached race, sessionNow = Infinity) ===
+races 30, longest race 78 laps (STINT_LIFE_MAX = 100)
+
+Degradation per compound (pooled per-stint fits, fuel-corrected s per lap of tyre age); raceMean / withinSd / betweenSd
+over the races with two fits or more, minFitLaps from the partial-stint check (raceDegradation; details in
+docs/evidence/degradation_in_race.txt, scripts/degradation_in_race.mjs):
+  compound        n    mean     median   stdDev  negative   races  raceMean  withinSd  betweenSd  minFitLaps
+  SOFT           107  +0.0565  +0.0788  0.2525     14      12   +0.0138    0.2402     0.1244           8
+  HARD           542  +0.0284  +0.0306  0.0653    150      28   +0.0174    0.0531     0.0610          15
+  MEDIUM         470  +0.0384  +0.0474  0.1031    116      27   +0.0282    0.0757     0.0798          13
+  INTERMEDIATE   102  -0.2216  -0.1690  0.2313     94       4   -0.1840    0.1161     0.2178          18
+  WET              1  -0.3272  -0.3272  0.0000      1       0         -         -          -           8
+  ALL           1222  +0.0136  +0.0338  0.1454    375      30   +0.0070    0.1041     0.0976          12
+Lap noise (pooled residual sigma of 1222 fitted stints): 0.636 s; prior of a race (lapNoiseFromFits): dry 0.408 s, nu0 5.32 (26 races), wet 1.031 s, nu0 8.24 (4 races)
+Fresh-tyre delta (median of 501 stint residuals, first flying lap on a new set): -0.140 s
+Stint life per compound (Kaplan-Meier of the tyre age at a tyre change; ongoing / to-the-flag censored, DNF final stints dropped):
+  compound        n  events  q25  median  q75   sigma
+  ALL           1482     954   15      25   38  17.05
+  SOFT           176     101   10      17   23  9.64
+  HARD           581     281   22      34   53  22.98
+  MEDIUM         576     452   12      21   30  13.34
+  INTERMEDIATE   138     109   11      25   33  16.31
+  WET              7       7    4      10   12  5.93
+Safety car: 30 episodes (18 with an SC) over 1818 leader laps in 30 races
+  per race: 1.000 episodes, 0.600 SC episodes, 60.60 laps; rate 0.0165 per lap
+  completed episode length (laps): SC median 5 [3 5 5 5 1 5 5 3 6 3 4 4 5 3 7 8 5 4], VSC median 2 [2 1 1 2 2 2 2 2 3 2]
+  SC gap ratio (gap to leader after / before, per-episode median): median 0.284 over 10 SC episodes
+Tyre changes (from -> to: count): SOFT -> HARD 50, MEDIUM 43, SOFT 7, INTERMEDIATE 1 | HARD -> HARD 108, SOFT 38, MEDIUM 125, INTERMEDIATE 10 | MEDIUM -> HARD 342, SOFT 39, MEDIUM 46, INTERMEDIATE 25 | INTERMEDIATE -> INTERMEDIATE 50, MEDIUM 29, HARD 15, SOFT 10, WET 5 | WET -> INTERMEDIATE 7 | UNKNOWN -> HARD 4
+Optional stops (dry races, finishers, two dry compounds already used): 258; laps left after them: lower decile 12, lower quartile 18 (OPTIONAL_STOP_MIN_LAPS_LEFT = 18), median 23
+  sorted: 1 2 2 2 2 2 3 3 3 3 4 4 4 5 5 5 6 6 7 7 7 8 9 10 11 12 12 13 14 14 14 14 15 15 15 15 16 16 16 16 16 16 16 16 16 16 16 16 16 17 17 17 17 17 17 17 17 17 17 17 17 18 18 18 18 18 18 18 18 18 18 18 18 18 19 19 19 19 19 19 19 19 19 20 20 20 20 20 20 20 20 20 20 20 20 20 21 21 21 21 21 21 21 21 21 21 21 21 21 21 21 22 22 22 22 22 22 22 22 22 22 22 23 23 23 23 23 23 23 23 23 23 23 23 23 23 23 23 23 24 24 24 24 24 24 24 24 24 24 24 25 25 25 25 25 25 25 25 25 25 26 26 26 26 26 26 27 27 27 27 27 27 28 28 28 28 28 28 28 28 29 29 29 29 29 29 29 29 29 29 29 29 29 29 29 30 30 30 30 30 30 30 30 30 31 31 31 31 31 31 32 32 32 32 32 33 33 33 33 33 33 33 33 33 33 33 34 34 34 34 34 35 35 36 36 37 37 37 37 37 38 38 39 40 40 41 41 42 42 43 46 47 52 52 55 59 61 63
+
+PRIORS (rounded, as in raceSimulation.js):
+{"races":30,"degradation":{"SOFT":{"mean":0.0565,"median":0.0788,"stdDev":0.2525,"n":107,"negativeCount":14,"raceMean":0.0138,"withinSd":0.2402,"betweenSd":0.1244,"races":12,"minFitLaps":8},"HARD":{"mean":0.0284,"median":0.0306,"stdDev":0.0653,"n":542,"negativeCount":150,"raceMean":0.0174,"withinSd":0.0531,"betweenSd":0.061,"races":28,"minFitLaps":15},"MEDIUM":{"mean":0.0384,"median":0.0474,"stdDev":0.1031,"n":470,"negativeCount":116,"raceMean":0.0282,"withinSd":0.0757,"betweenSd":0.0798,"races":27,"minFitLaps":13},"INTERMEDIATE":{"mean":-0.2216,"median":-0.169,"stdDev":0.2313,"n":102,"negativeCount":94,"raceMean":-0.184,"withinSd":0.1161,"betweenSd":0.2178,"races":4,"minFitLaps":18},"WET":{"mean":-0.3272,"median":-0.3272,"stdDev":0,"n":1,"negativeCount":1,"raceMean":null,"withinSd":null,"betweenSd":null,"races":0,"minFitLaps":8},"ALL":{"mean":0.0136,"median":0.0338,"stdDev":0.1454,"n":1222,"negativeCount":375,"raceMean":0.007,"withinSd":0.1041,"betweenSd":0.0976,"races":30,"minFitLaps":12}},"lapNoise":{"value":0.636,"stints":1222,"dry":{"value":0.408,"nu0":5.32,"races":26},"wet":{"value":1.031,"nu0":8.24,"races":4}},"freshDelta":{"value":-0.14,"stints":501},"stintLife":{"ALL":{"median":25,"sigma":17.05,"n":1482,"events":954},"SOFT":{"median":17,"sigma":9.64,"n":176,"events":101},"HARD":{"median":34,"sigma":22.98,"n":581,"events":281},"MEDIUM":{"median":21,"sigma":13.34,"n":576,"events":452},"INTERMEDIATE":{"median":25,"sigma":16.31,"n":138,"events":109},"WET":{"median":10,"sigma":5.93,"n":7,"events":7}},"safetyCar":{"episodesPerRace":1,"scEpisodesPerRace":0.6,"lapsPerRace":60.6,"durationLaps":{"SC":5,"VSC":2},"scGapRatio":0.284,"gapRatioEpisodes":10},"transitions":{"SOFT":{"HARD":50,"MEDIUM":43,"SOFT":7,"INTERMEDIATE":1},"HARD":{"HARD":108,"SOFT":38,"MEDIUM":125,"INTERMEDIATE":10},"MEDIUM":{"HARD":342,"SOFT":39,"MEDIUM":46,"INTERMEDIATE":25},"INTERMEDIATE":{"INTERMEDIATE":50,"MEDIUM":29,"HARD":15,"SOFT":10,"WET":5},"WET":{"INTERMEDIATE":7},"UNKNOWN":{"HARD":4}},"optionalStops":{"n":258,"lapsLeftQ10":12,"lapsLeftQ25":18,"lapsLeftMedian":23}}
+raceSimulation.js PRIORS equal to this: true
+
+=== 2. Data behind the assumptions ===
+
+a) Fresh-tyre residual by tyre age (FRESH_TYRE_LAPS = 2): clean laps after lap 2, fuel-corrected,
+   residual against fitStint of the same stint's laps with TyreLife > 6 (so ages 2-6 are out of sample):
+   age     n    median     mean
+     1      1  +0.334   +0.334
+     2    449  -0.109   -0.045
+     3    756  +0.139   +0.348
+     4    792  +0.109   +0.224
+     5    857  +0.063   +0.164
+     6    877  +0.045   +0.102
+     7    923  +0.044   +0.102
+     8    929  +0.038   +0.078
+
+b) Two-compound rule: classified finishers who used fewer than two dry compounds
+   dry races (no INTERMEDIATE / WET stint) 26, finishers 466, fewer than two dry compounds 5:
+     2024 R14 ALO: MEDIUM 1-13, MEDIUM 14-44
+     2024 R14 STR: MEDIUM 1-12, MEDIUM 13-44
+     2025 R6 HAD: UNKNOWN 1-22, HARD 23-57
+     2025 R6 OCO: UNKNOWN 1-23, HARD 24-57
+     2025 R6 STR: UNKNOWN 1-20, HARD 21-56
+
+c) Pace trend (raceSituationFeatures paceTrend: raw slope of the last 5 valid laps) against its sampling error,
+   every race at half distance: sd of paceTrend over drivers vs lap noise / sqrt(10) (s.e. of a 5-lap slope):
+   race        lap   sd(paceTrend)  s.e.(5-lap slope)
+   2024 R1      29   0.057          0.115
+   2024 R2      25   0.163          0.166
+   2024 R3      29   0.115          0.095
+   2024 R4      27   0.406          0.575
+   2024 R5      28   3.474          0.100
+   2024 R6      29   1.054          0.109
+   2024 R7      32   0.167          0.080
+   2024 R8      39   0.237          0.217
+   2024 R9      35   2.872          0.598
+   2024 R10     33   0.243          0.109
+   2024 R11     36   0.116          0.084
+   2024 R12     26   1.571          0.332
+   2024 R13     35   0.387          0.138
+   2024 R14     22   0.220          0.101
+   2024 R15     36   0.269          0.098
+   2024 R16     27   0.208          0.122
+   2024 R17     26   0.237          0.184
+   2024 R18     31   0.338          0.131
+   2024 R19     28   0.105          0.113
+   2024 R20     36   0.364          0.112
+   2024 R21     35   3.149          0.212
+   2024 R22     25   0.166          0.229
+   2024 R23     29   0.068          0.078
+   2024 R24     29   0.138          0.081
+   2025 R1      29   0.100          0.244
+   2025 R6      29   0.215          0.129
+   2025 R8      39   0.344          0.305
+   2025 R16     27   0.088          0.078
+   2025 R21     36   0.161          0.120
+   2025 R24     29   0.172          0.113
+   median sd 0.218 s/lap, median s.e. 0.117 s/lap; pooled compound degradation (prior ALL) +0.0136 s/lap
+
+d) SC gap ratio lap by lap (SC_BUNCHED_AFTER_LAPS = 3): per SC episode, median over cars of GapToLeader at the
+   end of lap start + k over the end of the lap before the episode (gap 2-60 s before, no pit entry / exit so far):
+   2024 R2    SC laps 7-9    k = 0.. : 1.39 0.37 0.06 0.18
+   2024 R5    SC laps 22-26  k = 0.. : 0.98 0.91 0.28 0.12 0.05 0.15
+   2024 R5    SC laps 27-31  k = 0.. : 2.10 1.71 1.55 1.78 0.83 1.28
+   2024 R6    SC laps 28-32  k = 0.. : 1.42 1.30 0.83 0.57 0.08 0.16
+   2024 R9    SC laps 25-29  k = 0.. : 1.38 - - - - -
+   2024 R9    SC laps 54-58  k = 0.. : 1.04 0.35 0.24 0.20 0.09 0.14
+   2024 R19   SC laps 3-5    k = 0.. : 2.12 2.03 0.42 0.87
+   2024 R21   SC laps 30-32  k = 0.. : 1.09 0.59 - -
+   2024 R21   SC laps 39-42  k = 0.. : 1.52 0.68 0.65 0.08 0.29
+   2024 R23   SC laps 40-42  k = 0.. : 4.74 4.13 1.01 2.05
+   2025 R1    SC laps 47-51  k = 0.. : 1.35 0.33 0.32 0.23 0.17 0.28
+   2025 R21   SC laps 2-5    k = 0.. : 2.52 2.24 1.97 0.29 0.96
+
+=== 3. Before / after (HEAD vs new) ===
+
+Monza 2024 (R16): estimates
+  race over (sessionNow = Infinity):
+    freshDelta     HEAD +2.825 s   new -0.029 s (raw -0.029, n 22 stints, race)
+    MEDIUM deg    HEAD +0.0071 (sd 0.0202)   new +0.0162 (race; fits used 9, 4 negative, too short 9; every fit: mean +0.0065, n 18, 9 negative)
+    HARD   deg    HEAD +0.0037 (sd 0.0094)   new +0.0162 (race; fits used 24, 8 negative, too short 5; every fit: mean +0.0135, n 29, 11 negative)
+    lap noise      HEAD 1.101 s   new 0.401 s (47 stints, 889 laps, race)
+    stint length   HEAD MEDIUM 14.4, HARD 24.4, SOFT 2.0   new MEDIUM median 15 mean 16.7 (15 ev / 4 cens / 0 drop), HARD median 24 mean 35.4 (15 ev / 14 cens / 1 drop), SOFT median 18 mean 18.7 (0 ev / 1 cens / 0 drop)
+  lap 30 (lap-mode clock):
+    freshDelta     HEAD +3.360 s   new +0.000 s (raw +0.009, n 10 stints, race, clamped)
+    MEDIUM deg    HEAD +0.0000 (sd 0.0050)   new +0.0207 (race; fits used 6, 3 negative, too short 7; every fit: mean -0.0078, n 13, 8 negative)
+    HARD   deg    HEAD +0.0065 (sd 0.0181)   new +0.0266 (race; fits used 10, 2 negative, too short 10; every fit: mean -0.0034, n 20, 10 negative)
+    lap noise      HEAD 1.305 s   new 0.402 s (33 stints, 463 laps, race)
+    stint length   HEAD MEDIUM 13.6, HARD 17.8   new MEDIUM median 15 mean 13.7 (14 ev / 0 cens / 0 drop), HARD median 23 mean 35.7 (3 ev / 19 cens / 1 drop)
+  lap 12 (lap-mode clock):
+    freshDelta     HEAD +4.228 s   new -0.140 s (raw -0.140, n 0 stints, prior)
+    MEDIUM deg    HEAD +0.0000 (sd 0.0050)   new +0.0282 (prior; fits used 0, 0 negative, too short 13; every fit: mean -0.0927, n 13, 12 negative)
+    HARD   deg    HEAD +0.0000 (sd 0.0050)   new +0.0174 (prior; fits used 0, 0 negative, too short 5; every fit: mean -0.1444, n 5, 5 negative)
+    lap noise      HEAD 1.500 s   new 0.425 s (18 stints, 162 laps, race)
+    stint length   HEAD MEDIUM 7.5, HARD 7.0   new MEDIUM median 23 mean 24.0 (2 ev / 12 cens / 0 drop), HARD median 39 mean 41.1 (0 ev / 6 cens / 1 drop)
+
+Monza 2024, lap 12 (lap-mode clock): remaining stops per driver (HEAD mean / median, new mean / median, actual)
+  drv   HEAD mean med   new mean med   actual (made so far, race total)
+  ALB         5.0   5       1.00   1   1 (0, 1)
+  ALO         4.9   5       1.00   1   2 (0, 2)
+  BOT         4.9   5       1.10   1   1 (0, 1)
+  COL         4.9   5       1.00   1   1 (0, 1)
+  GAS         4.0   4       0.20   0   1 (1, 2)
+  HAM         5.0   5       1.00   1   2 (0, 2)
+  HUL         4.8   5       0.30   0   1 (1, 2)
+  LEC         4.9   5       1.00   1   1 (0, 1)
+  MAG         4.9   5       1.00   1   1 (0, 1)
+  NOR         4.9   5       1.00   1   2 (0, 2)
+  OCO         4.9   5       1.10   1   1 (0, 1)
+  PER         4.9   5       1.10   1   2 (0, 2)
+  PIA         5.0   5       1.00   1   2 (0, 2)
+  RIC         5.0   5       1.00   1   1 (0, 1)
+  RUS         5.0   5       1.00   1   2 (0, 2)
+  SAI         5.0   5       1.00   1   1 (0, 1)
+  STR         4.8   5       1.10   1   3 (0, 3)
+  VER         4.9   5       1.10   1   2 (0, 2)
+  ZHO         5.0   5       1.00   1   1 (0, 1)
+  median over drivers of the per-driver median: HEAD 5, new 1; mean of the means: HEAD 4.88, new 0.95, actual 1.47
+
+Monza 2024, lap 39 (lap-mode clock): remaining stops per driver (HEAD mean / median, new mean / median, actual)
+  drv   HEAD mean med   new mean med   actual (made so far, race total)
+  ALB         1.0   1       0.00   0   0 (1, 1)
+  ALO         0.2   0       0.00   0   0 (2, 2)
+  BOT         0.7   1       0.00   0   0 (1, 1)
+  COL         1.0   1       0.00   0   0 (1, 1)
+  GAS         0.3   0       0.00   0   0 (2, 2)
+  HAM         0.1   0       0.00   0   0 (2, 2)
+  HUL         0.2   0       0.00   0   0 (2, 2)
+  LEC         1.0   1       0.00   0   0 (1, 1)
+  MAG         1.1   1       0.00   0   0 (1, 1)
+  NOR         0.3   0       0.00   0   0 (2, 2)
+  OCO         0.9   1       0.00   0   0 (1, 1)
+  PER         0.5   0       0.00   0   0 (2, 2)
+  PIA         1.0   1       0.00   0   1 (1, 2)
+  RIC         1.1   1       0.00   0   0 (1, 1)
+  RUS         0.2   0       0.00   0   0 (2, 2)
+  SAI         1.0   1       0.00   0   0 (1, 1)
+  STR         0.5   0       0.00   0   1 (2, 3)
+  VER         0.8   1       1.00   1   1 (1, 2)
+  ZHO         1.0   1       0.00   0   0 (1, 1)
+  median over drivers of the per-driver median: HEAD 1, new 0; mean of the means: HEAD 0.68, new 0.05, actual 0.16
+  one-stoppers who have made their only stop by lap 39 (9): ALB BOT COL LEC MAG OCO RIC SAI ZHO
+    new: mean of means 0.000, max mean 0.00, medians 0 0 0 0 0 0 0 0 0
+    HEAD: mean of means 0.978, medians 1 1 1 1 1 1 1 1 1
+
+China 2024 (R5), lap 30 (lap-mode clock, session time 6602.240 s): safety-car rate
+  HEAD scRate 0.1000 per lap (track-status rows with status 4/6/7, any time, / currentLap, capped at 0.1)
+  new  scRate 0.0335 per lap (source race): 2 episodes (2 SC) started by now over 29 leader laps, observed 0.0690; prior 1.000 episodes / 60.60 laps x 1 race
+  completed episode lengths (laps): SC [5], VSC []; ongoing: SC since lap 27
+  with an extra SC period 600 s after now: HEAD 0.1000, new 0.0335 (unchanged: true)
+  race over: new scRate 0.0257 (2 episodes / 56 laps)
+  Monza 2024 lap 30 (no episode): HEAD 0.0100, new 0.0112 (source prior)
+
+What-if (compareStrategies, Monza 2024 lap 12, focus LEC, same seed):
+  case                                              E[pos] base -> plan   delta.position  paired: mean pos change  P(gain)  P(loss)  mean time delta (s)
+  plan = basePlan (stop lap 15 HARD)                   5.3 ->   5.3     +0.0           +0.000             0.000    0.000    +0.00
+  stop lap 15 HARD vs stop model                         5 ->   5.3     -0.3           +0.301             0.286    0.307    -7.56
+  stop lap 25 HARD vs stop lap 15 HARD                 5.3 ->   4.3     +1.0           -0.956             0.365    0.218    +3.34
+  two stops 15 HARD + 35 MEDIUM vs stop lap 15 HARD    5.3 ->   7.3     -2.0           +2.014             0.168    0.657    +34.14
+
+=== 4. Backtest: every cached race at 25 / 50 / 75 % of the distance (lap-mode clock) ===
+Remaining stops: per driver (non-finishers excluded) predicted mean vs actual stops after the clock.
+Expected position: predicted expectedPos vs the classification (race_results Position), same drivers.
+  2024 R1    25% L14: stops MAE HEAD 0.20 new 0.90 | 50% L29: stops MAE HEAD 0.72 new 0.13 | 75% L43: stops MAE HEAD 0.45 new 0.15
+  2024 R2    25% L13: stops MAE HEAD 1.00 new 0.32 | 50% L25: stops MAE HEAD 0.83 new 0.14 | 75% L38: stops MAE HEAD 0.83 new 0.00
+  2024 R3    25% L15: stops MAE HEAD 0.28 new 0.74 | 50% L29: stops MAE HEAD 1.21 new 0.44 | 75% L44: stops MAE HEAD 0.24 new 0.06
+  2024 R4    25% L13: stops MAE HEAD 0.47 new 1.02 | 50% L27: stops MAE HEAD 0.69 new 0.36 | 75% L40: stops MAE HEAD 0.62 new 0.12
+  2024 R5    25% L14: stops MAE HEAD 0.67 new 0.76 | 50% L28: stops MAE HEAD 1.71 new 0.59 | 75% L42: stops MAE HEAD 1.22 new 0.06
+  2024 R6    25% L14: stops MAE HEAD 0.73 new 0.33 | 50% L29: stops MAE HEAD 0.69 new 0.27 | 75% L43: stops MAE HEAD 0.85 new 0.05
+  2024 R7    25% L16: stops MAE HEAD 4.90 new 0.36 | 50% L32: stops MAE HEAD 1.63 new 0.22 | 75% L47: stops MAE HEAD 0.74 new 0.11
+  2024 R8    25% L20: stops MAE HEAD 6.63 new 1.64 | 50% L39: stops MAE HEAD 4.63 new 1.13 | 75% L59: stops MAE HEAD 1.75 new 0.18
+  2024 R9    25% L18: stops MAE HEAD 0.53 new 1.05 | 50% L35: stops MAE HEAD 0.51 new 0.43 | 75% L53: stops MAE HEAD 0.77 new 0.27
+  2024 R10   25% L17: stops MAE HEAD 0.36 new 0.42 | 50% L33: stops MAE HEAD 0.61 new 0.27 | 75% L50: stops MAE HEAD 0.81 new 0.05
+  2024 R11   25% L18: stops MAE HEAD 1.86 new 0.51 | 50% L36: stops MAE HEAD 0.68 new 0.28 | 75% L53: stops MAE HEAD 0.44 new 0.24
+  2024 R12   25% L13: stops MAE HEAD 0.43 new 1.44 | 50% L26: stops MAE HEAD 0.25 new 1.68 | 75% L39: stops MAE HEAD 0.71 new 1.06
+  2024 R13   25% L18: stops MAE HEAD 0.72 new 0.48 | 50% L35: stops MAE HEAD 0.50 new 0.19 | 75% L53: stops MAE HEAD 0.57 new 0.16
+  2024 R14   25% L11: stops MAE HEAD 2.26 new 0.65 | 50% L22: stops MAE HEAD 0.91 new 0.53 | 75% L33: stops MAE HEAD 0.55 new 0.21
+  2024 R15   25% L18: stops MAE HEAD 1.32 new 0.33 | 50% L36: stops MAE HEAD 0.95 new 0.25 | 75% L54: stops MAE HEAD 0.65 new 0.10
+  2024 R16   25% L13: stops MAE HEAD 3.36 new 0.55 | 50% L27: stops MAE HEAD 0.88 new 0.35 | 75% L40: stops MAE HEAD 0.58 new 0.05
+  2024 R17   25% L13: stops MAE HEAD 0.96 new 0.16 | 50% L26: stops MAE HEAD 1.51 new 0.08 | 75% L38: stops MAE HEAD 0.66 new 0.06
+  2024 R18   25% L16: stops MAE HEAD 1.15 new 0.18 | 50% L31: stops MAE HEAD 1.00 new 0.11 | 75% L47: stops MAE HEAD 0.69 new 0.11
+  2024 R19   25% L14: stops MAE HEAD 3.84 new 0.18 | 50% L28: stops MAE HEAD 2.62 new 0.11 | 75% L42: stops MAE HEAD 0.42 new 0.05
+  2024 R20   25% L18: stops MAE HEAD 1.38 new 0.34 | 50% L36: stops MAE HEAD 0.98 new 0.28 | 75% L53: stops MAE HEAD 0.38 new 0.18
+  2024 R21   25% L17: stops MAE HEAD 5.20 new 0.77 | 50% L35: stops MAE HEAD 1.36 new 0.41 | 75% L52: stops MAE HEAD 1.20 new 0.00
+  2024 R22   25% L13: stops MAE HEAD 0.12 new 0.85 | 50% L25: stops MAE HEAD 0.87 new 0.28 | 75% L38: stops MAE HEAD 0.46 new 0.17
+  2024 R23   25% L14: stops MAE HEAD 3.60 new 0.83 | 50% L29: stops MAE HEAD 2.43 new 0.43 | 75% L43: stops MAE HEAD 0.99 new 0.07
+  2024 R24   25% L15: stops MAE HEAD 0.90 new 0.43 | 50% L29: stops MAE HEAD 0.87 new 0.43 | 75% L44: stops MAE HEAD 0.74 new 0.06
+  2025 R1    25% L14: stops MAE HEAD 3.00 new 0.96 | 50% L29: stops MAE HEAD 2.00 new 1.38 | 75% L43: stops MAE HEAD 0.85 new 1.00
+  2025 R6    25% L14: stops MAE HEAD 0.96 new 0.60 | 50% L29: stops MAE HEAD 0.33 new 0.02 | 75% L43: stops MAE HEAD 0.27 new 0.00
+  2025 R8    25% L20: stops MAE HEAD 2.36 new 0.49 | 50% L39: stops MAE HEAD 1.36 new 0.52 | 75% L59: stops MAE HEAD 0.74 new 0.33
+  2025 R16   25% L13: stops MAE HEAD 1.06 new 0.01 | 50% L27: stops MAE HEAD 2.02 new 0.00 | 75% L40: stops MAE HEAD 0.48 new 0.00
+  2025 R21   25% L18: stops MAE HEAD 4.09 new 0.41 | 50% L36: stops MAE HEAD 0.94 new 0.50 | 75% L53: stops MAE HEAD 0.63 new 0.17
+  2025 R24   25% L15: stops MAE HEAD 0.76 new 0.31 | 50% L29: stops MAE HEAD 0.70 new 0.34 | 75% L44: stops MAE HEAD 0.64 new 0.00
+
+  clock   drivers   stops MAE HEAD   new    bias HEAD   new    | position MAE HEAD   new
+   25%      528    1.796         0.587  +1.696      -0.323  |   3.283          3.121
+   50%      528    1.186         0.392  +1.145      -0.173  |   3.084          2.251
+   75%      528    0.687         0.164  +0.596      -0.138  |   2.425          1.388
+
+Variants of the new engine (same seeds and parameters; only the named option changes):
+  variant                                          clock  stops MAE   bias    position MAE
+  new: laps-left cap = lower quartile (default)     25%   0.587   -0.323   3.121
+  new: laps-left cap = lower quartile (default)     50%   0.392   -0.173   2.251
+  new: laps-left cap = lower quartile (default)     75%   0.164   -0.138   1.388
+  new: laps-left cap = lower decile                 25%   0.569   -0.169   3.073
+  new: laps-left cap = lower decile                 50%   0.396   -0.011   2.218
+  new: laps-left cap = lower decile                 75%   0.225   -0.034   1.440
+  new: payback rule                                 25%   0.656   -0.573   3.285
+  new: payback rule                                 50%   0.460   -0.341   2.239
+  new: payback rule                                 75%   0.204   -0.071   1.404
+  new: default + useTrend                           25%   0.587   -0.323   3.908
+  new: default + useTrend                           50%   0.392   -0.173   3.443
+  new: default + useTrend                           75%   0.164   -0.138   2.789
+
+=== 5. Runtime and badge stability ===
+Runtime, Monza 2024 lap 30, 19 drivers, 24 laps simulated (median of repeats, Node v24.21.0, this machine):
+  extractRaceParams: 1.2 ms
+  HEAD simulateRaceFinish (100 sims, params included): 7.4 ms
+  new simulateRaceFinish    100 sims:      8.1 ms (with extractRaceParams),      6.9 ms (params given)
+  new simulateRaceFinish   1000 sims:     68.7 ms (with extractRaceParams),     67.0 ms (params given)
+  new simulateRaceFinish  10000 sims:    641.8 ms (with extractRaceParams),    660.0 ms (params given)
+
+Badge stability: the same race state recomputed with a new seed each time, the badges as the views draw them.
+  rule (now): podium >= 50 %, battle >= 30 % (gold) / >= 60 % (green), each state kept unless the 95 % Wilson
+       interval of the share lies entirely on the other side of the threshold (simulationClient.js badgeOn),
+       chained recompute after recompute with projectionBadges as the store does (computeRaceProjection);
+       battles listed (listedBattles: RacePredictionPanel, StrategyAnalysis, insights, Gemini) = the pairs that are, beyond
+       the Monte Carlo error, among the 6 most likely: one not listed enters when fewer than 6 other pairs
+       reach its Wilson interval, a listed one stays until 6 others are surely more likely; no fill
+       (scripts/battle_list_rules.mjs compares it with the cut + fill rule).
+       The Leaderboard colours its adjacent pairs with the same badge levels.
+  bare (before): the same thresholds on the point estimate, battles listed = the engine's former top-6 cut
+       (prob >= 5 %, six most likely), emulated on the same results.
+  A flip = two consecutive recomputes with a different state; "listed on both" = colour flips of rows listed
+  both times; "rows in / out" = listed rows appearing or disappearing, over the rows listed; last column =
+  recomputes where at least one listed (gold / green) battle row appears or disappears.
+  runs   states x seeds  kind  podium flips          colour flips, listed on both   rows in / out       recomputes with a row in / out
+    100         12 x 20  sd of a probability over the seeds (every podium and battle item): median 4.16 pp, max 7.25 pp
+    100         12 x 20  rule  1 / 4218 (0.02%)      3 / 1343 (0.22%)               4 / 1346 (0.30%)    3 / 228 (1.32%)
+    100         12 x 20  bare  93 / 4218 (2.20%)     22 / 1024 (2.15%)              688 / 1368 (50.29%) 190 / 228 (83.33%)
+   1000         12 x 20  sd of a probability over the seeds (every podium and battle item): median 1.34 pp, max 2.44 pp
+   1000         12 x 20  rule  0 / 4218 (0.00%)      1 / 1368 (0.07%)               0 / 1368 (0.00%)    0 / 228 (0.00%)
+   1000         12 x 20  bare  17 / 4218 (0.40%)     18 / 1239 (1.45%)              258 / 1368 (18.86%) 101 / 228 (44.30%)
+  10000          3 x 10  sd of a probability over the seeds (every podium and battle item): median 0.48 pp, max 0.84 pp
+  10000          3 x 10  rule  0 / 513 (0.00%)       0 / 162 (0.00%)                0 / 162 (0.00%)     0 / 27 (0.00%)
+  10000          3 x 10  bare  0 / 513 (0.00%)       0 / 162 (0.00%)                0 / 162 (0.00%)     0 / 27 (0.00%)
+  (states: 2024 R16 L30, 2024 R5 L30, 2024 R1 L30, 2024 R3 L25, 2024 R7 L30, 2024 R11 L40, 2024 R15 L35, 2024 R20 L30, 2024 R22 L25, 2025 R1 L30, 2025 R16 L30, 2025 R21 L40; 10,000 runs: the first 3 states, 10 seeds)
+
+Every mark the views draw from a projection, the same race state recomputed with a new seed each time (every
+cached race at 25 / 50 / 75 % of the distance, lap-mode clock), chained recompute after recompute as the store
+does (projectionBadges with the projection's inputs, so the risk rows too):
+  rule (now): the Race Prediction row label P{n} = modePosition (the most likely position; the previous one
+       stays while its share is within the Wilson interval of the most frequent one), gold when n <= 3;
+       battles in listedBattles order (badge level, then race order), so the StrategyAnalysis insight cards
+       (first 3 gold / green listed) and the assistant's quick query (first listed) follow levels and the list;
+       risk rows = evaluateRisks against the previous levels (P5 / P95 ends of the range and the mean stops to
+       come judged beyond their sampling interval), most severe first, then race order, at most RISK_LIST_SIZE;
+       the insight 'high outcome variance' cards = the first 2 HIGH VARIANCE risk rows.
+  bare (point estimates): label modePos; battles = top 6 by probability, ordered by probability, levels from
+       the point estimate; risk rows = the same rules on the point estimates, ordered by severity then by
+       projection order; variance cards = range >= 6 places, first 2 in projection order.
+  Counted: recomputes where the mark differs from the previous recompute (any row of the race).
+  30 races x 3 clocks x 10 seeds, 1000 runs: 810 recomputes
+  mark                                        rule                  bare
+  gold P label                                13 / 810 (1.60%)      340 / 810 (41.98%)
+  P label                                     162 / 810 (20.00%)    791 / 810 (97.65%)
+  insight battle cards (set)                  12 / 810 (1.48%)      312 / 810 (38.52%)
+  assistant quick-query battle                7 / 810 (0.86%)       194 / 810 (23.95%)
+  risk rows (driver, type, severity; set)     8 / 810 (0.99%)       267 / 810 (32.96%)
+  variance insight cards (set)                6 / 810 (0.74%)       164 / 810 (20.25%)
+  listed battles (set)                        5 / 810 (0.62%)       443 / 810 (54.69%)
+  by clock (rule / bare), recomputes with a change:
+     25% (270): gold P label 8 / 208; insight battle cards 4 / 128; assistant quick-query battle 4 / 81; risk rows 2 / 97; variance insight cards 1 / 40
+     50% (270): gold P label 2 / 94; insight battle cards 4 / 104; assistant quick-query battle 1 / 72; risk rows 3 / 84; variance insight cards 3 / 54
+     75% (270): gold P label 3 / 38; insight battle cards 4 / 80; assistant quick-query battle 2 / 41; risk rows 3 / 86; variance insight cards 2 / 70
+
+Lap by lap (laps 10-50, lap-mode clock), the store's chain re-run with 5 seed salts on the same data: a blink
+(a gold / green battle row listed, gone, listed again on three consecutive laps, or the reverse) found under
+every salt comes from the data; one found under some salts only comes from the Monte Carlo noise.
+  2024 R16: blinks per salt 6, 9, 8, 7, 10; distinct 13: under every salt 6, under some only 7; laps where the listed battles differ between salts: 27 / 41
+  2024 R5: blinks per salt 33, 30, 23, 24, 27; distinct 40: under every salt 19, under some only 21; laps where the listed battles differ between salts: 30 / 41
+
+Lap by lap through the store (the app's path: computeRaceProjection, its seed from the session and the clock, badges
+chained from the previous lap), Monza 2024 laps 10-50, lap-mode clock. Each lap also brings new data, so a change
+here is not all Monte Carlo noise. A blink = a gold / green battle row listed, gone, listed again on three
+consecutive laps, or the reverse.
+  rule  listed rows appearing / disappearing between laps:  118; one-lap blinks of a gold / green row: 10 (pair not within 4 positions on one of the 3 laps: 7; otherwise the largest one-lap probability change of the pair, min / median: 17 / 49 pp)
+  bare  listed rows appearing / disappearing between laps:  162; one-lap blinks of a gold / green row: 32 (pair not within 4 positions on one of the 3 laps: 18; otherwise the largest one-lap probability change of the pair, min / median: 1 / 12 pp)
+

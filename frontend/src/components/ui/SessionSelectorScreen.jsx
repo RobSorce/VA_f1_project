@@ -3,6 +3,7 @@ import { useF1Store } from '../../store/useF1Store';
 import { CHART_FONT, FLAG_COLORS, TEXT_COLORS, UI_COLORS, getDriverColor, withAlpha } from '../../utils/colors';
 import { yearOptions } from '../../utils/seasons';
 import { publicAsset } from '../../utils/publicAsset';
+import { useBackendOnlyText } from '../../utils/demoMode';
 const SESSION_TYPES = [
   { value: 'R', label: 'Race' },
   { value: 'Q', label: 'Qualifying' },
@@ -35,6 +36,14 @@ const liveBtnStyle = {
   letterSpacing: '0.06em',
   cursor: 'pointer',
   transition: 'all 0.15s ease',
+};
+
+// The demo's "Requires the local backend" line under a disabled button
+const backendNoteStyle = {
+  fontSize: CHART_FONT.label,
+  color: TEXT_COLORS.secondary,
+  lineHeight: 1.4,
+  margin: '-4px 0 0',
 };
 
 const mockSelectStyle = {
@@ -82,6 +91,10 @@ export default function SessionSelectorScreen() {
   const [driverSearch, setDriverSearch] = useState('');
   const [liveConnecting, setLiveConnecting] = useState(false);
   const [mockConnecting, setMockConnecting] = useState(false);
+  // Static demo (utils/demoMode.js, the flag the model-only views read): live
+  // timing and the mock replay need the local backend, so both buttons are
+  // disabled and say so (Phase 9d G5)
+  const backendOnly = useBackendOnlyText();
 
   useEffect(() => {
     fetchSchedule(year);
@@ -108,6 +121,7 @@ export default function SessionSelectorScreen() {
   };
 
   const handleConnectLive = async () => {
+    if (backendOnly) return;
     setLiveConnecting(true);
     try {
       await enterLiveMode();
@@ -116,7 +130,7 @@ export default function SessionSelectorScreen() {
   };
 
   const handleStartMock = async () => {
-    if (!round) return;
+    if (!round || backendOnly) return;
     setMockConnecting(true);
     try {
       await enterLiveMode(year, round, 10);
@@ -192,10 +206,13 @@ export default function SessionSelectorScreen() {
                 ...liveBtnStyle,
                 background: liveConnecting ? withAlpha(UI_COLORS.accent, 0.15) : `linear-gradient(135deg, ${UI_COLORS.accent} 0%, ${UI_COLORS.accentDark} 100%)`,
                 color: TEXT_COLORS.primary,
-                opacity: liveConnecting ? 0.6 : 1,
+                opacity: backendOnly ? 0.4 : liveConnecting ? 0.6 : 1,
+                cursor: backendOnly ? 'not-allowed' : 'pointer',
               }}
               onClick={handleConnectLive}
-              disabled={liveConnecting || isLoading}
+              disabled={!!backendOnly || liveConnecting || isLoading}
+              title={backendOnly ? `${backendOnly}: live timing` : undefined}
+              aria-describedby={backendOnly ? 'session-live-backend-note' : undefined}
             >
               {liveConnecting ? (
                 <span className="session-screen__spinner" />
@@ -207,6 +224,11 @@ export default function SessionSelectorScreen() {
               )}
               {liveConnecting ? 'CONNECTING...' : 'CONNECT LIVE'}
             </button>
+            {backendOnly && (
+              <p id="session-live-backend-note" className="session-screen__backend-only" style={backendNoteStyle}>
+                {backendOnly}: live timing.
+              </p>
+            )}
 
             <div style={{ width: '100%', height: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 0' }} />
 
@@ -223,10 +245,13 @@ export default function SessionSelectorScreen() {
                 background: mockConnecting ? withAlpha(UI_COLORS.brush, 0.1) : withAlpha(UI_COLORS.brush, 0.15),
                 border: `1px solid ${withAlpha(UI_COLORS.brush, 0.3)}`,
                 color: UI_COLORS.brush,
-                opacity: (!round || mockConnecting || isLoading) ? 0.4 : 1,
+                opacity: (backendOnly || !round || mockConnecting || isLoading) ? 0.4 : 1,
+                cursor: backendOnly ? 'not-allowed' : 'pointer',
               }}
               onClick={handleStartMock}
-              disabled={!round || mockConnecting || isLoading}
+              disabled={!!backendOnly || !round || mockConnecting || isLoading}
+              title={backendOnly ? `${backendOnly}: the mock replay` : undefined}
+              aria-describedby={backendOnly ? 'session-mock-backend-note' : undefined}
             >
               {mockConnecting ? (
                 <span className="session-screen__spinner" />
@@ -237,6 +262,11 @@ export default function SessionSelectorScreen() {
               )}
               {mockConnecting ? 'STARTING...' : 'START MOCK LIVE'}
             </button>
+            {backendOnly && (
+              <p id="session-mock-backend-note" className="session-screen__backend-only" style={backendNoteStyle}>
+                {backendOnly}: the mock replay streams a cached race through it.
+              </p>
+            )}
 
             {error && (
               <div style={{

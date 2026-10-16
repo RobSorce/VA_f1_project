@@ -7,21 +7,20 @@ stratified by row kind and its cache is keyed by the rows' content
    random selections from all rows, so a selection of rows of the race in
    progress was flagged "above random" in pit stops and stint lengths by the
    mix alone (the r3 verifier: the 19 stars of 2024 R16 at lap 20 flagged
-   avg_stint_length, max_stint_length, pit_count;
-   notes/experiments/phase67/verify_pca/r3/v_stars_lap20.txt). Now each random
+   avg_stint_length, max_stint_length, pit_count). Now each random
    selection draws as many rows of each kind as the selection holds; the
    statistics block states the composition and the lap; a feature whose
    distribution depends on race progress is marked progress_dependent while
    the compared rows mix the kinds.
 2. The baseline cache key was (matrix file, length; year, round, lap, number
    of rows of the race): rows change inside one leader lap, so a baseline of
-   another matrix could be served (r3 v_cachekey.txt). Now the key holds a
+   another matrix could be served (the r3 verifier). Now the key holds a
    content hash of the rows, the selection size and its composition.
 3. (verifier r1) With rows of two kinds the family-wise threshold (95th
    percentile of the largest |g| over all features) was set by the
    progress-dependent features, whose |g| is large in every same-mix draw:
    pace, sectors, consistency and grid could almost never be above random
-   during a replay (notes/experiments/phase7b/verify_r1/v_power.txt). Now
+   during a replay (docs/evidence/pca_mixed_threshold.txt, section 1). Now
    each feature has its own threshold, the same quantile level of its own
    random |g| for every feature (common_level_thresholds); post-race the rule
    is unchanged (scripts/pca_mixed_threshold.py).
@@ -309,7 +308,7 @@ def test_a_pace_difference_is_flagged_during_a_replay():
     """The verifier's v_power case: 2024 R16 lap 20, pace of 5 random rows of
     the race on screen shifted by 2 matrix SDs. With one threshold for all
     features (set by the stint lengths) it was flagged in 23.3% of 60 such
-    selections, now in 96.7% (notes/experiments/phase7b/pca_mixed_threshold.txt);
+    selections, now in 96.7% (docs/evidence/pca_mixed_threshold.txt);
     here the first 20 of them."""
     now, df0, ids, live, _ = replay(2024, 16, 20)
     live_set = set(live)
@@ -349,7 +348,7 @@ def test_a_real_lasso_is_flagged_during_a_replay():
 
 def test_finished_only_selection_states_the_lap_and_the_rest():
     """The verifier's case: 5 rows of finished races during the replay of
-    2024 R12 at lap 15 (v_stratified.txt section D)."""
+    2024 R12 at lap 15."""
     now, df, _, live, finished = replay(2024, 12, 15)
     res = pc.analyze_selection(finished[10:15], None, 2024, 12, now)
     st = res['statistics']

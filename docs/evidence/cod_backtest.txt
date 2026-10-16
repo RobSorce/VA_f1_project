@@ -1,0 +1,466 @@
+Circle of Doom rejoin backtest (frontend/scripts/cod_backtest.mjs)
+cache: backend/data/processed_cache, 30 race sessions
+
+race       n_green  script_exact  module_exact  script_w1  module_w1
+2024_1          34         70.6%         32.4%      94.1%      79.4%
+2024_10         42         78.6%         50.0%      95.2%      88.1%
+2024_11         42         76.2%         42.9%      92.9%      69.0%
+2024_12         45         40.0%         22.2%      60.0%      42.2%
+2024_13         40         90.0%         57.5%      95.0%      82.5%
+2024_14         32         90.6%         37.5%     100.0%      75.0%
+2024_15         26         88.5%         57.7%     100.0%      84.6%
+2024_16         30         50.0%         50.0%      83.3%      70.0%
+2024_17         15         53.3%         40.0%      93.3%      60.0%
+2024_18         22         86.4%         50.0%      95.5%      77.3%
+2024_19         21         85.7%         76.2%     100.0%      95.2%
+2024_2           5         60.0%         60.0%      80.0%     100.0%
+2024_20         21         61.9%         42.9%      85.7%      71.4%
+2024_22         39         61.5%         30.8%      89.7%      56.4%
+2024_23          7         71.4%         85.7%      85.7%      85.7%
+2024_24         21         23.8%         28.6%      66.7%      76.2%
+2024_3          31         71.0%         35.5%      87.1%      58.1%
+2024_4          35         74.3%         34.3%      88.6%      68.6%
+2024_5          22         68.2%         36.4%      86.4%      54.5%
+2024_6          11         90.9%         54.5%     100.0%      72.7%
+2024_7          25         84.0%         64.0%     100.0%      84.0%
+2024_8           5        100.0%        100.0%     100.0%     100.0%
+2024_9          16         12.5%         18.8%      25.0%      18.8%
+2025_16         18         72.2%         77.8%      77.8%      83.3%
+2025_21         33         72.7%         57.6%      93.9%      81.8%
+2025_24         27         85.2%         51.9%      96.3%      77.8%
+2025_6           9         66.7%         66.7%      88.9%      88.9%
+2025_8          35         91.4%         65.7%      94.3%      91.4%
+
+Rank rule check (the script's inputs through circleOfDoom.rankByCrossing):
+  script (causal_fixed)        stops=709 exact=71.1% within_1=88.3%
+  validate_pit_loss_and_rejoin.py baseline: causal_fixed stops=709 exact=71% within_1=88%
+
+Module (pitWindow at the end of lap n - 1, causal pit loss, projected rivals):
+  module                       stops=709 exact=46.7% within_1=72.8%
+
+Ingredient swaps, script -> module (one at a time, cumulative):
+  script                       stops=709 exact=71.1% within_1=88.3%
+  + causal pit loss            stops=709 exact=67.1% within_1=87.9%
+  + causal focus pace          stops=709 exact=71.4% within_1=87.4%
+  + projected rival crossings  stops=709 exact=46.7% within_1=72.8%   (= module)
+  identity: predictedCrossing = Time(n-1) + 2 x pace + loss on 707/707 stops
+
+Where the gap comes from: the script ranks against the rivals' ACTUAL lap n + 1 crossings, so it
+knows the stops rivals make on laps n and n + 1 (pit windows cluster); at the end of lap n - 1 these
+stops have not started and no causal predictor can see them.
+  stops where no rival stops at all before lap n + 1:
+    script                     stops=110 exact=82.7% within_1=92.7%
+    module                     stops=110 exact=87.3% within_1=96.4%
+  stops where no rival's unseen stop or later retirement puts it on the other side of the focus:
+    script                     stops=406 exact=78.3% within_1=93.8%
+    module                     stops=406 exact=76.4% within_1=92.4%
+  projection error of rival crossings (no stop, still running): n=9498 median |err| 0.81s, p90 3.82s, mean signed -0.01s
+
+Pace model of the projections (opts.paceModel), module otherwise unchanged:
+  recent                       stops=709 exact=46.7% within_1=72.8%
+  race-median                  stops=709 exact=45.8% within_1=73.9%
+  reference                    stops=709 exact=44.6% within_1=70.4%
+
+Rejoin probabilities (rejoinDistribution, 1000 seeded draws per stop):
+  mean probability given to the actual position   0.452
+  actual position = most likely position          47.0%
+  actual position inside the 80% most-likely set  54.6%
+  traffic flag (< 1.0 s behind a car) raised      15.0% of stops
+  same, stops with no unseen rival stop (n=110):
+    mean probability given to the actual position 0.825
+    actual position = most likely position        86.4%
+    actual position inside the 80% most-likely set 90.9%
+  The draws cover the pit-loss uncertainty only (not rival stops, not pace), hence the low coverage overall.
+
+Pit in k laps (utils/undercut.js pitInLaps, race params at the same clock):
+  k = 0 = pitWindow (place, crossing, rejoin offset) on 707/707 stops (the stops not taken right after another one)
+  the same stop predicted k laps ahead, at the end of the driver's lap n - 1 - k (row k: in-lap n, rejoin at the end of lap n + 1):
+    k = 1  lap model      stops=704 exact=40.9% within_1=68.3%
+    k = 1  flat (no wear) stops=704 exact=40.1% within_1=68.3%
+    k = 2  lap model      stops=704 exact=36.8% within_1=63.4%
+    k = 2  flat (no wear) stops=704 exact=37.1% within_1=63.5%
+    k = 3  lap model      stops=701 exact=32.7% within_1=60.2%
+    k = 3  flat (no wear) stops=701 exact=33.0% within_1=60.1%
+    k = 5  lap model      stops=690 exact=27.2% within_1=54.5%
+    k = 5  flat (no wear) stops=690 exact=27.1% within_1=54.6%
+
+Stops where module != script: 375 of 709
+  stops taken right after another stop (module projects the first one): 2
+  rival side changes where the "others" step moved the prediction: own stop not known yet 558, retired later 5, stop in progress 27, pace projection 110
+
+Stop-by-stop (race, driver, in-lap; positions; the step(s) that changed the prediction):
+2024_1   BOT L12  actual P19  script P17  module P18  | others: P17->P18: GAS counted ahead (own stop on L12 not known yet)
+2024_1   GAS L12  actual P18  script P16  module P17  | pace 97.60->99.10s/lap: P16->P17
+2024_1   HAM L12  actual P12  script P11  module P15  | pace 96.63->98.22s/lap: P11->P12 | others: P12->P15: MAG counted ahead (own stop on L11 not known yet); GAS counted ahead (own stop on L12 not known yet); BOT counted ahead (own stop on L12 not known yet)
+2024_1   PER L12  actual P8  script P7  module P12  | pace 96.21->97.82s/lap: P7->P8 | others: P8->P12: LEC counted ahead (own stop on L11 not known yet); PIA counted ahead (own stop on L12 not known yet); HAM counted ahead (own stop on L12 not known yet); MAG counted ahead (own stop on L11 not known yet)
+2024_1   PIA L12  actual P11  script P11  module P15  | others: P11->P15: HAM counted ahead (own stop on L12 not known yet); MAG counted ahead (own stop on L11 not known yet); GAS counted ahead (own stop on L12 not known yet); BOT counted ahead (own stop on L12 not known yet)
+2024_1   NOR L13  actual P9  script P9  module P14  | others: P9->P14: PIA counted ahead (own stop on L12 not known yet); HAM counted ahead (own stop on L12 not known yet); RIC counted ahead (own stop on L13 not known yet); GAS counted ahead (own stop on L12 not known yet); BOT counted ahead (own stop on L12 not known yet)
+2024_1   RIC L13  actual P16  script P16  module P17  | others: P16->P17: GAS counted ahead (own stop on L12 not known yet); BOT counted ahead (own stop on L12 not known yet); OCO counted behind (projection off by 5.0s)
+2024_1   TSU L14  actual P13  script P13  module P12  | loss 26.3->22.0s (fallback, n=0): P13->P11 | pace 97.51->98.77s/lap: P11->P12
+2024_1   ALB L15  actual P15  script P15  module P14  | loss 26.1->23.5s (race, n=5): P15->P14 | pace 97.82->98.83s/lap: P14->P15 | others: P15->P14: OCO counted behind (projection off by 4.2s)
+2024_1   ALO L15  actual P10  script P10  module P13  | loss 26.1->23.5s (race, n=5): P10->P9 | pace 97.18->98.59s/lap: P9->P10 | others: P10->P13: TSU counted ahead (own stop on L14 not known yet); ALB counted ahead (own stop on L15 not known yet); STR counted ahead (projection off by -1.3s)
+2024_1   STR L27  actual P18  script P18  module P19  | pace 96.82->98.13s/lap: P18->P19
+2024_1   OCO L30  actual P18  script P18  module P19  | others: P18->P19: BOT counted ahead (own stop on L30 not known yet)
+2024_1   GAS L31  actual P18  script P18  module P19  | others: P18->P19: BOT counted ahead (own stop on L31 not known yet)
+2024_1   MAG L32  actual P16  script P16  module P17  | others: P16->P17: GAS counted ahead (own stop on L31 not known yet)
+2024_1   HAM L33  actual P9  script P9  module P10  | others: P9->P10: TSU counted ahead (own stop on L34 not known yet)
+2024_1   NOR L33  actual P8  script P8  module P9  | others: P8->P9: HAM counted ahead (own stop on L33 not known yet)
+2024_1   LEC L34  actual P6  script P7  module P9  | others: P7->P9: PIA counted ahead (own stop on L34 not known yet); HAM counted ahead (own stop on L33 not known yet)
+2024_1   TSU L34  actual P15  script P16  module P15  | others: P16->P15: MAG counted behind (stop in progress (out-lap), pending loss off by 8.5s)
+2024_1   RIC L35  actual P16  script P17  module P16  | others: P17->P16: OCO counted behind (projection off by 5.3s)
+2024_1   SAI L35  actual P3  script P3  module P5  | others: P3->P5: LEC counted ahead (own stop on L34 not known yet); PIA counted ahead (own stop on L34 not known yet)
+2024_1   VER L37  actual P1  script P1  module P2  | others: P1->P2: PER counted ahead (own stop on L36 not known yet)
+2024_1   ALO L41  actual P11  script P11  module P12  | pace 97.18->97.95s/lap: P11->P12
+2024_10  ZHO L9   actual P19  script P19  module P20  | pace 81.23->82.57s/lap: P19->P20
+2024_10  MAG L10  actual P19  script P19  module P20  | others: P19->P20: TSU counted ahead (own stop on L9 not known yet)
+2024_10  OCO L13  actual P13  script P13  module P14  | loss 21.9->19.1s (race, n=3): P13->P12 | pace 80.66->81.79s/lap: P12->P13 | others: P13->P14: HUL counted ahead (own stop on L12 not known yet); PER counted ahead (own stop on L13 not known yet); ALB counted behind (projection off by 1.9s)
+2024_10  PER L13  actual P14  script P13  module P16  | loss 21.9->19.1s (race, n=3): P13->P12 | pace 79.69->81.73s/lap: P12->P14 | others: P14->P16: HUL counted ahead (own stop on L12 not known yet); SAR counted ahead (own stop on L14 not known yet)
+2024_10  GAS L14  actual P13  script P10  module P12  | others: P10->P12: OCO counted ahead (own stop on L13 not known yet); PER counted ahead (own stop on L13 not known yet)
+2024_10  RUS L15  actual P7  script P6  module P8  | others: P6->P8: SAI counted ahead (own stop on L15 not known yet); GAS counted ahead (own stop on L14 not known yet)
+2024_10  HAM L16  actual P7  script P7  module P9  | loss 23.9->21.3s (race, n=7): P7->P5 | pace 79.92->81.50s/lap: P5->P7 | others: P7->P9: STR counted ahead (own stop on L17 not known yet); ALO counted ahead (projection off by -2.1s)
+2024_10  VER L17  actual P4  script P4  module P5  | others: P4->P5: HAM counted ahead (own stop on L16 not known yet)
+2024_10  ALO L19  actual P16  script P16  module P18  | others: P16->P18: ALB counted ahead (own stop on L18 not known yet); TSU counted ahead (projection off by -2.2s)
+2024_10  BOT L28  actual P19  script P19  module P20  | others: P19->P20: TSU counted ahead (own stop on L27 not known yet)
+2024_10  MAG L29  actual P20  script P19  module P18  | others: P19->P18: BOT counted behind (own stop on L29 not known yet)
+2024_10  RUS L36  actual P7  script P6  module P8  | others: P6->P8: SAI counted ahead (own stop on L36 not known yet); GAS counted ahead (projection off by -1.0s)
+2024_10  OCO L37  actual P14  script P14  module P15  | others: P14->P15: STR counted ahead (own stop on L37 not known yet)
+2024_10  GAS L38  actual P10  script P10  module P13  | others: P10->P13: OCO counted ahead (own stop on L37 not known yet); HUL counted ahead (own stop on L38 not known yet); STR counted ahead (own stop on L37 not known yet)
+2024_10  HUL L38  actual P14  script P14  module P15  | others: P14->P15: STR counted ahead (own stop on L37 not known yet)
+2024_10  ALB L43  actual P19  script P19  module P20  | others: P19->P20: SAR counted ahead (projection off by -6.6s)
+2024_10  VER L44  actual P3  script P3  module P4  | others: P3->P4: HAM counted ahead (own stop on L43 not known yet)
+2024_10  ALO L45  actual P13  script P14  module P12  | pace 81.07->80.54s/lap: P14->P13 | others: P13->P12: ZHO counted behind (projection off by 6.3s)
+2024_10  LEC L47  actual P6  script P6  module P7  | others: P6->P7: PIA counted ahead (own stop on L46 not known yet)
+2024_10  NOR L47  actual P2  script P4  module P3  | loss 23.5->22.5s (race, n=36): P4->P2 | others: P2->P3: LEC counted ahead (own stop on L47 not known yet)
+2024_10  PER L49  actual P10  script P11  module P10  | loss 22.9->22.4s (race, n=41): P11->P10
+2024_11  HUL L11  actual P16  script P16  module P18  | others: P16->P18: RIC counted ahead (own stop on L10 not known yet); ALO counted ahead (own stop on L11 not known yet)
+2024_11  ALB L12  actual P19  script P18  module P19  | loss 20.2->22.0s (fallback, n=0): P18->P19
+2024_11  OCO L19  actual P17  script P15  module P18  | pace 71.37->72.18s/lap: P15->P17 | others: P17->P18: BOT counted ahead (own stop on L19 not known yet)
+2024_11  GAS L20  actual P16  script P15  module P18  | pace 71.20->72.38s/lap: P15->P16 | others: P16->P18: STR counted ahead (own stop on L20 not known yet); BOT counted ahead (own stop on L19 not known yet)
+2024_11  STR L20  actual P17  script P17  module P18  | pace 71.46->72.58s/lap: P17->P18
+2024_11  HAM L21  actual P6  script P6  module P9  | others: P6->P9: PER counted ahead (own stop on L21 not known yet); GAS counted ahead (own stop on L20 not known yet); TSU counted ahead (own stop on L21 not known yet)
+2024_11  PER L21  actual P9  script P9  module P12  | loss 20.8->20.3s (race, n=6): P9->P8 | pace 71.00->71.94s/lap: P8->P9 | others: P9->P12: GAS counted ahead (own stop on L20 not known yet); TSU counted ahead (own stop on L21 not known yet); STR counted ahead (own stop on L20 not known yet)
+2024_11  TSU L21  actual P16  script P16  module P17  | pace 71.46->72.48s/lap: P16->P17
+2024_11  RUS L22  actual P4  script P4  module P7  | others: P4->P7: SAI counted ahead (own stop on L22 not known yet); HAM counted ahead (own stop on L21 not known yet); PER counted ahead (own stop on L21 not known yet)
+2024_11  SAI L22  actual P5  script P5  module P7  | pace 70.44->71.71s/lap: P5->P6 | others: P6->P7: PER counted ahead (own stop on L21 not known yet)
+2024_11  NOR L23  actual P3  script P3  module P5  | others: P3->P5: RUS counted ahead (own stop on L22 not known yet); SAI counted ahead (own stop on L22 not known yet)
+2024_11  VER L23  actual P2  script P2  module P5  | others: P2->P5: NOR counted ahead (own stop on L23 not known yet); RUS counted ahead (own stop on L22 not known yet); SAI counted ahead (own stop on L22 not known yet)
+2024_11  HUL L39  actual P13  script P13  module P15  | others: P13->P15: MAG counted ahead (own stop on L38 not known yet); ALB counted ahead (own stop on L39 not known yet)
+2024_11  GAS L42  actual P15  script P15  module P16  | others: P15->P16: BOT counted ahead (own stop on L42 not known yet)
+2024_11  OCO L43  actual P14  script P14  module P16  | others: P14->P16: STR counted ahead (own stop on L43 not known yet); BOT counted ahead (own stop on L42 not known yet)
+2024_11  STR L43  actual P16  script P17  module P18  | loss 21.4->20.8s (race, n=26): P17->P16 | pace 71.46->72.04s/lap: P16->P17 | others: P17->P18: BOT counted ahead (own stop on L42 not known yet)
+2024_11  SAI L47  actual P6  script P6  module P7  | others: P6->P7: PER counted ahead (projection off by -1.2s)
+2024_11  NOR L51  actual P2  script P2  module P3  | others: P2->P3: PIA counted ahead (own stop on L51 not known yet)
+2024_11  VER L51  actual P1  script P1  module P2  | others: P1->P2: NOR counted ahead (own stop on L51 not known yet)
+2024_12  LEC L19  actual P15  script P7  module P16  | loss 19.3->21.0s (race, n=1): P7->P10 | pace 92.70->92.92s/lap: P10->P11 | others: P11->P16: ALB counted ahead (projection off by -18.2s); SAR counted ahead (projection off by -16.0s); MAG counted ahead (projection off by -14.6s); PER counted ahead (own stop on L19 not known yet); RIC counted ahead (projection off by -19.6s)
+2024_12  OCO L19  actual P18  script P18  module P19  | others: P18->P19: ZHO counted ahead (own stop on L19 not known yet)
+2024_12  PER L19  actual P17  script P15  module P17  | others: P15->P17: LEC counted ahead (own stop on L19 not known yet); BOT counted ahead (projection off by -18.1s)
+2024_12  OCO L21  actual P18  script P18  module P19  | others: P18->P19: ZHO counted ahead (stop in progress (out-lap), pending loss off by -31.0s)
+2024_12  HUL L26  actual P12  script P10  module P14  | others: P10->P14: STR counted ahead (own stop on L26 not known yet); MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet); RIC counted ahead (own stop on L26 not known yet)
+2024_12  RIC L26  actual P14  script P14  module P15  | others: P14->P15: BOT counted ahead (own stop on L26 not known yet)
+2024_12  SAI L26  actual P6  script P5  module P13  | pace 92.36->92.73s/lap: P5->P6 | others: P6->P13: HUL counted ahead (own stop on L26 not known yet); ALO counted ahead (own stop on L27 not known yet); STR counted ahead (own stop on L26 not known yet); TSU counted ahead (own stop on L27 not known yet); ALB counted ahead (own stop on L27 not known yet); MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet)
+2024_12  STR L26  actual P13  script P11  module P15  | pace 92.72->93.29s/lap: P11->P13 | others: P13->P15: RIC counted ahead (own stop on L26 not known yet); BOT counted ahead (own stop on L26 not known yet)
+2024_12  VER L26  actual P5  script P5  module P13  | others: P5->P13: SAI counted ahead (own stop on L26 not known yet); HUL counted ahead (own stop on L26 not known yet); ALO counted ahead (own stop on L27 not known yet); STR counted ahead (own stop on L26 not known yet); TSU counted ahead (own stop on L27 not known yet); ALB counted ahead (own stop on L27 not known yet); MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet)
+2024_12  ALB L27  actual P11  script P9  module P15  | others: P9->P15: MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet); ALO counted ahead (own stop on L27 not known yet); TSU counted ahead (own stop on L27 not known yet); RIC counted ahead (own stop on L26 not known yet); BOT counted ahead (own stop on L26 not known yet)
+2024_12  ALO L27  actual P9  script P7  module P15  | pace 92.67->94.09s/lap: P7->P9 | others: P9->P15: TSU counted ahead (own stop on L27 not known yet); ALB counted ahead (own stop on L27 not known yet); MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet); RIC counted ahead (own stop on L26 not known yet); BOT counted ahead (own stop on L26 not known yet)
+2024_12  HAM L27  actual P3  script P1  module P13  | others: P1->P13: RUS counted ahead (own stop on L27 not known yet); NOR counted ahead (own stop on L27 not known yet); PIA counted ahead (own stop on L28 not known yet); SAI counted ahead (own stop on L26 not known yet); VER counted ahead (own stop on L26 not known yet); HUL counted ahead (own stop on L26 not known yet); ALO counted ahead (own stop on L27 not known yet); STR counted ahead (own stop on L26 not known yet); TSU counted ahead (own stop on L27 not known yet); ALB counted ahead (own stop on L27 not known yet); MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet)
+2024_12  LEC L27  actual P17  script P16  module P18  | pace 92.70->106.59s/lap: P16->P17 | others: P17->P18: OCO counted ahead (own stop on L26 not known yet)
+2024_12  MAG L27  actual P12  script P9  module P15  | others: P9->P15: SAR counted ahead (own stop on L27 not known yet); ALO counted ahead (own stop on L27 not known yet); TSU counted ahead (own stop on L27 not known yet); ALB counted ahead (own stop on L27 not known yet); RIC counted ahead (own stop on L26 not known yet); BOT counted ahead (own stop on L26 not known yet)
+2024_12  NOR L27  actual P2  script P1  module P13  | others: P1->P13: PIA counted ahead (own stop on L28 not known yet); HAM counted ahead (own stop on L27 not known yet); RUS counted ahead (own stop on L27 not known yet); SAI counted ahead (own stop on L26 not known yet); VER counted ahead (own stop on L26 not known yet); HUL counted ahead (own stop on L26 not known yet); ALO counted ahead (own stop on L27 not known yet); STR counted ahead (own stop on L26 not known yet); TSU counted ahead (own stop on L27 not known yet); ALB counted ahead (own stop on L27 not known yet); MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet)
+2024_12  RUS L27  actual P5  script P1  module P13  | others: P1->P13: NOR counted ahead (own stop on L27 not known yet); PIA counted ahead (own stop on L28 not known yet); HAM counted ahead (own stop on L27 not known yet); SAI counted ahead (own stop on L26 not known yet); VER counted ahead (own stop on L26 not known yet); HUL counted ahead (own stop on L26 not known yet); ALO counted ahead (own stop on L27 not known yet); STR counted ahead (own stop on L26 not known yet); TSU counted ahead (own stop on L27 not known yet); ALB counted ahead (own stop on L27 not known yet); MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet)
+2024_12  SAR L27  actual P13  script P9  module P15  | others: P9->P15: ALO counted ahead (own stop on L27 not known yet); TSU counted ahead (own stop on L27 not known yet); ALB counted ahead (own stop on L27 not known yet); MAG counted ahead (own stop on L27 not known yet); RIC counted ahead (own stop on L26 not known yet); BOT counted ahead (own stop on L26 not known yet)
+2024_12  TSU L27  actual P10  script P8  module P15  | loss 34.2->34.7s (race, n=6): P8->P9 | others: P9->P15: ALB counted ahead (own stop on L27 not known yet); MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet); ALO counted ahead (own stop on L27 not known yet); RIC counted ahead (own stop on L26 not known yet); BOT counted ahead (own stop on L26 not known yet)
+2024_12  PER L28  actual P17  script P17  module P18  | pace 93.22->107.33s/lap: P17->P18
+2024_12  PIA L28  actual P6  script P3  module P11  | loss 39.3->34.7s (race, n=6): P3->P2 | pace 91.90->94.27s/lap: P2->P3 | others: P3->P11: RUS counted ahead (own stop on L28 not known yet); ALO counted ahead (own stop on L27 not known yet); SAI counted ahead (stop in progress (out-lap), pending loss off by -23.6s); VER counted ahead (stop in progress (out-lap), pending loss off by -16.6s); TSU counted ahead (own stop on L27 not known yet); ALB counted ahead (own stop on L27 not known yet); MAG counted ahead (own stop on L27 not known yet); SAR counted ahead (own stop on L27 not known yet)
+2024_12  BOT L37  actual P14  script P14  module P15  | others: P14->P15: LEC counted ahead (own stop on L37 not known yet)
+2024_12  LEC L37  actual P15  script P15  module P17  | pace 92.70->103.22s/lap: P15->P17
+2024_12  MAG L37  actual P12  script P13  module P14  | loss 42.2->40.5s (race, n=25): P13->P12 | pace 93.20->105.27s/lap: P12->P13 | others: P13->P14: BOT counted ahead (own stop on L37 not known yet)
+2024_12  RIC L37  actual P13  script P13  module P14  | pace 93.35->104.86s/lap: P13->P14
+2024_12  ALB L38  actual P10  script P13  module P14  | loss 42.2->38.7s (race, n=25): P13->P10 | pace 93.01->104.82s/lap: P10->P13 | others: P13->P14: BOT counted ahead (own stop on L37 not known yet)
+2024_12  ALO L38  actual P8  script P10  module P13  | loss 42.2->38.7s (race, n=25): P10->P9 | pace 92.67->104.25s/lap: P9->P13
+2024_12  HAM L38  actual P3  script P4  module P5  | pace 91.67->102.27s/lap: P4->P7 | others: P7->P5: HUL counted behind (own stop on L39 not known yet); STR counted behind (own stop on L39 not known yet)
+2024_12  PIA L38  actual P5  script P7  module P8  | others: P7->P8: ALO counted ahead (own stop on L38 not known yet)
+2024_12  SAR L38  actual P12  script P13  module P14  | pace 93.04->105.68s/lap: P13->P14
+2024_12  TSU L38  actual P9  script P10  module P13  | pace 93.03->104.78s/lap: P10->P13
+2024_12  VER L38  actual P4  script P5  module P6  | loss 42.2->40.5s (race, n=25): P5->P4 | pace 91.93->102.45s/lap: P4->P7 | others: P7->P6: STR counted behind (own stop on L39 not known yet)
+2024_12  HUL L39  actual P6  script P8  module P10  | pace 92.67->103.04s/lap: P8->P13 | others: P13->P10: SAR counted behind (own stop on L38 not known yet); MAG counted behind (stop in progress (out-lap), pending loss off by 45.3s); RIC counted behind (stop in progress (out-lap), pending loss off by 44.4s)
+2024_12  NOR L39  actual P2  script P3  module P4  | pace 91.83->102.34s/lap: P3->P5 | others: P5->P4: HAM counted behind (own stop on L39 not known yet)
+2024_12  SAI L39  actual P5  script P5  module P6  | pace 92.36->102.75s/lap: P5->P8 | others: P8->P6: PIA counted behind (own stop on L39 not known yet); ALO counted behind (own stop on L38 not known yet)
+2024_12  SAI L50  actual P5  script P9  module P8  | pace 92.36->89.55s/lap: P9->P8
+2024_13  ALB L6   actual P18  script P18  module P20  | loss 20.1->22.0s (fallback, n=0): P18->P19 | pace 84.89->86.31s/lap: P19->P20
+2024_13  MAG L6   actual P19  script P19  module P20  | pace 85.31->86.37s/lap: P19->P20
+2024_13  ALO L7   actual P15  script P15  module P20  | loss 20.1->22.0s (fallback, n=0): P15->P16 | pace 84.49->86.01s/lap: P16->P19 | others: P19->P20: ZHO counted ahead (own stop on L7 not known yet)
+2024_13  RIC L7   actual P18  script P18  module P20  | loss 20.1->22.0s (fallback, n=0): P18->P19 | others: P19->P20: ZHO counted ahead (own stop on L7 not known yet)
+2024_13  BOT L16  actual P18  script P18  module P19  | loss 20.1->19.9s (race, n=8): P18->P17 | others: P17->P19: OCO counted ahead (projection off by -2.0s); SAR counted ahead (projection off by -2.7s)
+2024_13  HAM L16  actual P7  script P6  module P7  | pace 83.33->84.56s/lap: P6->P7
+2024_13  NOR L17  actual P5  script P5  module P6  | others: P5->P6: HAM counted ahead (own stop on L16 not known yet)
+2024_13  PIA L18  actual P4  script P4  module P5  | others: P4->P5: NOR counted ahead (own stop on L17 not known yet)
+2024_13  SAI L21  actual P9  script P8  module P9  | pace 83.70->84.85s/lap: P8->P9
+2024_13  VER L21  actual P5  script P5  module P6  | others: P5->P6: SAI counted ahead (own stop on L21 not known yet)
+2024_13  GAS L28  actual P19  script P19  module P20  | others: P19->P20: RIC counted ahead (own stop on L28 not known yet)
+2024_13  PER L28  actual P14  script P11  module P16  | pace 83.48->85.55s/lap: P11->P13 | others: P13->P16: GAS counted ahead (own stop on L28 not known yet); ALB counted ahead (own stop on L29 not known yet); RIC counted ahead (own stop on L28 not known yet)
+2024_13  HUL L29  actual P19  script P19  module P20  | others: P19->P20: ALB counted ahead (own stop on L29 not known yet)
+2024_13  TSU L29  actual P10  script P10  module P14  | others: P10->P14: PER counted ahead (own stop on L28 not known yet); GAS counted ahead (own stop on L28 not known yet); HUL counted ahead (own stop on L29 not known yet); ALB counted ahead (own stop on L29 not known yet)
+2024_13  SAR L33  actual P19  script P19  module P20  | others: P19->P20: GAS counted ahead (retired before L34)
+2024_13  MAG L34  actual P17  script P17  module P19  | others: P17->P19: GAS counted ahead (retired before L35); SAR counted ahead (own stop on L33 not known yet)
+2024_13  HAM L40  actual P5  script P5  module P6  | others: P5->P6: LEC counted ahead (own stop on L40 not known yet)
+2024_13  STR L45  actual P14  script P14  module P15  | loss 20.7->19.8s (race, n=30): P14->P13 | others: P13->P15: BOT counted ahead (own stop on L45 not known yet); ALB counted ahead (projection off by -1.2s)
+2024_14  ALB L8   actual P16  script P16  module P19  | pace 109.14->110.72s/lap: P16->P17 | others: P17->P19: HUL counted ahead (own stop on L7 not known yet); SAR counted ahead (own stop on L8 not known yet)
+2024_14  RIC L8   actual P17  script P17  module P19  | pace 108.79->110.96s/lap: P17->P18 | others: P18->P19: SAR counted ahead (own stop on L8 not known yet)
+2024_14  GAS L9   actual P18  script P17  module P18  | loss 21.1->22.0s (fallback, n=0): P17->P18
+2024_14  RUS L10  actual P10  script P10  module P15  | loss 21.0->22.0s (fallback, n=0): P10->P11 | pace 107.96->110.14s/lap: P11->P14 | others: P14->P15: GAS counted ahead (own stop on L9 not known yet)
+2024_14  VER L10  actual P13  script P13  module P15  | loss 21.0->22.0s (fallback, n=0): P13->P14 | pace 108.15->110.14s/lap: P14->P15
+2024_14  BOT L11  actual P18  script P18  module P17  | loss 21.0->16.9s (race, n=4): P18->P16 | pace 109.58->111.18s/lap: P16->P18 | others: P18->P17: HUL counted behind (projection off by 3.9s)
+2024_14  HAM L11  actual P5  script P5  module P9  | loss 21.0->16.9s (race, n=4): P5->P4 | others: P4->P9: PER counted ahead (own stop on L11 not known yet); PIA counted ahead (own stop on L11 not known yet); RUS counted ahead (own stop on L10 not known yet); VER counted ahead (own stop on L10 not known yet); ALO counted ahead (projection off by -0.2s)
+2024_14  PER L11  actual P6  script P6  module P10  | loss 21.0->16.9s (race, n=4): P6->P5 | pace 108.36->110.06s/lap: P5->P6 | others: P6->P10: PIA counted ahead (own stop on L11 not known yet); RUS counted ahead (own stop on L10 not known yet); VER counted ahead (own stop on L10 not known yet); OCO counted ahead (own stop on L12 not known yet)
+2024_14  PIA L11  actual P7  script P7  module P11  | loss 21.0->16.9s (race, n=4): P7->P6 | others: P6->P11: PER counted ahead (own stop on L11 not known yet); RUS counted ahead (own stop on L10 not known yet); VER counted ahead (own stop on L10 not known yet); OCO counted ahead (own stop on L12 not known yet); BOT counted ahead (own stop on L11 not known yet)
+2024_14  LEC L12  actual P4  script P4  module P7  | loss 21.1->17.1s (race, n=5): P4->P3 | pace 108.10->109.96s/lap: P3->P4 | others: P4->P7: PER counted ahead (own stop on L11 not known yet); PIA counted ahead (own stop on L11 not known yet); ALO counted ahead (own stop on L13 not known yet)
+2024_14  OCO L12  actual P17  script P17  module P16  | loss 21.1->17.1s (race, n=5): P17->P13 | pace 109.33->111.09s/lap: P13->P17 | others: P17->P16: STR counted ahead (own stop on L12 not known yet); HUL counted behind (projection off by 2.9s); GAS counted behind (projection off by 3.9s)
+2024_14  STR L12  actual P19  script P19  module P18  | loss 21.1->17.1s (race, n=5): P19->P18
+2024_14  ALO L13  actual P13  script P13  module P14  | loss 21.1->17.2s (race, n=7): P13->P12 | pace 109.32->110.89s/lap: P12->P13 | others: P13->P14: OCO counted ahead (own stop on L12 not known yet); STR counted ahead (own stop on L12 not known yet); RIC counted behind (projection off by 1.7s)
+2024_14  SAI L20  actual P8  script P8  module P7  | loss 21.0->17.7s (race, n=16): P8->P7 | pace 108.29->109.05s/lap: P7->P8 | others: P8->P7: NOR counted behind (projection off by 4.3s)
+2024_14  RIC L21  actual P17  script P17  module P18  | loss 21.0->18.0s (race, n=16): P17->P15 | pace 108.79->109.88s/lap: P15->P16 | others: P16->P18: HUL counted ahead (own stop on L20 not known yet); SAR counted ahead (projection off by -2.9s); TSU counted ahead (projection off by -2.1s); MAG counted behind (projection off by 2.1s)
+2024_14  GAS L28  actual P17  script P17  module P16  | others: P17->P16: TSU counted behind (projection off by 5.7s)
+2024_14  VER L28  actual P7  script P7  module P8  | others: P7->P8: SAI counted ahead (own stop on L28 not known yet)
+2024_14  NOR L29  actual P7  script P7  module P8  | others: P7->P8: SAI counted ahead (own stop on L28 not known yet)
+2024_14  OCO L30  actual P14  script P15  module P13  | loss 20.4->18.7s (race, n=26): P15->P14 | others: P14->P13: ALB counted behind (projection off by 1.9s)
+2024_14  PIA L30  actual P4  script P4  module P5  | others: P4->P5: NOR counted ahead (own stop on L29 not known yet)
+2024_15  HUL L14  actual P18  script P18  module P19  | others: P18->P19: TSU counted ahead (own stop on L14 not known yet)
+2024_15  HAM L23  actual P16  script P15  module P17  | pace 75.26->76.74s/lap: P15->P16 | others: P16->P17: SAR counted ahead (own stop on L22 not known yet)
+2024_15  LEC L24  actual P8  script P9  module P10  | loss 24.1->22.6s (race, n=5): P9->P8 | pace 75.28->76.52s/lap: P8->P9 | others: P9->P10: HAM counted ahead (own stop on L23 not known yet)
+2024_15  RUS L25  actual P8  script P8  module P9  | pace 75.45->76.73s/lap: P8->P9
+2024_15  NOR L28  actual P4  script P4  module P5  | loss 24.1->22.9s (race, n=9): P4->P3 | pace 74.89->75.74s/lap: P3->P4 | others: P4->P5: VER counted ahead (own stop on L27 not known yet)
+2024_15  SAI L30  actual P8  script P8  module P9  | loss 24.1->22.8s (race, n=10): P8->P7 | pace 75.14->76.49s/lap: P7->P8 | others: P8->P9: ALO counted ahead (own stop on L31 not known yet)
+2024_15  STR L30  actual P16  script P16  module P18  | others: P16->P18: RIC counted ahead (own stop on L29 not known yet); OCO counted ahead (own stop on L30 not known yet)
+2024_15  ALO L31  actual P14  script P14  module P17  | others: P14->P17: STR counted ahead (own stop on L30 not known yet); OCO counted ahead (own stop on L30 not known yet); BOT counted ahead (projection off by -1.4s)
+2024_15  GAS L32  actual P12  script P12  module P14  | others: P12->P14: ALO counted ahead (own stop on L31 not known yet); TSU counted ahead (own stop on L32 not known yet)
+2024_15  BOT L43  actual P19  script P19  module P20  | others: P19->P20: ZHO counted ahead (projection off by -4.1s)
+2024_16  GAS L10  actual P18  script P19  module P18  | loss 41.5->22.0s (fallback, n=0): P19->P18
+2024_16  RIC L11  actual P18  script P19  module P18  | loss 41.5->39.6s (race, n=1): P19->P18 | pace 85.04->85.90s/lap: P18->P19 | others: P19->P18: HUL counted behind (projection off by 2.0s)
+2024_16  RUS L11  actual P16  script P17  module P18  | others: P17->P18: RIC counted ahead (own stop on L11 not known yet)
+2024_16  ALO L12  actual P15  script P17  module P18  | loss 34.1->40.1s (race, n=1): P17->P18 | pace 84.89->85.83s/lap: P18->P19 | others: P19->P18: GAS counted behind (stop in progress (out-lap), pending loss off by 18.5s)
+2024_16  NOR L14  actual P8  script P10  module P13  | others: P10->P13: MAG counted ahead (own stop on L14 not known yet); COL counted ahead (projection off by -0.9s); BOT counted ahead (projection off by -1.0s)
+2024_16  HAM L15  actual P10  script P11  module P14  | others: P11->P14: MAG counted ahead (own stop on L14 not known yet); COL counted ahead (own stop on L16 not known yet); ZHO counted ahead (own stop on L15 not known yet)
+2024_16  LEC L15  actual P7  script P9  module P11  | loss 34.1->31.9s (race, n=5): P9->P8 | pace 83.72->84.92s/lap: P8->P9 | others: P9->P11: HAM counted ahead (own stop on L15 not known yet); MAG counted ahead (own stop on L14 not known yet)
+2024_16  COL L16  actual P17  script P17  module P19  | loss 27.4->28.2s (race, n=6): P17->P18 | others: P18->P19: ZHO counted ahead (own stop on L15 not known yet)
+2024_16  PIA L16  actual P4  script P4  module P8  | loss 27.4->31.9s (race, n=5): P4->P6 | pace 83.47->84.75s/lap: P6->P7 | others: P7->P8: HAM counted ahead (own stop on L15 not known yet); OCO counted ahead (projection off by -1.2s); NOR counted behind (stop in progress (out-lap), pending loss off by 7.6s)
+2024_16  ALB L17  actual P13  script P14  module P15  | loss 28.2->24.8s (race, n=7): P14->P13 | others: P13->P15: COL counted ahead (own stop on L16 not known yet); GAS counted ahead (projection off by -1.2s)
+2024_16  VER L22  actual P8  script P7  module P8  | others: P7->P8: OCO counted ahead (projection off by -0.3s)
+2024_16  NOR L32  actual P6  script P7  module P6  | loss 27.4->25.9s (race, n=17): P7->P6
+2024_16  BOT L33  actual P18  script P18  module P19  | others: P18->P19: HUL counted ahead (own stop on L32 not known yet)
+2024_16  RUS L33  actual P12  script P12  module P11  | others: P12->P11: RIC counted behind (projection off by 0.8s)
+2024_16  PIA L38  actual P3  script P5  module P4  | loss 27.1->25.9s (race, n=25): P5->P3 | others: P3->P4: HAM counted ahead (own stop on L37 not known yet)
+2024_17  ALO L11  actual P13  script P14  module P15  | others: P14->P15: COL counted ahead (own stop on L10 not known yet)
+2024_17  HAM L12  actual P18  script P17  module P20  | pace 108.57->109.70s/lap: P17->P18 | others: P18->P20: TSU counted ahead (own stop on L12 not known yet); BOT counted ahead (own stop on L11 not known yet)
+2024_17  RUS L12  actual P12  script P11  module P14  | loss 21.3->22.0s (fallback, n=0): P11->P12 | others: P12->P14: ALO counted ahead (own stop on L11 not known yet); HAM counted ahead (own stop on L12 not known yet)
+2024_17  TSU L12  actual P20  script P19  module P20  | others: P19->P20: BOT counted ahead (own stop on L11 not known yet)
+2024_17  VER L12  actual P9  script P8  module P11  | pace 108.37->108.80s/lap: P8->P9 | others: P9->P11: RUS counted ahead (own stop on L12 not known yet); ALO counted ahead (own stop on L11 not known yet); RIC counted ahead (projection off by -2.9s); BEA counted behind (projection off by 2.6s)
+2024_17  PER L13  actual P6  script P6  module P8  | loss 21.3->20.0s (race, n=1): P6->P5 | pace 107.83->108.72s/lap: P5->P6 | others: P6->P8: VER counted ahead (own stop on L12 not known yet); RUS counted ahead (own stop on L12 not known yet)
+2024_17  BEA L14  actual P16  script P16  module P14  | loss 24.2->20.2s (race, n=3): P16->P14 | pace 108.71->110.12s/lap: P14->P16 | others: P16->P14: ZHO counted behind (projection off by 1.5s); OCO counted behind (projection off by 2.9s)
+2024_17  HUL L15  actual P13  script P13  module P14  | others: P13->P14: BEA counted ahead (own stop on L14 not known yet)
+2024_17  LEC L16  actual P2  script P2  module P3  | others: P2->P3: PIA counted ahead (own stop on L15 not known yet)
+2024_17  ALB L31  actual P11  script P13  module P11  | loss 23.7->22.2s (race, n=14): P13->P12 | others: P12->P11: BEA counted behind (projection off by 1.2s)
+2024_18  ALB L11  actual P19  script P19  module P20  | others: P19->P20: RIC counted ahead (own stop on L10 not known yet)
+2024_18  HAM L17  actual P13  script P13  module P12  | loss 27.2->26.1s (race, n=3): P13->P12
+2024_18  RUS L27  actual P7  script P7  module P8  | others: P7->P8: PER counted ahead (own stop on L28 not known yet)
+2024_18  PER L28  actual P14  script P14  module P17  | pace 98.62->99.71s/lap: P14->P15 | others: P15->P17: MAG counted ahead (own stop on L28 not known yet); RIC counted ahead (projection off by -2.5s)
+2024_18  COL L29  actual P13  script P10  module P15  | pace 98.79->99.70s/lap: P10->P11 | others: P11->P15: PER counted ahead (own stop on L28 not known yet); OCO counted ahead (own stop on L29 not known yet); MAG counted ahead (own stop on L28 not known yet); GAS counted ahead (projection off by -2.0s)
+2024_18  HUL L29  actual P10  script P10  module P14  | others: P10->P14: COL counted ahead (own stop on L29 not known yet); PER counted ahead (own stop on L28 not known yet); OCO counted ahead (own stop on L29 not known yet); MAG counted ahead (own stop on L28 not known yet)
+2024_18  OCO L29  actual P17  script P17  module P18  | others: P17->P18: MAG counted ahead (own stop on L28 not known yet)
+2024_18  NOR L30  actual P1  script P1  module P2  | others: P1->P2: VER counted ahead (own stop on L29 not known yet)
+2024_18  TSU L33  actual P14  script P14  module P16  | others: P14->P16: ZHO counted ahead (own stop on L34 not known yet); BOT counted ahead (own stop on L33 not known yet)
+2024_18  LEC L36  actual P8  script P9  module P8  | others: P9->P8: HUL counted behind (projection off by 1.4s)
+2024_18  GAS L37  actual P19  script P19  module P17  | others: P19->P17: BOT counted behind (projection off by 7.0s); ZHO counted behind (projection off by 8.6s)
+2024_19  LEC L26  actual P3  script P3  module P4  | others: P3->P4: VER counted ahead (own stop on L25 not known yet)
+2024_19  PER L26  actual P11  script P11  module P13  | others: P11->P13: ALO counted ahead (own stop on L26 not known yet); OCO counted ahead (projection off by -0.8s)
+2024_19  HUL L27  actual P12  script P12  module P13  | loss 22.2->21.5s (race, n=7): P12->P11 | pace 99.69->100.66s/lap: P11->P12 | others: P12->P13: ALO counted ahead (own stop on L26 not known yet)
+2024_19  LAW L36  actual P12  script P13  module P12  | loss 22.0->20.9s (race, n=16): P13->P12
+2024_19  MAG L38  actual P13  script P14  module P13  | loss 22.0->20.9s (race, n=17): P14->P13
+2024_19  OCO L51  actual P18  script P18  module P17  | others: P18->P17: BOT counted behind (projection off by 5.0s)
+2024_2   HUL L33  actual P11  script P13  module P11  | pace 94.61->94.23s/lap: P13->P11
+2024_2   NOR L37  actual P8  script P8  module P9  | others: P8->P9: HAM counted ahead (own stop on L36 not known yet)
+2024_20  VER L26  actual P15  script P10  module P11  | pace 81.47->82.45s/lap: P10->P11
+2024_20  GAS L28  actual P15  script P17  module P16  | loss 31.1->30.2s (race, n=1): P17->P16 | pace 82.39->83.76s/lap: P16->P17 | others: P17->P16: STR counted behind (stop in progress (out-lap), pending loss off by 10.2s)
+2024_20  HAM L28  actual P10  script P11  module P15  | pace 81.31->82.89s/lap: P11->P13 | others: P13->P15: GAS counted ahead (own stop on L28 not known yet); ZHO counted ahead (projection off by -2.4s)
+2024_20  MAG L30  actual P12  script P12  module P15  | loss 26.1->30.3s (race, n=3): P12->P15 | pace 81.78->83.85s/lap: P15->P16 | others: P16->P15: GAS counted behind (stop in progress (out-lap), pending loss off by 10.8s)
+2024_20  NOR L30  actual P4  script P4  module P7  | pace 80.70->82.63s/lap: P4->P6 | others: P6->P7: MAG counted ahead (own stop on L30 not known yet); HUL counted ahead (own stop on L29 not known yet); LAW counted behind (projection off by 2.1s)
+2024_20  LEC L31  actual P2  script P2  module P4  | others: P2->P4: NOR counted ahead (own stop on L30 not known yet); RUS counted ahead (own stop on L31 not known yet)
+2024_20  SAI L32  actual P1  script P1  module P2  | others: P1->P2: LEC counted ahead (own stop on L31 not known yet)
+2024_20  ZHO L43  actual P16  script P16  module P17  | others: P16->P17: PER counted ahead (own stop on L43 not known yet)
+2024_20  OCO L48  actual P15  script P16  module P15  | loss 24.5->23.1s (race, n=15): P16->P15
+2024_22  ALB L9   actual P19  script P19  module P20  | others: P19->P20: STR counted ahead (own stop on L9 not known yet)
+2024_22  LEC L9   actual P16  script P16  module P19  | loss 23.7->22.0s (fallback, n=0): P16->P15 | pace 97.45->99.18s/lap: P15->P16 | others: P16->P19: NOR counted ahead (own stop on L9 not known yet); ALB counted ahead (own stop on L9 not known yet); STR counted ahead (own stop on L9 not known yet)
+2024_22  NOR L9   actual P17  script P17  module P19  | others: P17->P19: ALB counted ahead (own stop on L9 not known yet); STR counted ahead (own stop on L9 not known yet)
+2024_22  GAS L10  actual P16  script P16  module P19  | loss 23.7->22.0s (fallback, n=0): P16->P15 | others: P15->P19: TSU counted ahead (own stop on L10 not known yet); PIA counted ahead (own stop on L10 not known yet); ALB counted ahead (own stop on L9 not known yet); STR counted ahead (own stop on L9 not known yet)
+2024_22  PIA L10  actual P18  script P15  module P19  | pace 98.14->100.12s/lap: P15->P18 | others: P18->P19: ALB counted ahead (own stop on L9 not known yet); STR counted ahead (own stop on L9 not known yet); ALO counted behind (projection off by 2.7s)
+2024_22  SAI L10  actual P11  script P7  module P19  | loss 23.7->22.0s (fallback, n=0): P7->P6 | pace 97.52->99.04s/lap: P6->P10 | others: P10->P19: LEC counted ahead (own stop on L9 not known yet); NOR counted ahead (own stop on L9 not known yet); TSU counted ahead (own stop on L10 not known yet); GAS counted ahead (own stop on L10 not known yet); PIA counted ahead (own stop on L10 not known yet); LAW counted ahead (own stop on L11 not known yet); ALB counted ahead (own stop on L9 not known yet); STR counted ahead (own stop on L9 not known yet); COL counted ahead (projection off by -0.4s)
+2024_22  TSU L10  actual P15  script P15  module P19  | others: P15->P19: PIA counted ahead (own stop on L10 not known yet); GAS counted ahead (own stop on L10 not known yet); ALB counted ahead (own stop on L9 not known yet); STR counted ahead (own stop on L9 not known yet)
+2024_22  LAW L11  actual P19  script P18  module P20  | loss 23.7->21.3s (race, n=1): P18->P17 | pace 99.30->100.09s/lap: P17->P18 | others: P18->P20: ZHO counted ahead (own stop on L11 not known yet); STR counted ahead (stop in progress (out-lap), pending loss off by -14.0s)
+2024_22  OCO L11  actual P15  script P16  module P18  | loss 23.7->21.3s (race, n=1): P16->P15 | pace 99.18->100.50s/lap: P15->P16 | others: P16->P18: ZHO counted ahead (own stop on L11 not known yet); LAW counted ahead (own stop on L11 not known yet)
+2024_22  VER L11  actual P5  script P5  module P16  | others: P5->P16: SAI counted ahead (own stop on L10 not known yet); GAS counted ahead (own stop on L10 not known yet); TSU counted ahead (own stop on L10 not known yet); PIA counted ahead (own stop on L10 not known yet); OCO counted ahead (own stop on L11 not known yet); ZHO counted ahead (own stop on L11 not known yet); LAW counted ahead (own stop on L11 not known yet); MAG counted ahead (projection off by -5.8s); BOT counted ahead (projection off by -3.8s); COL counted ahead (projection off by -4.0s); LEC counted ahead (stop in progress (out-lap), pending loss off by -2.6s)
+2024_22  ZHO L11  actual P18  script P17  module P18  | loss 23.7->21.3s (race, n=1): P17->P15 | pace 99.21->100.17s/lap: P15->P17 | others: P17->P18: LAW counted ahead (own stop on L11 not known yet)
+2024_22  OCO L12  actual P19  script P19  module P17  | loss 24.8->22.2s (race, n=5): P19->P18 | pace 99.18->100.50s/lap: P18->P19 | focus on the out-lap of a stop on L11 at sessionNow: the module projects that stop (target L12), the second stop on L12 is not known yet
+2024_22  RUS L12  actual P2  script P2  module P3  | loss 24.8->22.2s (race, n=5): P2->P1 | pace 97.62->98.68s/lap: P1->P2 | others: P2->P3: VER counted ahead (own stop on L11 not known yet)
+2024_22  HAM L13  actual P8  script P9  module P11  | loss 24.8->23.5s (race, n=9): P9->P8 | pace 97.28->99.09s/lap: P8->P13 | others: P13->P11: TSU counted behind (projection off by 1.8s); GAS counted behind (projection off by 1.8s)
+2024_22  HUL L14  actual P15  script P15  module P17  | pace 98.48->100.93s/lap: P15->P18 | others: P18->P17: LAW counted behind (projection off by 1.8s)
+2024_22  COL L16  actual P19  script P19  module P20  | others: P19->P20: GAS counted ahead (retired before L17)
+2024_22  MAG L17  actual P18  script P18  module P19  | loss 24.8->22.9s (race, n=17): P18->P17 | pace 98.92->101.96s/lap: P17->P19
+2024_22  PER L17  actual P14  script P14  module P17  | others: P14->P17: MAG counted ahead (own stop on L17 not known yet); BOT counted ahead (own stop on L17 not known yet); COL counted ahead (own stop on L16 not known yet)
+2024_22  PIA L25  actual P14  script P15  module P17  | loss 25.0->23.7s (race, n=21): P15->P14 | pace 98.14->98.85s/lap: P14->P15 | others: P15->P17: ALB counted ahead (retired before L26); ALO counted ahead (own stop on L24 not known yet)
+2024_22  HAM L27  actual P6  script P7  module P6  | loss 24.8->23.8s (race, n=22): P7->P6
+2024_22  SAI L28  actual P6  script P7  module P8  | loss 24.7->23.7s (race, n=23): P7->P6 | pace 97.52->97.94s/lap: P6->P7 | others: P7->P8: TSU counted ahead (own stop on L29 not known yet)
+2024_22  TSU L29  actual P13  script P13  module P14  | others: P13->P14: STR counted ahead (own stop on L28 not known yet)
+2024_22  NOR L30  actual P7  script P8  module P9  | others: P8->P9: TSU counted ahead (own stop on L29 not known yet)
+2024_22  LEC L31  actual P5  script P5  module P6  | others: P5->P6: NOR counted ahead (own stop on L30 not known yet)
+2024_22  RUS L32  actual P1  script P1  module P2  | others: P1->P2: LEC counted ahead (own stop on L31 not known yet)
+2024_22  HUL L33  actual P11  script P13  module P14  | others: P13->P14: PER counted ahead (own stop on L32 not known yet)
+2024_22  ZHO L34  actual P16  script P17  module P18  | others: P17->P18: BOT counted ahead (own stop on L35 not known yet)
+2024_22  NOR L48  actual P6  script P7  module P6  | pace 98.17->96.01s/lap: P7->P6
+2024_23  HUL L31  actual P16  script P17  module P16  | loss 28.0->26.5s (race, n=3): P17->P16
+2024_24  STR L11  actual P16  script P17  module P16  | loss 43.7->22.0s (fallback, n=0): P17->P16
+2024_24  ALB L12  actual P16  script P18  module P17  | loss 43.7->22.0s (fallback, n=0): P18->P16 | pace 90.00->90.70s/lap: P16->P17
+2024_24  MAG L12  actual P15  script P17  module P16  | loss 43.7->22.0s (fallback, n=0): P17->P13 | others: P13->P16: STR counted ahead (own stop on L11 not known yet); ZHO counted ahead (own stop on L12 not known yet); ALB counted ahead (own stop on L12 not known yet)
+2024_24  ZHO L12  actual P17  script P18  module P17  | loss 43.7->22.0s (fallback, n=0): P18->P16 | others: P16->P17: ALB counted ahead (own stop on L12 not known yet)
+2024_24  ALO L13  actual P12  script P17  module P16  | pace 89.71->91.09s/lap: P17->P18 | others: P18->P16: BOT counted behind (projection off by 0.5s); STR counted behind (stop in progress (out-lap), pending loss off by 20.8s)
+2024_24  HUL L13  actual P11  script P15  module P16  | loss 34.2->43.7s (race, n=1): P15->P17 | others: P17->P16: STR counted behind (stop in progress (out-lap), pending loss off by 20.8s)
+2024_24  GAS L14  actual P9  script P10  module P13  | loss 25.3->33.7s (race, n=2): P10->P12 | pace 89.64->90.13s/lap: P12->P14 | others: P14->P13: STR counted behind (projection off by 1.1s)
+2024_24  LEC L20  actual P8  script P8  module P9  | pace 88.56->89.82s/lap: P8->P9
+2024_24  TSU L22  actual P16  script P17  module P18  | loss 24.8->24.4s (race, n=9): P17->P16 | pace 89.90->91.27s/lap: P16->P18
+2024_24  LAW L23  actual P16  script P15  module P17  | others: P15->P17: TSU counted ahead (own stop on L22 not known yet); DOO counted ahead (own stop on L22 not known yet)
+2024_24  PIA L32  actual P15  script P13  module P14  | others: P13->P14: STR counted ahead (own stop on L32 not known yet)
+2024_24  STR L32  actual P14  script P14  module P15  | others: P14->P15: PIA counted ahead (own stop on L32 not known yet)
+2024_24  HAM L34  actual P7  script P9  module P7  | loss 23.6->22.6s (race, n=16): P9->P7
+2024_3   RIC L5   actual P18  script P18  module P19  | others: P18->P19: VER counted ahead (retired before L6)
+2024_3   ALB L6   actual P16  script P16  module P18  | others: P16->P18: RIC counted ahead (own stop on L5 not known yet); ZHO counted ahead (own stop on L6 not known yet)
+2024_3   ZHO L6   actual P18  script P17  module P18  | pace 83.08->84.05s/lap: P17->P18
+2024_3   HAM L7   actual P13  script P13  module P17  | others: P13->P17: BOT counted ahead (own stop on L8 not known yet); MAG counted ahead (own stop on L7 not known yet); ALB counted ahead (own stop on L6 not known yet); ZHO counted ahead (own stop on L6 not known yet)
+2024_3   MAG L7   actual P15  script P15  module P17  | others: P15->P17: BOT counted ahead (own stop on L8 not known yet); ZHO counted ahead (own stop on L6 not known yet)
+2024_3   RUS L8   actual P10  script P12  module P15  | loss 23.4->22.0s (fallback, n=0): P12->P11 | pace 82.59->83.12s/lap: P11->P12 | others: P12->P15: BOT counted ahead (own stop on L8 not known yet); MAG counted ahead (own stop on L7 not known yet); OCO counted ahead (own stop on L9 not known yet)
+2024_3   STR L8   actual P11  script P13  module P15  | others: P13->P15: BOT counted ahead (own stop on L8 not known yet); MAG counted ahead (own stop on L7 not known yet)
+2024_3   LEC L9   actual P7  script P8  module P13  | others: P8->P13: RUS counted ahead (own stop on L8 not known yet); STR counted ahead (own stop on L8 not known yet); TSU counted ahead (own stop on L9 not known yet); BOT counted ahead (own stop on L8 not known yet); OCO counted ahead (own stop on L9 not known yet)
+2024_3   OCO L9   actual P14  script P14  module P15  | pace 82.91->83.57s/lap: P14->P15
+2024_3   PIA L9   actual P8  script P8  module P13  | others: P8->P13: RUS counted ahead (own stop on L8 not known yet); STR counted ahead (own stop on L8 not known yet); TSU counted ahead (own stop on L9 not known yet); BOT counted ahead (own stop on L8 not known yet); OCO counted ahead (own stop on L9 not known yet)
+2024_3   TSU L9   actual P12  script P12  module P13  | others: P12->P13: BOT counted ahead (own stop on L8 not known yet); OCO counted ahead (own stop on L9 not known yet); HAM counted behind (stop in progress (out-lap), pending loss off by 3.9s)
+2024_3   PER L14  actual P10  script P7  module P10  | loss 21.0->19.7s (race, n=12): P7->P6 | pace 81.85->82.97s/lap: P6->P9 | others: P9->P10: STR counted ahead (projection off by -0.8s)
+2024_3   MAG L33  actual P14  script P14  module P16  | others: P14->P16: BOT counted ahead (projection off by -3.4s); OCO counted ahead (projection off by -2.3s)
+2024_3   LEC L34  actual P4  script P4  module P6  | others: P4->P6: PER counted ahead (own stop on L35 not known yet); ALO counted ahead (projection off by -4.5s)
+2024_3   HUL L35  actual P11  script P12  module P13  | others: P12->P13: ZHO counted ahead (own stop on L35 not known yet)
+2024_3   ZHO L35  actual P17  script P16  module P17  | others: P16->P17: BOT counted ahead (own stop on L36 not known yet)
+2024_3   BOT L36  actual P16  script P16  module P17  | others: P16->P17: ZHO counted ahead (own stop on L36 not known yet)
+2024_3   TSU L36  actual P10  script P10  module P12  | others: P10->P12: HUL counted ahead (own stop on L35 not known yet); ZHO counted ahead (own stop on L35 not known yet)
+2024_3   STR L37  actual P8  script P9  module P10  | others: P9->P10: TSU counted ahead (own stop on L36 not known yet)
+2024_3   NOR L40  actual P3  script P3  module P4  | others: P3->P4: PIA counted ahead (own stop on L39 not known yet)
+2024_3   GAS L41  actual P14  script P14  module P15  | others: P14->P15: OCO counted ahead (own stop on L42 not known yet)
+2024_3   SAI L41  actual P1  script P1  module P2  | others: P1->P2: NOR counted ahead (own stop on L40 not known yet)
+2024_4   HUL L5   actual P18  script P18  module P11  | others: P18->P11: ZHO counted behind (projection off by 29.9s); STR counted behind (projection off by 35.9s); MAG counted behind (projection off by 33.7s); OCO counted behind (projection off by 39.2s); GAS counted behind (projection off by 38.6s); BOT counted behind (own stop on L6 not known yet); SAR counted behind (projection off by 98.1s)
+2024_4   BOT L6   actual P17  script P17  module P12  | pace 98.09->99.46s/lap: P17->P18 | others: P18->P12: ZHO counted behind (own stop on L7 not known yet); MAG counted behind (projection off by 49.9s); STR counted behind (projection off by 54.4s); SAR counted behind (projection off by 50.2s); GAS counted behind (projection off by 57.5s); OCO counted behind (projection off by 59.3s)
+2024_4   TSU L7   actual P16  script P15  module P17  | pace 97.59->99.11s/lap: P15->P17
+2024_4   ZHO L7   actual P18  script P18  module P17  | others: P18->P17: HUL counted behind (stop in progress (out-lap), pending loss off by 10.4s)
+2024_4   NOR L11  actual P9  script P9  module P10  | pace 96.38->97.90s/lap: P9->P10
+2024_4   PIA L12  actual P11  script P9  module P13  | pace 96.98->98.50s/lap: P9->P10 | others: P10->P13: STR counted ahead (own stop on L12 not known yet); BOT counted ahead (projection off by -5.1s); OCO counted ahead (projection off by -1.4s)
+2024_4   ALO L13  actual P8  script P8  module P11  | others: P8->P11: PIA counted ahead (own stop on L12 not known yet); STR counted ahead (own stop on L12 not known yet); BOT counted ahead (projection off by -5.3s)
+2024_4   PER L15  actual P6  script P6  module P7  | others: P6->P7: SAI counted ahead (own stop on L15 not known yet)
+2024_4   VER L16  actual P2  script P2  module P4  | others: P2->P4: PER counted ahead (own stop on L15 not known yet); SAI counted ahead (own stop on L15 not known yet)
+2024_4   BOT L22  actual P15  script P11  module P15  | others: P11->P15: MAG counted ahead (own stop on L22 not known yet); SAR counted ahead (own stop on L22 not known yet); TSU counted ahead (own stop on L22 not known yet); STR counted ahead (own stop on L22 not known yet)
+2024_4   MAG L22  actual P14  script P11  module P15  | others: P11->P15: BOT counted ahead (own stop on L22 not known yet); SAR counted ahead (own stop on L22 not known yet); TSU counted ahead (own stop on L22 not known yet); STR counted ahead (own stop on L22 not known yet)
+2024_4   SAR L22  actual P16  script P11  module P15  | pace 98.13->99.54s/lap: P11->P12 | others: P12->P15: BOT counted ahead (own stop on L22 not known yet); MAG counted ahead (own stop on L22 not known yet); STR counted ahead (own stop on L22 not known yet)
+2024_4   STR L22  actual P12  script P11  module P15  | pace 97.73->99.25s/lap: P11->P12 | others: P12->P15: BOT counted ahead (own stop on L22 not known yet); MAG counted ahead (own stop on L22 not known yet); SAR counted ahead (own stop on L22 not known yet)
+2024_4   TSU L22  actual P11  script P11  module P15  | pace 97.59->99.27s/lap: P11->P12 | others: P12->P15: BOT counted ahead (own stop on L22 not known yet); MAG counted ahead (own stop on L22 not known yet); SAR counted ahead (own stop on L22 not known yet)
+2024_4   HAM L23  actual P9  script P9  module P11  | others: P9->P11: BOT counted ahead (own stop on L22 not known yet); MAG counted ahead (own stop on L22 not known yet)
+2024_4   LEC L26  actual P6  script P6  module P7  | others: P6->P7: NOR counted ahead (own stop on L26 not known yet)
+2024_4   HUL L33  actual P15  script P15  module P17  | others: P15->P17: OCO counted ahead (own stop on L33 not known yet); GAS counted ahead (own stop on L32 not known yet)
+2024_4   OCO L33  actual P16  script P16  module P17  | others: P16->P17: GAS counted ahead (own stop on L32 not known yet)
+2024_4   PER L33  actual P5  script P5  module P7  | others: P5->P7: ALO counted ahead (own stop on L33 not known yet); PIA counted ahead (own stop on L32 not known yet)
+2024_4   SAR L34  actual P15  script P15  module P16  | others: P15->P16: OCO counted ahead (own stop on L33 not known yet)
+2024_4   STR L34  actual P13  script P14  module P16  | others: P14->P16: SAR counted ahead (own stop on L34 not known yet); OCO counted ahead (own stop on L33 not known yet)
+2024_4   VER L34  actual P2  script P2  module P3  | others: P2->P3: PER counted ahead (own stop on L33 not known yet)
+2024_5   HUL L8   actual P18  script P18  module P20  | others: P18->P20: TSU counted ahead (own stop on L8 not known yet); ZHO counted ahead (own stop on L8 not known yet)
+2024_5   TSU L8   actual P19  script P19  module P20  | others: P19->P20: ZHO counted ahead (own stop on L8 not known yet)
+2024_5   ALB L9   actual P18  script P15  module P20  | pace 101.75->103.36s/lap: P15->P17 | others: P17->P20: TSU counted ahead (own stop on L8 not known yet); HAM counted ahead (own stop on L9 not known yet); ZHO counted ahead (own stop on L8 not known yet)
+2024_5   BOT L9   actual P15  script P14  module P20  | pace 102.58->103.15s/lap: P14->P15 | others: P15->P20: OCO counted ahead (own stop on L9 not known yet); ALB counted ahead (own stop on L9 not known yet); TSU counted ahead (own stop on L8 not known yet); HAM counted ahead (own stop on L9 not known yet); ZHO counted ahead (own stop on L8 not known yet)
+2024_5   HAM L9   actual P19  script P17  module P20  | pace 101.49->103.50s/lap: P17->P19 | others: P19->P20: ZHO counted ahead (own stop on L8 not known yet)
+2024_5   OCO L9   actual P16  script P14  module P20  | pace 101.65->103.21s/lap: P14->P16 | others: P16->P20: ALB counted ahead (own stop on L9 not known yet); TSU counted ahead (own stop on L8 not known yet); HAM counted ahead (own stop on L9 not known yet); ZHO counted ahead (own stop on L8 not known yet)
+2024_5   STR L9   actual P13  script P13  module P20  | others: P13->P20: BOT counted ahead (own stop on L9 not known yet); HUL counted ahead (own stop on L8 not known yet); OCO counted ahead (own stop on L9 not known yet); ALB counted ahead (own stop on L9 not known yet); TSU counted ahead (own stop on L8 not known yet); HAM counted ahead (own stop on L9 not known yet); ZHO counted ahead (own stop on L8 not known yet)
+2024_5   ALO L11  actual P9  script P8  module P11  | pace 100.64->103.08s/lap: P8->P9 | others: P9->P11: RUS counted ahead (own stop on L11 not known yet); GAS counted ahead (own stop on L11 not known yet)
+2024_5   GAS L11  actual P20  script P19  module P17  | loss 25.1->22.3s (race, n=3): P19->P16 | pace 101.37->103.49s/lap: P16->P19 | others: P19->P17: TSU counted behind (projection off by 4.9s); HAM counted behind (stop in progress (out-lap), pending loss off by 6.1s)
+2024_5   RUS L11  actual P10  script P10  module P12  | loss 25.1->22.3s (race, n=3): P10->P9 | pace 100.78->103.11s/lap: P9->P10 | others: P10->P12: GAS counted ahead (own stop on L11 not known yet); SAR counted ahead (own stop on L12 not known yet)
+2024_5   SAR L12  actual P19  script P19  module P20  | others: P19->P20: GAS counted ahead (own stop on L12 not known yet)
+2024_5   VER L13  actual P3  script P3  module P5  | loss 25.6->22.7s (race, n=8): P3->P2 | pace 99.56->101.32s/lap: P2->P3 | others: P3->P5: PER counted ahead (own stop on L13 not known yet); PIA counted ahead (projection off by -1.0s)
+2024_5   RIC L14  actual P18  script P19  module P18  | loss 25.1->22.7s (race, n=11): P19->P18
+2024_5   PIA L16  actual P9  script P9  module P10  | others: P9->P10: HUL counted ahead (projection off by -1.4s)
+2024_5   SAI L17  actual P9  script P9  module P11  | pace 100.60->102.69s/lap: P9->P10 | others: P10->P11: BOT counted ahead (projection off by -1.2s)
+2024_6   SAR L11  actual P19  script P19  module P20  | others: P19->P20: BOT counted ahead (own stop on L11 not known yet)
+2024_6   STR L11  actual P17  script P17  module P20  | others: P17->P20: ALB counted ahead (own stop on L10 not known yet); SAR counted ahead (own stop on L11 not known yet); BOT counted ahead (own stop on L11 not known yet)
+2024_6   GAS L12  actual P16  script P16  module P19  | pace 93.17->94.29s/lap: P16->P18 | others: P18->P19: SAR counted ahead (own stop on L11 not known yet); BOT counted ahead (own stop on L11 not known yet); ALB counted behind (stop in progress (out-lap), pending loss off by 2.6s)
+2024_6   HUL L12  actual P15  script P15  module P19  | pace 93.11->94.76s/lap: P15->P17 | others: P17->P19: SAR counted ahead (own stop on L11 not known yet); BOT counted ahead (own stop on L11 not known yet)
+2024_7   BOT L8   actual P18  script P17  module P20  | others: P17->P20: ALB counted ahead (own stop on L8 not known yet); GAS counted ahead (own stop on L8 not known yet); ALO counted ahead (own stop on L7 not known yet)
+2024_7   GAS L8   actual P17  script P17  module P20  | others: P17->P20: ALB counted ahead (own stop on L8 not known yet); BOT counted ahead (own stop on L8 not known yet); ALO counted ahead (own stop on L7 not known yet)
+2024_7   TSU L12  actual P15  script P15  module P16  | others: P15->P16: RIC counted ahead (own stop on L11 not known yet)
+2024_7   RUS L21  actual P10  script P9  module P10  | others: P9->P10: OCO counted ahead (projection off by -0.6s)
+2024_7   NOR L22  actual P7  script P6  module P7  | pace 80.81->81.79s/lap: P6->P7
+2024_7   VER L24  actual P4  script P4  module P5  | others: P4->P5: PIA counted ahead (own stop on L23 not known yet)
+2024_7   LEC L25  actual P6  script P5  module P6  | pace 80.93->81.76s/lap: P5->P6
+2024_7   SAI L27  actual P6  script P6  module P8  | others: P6->P8: HAM counted ahead (own stop on L27 not known yet); RUS counted ahead (projection off by -1.1s)
+2024_7   MAG L37  actual P17  script P17  module P16  | others: P17->P16: ZHO counted behind (projection off by 3.7s)
+2024_7   PER L37  actual P11  script P11  module P13  | others: P11->P13: STR counted ahead (own stop on L37 not known yet); MAG counted ahead (own stop on L37 not known yet)
+2024_7   STR L37  actual P13  script P13  module P14  | others: P13->P14: MAG counted ahead (own stop on L37 not known yet)
+2024_7   RUS L52  actual P7  script P7  module P8  | others: P7->P8: PER counted ahead (projection off by -1.2s)
+2024_9   HUL L12  actual P19  script P18  module P19  | pace 87.21->94.67s/lap: P18->P20 | others: P20->P19: SAR counted behind (projection off by 9.7s)
+2024_9   HAM L43  actual P5  script P10  module P15  | pace 86.45->84.91s/lap: P10->P9 | others: P9->P15: ALB counted ahead (own stop on L44 not known yet); RIC counted ahead (own stop on L43 not known yet); BOT counted ahead (own stop on L42 not known yet); PER counted ahead (own stop on L43 not known yet); SAI counted ahead (own stop on L43 not known yet); HUL counted ahead (own stop on L44 not known yet)
+2024_9   RIC L43  actual P11  script P17  module P16  | others: P17->P16: ZHO counted ahead (own stop on L44 not known yet); BOT counted behind (own stop on L43 not known yet); MAG counted behind (stop in progress (out-lap), pending loss off by 17.8s)
+2024_9   ALB L44  actual P10  script P17  module P13  | others: P17->P13: ZHO counted ahead (own stop on L44 not known yet); GAS counted behind (projection off by 9.9s); RIC counted behind (own stop on L44 not known yet); BOT counted behind (stop in progress (out-lap), pending loss off by 12.6s); PER counted behind (own stop on L44 not known yet); SAI counted behind (own stop on L44 not known yet)
+2024_9   HUL L44  actual P14  script P17  module P18  | others: P17->P18: ZHO counted ahead (own stop on L44 not known yet)
+2024_9   OCO L44  actual P9  script P17  module P12  | others: P17->P12: ZHO counted ahead (own stop on L44 not known yet); MAG counted behind (projection off by 4.9s); GAS counted behind (projection off by 9.9s); RIC counted behind (own stop on L44 not known yet); BOT counted behind (stop in progress (out-lap), pending loss off by 12.6s); PER counted behind (own stop on L44 not known yet); SAI counted behind (own stop on L44 not known yet)
+2024_9   PIA L44  actual P4  script P7  module P13  | loss 40.8->39.1s (race, n=2): P7->P6 | others: P6->P13: TSU counted ahead (own stop on L44 not known yet); STR counted ahead (own stop on L44 not known yet); OCO counted ahead (own stop on L44 not known yet); ALB counted ahead (own stop on L44 not known yet); RIC counted ahead (own stop on L43 not known yet); PER counted ahead (own stop on L43 not known yet); SAI counted ahead (own stop on L43 not known yet); HUL counted ahead (own stop on L44 not known yet); HAM counted behind (own stop on L44 not known yet)
+2024_9   STR L44  actual P8  script P17  module P14  | others: P17->P14: ZHO counted ahead (own stop on L44 not known yet); MAG counted behind (projection off by 4.9s); GAS counted behind (projection off by 9.9s); RIC counted behind (own stop on L44 not known yet); BOT counted behind (stop in progress (out-lap), pending loss off by 12.6s)
+2024_9   TSU L44  actual P7  script P17  module P15  | pace 87.04->85.71s/lap: P17->P15
+2024_9   RUS L45  actual P3  script P4  module P8  | loss 21.7->39.2s (race, n=2): P4->P6 | pace 86.70->84.56s/lap: P6->P5 | others: P5->P8: ALO counted ahead (own stop on L44 not known yet); TSU counted ahead (own stop on L44 not known yet); STR counted ahead (own stop on L44 not known yet); OCO counted ahead (own stop on L44 not known yet); ALB counted ahead (own stop on L44 not known yet); PIA counted behind (own stop on L45 not known yet); HAM counted behind (stop in progress (out-lap), pending loss off by 13.1s)
+2024_9   VER L45  actual P2  script P2  module P8  | loss 21.7->39.2s (race, n=2): P2->P5 | others: P5->P8: ALO counted ahead (own stop on L44 not known yet); TSU counted ahead (own stop on L44 not known yet); STR counted ahead (own stop on L44 not known yet); OCO counted ahead (own stop on L44 not known yet); ALB counted ahead (own stop on L44 not known yet); PIA counted behind (own stop on L45 not known yet); HAM counted behind (stop in progress (out-lap), pending loss off by 13.1s)
+2024_9   NOR L47  actual P2  script P4  module P2  | loss 20.3->17.2s (race, n=13): P4->P3 | pace 85.74->83.67s/lap: P3->P2
+2025_16  BOR L20  actual P17  script P15  module P17  | others: P15->P17: ALO counted ahead (own stop on L20 not known yet); TSU counted ahead (own stop on L19 not known yet)
+2025_16  ANT L28  actual P14  script P15  module P14  | loss 26.4->25.2s (race, n=5): P15->P14
+2025_16  GAS L49  actual P17  script P17  module P18  | others: P17->P18: STR counted ahead (own stop on L49 not known yet)
+2025_21  BEA L17  actual P15  script P15  module P17  | pace 74.39->75.66s/lap: P15->P16 | others: P16->P17: SAI counted ahead (own stop on L17 not known yet)
+2025_21  GAS L18  actual P16  script P16  module P17  | pace 74.78->75.95s/lap: P16->P18 | others: P18->P17: HAM counted behind (projection off by 2.4s)
+2025_21  HAD L18  actual P15  script P14  module P17  | pace 74.75->75.87s/lap: P14->P15 | others: P15->P17: GAS counted ahead (own stop on L18 not known yet); SAI counted ahead (own stop on L17 not known yet)
+2025_21  LAW L19  actual P16  script P17  module P16  | pace 75.27->75.96s/lap: P17->P18 | others: P18->P16: HAM counted behind (projection off by 0.7s); SAI counted behind (stop in progress (out-lap), pending loss off by 4.5s)
+2025_21  ANT L21  actual P11  script P10  module P11  | pace 74.27->75.29s/lap: P10->P11
+2025_21  COL L29  actual P16  script P16  module P17  | pace 74.62->76.06s/lap: P16->P18 | others: P18->P17: TSU counted behind (projection off by 4.8s)
+2025_21  STR L29  actual P18  script P18  module P17  | loss 23.4->22.1s (race, n=8): P18->P17 | pace 74.84->75.88s/lap: P17->P18 | others: P18->P17: TSU counted behind (projection off by 4.8s)
+2025_21  RUS L34  actual P6  script P6  module P8  | others: P6->P8: VER counted ahead (own stop on L34 not known yet); ALB counted ahead (own stop on L35 not known yet)
+2025_21  HAD L37  actual P17  script P17  module P16  | others: P17->P16: ALB counted behind (stop in progress (out-lap), pending loss off by 7.7s)
+2025_21  ALO L46  actual P16  script P17  module P16  | loss 23.0->22.1s (race, n=23): P17->P16 | pace 74.65->75.47s/lap: P16->P17 | others: P17->P16: COL counted behind (projection off by 4.6s)
+2025_21  OCO L47  actual P14  script P14  module P16  | others: P14->P16: ALO counted ahead (own stop on L46 not known yet); TSU counted ahead (own stop on L47 not known yet)
+2025_21  ALB L55  actual P15  script P15  module P16  | others: P15->P16: STR counted ahead (own stop on L54 not known yet)
+2025_24  HAM L8   actual P18  script P18  module P20  | pace 89.30->90.25s/lap: P18->P19 | others: P19->P20: ALB counted ahead (own stop on L8 not known yet)
+2025_24  BEA L14  actual P19  script P19  module P20  | others: P19->P20: GAS counted ahead (own stop on L13 not known yet)
+2025_24  HAD L14  actual P18  script P18  module P20  | loss 21.9->20.3s (race, n=3): P18->P17 | pace 90.11->90.63s/lap: P17->P18 | others: P18->P20: BEA counted ahead (own stop on L14 not known yet); GAS counted ahead (own stop on L13 not known yet)
+2025_24  RUS L14  actual P13  script P13  module P17  | others: P13->P17: HAD counted ahead (own stop on L14 not known yet); BEA counted ahead (own stop on L14 not known yet); GAS counted ahead (own stop on L13 not known yet); COL counted ahead (own stop on L15 not known yet)
+2025_24  BOR L15  actual P15  script P15  module P18  | others: P15->P18: HAD counted ahead (own stop on L14 not known yet); BEA counted ahead (own stop on L14 not known yet); COL counted ahead (own stop on L15 not known yet)
+2025_24  LEC L16  actual P10  script P9  module P12  | loss 22.8->21.2s (race, n=4): P9->P7 | pace 88.47->90.00s/lap: P7->P10 | others: P10->P12: ALO counted ahead (own stop on L16 not known yet); BOR counted ahead (own stop on L15 not known yet)
+2025_24  NOR L16  actual P9  script P5  module P11  | pace 88.23->89.75s/lap: P5->P7 | others: P7->P11: LEC counted ahead (own stop on L16 not known yet); ALO counted ahead (own stop on L16 not known yet); BOR counted ahead (own stop on L15 not known yet); SAI counted ahead (projection off by -1.0s)
+2025_24  OCO L19  actual P17  script P17  module P18  | others: P17->P18: SAI counted ahead (own stop on L18 not known yet)
+2025_24  LAW L21  actual P20  script P19  module P20  | pace 89.71->91.43s/lap: P19->P20
+2025_24  TSU L32  actual P18  script P17  module P19  | others: P17->P19: HAM counted ahead (own stop on L31 not known yet); ANT counted ahead (own stop on L32 not known yet)
+2025_24  GAS L40  actual P19  script P19  module P20  | others: P19->P20: COL counted ahead (own stop on L40 not known yet)
+2025_24  NOR L40  actual P3  script P3  module P4  | others: P3->P4: LEC counted ahead (own stop on L39 not known yet)
+2025_24  PIA L41  actual P2  script P2  module P3  | others: P2->P3: NOR counted ahead (own stop on L40 not known yet)
+2025_24  STR L42  actual P17  script P17  module P18  | others: P17->P18: HUL counted ahead (own stop on L42 not known yet)
+2025_6   OCO L23  actual P16  script P15  module P16  | pace 91.84->93.48s/lap: P15->P16
+2025_6   ANT L25  actual P9  script P9  module P10  | others: P9->P10: SAI counted ahead (own stop on L25 not known yet)
+2025_6   ALB L26  actual P9  script P9  module P10  | loss 20.2->18.0s (race, n=4): P9->P8 | pace 91.36->92.40s/lap: P8->P9 | others: P9->P10: SAI counted ahead (own stop on L25 not known yet)
+2025_6   VER L26  actual P5  script P6  module P9  | loss 20.2->18.0s (race, n=4): P6->P5 | pace 91.37->92.52s/lap: P5->P6 | others: P6->P9: ANT counted ahead (own stop on L25 not known yet); ALB counted ahead (own stop on L26 not known yet); SAI counted ahead (own stop on L25 not known yet)
+2025_6   HUL L36  actual P14  script P16  module P14  | loss 19.9->17.9s (race, n=8): P16->P15 | others: P15->P14: ALO counted behind (projection off by 1.3s)
+2025_8   COL L13  actual P19  script P19  module P18  | others: P19->P18: HUL counted behind (own stop on L13 not known yet)
+2025_8   HAD L14  actual P8  script P8  module P10  | pace 77.24->79.55s/lap: P8->P11 | others: P11->P10: BEA counted ahead (projection off by -11.3s); BOR counted ahead (projection off by -8.0s); ALB counted behind (projection off by 3.4s); LAW counted behind (projection off by 4.3s); SAI counted behind (projection off by 3.9s)
+2025_8   OCO L16  actual P8  script P8  module P7  | others: P8->P7: HAD counted behind (stop in progress (out-lap), pending loss off by 13.2s)
+2025_8   STR L17  actual P18  script P18  module P19  | others: P18->P19: BEA counted ahead (own stop on L17 not known yet)
+2025_8   NOR L19  actual P3  script P3  module P5  | others: P3->P5: PIA counted ahead (own stop on L20 not known yet); HAM counted ahead (own stop on L18 not known yet)
+2025_8   BOR L26  actual P18  script P18  module P19  | others: P18->P19: COL counted ahead (own stop on L26 not known yet)
+2025_8   OCO L28  actual P10  script P10  module P11  | others: P10->P11: SAI counted ahead (projection off by -7.1s)
+2025_8   LAW L40  actual P8  script P8  module P9  | others: P8->P9: ALB counted ahead (own stop on L40 not known yet)
+2025_8   SAI L48  actual P9  script P10  module P9  | pace 77.06->76.06s/lap: P10->P9
+2025_8   LEC L49  actual P3  script P3  module P4  | others: P3->P4: PIA counted ahead (own stop on L48 not known yet)
+2025_8   RUS L53  actual P10  script P13  module P12  | pace 78.48->76.09s/lap: P13->P11 | others: P11->P12: HUL counted ahead (projection off by -9.6s)
+2025_8   SAI L53  actual P9  script P9  module P10  | others: P9->P10: RUS counted ahead (own stop on L53 not known yet)
+2025_8   RUS L68  actual P11  script P13  module P11  | loss 19.2->19.0s (race, n=30): P13->P12 | pace 78.48->73.92s/lap: P12->P11
+2025_8   ANT L69  actual P18  script P18  module P17  | others: P18->P17: STR counted behind (projection off by 8.1s)

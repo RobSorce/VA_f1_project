@@ -191,7 +191,7 @@ export function createCommandRegistry() {
       id: 'jump-to-lap',
       label: 'Jump to Lap',
       category: 'Actions',
-      shortcut: 'L',
+      // no key label: no key opens this sub-menu (L toggles the leaderboard)
       icon: 'hash',
       action: null, // handled by sub-commands
       getSubCommands: () => {
@@ -224,9 +224,11 @@ export function createCommandRegistry() {
     },
     {
       id: 'toggle-mode',
-      label: 'Close All Overlays',
+      // closeAllOverlays: every window and the docked layout closed, the Pit
+      // Wall on screen. No key label: P switches Pit Wall / Analysis and
+      // keeps the windows.
+      label: 'Back to Pit Wall (close every window)',
       category: 'Navigation',
-      shortcut: 'P',
       icon: 'layout',
       action: () => { getState().closeAllOverlays(); getState().closeCommandPalette(); },
     },
@@ -310,7 +312,7 @@ export function createCommandRegistry() {
     },
     {
       id: 'open-tyres-shortcut',
-      label: 'Open Tyres (Degradation & Management)',
+      label: 'Open Tyres (Tyre Health & Pace Retention)',
       category: 'Analytics',
       shortcut: 'T',
       icon: 'circle',
@@ -320,7 +322,8 @@ export function createCommandRegistry() {
       id: 'open-strategy-ai',
       label: 'Strategy & AI Assistant',
       category: 'Analytics',
-      shortcut: 'S',
+      // opens the AI Strategist (key 7); S opens the Strategy Timeline
+      shortcut: '7',
       icon: 'layers',
       action: () => openOverlayTab(getState(), 'ai'),
     },

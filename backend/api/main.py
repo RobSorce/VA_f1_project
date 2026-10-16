@@ -339,7 +339,7 @@ _season_published_cache: Dict[int, Any] = {}
 _SEASON_RECHECK_S = 3600
 # How long a season check waits for _fastf1_lock. A first-time session load holds the lock
 # for minutes; waiting on it (with a 30 s timeout per season) made /api/seasons take 60 s
-# and then leave out the current season (verify_misc/v_b10_seasons.txt)
+# and then leave out the current season (backend/tests/test_seasons.py)
 _SEASON_LOCK_WAIT_S = 2.0
 
 

@@ -1,0 +1,154 @@
+# d3ports lane: contrast and CVD of the strategy views' marks
+Surfaces: page #0f0f1e, panel #131326, raised #1a1f33, elevated #242938
+Distinguishable: closest CIEDE2000 pair >= 10 (Machado 2009 severity 1.0); text >= 4.5:1, marks >= 3:1
+Font floors (colors.js FONT_FLOOR_PX): data 11 px, label 10 px
+
+## Diverging pair (Sector Delta bars, Undercut sweep, effect bars, places / verdicts)
+   cue: sign + / − and ▲ / ▼ in every label and legend; words (ahead / behind, better / worse)
+   better                     #5DA5E8                sim P/D/T #88A7EB #769AE7 #00B5BD
+   worse                      #F0883E                sim P/D/T #A69435 #BFAC3D #FF7278
+   normal        closest pair better / worse                 dE2000 47.2
+   protanopia    closest pair better / worse                 dE2000 49.6
+   deuteranopia  closest pair better / worse                 dE2000 53.4
+   tritanopia    closest pair better / worse                 dE2000 56.3
+   smallest pair over all vision types: 47.2 -> PASS (distinguishable on colour alone)
+
+   contrast (text drawn in it and marks):
+   better                     #5DA5E8                text >= 4.5: page 7.24, panel 6.97, raised 6.22, elevated 5.53 -> PASS
+   worse                      #F0883E                text >= 4.5: page 7.49, panel 7.22, raised 6.44, elevated 5.72 -> PASS
+   neutral (no change)        #A3A7B7                text >= 4.5: page 7.92, panel 7.63, raised 6.81, elevated 6.05 -> PASS
+
+## Severity (risk chips, alerts, insights, battle urgency)
+   cue: glyph !! high, ! medium, i low and the word in every chip
+   high                       #F0883E                sim P/D/T #A69435 #BFAC3D #FF7278
+   medium                     #FDE047                sim P/D/T #F6DB2D #FEE451 #FFCFC2
+   low                        #C9CCD6                sim P/D/T #C9CDD7 #C9CCD6 #C6CECF
+   normal        closest pair high / medium                  dE2000 31.3
+   protanopia    closest pair high / medium                  dE2000 20.5
+   deuteranopia  closest pair high / medium                  dE2000 14.5
+   tritanopia    closest pair medium / low                   dE2000 21.2
+   smallest pair over all vision types: 14.5 -> PASS (distinguishable on colour alone)
+
+   severity high              #F0883E                text >= 4.5: page 7.49, panel 7.22, raised 6.44, elevated 5.72 -> PASS
+   severity medium            #FDE047                text >= 4.5: page 14.38, panel 13.87, raised 12.37, elevated 10.99 -> PASS
+   severity low               #C9CCD6                text >= 4.5: page 11.82, panel 11.40, raised 10.17, elevated 9.03 -> PASS
+   badge text on a severity fill (battle badge, insight icon): contrastText
+   on high                    #000000 on #F0883E: 8.30 -> PASS
+   on medium                  #000000 on #FDE047: 15.93 -> PASS
+   on low                     #000000 on #C9CCD6: 13.09 -> PASS
+
+## Monte Carlo badge levels (overtake probabilities)
+   cue: glyph ●● two badges, ● one badge, ○ none
+   two                        #FFFFFF                sim P/D/T #FFFFFF #FFFFFF #FFFFFF
+   one                        #FDE047                sim P/D/T #F6DB2D #FEE451 #FFCFC2
+   none                       #A3A7B7                sim P/D/T #A3A8B8 #A2A7B7 #9FAAAC
+   normal        closest pair two / none                     dE2000 22.1
+   protanopia    closest pair two / none                     dE2000 21.9
+   deuteranopia  closest pair two / none                     dE2000 22.1
+   tritanopia    closest pair two / one                      dE2000 18.1
+   smallest pair over all vision types: 18.1 -> PASS (distinguishable on colour alone)
+
+   level two                  #FFFFFF                text >= 4.5: page 18.96, panel 18.28, raised 16.31, elevated 14.49 -> PASS
+   level one                  #FDE047                text >= 4.5: page 14.38, panel 13.87, raised 12.37, elevated 10.99 -> PASS
+   level none                 #A3A7B7                text >= 4.5: page 7.92, panel 7.63, raised 6.81, elevated 6.05 -> PASS
+   podium P label / gold      #FDE047                text >= 4.5: page 14.38, panel 13.87, raised 12.37, elevated 10.99 -> PASS
+
+## Places gained / lost (placesMark)
+   change  2: ▲ gains      #5DA5E8
+   change  0: • no change  #A3A7B7
+   change -3: ▼ loses      #F0883E
+
+## Tinted chips (tintedChip: text lifted to 4.5:1 on the tint)
+   verdict ahead (0.10)       text #5DA5E8 6.02, border #5DA5E8 6.02 -> PASS
+   verdict behind (0.10)      text #F0883E 6.28, border #F0883E 6.28 -> PASS
+   flag green (0.14)          text #34D399 7.37, border #34D399 7.37 -> PASS
+   flag yellow (0.14)         text #FACC15 8.90, border #FACC15 8.90 -> PASS
+   flag safetyCar (0.14)      text #F59E0B 6.79, border #F59E0B 6.79 -> PASS
+   flag red (0.14)            text #F87171 5.45, border #F87171 5.45 -> PASS
+   flag blue (0.14)           text #60A5FA 5.78, border #60A5FA 5.78 -> PASS
+   flag chequered (0.14)      text #FFFFFF 12.20, border #FFFFFF 12.20 -> PASS
+   severity high (0.15)       text #F0883E 5.07, border #F0883E 5.07 -> PASS
+   severity medium (0.15)     text #FDE047 8.42, border #FDE047 8.42 -> PASS
+   severity low (0.15)        text #C9CCD6 7.14, border #C9CCD6 7.14 -> PASS
+
+## Race Control categories (feed badges, filter chips)
+   cue: glyph F / D / S / C / · / P / ⚖ (Stewards share the Penalty colour) and the category label
+   Flag                       #FACC15                sim P/D/T #E4C900 #F0D629 #FFBAAE
+   Drs                        #60A5FA                sim P/D/T #81AAFE #6C9CF8 #00B8C4
+   SafetyCar                  #F59E0B                sim P/D/T #BBA400 #D0B914 #FF8887
+   CarEvent                   #CC79A7                sim P/D/T #808BA9 #9498A5 #D6788A
+   Other                      #A3A7B7                sim P/D/T #A3A8B8 #A2A7B7 #9FAAAC
+   Penalty                    #F87171                sim P/D/T #918A70 #B3A66E #FF5B72
+   normal        closest pair Flag / SafetyCar               dE2000 15.6
+   protanopia    closest pair Flag / SafetyCar               dE2000 10.3
+   deuteranopia  closest pair CarEvent / Other               dE2000 4.8
+   tritanopia    closest pair SafetyCar / Penalty            dE2000 9.0
+   smallest pair over all vision types: 4.8 -> below 10: carried by the cue
+
+   badge glyph drawn in textColor(category, panel):
+   glyph Flag                 #FACC15                text >= 4.5: page 12.38, panel 11.94, raised 10.65, elevated 9.46 -> PASS
+   glyph Drs                  #60A5FA                text >= 4.5: page 7.46, panel 7.19, raised 6.41, elevated 5.70 -> PASS
+   glyph SafetyCar            #F59E0B                text >= 4.5: page 8.83, panel 8.51, raised 7.59, elevated 6.75 -> PASS
+   glyph CarEvent             #CC79A7                text >= 4.5: page 6.20, panel 5.97, raised 5.33, elevated 4.73 -> PASS
+   glyph Other                #A3A7B7                text >= 4.5: page 7.92, panel 7.63, raised 6.81, elevated 6.05 -> PASS
+   glyph Penalty              #F87171                text >= 4.5: page 6.86, panel 6.61, raised 5.90, elevated 5.24 -> PASS
+   row accent bar markColor(category, panel):
+   bar Flag                   #FACC15 on panel 11.94 -> PASS
+   bar Drs                    #60A5FA on panel 7.19 -> PASS
+   bar SafetyCar              #F59E0B on panel 8.51 -> PASS
+   bar CarEvent               #CC79A7 on panel 5.97 -> PASS
+   bar Other                  #A3A7B7 on panel 7.63 -> PASS
+   bar Penalty                #F87171 on panel 6.61 -> PASS
+
+## Cross-Race Analysis forest marks
+   cue: the "above random" label under the feature name
+   aboveRandom                #8AB4F8                sim P/D/T #9BB8FB #8EAEF7 #60C3CC
+   withinRandom               #C9CCD6                sim P/D/T #C9CDD7 #C9CCD6 #C6CECF
+   normal        closest pair aboveRandom / withinRandom     dE2000 18.4
+   protanopia    closest pair aboveRandom / withinRandom     dE2000 16.6
+   deuteranopia  closest pair aboveRandom / withinRandom     dE2000 18.8
+   tritanopia    closest pair aboveRandom / withinRandom     dE2000 19.0
+   smallest pair over all vision types: 16.6 -> PASS (distinguishable on colour alone)
+
+   above random (g, interval) #8AB4F8                text >= 4.5: page 9.00, panel 8.67, raised 7.74, elevated 6.88 -> PASS
+   within random (g, interval) #C9CCD6                text >= 4.5: page 11.82, panel 11.40, raised 10.17, elevated 9.03 -> PASS
+
+## Neutral chart marks (>= 3:1)
+   MC share bars (muted)      #A3A7B7                mark >= 3: page 7.92, panel 7.63, raised 6.81, elevated 6.05 -> PASS
+   MC P5-P95 range line       #C9CCD6                mark >= 3: page 11.82, panel 11.40, raised 10.17, elevated 9.03 -> PASS
+   MC P label diamond         #FFFFFF                mark >= 3: page 18.96, panel 18.28, raised 16.31, elevated 14.49 -> PASS
+   zero line / lap total      #FFFFFF                mark >= 3: page 18.96, panel 18.28, raised 16.31, elevated 14.49 -> PASS
+   brush accent (buttons, links) #8AB4F8                text >= 4.5: page 9.00, panel 8.67, raised 7.74, elevated 6.88 -> PASS
+   predicted accent (pit loss) #F5A623                text >= 4.5: page 9.36, panel 9.02, raised 8.05, elevated 7.15 -> PASS
+   Run Simulation button       #000000 on #8AB4F8: 9.96 -> PASS
+   (grid rgba(255,255,255,0.06), axis rgba(255,255,255,0.30), rules rgba(255,255,255,0.45): not data, no floor)
+
+## Stint strips (Simulator, PCA patterns, Strategy Engineer, tyre mix): compound fill and letter
+   SOFT          #FF3333 letter 'S' #000000 5.77:1, fill on the darkest-to-lightest surface >= 3.98:1 -> PASS
+   MEDIUM        #FFC300 letter 'M' #000000 13.06:1, fill on the darkest-to-lightest surface >= 9.01:1 -> PASS
+   HARD          #EEEEEE letter 'H' #000000 18.10:1, fill on the darkest-to-lightest surface >= 12.49:1 -> PASS
+   INTERMEDIATE  #39B54A letter 'I' #000000 7.88:1, fill on the darkest-to-lightest surface >= 5.44:1 -> PASS
+   WET           #00AAFF letter 'W' #000000 8.19:1, fill on the darkest-to-lightest surface >= 5.65:1 -> PASS
+   UNKNOWN       #888888 letter '?' #000000 5.92:1, fill on the darkest-to-lightest surface >= 4.09:1 -> PASS
+## FIA compounds (strips, tyre letters)
+   cue: the compound letter S / M / H / I / W on every segment and chip
+   SOFT                       #FF3333                sim P/D/T #766A30 #A79628 #FF0037
+   MEDIUM                     #FFC300                sim P/D/T #DDC300 #ECD21C #FFAFA6
+   HARD                       #EEEEEE                sim P/D/T #EEEEEE #EEEEEE #EEEEEE
+   INTERMEDIATE               #39B54A                sim P/D/T #B8A53F #A99A53 #0CB19E
+   WET                        #00AAFF                sim P/D/T #81ADFF #6099FD #00BFC9
+   normal        closest pair MEDIUM / HARD                  dE2000 30.1
+   protanopia    closest pair MEDIUM / INTERMEDIATE          dE2000 10.6
+   deuteranopia  closest pair SOFT / INTERMEDIATE            dE2000 5.7
+   tritanopia    closest pair INTERMEDIATE / WET             dE2000 11.3
+   smallest pair over all vision types: 5.7 -> below 10: carried by the cue
+
+## Row tints under text (selected / hovered rows)
+   selected row 0.06 on panel secondary text 9.84 -> PASS
+   selected row 0.06 on raised secondary text 8.60 -> PASS
+   hover 0.06 on panel        secondary text 9.84 -> PASS
+   hover 0.06 on raised       secondary text 8.60 -> PASS
+   accent tint 0.15 on panel  secondary text 8.65 -> PASS
+   accent tint 0.15 on raised secondary text 7.56 -> PASS
+
+RESULT: PASS

@@ -7,7 +7,7 @@
 // BottomTabBar measured its buttons once, when it mounted, before the
 // Formula1 web font was in: with the fallback font's labels the default dock
 // fits (1292 px at 1536 x 750 with Segoe UI Bold, the system-ui of Windows),
-// with the Formula1 Bold labels it is 1490 px (notes/experiments/v13_audit/
+// with the Formula1 Bold labels it is 1490 px (frontend/scripts/audit/
 // dock_fit.mjs); the divider's 12 px of margin and the bar's border were not
 // counted either. Now the bar measures again when the fonts finish loading
 // and checks the rendered row after every render.
@@ -36,7 +36,24 @@ if (typeof globalThis.localStorage === 'undefined') {
 }
 
 const dom = installMiniDom();
-globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+// ResizeObserver: the test delivers the notifications (G4 below)
+const observers = new Set();
+globalThis.ResizeObserver = class {
+  constructor(cb) { this.cb = cb; this.els = new Set(); observers.add(this); }
+  observe(el) { this.els.add(el); }
+  unobserve(el) { this.els.delete(el); }
+  disconnect() { this.els.clear(); observers.delete(this); }
+};
+/** Notify every observer of `el` (its new width); returns how many got it. */
+function notifyResize(el, width) {
+  let n = 0;
+  for (const o of [...observers]) {
+    if (!o.els.has(el)) continue;
+    n += 1;
+    o.cb([{ target: el, contentRect: { width, height: 46 } }], o);
+  }
+  return n;
+}
 // document.fonts: the test says when the web fonts are in
 const fontListeners = new Set();
 dom.document.fonts = {
@@ -297,6 +314,77 @@ describe.skipIf(!haveFont)('the dock at the four viewports, with the real CSS wi
     await act(async () => { useF1Store.setState({ activeTab: 'laptimes' }); });
     expect(renderedRow(v.nav)).toBeLessThanOrEqual(dockCss(vp).maxWidth + 0.5);
     expect(v.items().length).toBeLessThan(10);
+    await v.unmount();
+  });
+});
+
+// Phase 9d G4: the browser audit (docs/evidence/browser_audit_2026-10-16.md,
+// "Re-check after Phase 9c") saw the first and last buttons cut for about
+// 2 s after a window resize: the bar measured again only after a re-render.
+// Now a ResizeObserver on the bar and on its container, the window resize and
+// the page shown again render every item and measure at once (flushSync), so
+// the row already fits when the callback returns, before the browser paints.
+describe.skipIf(!haveFont)('G4: the bar measures again as soon as its room changes, before the paint', () => {
+  const at = (name) => VIEWPORTS.find((x) => x.name === name);
+  const moveTo = (vp) => { env.vp = vp; dom.window.innerWidth = vp.W; };
+
+  it('the bar shrinks (2048 -> 1536 px window): its observer refits the row within the callback', async () => {
+    moveTo(at('2048x1100'));
+    const v = await mount();
+    expect(v.items()).toHaveLength(10);
+    // moved to the 1536 px screen: the bar's max-width shrinks; nothing renders but the observer
+    moveTo(at('1536x750'));
+    const max = dockCss(env.vp).maxWidth;
+    let inCallback = null;
+    await act(async () => {
+      expect(notifyResize(v.nav, max)).toBe(1);
+      // the same task, no await: what the browser paints next
+      inCallback = { row: renderedRow(v.nav), items: v.items().length, overflow: !!v.overflow() };
+    });
+    expect(inCallback.row).toBeLessThanOrEqual(max + 0.5);
+    expect(inCallback.items).toBeLessThan(10);
+    expect(inCallback.overflow).toBe(true);
+    expect(v.fixed()).toHaveLength(3);
+    await v.unmount();
+  });
+
+  it('the container grows (1536 -> 2048 px window): every item back on the bar within the callback', async () => {
+    moveTo(at('1536x750'));
+    const v = await mount();
+    expect(v.items().length).toBeLessThan(10);
+    moveTo(at('2048x1100'));
+    let inCallback = null;
+    await act(async () => {
+      expect(notifyResize(v.nav.parentElement, at('2048x1100').W)).toBe(1);
+      inCallback = { items: v.items().length, overflow: !!v.overflow(), row: renderedRow(v.nav) };
+    });
+    expect(inCallback.items).toBe(10);
+    expect(inCallback.overflow).toBe(false);
+    expect(inCallback.row).toBeLessThanOrEqual(dockCss(env.vp).maxWidth + 0.5);
+    await v.unmount();
+  });
+
+  it('a window resize alone (no observer notification): refitted within the event', async () => {
+    moveTo(at('2048x1100'));
+    const v = await mount();
+    moveTo(at('1366x768'));
+    let inEvent = null;
+    await act(async () => {
+      dom.mouse(dom.window, 'resize', { bubbles: false });
+      inEvent = renderedRow(v.nav);
+    });
+    expect(inEvent).toBeLessThanOrEqual(dockCss(env.vp).maxWidth + 0.5);
+    await v.unmount();
+  });
+
+  it('the bar\'s own change (an item moved to the ⋯ popover): the observer measures nothing more', async () => {
+    moveTo(at('1536x750'));
+    const v = await mount();
+    const before = v.items().length;
+    const row = renderedRow(v.nav);
+    await act(async () => { notifyResize(v.nav, row); });
+    expect(v.items()).toHaveLength(before);
+    expect(renderedRow(v.nav)).toBeCloseTo(row, 5);
     await v.unmount();
   });
 });

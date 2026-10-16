@@ -5,7 +5,7 @@
  * '\' for ahead (better, blue).
  *
  * The tint alone reads 1.45:1 on the raised surface, and 3:1 would need an
- * alpha of 0.56-0.62 (notes/experiments/phase9/repair2_area_alpha.txt), a
+ * alpha of 0.56-0.62 (docs/evidence/area_alpha.txt), a
  * fill that would sit under the team-coloured lines (McLaren orange, Williams
  * blue) and cut their contrast. The hatch lines are the diverging colours
  * themselves (>= 3:1 as marks, cvd_check.txt), and their direction is a second

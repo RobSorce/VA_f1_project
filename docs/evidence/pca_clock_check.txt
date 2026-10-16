@@ -1,0 +1,23 @@
+== 1. Biplot of 2024 R16 at the clock (pca_embeddings_at) ==
+clock: end of leader lap 10 + 1 s = session second 4201.15
+current_race: {'year': 2024, 'round': 16, 'available': True, 'session_now': 4201.15, 'as_of': 'session_now', 'as_of_lap': 10, 'n_points': 19, 'excluded_from_fit': True, 'reason': None}
+its points: 19; as_of ['session_now']; as_of_lap [10]; finish_position ['None']
+race not started (session_now 0): current_race n_points 0, as_of_lap 0, points of the race drawn 0, other points 515
+
+== 2. Lasso of the 19 stars of 2024 R16 at lap 10 ==
+post-race call (the store before the repair):
+  n_selected 19; current_race None
+  pit_windows [(5, 23, 17), (30, 41, 12), (50, 50, 1)]
+  strategies [('MEDIUM-HARD', 7), ('MEDIUM-HARD-HARD', 7), ('HARD-HARD-MEDIUM', 2), ('HARD-MEDIUM', 2), ('HARD-HARD-MEDIUM-SOFT', 1)]
+  longest stint end lap 53
+  summary: Selection of 19 race entries, compared with the other 515 (descriptive differences, not a test). No feature differs more than in random selections of the same size (95th percentile of the largest |g|: 0.69). Most common strategy: MEDIUM -> HARD (1-stop, 37% of the selection).
+call at the clock (the store now):
+  n_selected 19; current_race {'year': 2024, 'round': 16, 'as_of': 'session_now', 'session_now': 4201.15, 'as_of_lap': 10, 'n_selected': 19}
+  pit_windows [(5, 5, 1)]
+  strategies [('MEDIUM', 13), ('HARD', 5), ('MEDIUM-HARD', 1)]
+  longest stint end lap 9
+  summary: Selection of 19 race entries, compared with the other 515 (descriptive differences, not a test). No feature can differ more than in random selections of the same size and mix: every one of them is the selection itself. Most common strategy: MEDIUM (0-stop, 68% of the selection). The 19 selected rows of 2024 R16 use only the laps completed by lap 10 (the replay clock): their stints and stops end there; the other races are whole races. The random selections of the baseline keep the same mix of rows.
+
+== 3. The same ids, the race not started (another session of the weekend on screen: session_now 0) ==
+  n_selected 1 (of 20 ids); current_race {'year': 2024, 'round': 16, 'as_of': 'session_now', 'session_now': 0.0, 'as_of_lap': 0, 'n_selected': 0}
+  pit_windows [(17, 17, 1), (37, 37, 1)]

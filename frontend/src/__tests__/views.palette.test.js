@@ -57,7 +57,7 @@ describe('no semantic colour literal and no red / green pair in the views (V1, V
 
 describe('type floors in the views (V13 target 3)', () => {
   // CircleOfDoom keeps its ring-label layout (7 px when crowded): the floors
-  // break it (notes/experiments/phase9/colors/cod_font_floor_probe.txt)
+  // break it (circleOfDoom.view / .viewport tests fail with them)
   it.each(FILES)('%s: no literal font size under 11 px', (rel) => {
     const src = code(rel);
     const small = [];

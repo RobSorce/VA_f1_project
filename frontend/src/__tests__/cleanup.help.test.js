@@ -148,7 +148,7 @@ describe('V11: the undercut help matches utils/undercut.js and UndercutCalculato
       // compounds, flags and units are not panel labels
       .filter((w) => !['VSC', 'DRS', 'SOFT', 'MEDIUM', 'HARD'].includes(w));
     console.log(`labels named by the undercut help: ${labels.join(', ')}`);
-    expect(labels.sort()).toEqual(['GAP NOW', 'NEW-TYRE GAIN', 'NOW', 'PIT LOSS', 'RIVAL STOPS']);
+    expect(labels.sort()).toEqual(['AHEAD AFTER BOTH STOPS', 'BEHIND AFTER BOTH STOPS', 'GAP NOW', 'LAPS LEFT', 'NEW-TYRE GAIN', 'NOW', 'PIT LOSS', 'RIVAL STOPS']);
     for (const l of labels) expect(panel, l).toContain(l);
     expect(panel).toMatch(/` \+\$\{r\.extraStops\.length\}`/); // "+n next to the row's lap"
   });

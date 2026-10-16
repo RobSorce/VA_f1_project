@@ -6,7 +6,7 @@ store moves only beyond the Monte Carlo error (decision D5). The raw mean
 state gave different cards (2024 R10 lap 17, BOT: expectedPos 8.5 -> 8.8,
 cards P8/P7/P6 -> P9/P8/P7 while the panel stayed P8). The rounded mean is
 only the fallback of a client that sends no medianPos. Measured over every
-cached race in notes/experiments/phase45c/repair_r2/s4_assistant_cards.txt
+cached race in docs/evidence/s4_assistant_cards.txt
 (backend/scripts/s4_assistant_cards.py)."""
 import pytest
 

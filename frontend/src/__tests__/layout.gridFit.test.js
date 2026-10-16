@@ -119,7 +119,7 @@ describe('Race Pace Grid: no scroll, the cells fit the Pit Wall centre at the fo
 // V13 (verifier): the Driver Comparison cut its lap chart and never showed its
 // metric tables in the overview preset (fixed 200 + 160 px charts, body
 // overflow hidden). Now its sections flow into columns and pages that fit the
-// pane (utils/views/driverCompare.js; notes/experiments/phase9/repair_compare_fit.mjs)
+// pane (utils/views/driverCompare.js; frontend/scripts/audit/compare_fit.mjs)
 describe('Driver Comparison: every section in a column of a page that fits its pane', () => {
   const view = read('components/visualizations/DriverComparePanel.jsx');
   it('the panel lays its sections with comparePages, a pager when there are several pages, no scroll', () => {
@@ -162,7 +162,7 @@ describe('Driver Comparison: every section in a column of a page that fits its p
 // pane height with no fitRows (7.4 px rows for 11 px labels in the Pit Window
 // preset at 1536 x 750). Now the rows keep ceil(data type + ROW_MIN_PAD) px;
 // a wide, low pane lays them in up to MAX_COLS columns, the rest is paged
-// (notes/experiments/phase9/repair_strategy_fit.mjs)
+// (frontend/scripts/audit/strategy_fit.mjs)
 describe('Strategy Timeline: driver rows never under their minimum, in columns then pages', () => {
   const view = read('components/visualizations/StrategyTimeline.jsx');
   const pad = Number(view.match(/const ROW_MIN_PAD = (\d+);/)[1]);
@@ -206,7 +206,7 @@ describe('Strategy Timeline: driver rows never under their minimum, in columns t
 // 900 px of height, the header, column header and banner are a step tighter
 // (the full model, with the real font widths and the flag banner and the
 // forecast footer: __tests__/leaderboard.fit.test.jsx and
-// notes/experiments/v13_audit/panel_fit.mjs). Here: the Leaderboard chrome
+// frontend/scripts/audit/panel_fit.mjs). Here: the Leaderboard chrome
 // (header, mode bar, column header, the legend from 900 px) and the collapsed
 // cards (toggle 22 px + the two header lines).
 describe('Analyse sidebar: the 20 Leaderboard rows fit with the focus cards collapsed', () => {

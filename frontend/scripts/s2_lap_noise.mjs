@@ -15,7 +15,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/s2_lap_noise.mjs
- * Writes notes/experiments/phase45c/s2_lap_noise_monza.txt and prints the same text.
+ * Writes docs/evidence/s2_lap_noise_monza.txt and prints the same text.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,7 @@ import { causalKey } from '../src/utils/strategyViews.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
-const OUT_FILE = path.resolve(ROOT, 'notes/experiments/phase45c/s2_lap_noise_monza.txt');
+const OUT_FILE = path.resolve(ROOT, 'docs/evidence/s2_lap_noise_monza.txt');
 const s = JSON.parse(fs.readFileSync(path.resolve(ROOT, 'backend/data/processed_cache/session_2024_16_R.json'), 'utf8')
   .replace(/\bNaN\b/g, 'null'));
 const lt = s.lap_times;

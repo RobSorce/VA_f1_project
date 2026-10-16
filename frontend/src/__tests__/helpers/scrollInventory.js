@@ -1,7 +1,7 @@
 // Test helper (V5): the inventory of every scrollable area of the frontend
 // and the justification rows of docs/SCROLL_JUSTIFICATIONS.md. Shared by
 // __tests__/layout.scroll.test.js and
-// notes/experiments/v13_audit/overflow_inventory.mjs.
+// frontend/scripts/audit/overflow_inventory.mjs.
 //
 // An area is any overflow / overflow-x / overflow-y set to auto | scroll |
 // overlay, in the CSS (frontend/src/**/*.css) or in an inline style of the

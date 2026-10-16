@@ -4,8 +4,8 @@
  * in the role it is drawn in (target 2).
  *
  * Run from frontend/:
- *     npx vite-node scripts/cvd_check.mjs
- * Writes notes/experiments/phase9/cvd_check.txt and prints it; exits 1 when a
+ *     npx vite-node scripts/cvd_check.mjs [--out FILE]
+ * Writes docs/evidence/cvd_check.txt (or FILE) and prints it; exits 1 when a
  * palette that must stand on colour alone fails, or a colour misses its
  * contrast floor.
  *
@@ -33,7 +33,10 @@ import {
 import { OUTCOME_CLASSES } from '../src/utils/views/pcaBiplot.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.resolve(HERE, '../../notes/experiments/phase9/cvd_check.txt');
+const OUT_ARG = process.argv.indexOf('--out');
+const OUT = OUT_ARG > 0 && process.argv[OUT_ARG + 1]
+  ? path.resolve(process.argv[OUT_ARG + 1])
+  : path.resolve(HERE, '../../docs/evidence/cvd_check.txt');
 const lines = [];
 const emit = (s = '') => { lines.push(s); console.log(s); };
 const TYPES = ['normal', 'protanopia', 'deuteranopia', 'tritanopia'];

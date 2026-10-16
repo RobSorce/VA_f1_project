@@ -1,6 +1,6 @@
 /**
  * Evidence of the PCA repair round (P2, P6, P10, P11): writes
- * notes/experiments/phase67/pca_repair_check.txt and prints the same text.
+ * docs/evidence/pca_repair_check.txt and prints the same text.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/pca_repair_check.mjs
@@ -21,7 +21,8 @@
  *  4. the live alignment's axes: angle between displayed axis 1 and PC1, the
  *     two axes' captured variance against PC1 + PC2;
  *  5. help texts of the PCA panels (utils/chartHelp.js): terms of the removed
- *     methods (Cohen's d, the frozen basis, the old feature / row counts).
+ *     methods (Cohen's d in the PCA selection's help, the frozen basis, the
+ *     old feature / row counts).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,7 +38,7 @@ import { CHART_HELP } from '../src/utils/chartHelp.js';
 import { loadCachedSession, listCachedRaces } from '../src/__tests__/helpers/cachedSession.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT_FILE = path.resolve(HERE, '../../notes/experiments/phase67/pca_repair_check.txt');
+const OUT_FILE = path.resolve(HERE, '../../docs/evidence/pca_repair_check.txt');
 const EMB_FILE = path.resolve(HERE, '../../backend/data/processed/pca_embeddings.json');
 
 const lines = [];
@@ -220,11 +221,15 @@ out(`Monza lap 42 titles: "${t42.x}" | "${t42.y}" | "${t42.plane}"`);
 // ── 5. help texts ──
 out('');
 out('== 5. Help texts of the PCA panels (utils/chartHelp.js) ==');
-const STALE = [/Cohen/i, /\b17\b/, /\b499\b/, /\b24 cached\b/, /frozen/i, /warm-?up/i, /exponential/i, /half-life/i, /fuel_corrected_pace/];
+// Cohen's d is stale only in the PCA selection's help ('analytics', now
+// Hedges' g); Strategy Analysis ('analysis') compares drivers lassoed on the
+// Race Situation map with Cohen's d (StrategyAnalysis.jsx cohensD).
+const STALE = [/\b17\b/, /\b499\b/, /\b24 cached\b/, /frozen/i, /warm-?up/i, /exponential/i, /half-life/i, /fuel_corrected_pace/];
+const STALE_OF = { analytics: [/Cohen/i] };
 for (const key of ['analytics', 'analysis', 'racesituation']) {
   const e = CHART_HELP[key];
   const all = [e.summary, ...(e.howToRead || []), ...(e.limitations || [])].join(' ');
-  const hits = STALE.filter((re) => re.test(all)).map(String);
+  const hits = [...STALE, ...(STALE_OF[key] || [])].filter((re) => re.test(all)).map(String);
   const nums = [...new Set(all.match(/\d+(\.\d+)?/g) || [])];
   out(`${key.padEnd(14)} stale terms: ${hits.length ? hits.join(', ') : 'none'}; numbers in the text: ${nums.length ? nums.join(', ') : 'none'}`);
 }

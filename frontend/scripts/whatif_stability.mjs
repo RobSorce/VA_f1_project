@@ -37,11 +37,11 @@
  *    distance, lap-mode clock) x SEEDS seeds; at each clock the cars running
  *    3rd and 10th, each with a stop at the end of lap L+2 and of lap L+6 for
  *    the other dry compound (HARD <-> MEDIUM / SOFT -> HARD).
- *    Writes notes/experiments/phase45c/whatif_stability.txt.
- *  - verifier: the what-ifs of notes/experiments/phase45c/verify_strategy_r1/whatif_flip.mjs
+ *    Writes docs/evidence/whatif_stability.txt.
+ *  - verifier: the what-ifs of an earlier independent measurement
  *    (first 10 cached races x 30 / 50 % x every 6th driver in code order x
  *    stops at L+2 and L+6), its seeds ('verify-whatif'), chained.
- *    Writes notes/experiments/phase45c/whatif_stability_verifier_set.txt.
+ *    Writes docs/evidence/whatif_stability_verifier_set.txt.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/whatif_stability.mjs [--set d5|verifier] [--seeds 10]
@@ -69,7 +69,7 @@ const arg = (name, dflt) => {
 const SET = arg('--set', 'd5');
 const SEEDS = Number(arg('--seeds', 10));
 const TARGET_PCT = 5;
-const OUT_FILE = path.resolve(ROOT, 'notes/experiments/phase45c',
+const OUT_FILE = path.resolve(ROOT, 'docs/evidence',
   SET === 'verifier' ? 'whatif_stability_verifier_set.txt' : 'whatif_stability.txt');
 
 const lines = [];

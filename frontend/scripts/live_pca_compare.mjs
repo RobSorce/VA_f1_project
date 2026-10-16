@@ -1,6 +1,6 @@
 /**
  * Live PCA of the Race Situation Map (utils/livePCA.js, utils/raceSituationFeatures.js),
- * the evidence of P9-P12. Writes notes/experiments/phase67/live_pca_compare.txt and
+ * the evidence of P9-P12. Writes docs/evidence/live_pca_compare.txt and
  * prints the same text.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
@@ -48,7 +48,7 @@ import { stintLifeObservations } from '../src/utils/raceSimulation.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.resolve(HERE, '../../backend/data/processed_cache');
-const OUT_DIR = path.resolve(HERE, '../../notes/experiments/phase67');
+const OUT_DIR = path.resolve(HERE, '../../docs/evidence');
 const OUT_FILE = path.join(OUT_DIR, 'live_pca_compare.txt');
 
 const lines = [];

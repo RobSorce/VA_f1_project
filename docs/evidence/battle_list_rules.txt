@@ -1,0 +1,21 @@
+Battle list rules, 1000 runs per projection (utils/simulationClient.js battleList)
+
+1. Same race state, a new seed per recompute, chained (every cached race at 25 / 50 / 75 % of the distance, 10 seeds):
+  cut+fill               recomputes where the listed set changes: 7 / 810 (0.86%); rows listed: mean 6.00, min 6
+  cut+race-order fill    recomputes where the listed set changes: 7 / 810 (0.86%); rows listed: mean 6.00, min 6
+  rank evidence          recomputes where the listed set changes: 11 / 810 (1.36%); rows listed: mean 5.98, min 5
+
+2. Lap by lap (laps 10-50, lap-mode clock), 5 seed salts on the same data, levels chained as the store does:
+   a blink = a gold / green row listed, gone, listed again on three consecutive laps, or the reverse
+  2024 R16 cut+fill               blinks per salt 20, 20, 13, 22, 22; distinct 38: every salt 7, some only 31; laps with different lists between salts 22 / 41; rows mean 6.00, min 6
+  2024 R16 cut+race-order fill    blinks per salt 25, 27, 27, 24, 33; distinct 56: every salt 11, some only 45; laps with different lists between salts 28 / 41; rows mean 6.00, min 6
+  2024 R16 rank evidence          blinks per salt 10, 11, 10, 13, 10; distinct 21: every salt 5, some only 16; laps with different lists between salts 26 / 41; rows mean 5.13, min 1
+  2024 R5 cut+fill               blinks per salt 38, 47, 41, 44, 42; distinct 67: every salt 24, some only 43; laps with different lists between salts 26 / 41; rows mean 6.00, min 6
+  2024 R5 cut+race-order fill    blinks per salt 39, 51, 51, 47, 53; distinct 82: every salt 23, some only 59; laps with different lists between salts 33 / 41; rows mean 6.00, min 6
+  2024 R5 rank evidence          blinks per salt 23, 27, 26, 30, 25; distinct 42: every salt 16, some only 26; laps with different lists between salts 33 / 41; rows mean 4.82, min 1
+  2024 R1 cut+fill               blinks per salt 37, 33, 31, 42, 38; distinct 56: every salt 18, some only 38; laps with different lists between salts 32 / 41; rows mean 6.00, min 6
+  2024 R1 cut+race-order fill    blinks per salt 43, 43, 40, 40, 41; distinct 68: every salt 22, some only 46; laps with different lists between salts 27 / 41; rows mean 6.00, min 6
+  2024 R1 rank evidence          blinks per salt 16, 14, 13, 19, 16; distinct 28: every salt 9, some only 19; laps with different lists between salts 30 / 41; rows mean 4.52, min 0
+  2025 R1 cut+fill               blinks per salt 19, 20, 19, 20, 19; distinct 26: every salt 14, some only 12; laps with different lists between salts 33 / 41; rows mean 6.00, min 6
+  2025 R1 cut+race-order fill    blinks per salt 22, 25, 25, 27, 23; distinct 47: every salt 13, some only 34; laps with different lists between salts 36 / 41; rows mean 6.00, min 6
+  2025 R1 rank evidence          blinks per salt 11, 12, 12, 11, 12; distinct 14: every salt 9, some only 5; laps with different lists between salts 37 / 41; rows mean 4.03, min 1

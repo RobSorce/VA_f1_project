@@ -1,0 +1,8 @@
+1536x750 pitwindow strategy pane 1225x257: chart 187 px -> 3 column(s) of 7 rows, all 20 drivers, rows 21.0 px for 11.00 px labels (min 21 px), 286 px of laps per column
+1536x750 simulator strategy pane 732x286: chart 216 px -> 2 column(s) of 8 rows, 16 of 20 drivers per page (2 pages), rows 21.0 px for 11.00 px labels (min 21 px), 238 px of laps per column
+1366x768 pitwindow strategy pane 1088x264: chart 196 px -> 3 column(s) of 7 rows, all 20 drivers, rows 21.0 px for 11.08 px labels (min 21 px), 240 px of laps per column
+1366x768 simulator strategy pane 650x294: chart 225 px -> 1 column(s) of 8 rows, 8 of 20 drivers per page (3 pages), rows 21.0 px for 11.08 px labels (min 21 px), 522 px of laps per column
+1920x1080 pitwindow strategy pane 1594x408: chart 332 px -> 3 column(s) of 13 rows, all 20 drivers, rows 22.0 px for 12.41 px labels (min 22 px), 408 px of laps per column
+1920x1080 simulator strategy pane 953x452: chart 376 px -> 2 column(s) of 15 rows, all 20 drivers, rows 22.0 px for 12.41 px labels (min 22 px), 348 px of laps per column
+2048x1100 pitwindow strategy pane 1722x418: chart 342 px -> 3 column(s) of 13 rows, all 20 drivers, rows 22.0 px for 12.50 px labels (min 22 px), 451 px of laps per column
+2048x1100 simulator strategy pane 1030x463: chart 387 px -> 2 column(s) of 15 rows, all 20 drivers, rows 22.0 px for 12.50 px labels (min 22 px), 386 px of laps per column

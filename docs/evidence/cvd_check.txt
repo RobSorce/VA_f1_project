@@ -1,0 +1,292 @@
+# CVD and contrast check of utils/colors.js palettes
+Surfaces: page #0f0f1e, panel #131326, raised #1a1f33, elevated #242938
+Distinguishable: smallest CIEDE2000 pair >= 10 (Machado 2009 severity 1.0 simulation)
+
+## DIVERGING (better / worse)
+   cue: sign + / − (signedDelta) or ▲ ▼; must also stand alone
+   better           #5DA5E8  sim P/D/T #88A7EB #769AE7 #00B5BD  contrast page 7.24, panel 6.97, raised 6.22, elevated 5.53
+   worse            #F0883E  sim P/D/T #A69435 #BFAC3D #FF7278  contrast page 7.49, panel 7.22, raised 6.44, elevated 5.72
+   normal        closest pair better / worse                 dE2000 47.2
+   protanopia    closest pair better / worse                 dE2000 49.6
+   deuteranopia  closest pair better / worse                 dE2000 53.4
+   tritanopia    closest pair better / worse                 dE2000 56.3
+   smallest pair over all vision types: 47.2 -> PASS (distinguishable on colour alone)
+   text contrast >= 4.5: PASS
+
+## STATUS timing (overall best / personal best / no improvement / normal / pit)
+   cue: glyphs ◆ overall best, ● personal best, 'P'/'PIT' pit, 'O'/'OUT' out-lap
+   overallBest      #C084FC  sim P/D/T #639DFF #739FF9 #B699B4  contrast page 7.18, panel 6.92, raised 6.17, elevated 5.48
+   personalBest     #34D399  sim P/D/T #CFC396 #BCB59D #00D3C3  contrast page 9.86, panel 9.51, raised 8.48, elevated 7.54
+   slower           #FDE047  sim P/D/T #F6DB2D #FEE451 #FFCFC2  contrast page 14.38, panel 13.87, raised 12.37, elevated 10.99
+   normal           #E5E7EB  sim P/D/T #E6E7EB #E5E7EB #E4E8E8  contrast page 15.32, panel 14.76, raised 13.17, elevated 11.70
+   pit              #F472B6  sim P/D/T #8191B8 #A4A7B3 #FF6E8C  contrast page 7.16, panel 6.90, raised 6.16, elevated 5.47
+   normal        closest pair overallBest / pit              dE2000 18.3
+   protanopia    closest pair overallBest / pit              dE2000 11.9
+   deuteranopia  closest pair normal / pit                   dE2000 16.4
+   tritanopia    closest pair slower / normal                dE2000 19.1
+   smallest pair over all vision types: 11.9 -> PASS (distinguishable on colour alone, cue kept)
+   text contrast >= 4.5: PASS
+
+## STATUS pace scale (fast / normal / slower / much slower)
+   cue: ordered scale; the cell shows the lap time; must also stand alone
+   fast             #5DA5E8  sim P/D/T #88A7EB #769AE7 #00B5BD  contrast page 7.24, panel 6.97, raised 6.22, elevated 5.53
+   normal           #E5E7EB  sim P/D/T #E6E7EB #E5E7EB #E4E8E8  contrast page 15.32, panel 14.76, raised 13.17, elevated 11.70
+   slower           #FDE047  sim P/D/T #F6DB2D #FEE451 #FFCFC2  contrast page 14.38, panel 13.87, raised 12.37, elevated 10.99
+   muchSlower       #F0883E  sim P/D/T #A69435 #BFAC3D #FF7278  contrast page 7.49, panel 7.22, raised 6.44, elevated 5.72
+   normal        closest pair fast / normal                  dE2000 27.0
+   protanopia    closest pair slower / muchSlower            dE2000 20.5
+   deuteranopia  closest pair slower / muchSlower            dE2000 14.5
+   tritanopia    closest pair normal / slower                dE2000 19.1
+   smallest pair over all vision types: 14.5 -> PASS (distinguishable on colour alone)
+   text contrast >= 4.5: PASS
+
+## TYRE_COLORS (FIA compounds)
+   cue: compound letter S M H I W
+   SOFT             #FF3333  sim P/D/T #766A30 #A79628 #FF0037  contrast page 5.21, panel 5.03, raised 4.48, elevated 3.98
+   MEDIUM           #FFC300  sim P/D/T #DDC300 #ECD21C #FFAFA6  contrast page 11.79, panel 11.37, raised 10.14, elevated 9.01
+   HARD             #EEEEEE  sim P/D/T #EEEEEE #EEEEEE #EEEEEE  contrast page 16.34, panel 15.76, raised 14.06, elevated 12.49
+   INTERMEDIATE     #39B54A  sim P/D/T #B8A53F #A99A53 #0CB19E  contrast page 7.12, panel 6.86, raised 6.12, elevated 5.44
+   WET              #00AAFF  sim P/D/T #81ADFF #6099FD #00BFC9  contrast page 7.40, panel 7.13, raised 6.36, elevated 5.65
+   normal        closest pair MEDIUM / HARD                  dE2000 30.1
+   protanopia    closest pair MEDIUM / INTERMEDIATE          dE2000 10.6
+   deuteranopia  closest pair SOFT / INTERMEDIATE            dE2000 5.7  (< 10: needs the cue)
+   tritanopia    closest pair INTERMEDIATE / WET             dE2000 11.3
+   smallest pair over all vision types: 5.7 -> PASS WITH CUE (redundant cue always drawn)
+   mark contrast >= 3: PASS
+
+## FLAG_COLORS (FIA flags)
+   cue: label text (GREEN, YELLOW FLAG, SAFETY CAR, RED FLAG, VSC, VSC)
+   green            #34D399  sim P/D/T #CFC396 #BCB59D #00D3C3  contrast page 9.86, panel 9.51, raised 8.48, elevated 7.54
+   yellow           #FACC15  sim P/D/T #E4C900 #F0D629 #FFBAAE  contrast page 12.38, panel 11.94, raised 10.65, elevated 9.46
+   safetyCar        #F59E0B  sim P/D/T #BBA400 #D0B914 #FF8887  contrast page 8.83, panel 8.51, raised 7.59, elevated 6.75
+   red              #F87171  sim P/D/T #918A70 #B3A66E #FF5B72  contrast page 6.86, panel 6.61, raised 5.90, elevated 5.24
+   blue             #60A5FA  sim P/D/T #81AAFE #6C9CF8 #00B8C4  contrast page 7.46, panel 7.19, raised 6.41, elevated 5.70
+   normal        closest pair yellow / safetyCar             dE2000 15.6
+   protanopia    closest pair yellow / safetyCar             dE2000 10.3
+   deuteranopia  closest pair yellow / safetyCar             dE2000 7.3  (< 10: needs the cue)
+   tritanopia    closest pair safetyCar / red                dE2000 9.0  (< 10: needs the cue)
+   smallest pair over all vision types: 7.3 -> PASS WITH CUE (redundant cue always drawn)
+   text contrast >= 4.5: PASS
+
+## CHANNEL_COLORS (speed / throttle / brake)
+   cue: channel name in the legend; must also stand alone
+   speed            #F0E442  sim P/D/T #F8DC23 #FCE34E #FFD4C5  contrast page 14.34, panel 13.82, raised 12.33, elevated 10.96
+   throttle         #56B4E9  sim P/D/T #9BB3EC #87A4E8 #00C2C6  contrast page 8.22, panel 7.92, raised 7.07, elevated 6.28
+   brake            #E69F00  sim P/D/T #B9A200 #CAB411 #FB8C87  contrast page 8.42, panel 8.12, raised 7.24, elevated 6.43
+   normal        closest pair speed / brake                  dE2000 21.7
+   protanopia    closest pair speed / brake                  dE2000 15.3
+   deuteranopia  closest pair speed / brake                  dE2000 11.5
+   tritanopia    closest pair speed / brake                  dE2000 18.5
+   smallest pair over all vision types: 11.5 -> PASS (distinguishable on colour alone)
+   mark contrast >= 3: PASS
+
+## SERIES_COLORS (comparison laps)
+   cue: lap number label; must also stand alone
+   series1          #56B4E9  sim P/D/T #9BB3EC #87A4E8 #00C2C6  contrast page 8.22, panel 7.92, raised 7.07, elevated 6.28
+   series2          #E69F00  sim P/D/T #B9A200 #CAB411 #FB8C87  contrast page 8.42, panel 8.12, raised 7.24, elevated 6.43
+   series3          #CC79A7  sim P/D/T #808BA9 #9498A5 #D6788A  contrast page 6.20, panel 5.97, raised 5.33, elevated 4.73
+   series4          #F0E442  sim P/D/T #F8DC23 #FCE34E #FFD4C5  contrast page 14.34, panel 13.82, raised 12.33, elevated 10.96
+   normal        closest pair series2 / series4              dE2000 21.7
+   protanopia    closest pair series1 / series3              dE2000 14.1
+   deuteranopia  closest pair series2 / series4              dE2000 11.5
+   tritanopia    closest pair series2 / series3              dE2000 11.1
+   smallest pair over all vision types: 11.1 -> PASS (distinguishable on colour alone)
+   mark contrast >= 3: PASS
+
+## SECTOR_COLORS (track map sectors)
+   cue: S1 / S2 / S3 labels; must also stand alone
+   S1               #CC79A7  sim P/D/T #808BA9 #9498A5 #D6788A  contrast page 6.20, panel 5.97, raised 5.33, elevated 4.73
+   S2               #F0E442  sim P/D/T #F8DC23 #FCE34E #FFD4C5  contrast page 14.34, panel 13.82, raised 12.33, elevated 10.96
+   S3               #56B4E9  sim P/D/T #9BB3EC #87A4E8 #00C2C6  contrast page 8.22, panel 7.92, raised 7.07, elevated 6.28
+   normal        closest pair S1 / S3                        dE2000 45.5
+   protanopia    closest pair S1 / S3                        dE2000 14.1
+   deuteranopia  closest pair S1 / S3                        dE2000 15.5
+   tritanopia    closest pair S1 / S2                        dE2000 25.0
+   smallest pair over all vision types: 14.1 -> PASS (distinguishable on colour alone)
+   mark contrast >= 3: PASS
+
+## PCA outcome classes (cividis)
+   cue: ordered by lightness; must also stand alone
+   podium           #fdea45  sim P/D/T #FFE326 #FFEB51 #FFDACA  contrast page 15.38, panel 14.83, raised 13.23, elevated 11.75
+   points           #a9a177  sim P/D/T #A99E74 #ACA278 #B19B96  contrast page 7.27, panel 7.01, raised 6.25, elevated 5.56
+   none             #61636f  sim P/D/T #606470 #5F636F #5E6567  contrast page 3.18, panel 3.07, raised 2.74, elevated 2.43
+   normal        closest pair podium / points                dE2000 24.6
+   protanopia    closest pair podium / points                dE2000 25.1
+   deuteranopia  closest pair podium / points                dE2000 24.0
+   tritanopia    closest pair podium / points                dE2000 17.8
+   smallest pair over all vision types: 17.8 -> PASS (distinguishable on colour alone)
+   mark contrast >= 3: PASS
+
+## Ordered three-level scales (tyre-health zones / health %, battle levels)
+   cue: zone labels CRITICAL / WORN, the % or probability text; must also stand alone
+   better           #5DA5E8  sim P/D/T #88A7EB #769AE7 #00B5BD  contrast page 7.24, panel 6.97, raised 6.22, elevated 5.53
+   slower           #FDE047  sim P/D/T #F6DB2D #FEE451 #FFCFC2  contrast page 14.38, panel 13.87, raised 12.37, elevated 10.99
+   worse            #F0883E  sim P/D/T #A69435 #BFAC3D #FF7278  contrast page 7.49, panel 7.22, raised 6.44, elevated 5.72
+   neutral          #C9CCD6  sim P/D/T #C9CDD7 #C9CCD6 #C6CECF  contrast page 11.82, panel 11.40, raised 10.17, elevated 9.03
+   normal        closest pair better / neutral               dE2000 22.7
+   protanopia    closest pair better / neutral               dE2000 18.9
+   deuteranopia  closest pair slower / worse                 dE2000 14.5
+   tritanopia    closest pair slower / neutral               dE2000 21.2
+   smallest pair over all vision types: 14.5 -> PASS (distinguishable on colour alone)
+   text contrast >= 4.5: PASS
+
+## Track map sectors and DRS zones
+   cue: S1 / S2 / S3 legend, the label DRS; must also stand alone
+   S1               #CC79A7  sim P/D/T #808BA9 #9498A5 #D6788A  contrast page 6.20, panel 5.97, raised 5.33, elevated 4.73
+   S2               #F0E442  sim P/D/T #F8DC23 #FCE34E #FFD4C5  contrast page 14.34, panel 13.82, raised 12.33, elevated 10.96
+   S3               #56B4E9  sim P/D/T #9BB3EC #87A4E8 #00C2C6  contrast page 8.22, panel 7.92, raised 7.07, elevated 6.28
+   DRS              #FFFFFF  sim P/D/T #FFFFFF #FFFFFF #FFFFFF  contrast page 18.96, panel 18.28, raised 16.31, elevated 14.49
+   normal        closest pair S3 / DRS                       dE2000 28.7
+   protanopia    closest pair S1 / S3                        dE2000 14.1
+   deuteranopia  closest pair S1 / S3                        dE2000 15.5
+   tritanopia    closest pair S2 / DRS                       dE2000 16.8
+   smallest pair over all vision types: 14.1 -> PASS (distinguishable on colour alone)
+   mark contrast >= 3: PASS
+
+## Podium medals (MEDAL_COLORS)
+   cue: the position number on the medal
+   P1               #FFD700  sim P/D/T #F0D300 #FADF24 #FFC4B7  contrast page 13.52, panel 13.03, raised 11.63, elevated 10.33
+   P2               #C0C0C0  sim P/D/T #C0C0C0 #C0C0C0 #C0C0C0  contrast page 10.42, panel 10.05, raised 8.96, elevated 7.96
+   P3               #CD7F32  sim P/D/T #978628 #AA9833 #E06D6F  contrast page 6.03, panel 5.81, raised 5.19, elevated 4.61
+   normal        closest pair P1 / P3                        dE2000 28.7
+   protanopia    closest pair P1 / P3                        dE2000 23.7
+   deuteranopia  closest pair P1 / P3                        dE2000 20.2
+   tritanopia    closest pair P1 / P2                        dE2000 19.0
+   smallest pair over all vision types: 19.0 -> PASS (distinguishable on colour alone, cue kept)
+   mark contrast >= 3: PASS
+
+## TEAM_COLORS 2024 grid
+   cue: driver code next to every mark / in every badge, teammate dash; brand colours kept
+   Red Bull Racing  #3671C6  sim P/D/T #4779C9 #2E6BC4 #008592  contrast page 3.91, panel 3.77, raised 3.37, elevated 2.99
+   Ferrari          #E8002D  sim P/D/T #60572B #938322 #FF001C  contrast page 4.04, panel 3.89, raised 3.47, elevated 3.08
+   Mercedes         #27F4D2  sim P/D/T #EAE4D1 #D1D2D5 #00F8EA  contrast page 13.51, panel 13.02, raised 11.62, elevated 10.32
+   McLaren          #FF8000  sim P/D/T #A69100 #C4AE00 #FF626D  contrast page 7.53, panel 7.26, raised 6.48, elevated 5.75
+   Aston Martin     #229971  sim P/D/T #968E6F #878374 #00998E  contrast page 5.29, panel 5.10, raised 4.55, elevated 4.05
+   Alpine           #FF87BC  sim P/D/T #96A1BE #B5B6B9 #FF819A  contrast page 8.53, panel 8.22, raised 7.33, elevated 6.52
+   Williams         #64C4FF  sim P/D/T #A9C3FF #93B4FE #00D3D8  contrast page 9.83, panel 9.47, raised 8.45, elevated 7.51
+   RB               #6692FF  sim P/D/T #609EFF #4A90FD #00ABBC  contrast page 6.43, panel 6.20, raised 5.53, elevated 4.91
+   Haas F1 Team     #B6BABD  sim P/D/T #B9BABD #B8B9BD #B4BBBB  contrast page 9.71, panel 9.36, raised 8.35, elevated 7.42
+   Kick Sauber      #52E252  sim P/D/T #E7CE40 #D5C25F #32DCC4  contrast page 11.16, panel 10.76, raised 9.60, elevated 8.53
+   normal        closest pair Red Bull Racing / RB           dE2000 13.8
+   protanopia    closest pair Alpine / Williams              dE2000 12.2
+   deuteranopia  closest pair Alpine / Haas F1 Team          dE2000 1.0  (< 10: needs the cue)
+   tritanopia    closest pair Mercedes / Kick Sauber         dE2000 7.2  (< 10: needs the cue)
+   smallest pair over all vision types: 1.0 -> PASS WITH CUE (redundant cue always drawn)
+   mark contrast >= 3: all raw colours pass; drawn through markColor: none changed on raised
+
+## Teammates (V3): team colour vs teammate tint, every team key
+   Red Bull Racing  #3671C6 -> #90B1E0  dE2000 N/P/D/T 21.4 / 20.3 / 23.4 / 18.8  tint mark on raised 7.42
+   Ferrari          #E8002D -> #F2738C  dE2000 N/P/D/T 20.4 / 26.9 / 18.2 / 17.7  tint mark on raised 5.91
+   Mercedes         #27F4D2 -> #189782  dE2000 N/P/D/T 24.1 / 23.5 / 23.6 / 24.3  tint mark on raised 4.49
+   McLaren          #FF8000 -> #FFB973  dE2000 N/P/D/T 14.7 / 14.6 / 11.0 / 15.1  tint mark on raised 9.66
+   Aston Martin     #229971 -> #85C7B1  dE2000 N/P/D/T 17.1 / 15.7 / 16.9 / 15.4  tint mark on raised 8.39
+   Alpine           #FF87BC -> #9E5475  dE2000 N/P/D/T 23.7 / 23.1 / 23.0 / 21.7  tint mark on raised 3.09
+   Williams         #64C4FF -> #3E7A9E  dE2000 N/P/D/T 23.5 / 23.4 / 23.5 / 23.7  tint mark on raised 3.48
+   RB               #6692FF -> #ABC3FF  dE2000 N/P/D/T 14.5 / 14.1 / 16.0 / 13.8  tint mark on raised 9.30
+   Racing Bulls     #6692FF -> #ABC3FF  dE2000 N/P/D/T 14.5 / 14.1 / 16.0 / 13.8  tint mark on raised 9.30
+   AlphaTauri       #5E8FAA -> #A6C1D0  dE2000 N/P/D/T 16.6 / 15.5 / 17.5 / 17.1  tint mark on raised 8.67
+   Haas F1 Team     #B6BABD -> #717375  dE2000 N/P/D/T 23.1 / 23.2 / 23.0 / 23.4  tint mark on raised 3.43
+   Kick Sauber      #52E252 -> #338C33  dE2000 N/P/D/T 24.2 / 24.2 / 23.8 / 24.0  tint mark on raised 3.84
+   Alfa Romeo       #C92D4B -> #E18C9C  dE2000 N/P/D/T 23.0 / 27.8 / 20.3 / 22.4  tint mark on raised 6.55
+   Audi             #F50537 -> #FA7691  dE2000 N/P/D/T 18.8 / 26.6 / 17.2 / 17.6  tint mark on raised 6.26
+   Cadillac         #909090 -> #C2C2C2  dE2000 N/P/D/T 14.6 / 14.6 / 14.6 / 14.6  tint mark on raised 9.16
+   smallest teammate distance over all vision types: 11.0 -> PASS (plus dashed lines)
+
+## Third driver of a team (V3): tint 2 vs team colour and tint 1, as marks
+   Red Bull Racing  #3671C6 -> #162D4F  dE2000 to the nearer of the two N/P/D/T 11.4 / 14.2 / 14.0 / 11.2  mark #5C6C84 3.05:1
+   Ferrari          #E8002D -> #5D0012  dE2000 to the nearer of the two N/P/D/T 20.1 / 15.9 / 20.0 / 19.8  mark #965965 3.04:1
+   Mercedes         #27F4D2 -> #1FC3A8  dE2000 to the nearer of the two N/P/D/T 11.5 / 11.2 / 11.0 / 11.5  mark #1FC3A8 7.32:1
+   McLaren          #FF8000 -> #663300  dE2000 to the nearer of the two N/P/D/T 25.3 / 20.5 / 25.0 / 20.7  mark #8C6640 3.18:1
+   Aston Martin     #229971 -> #0F4533  dE2000 to the nearer of the two N/P/D/T 15.4 / 14.1 / 11.4 / 13.7  mark #4B7466 3.10:1
+   Alpine           #FF87BC -> #FFCFE4  dE2000 to the nearer of the two N/P/D/T 16.7 / 15.4 / 10.1 / 18.1  mark #FFCFE4 11.88:1
+   Williams         #64C4FF -> #C1E7FF  dE2000 to the nearer of the two N/P/D/T 13.2 / 12.3 / 14.5 / 12.7  mark #C1E7FF 12.54:1
+   RB               #6692FF -> #293A66  dE2000 to the nearer of the two N/P/D/T 20.5 / 21.9 / 20.4 / 21.5  mark #5F6B8C 3.08:1
+   Racing Bulls     #6692FF -> #293A66  dE2000 to the nearer of the two N/P/D/T 20.5 / 21.9 / 20.4 / 21.5  mark #5F6B8C 3.08:1
+   AlphaTauri       #5E8FAA -> #2F4855  dE2000 to the nearer of the two N/P/D/T 14.2 / 14.5 / 13.8 / 15.2  mark #596D77 3.01:1
+   Haas F1 Team     #B6BABD -> #929597  dE2000 to the nearer of the two N/P/D/T 10.9 / 10.9 / 11.0 / 10.8  mark #929597 5.41:1
+   Kick Sauber      #52E252 -> #BAF3BA  dE2000 to the nearer of the two N/P/D/T 15.4 / 15.3 / 14.6 / 12.6  mark #BAF3BA 12.90:1
+   Alfa Romeo       #C92D4B -> #5A1422  dE2000 to the nearer of the two N/P/D/T 16.4 / 11.4 / 13.4 / 17.3  mark #94666F 3.41:1
+   Audi             #F50537 -> #620216  dE2000 to the nearer of the two N/P/D/T 20.5 / 16.6 / 20.7 / 19.1  mark #995B68 3.15:1
+   Cadillac         #909090 -> #3A3A3A  dE2000 to the nearer of the two N/P/D/T 14.3 / 14.3 / 14.3 / 14.3  mark #6B6B6B 3.06:1
+   smallest third-driver distance over all vision types: 10.1 -> PASS (plus the dash-dot 8,3,2,3)
+
+## Team-colour marks (markColor rule: lifted toward white until >= 3:1)
+   on page     lifted: none; smallest contrast after the rule 3.58
+   on panel    lifted: none; smallest contrast after the rule 3.45
+   on raised   lifted: none; smallest contrast after the rule 3.08
+   on elevated lifted: Red Bull Racing #3671C6->#4078C9, Alfa Romeo #C92D4B->#CE425D; smallest contrast after the rule 3.08
+
+## Badge text (contrastText: black or white, whichever is higher)
+   Red Bull Racing              #3671C6 text #FFFFFF 4.85 (white would be 4.85)
+   Ferrari                      #E8002D text #FFFFFF 4.70 (white would be 4.70)
+   Mercedes                     #27F4D2 text #000000 14.96 (white would be 1.40)
+   McLaren                      #FF8000 text #000000 8.34 (white would be 2.52)
+   Aston Martin                 #229971 text #000000 5.86 (white would be 3.58)
+   Alpine                       #FF87BC text #000000 9.44 (white would be 2.22)
+   Williams                     #64C4FF text #000000 10.88 (white would be 1.93)
+   RB                           #6692FF text #000000 7.12 (white would be 2.95)
+   Racing Bulls                 #6692FF text #000000 7.12 (white would be 2.95)
+   AlphaTauri                   #5E8FAA text #000000 5.99 (white would be 3.51)
+   Haas F1 Team                 #B6BABD text #000000 10.75 (white would be 1.95)
+   Kick Sauber                  #52E252 text #000000 12.36 (white would be 1.70)
+   Alfa Romeo                   #C92D4B text #FFFFFF 5.30 (white would be 5.30)
+   Audi                         #F50537 text #000000 4.96 (white would be 4.23)
+   Cadillac                     #909090 text #000000 6.58 (white would be 3.19)
+   Red Bull Racing (teammate)   #90B1E0 text #000000 9.55 (white would be 2.20)
+   Ferrari (teammate)           #F2738C text #000000 7.61 (white would be 2.76)
+   Mercedes (teammate)          #189782 text #000000 5.79 (white would be 3.63)
+   McLaren (teammate)           #FFB973 text #000000 12.44 (white would be 1.69)
+   Aston Martin (teammate)      #85C7B1 text #000000 10.80 (white would be 1.94)
+   Alpine (teammate)            #9E5475 text #FFFFFF 5.28 (white would be 5.28)
+   Williams (teammate)          #3E7A9E text #FFFFFF 4.69 (white would be 4.69)
+   RB (teammate)                #ABC3FF text #000000 11.98 (white would be 1.75)
+   Racing Bulls (teammate)      #ABC3FF text #000000 11.98 (white would be 1.75)
+   AlphaTauri (teammate)        #A6C1D0 text #000000 11.16 (white would be 1.88)
+   Haas F1 Team (teammate)      #717375 text #FFFFFF 4.76 (white would be 4.76)
+   Kick Sauber (teammate)       #338C33 text #000000 4.94 (white would be 4.25)
+   Alfa Romeo (teammate)        #E18C9C text #000000 8.43 (white would be 2.49)
+   Audi (teammate)              #FA7691 text #000000 8.07 (white would be 2.60)
+   Cadillac (teammate)          #C2C2C2 text #000000 11.79 (white would be 1.78)
+   tyre SOFT                    #FF3333 text #000000 5.77 (white would be 3.64)
+   tyre MEDIUM                  #FFC300 text #000000 13.06 (white would be 1.61)
+   tyre HARD                    #EEEEEE text #000000 18.10 (white would be 1.16)
+   tyre INTERMEDIATE            #39B54A text #000000 7.88 (white would be 2.66)
+   tyre WET                     #00AAFF text #000000 8.19 (white would be 2.56)
+   tyre UNKNOWN                 #888888 text #000000 5.92 (white would be 3.54)
+   medal P1                     #FFD700 text #000000 14.97 (white would be 1.40)
+   medal P2                     #C0C0C0 text #000000 11.54 (white would be 1.82)
+   medal P3                     #CD7F32 text #000000 6.68 (white would be 3.14)
+   playhead (white bubble)      #FFFFFF text #000000 21.00 (white would be 1.00)
+   smallest badge text contrast: 4.69 (bold >= 14 px badges need 3:1, normal text 4.5:1)
+
+## Single accents drawn as marks (>= 3:1 on panel and raised)
+   pitWindow  #A855F7  panel 4.62, raised 4.12
+   brush      #8AB4F8  panel 8.67, raised 7.74
+   predicted  #F5A623  panel 9.02, raised 8.05
+   drs        #FFFFFF  panel 18.28, raised 16.31
+   north      #FF6B63  panel 6.56, raised 5.85
+   surface    #4A5568  panel 2.43, raised 2.17  (track surface, background)
+
+## Neutral text and accents
+   primary    #FFFFFF  page 18.96, panel 18.28, raised 16.31, elevated 14.49
+   secondary  #C9CCD6  page 11.82, panel 11.40, raised 10.17, elevated 9.03
+   muted      #A3A7B7  page 7.92, panel 7.63, raised 6.81, elevated 6.05
+   brush      #8AB4F8  page 9.00, panel 8.67, raised 7.74, elevated 6.88
+   predicted  #F5A623  page 9.36, panel 9.02, raised 8.05, elevated 7.15
+   muted on a hovered row (white 0.14 over panel = #343444): 5.10
+
+## Tinted chips (tintedChip: tint 0.15 behind, text lifted to 4.5:1 on it)
+   green         #34D399 on #1E3A42: text #34D399 6.28 (raw colour 6.28)
+   yellow        #FACC15 on #3C392F: text #FACC15 7.54 (raw colour 7.54)
+   safetyCar     #F59E0B on #3B322D: text #F59E0B 5.82 (raw colour 5.82)
+   red           #F87171 on #3B2B3C: text #F87171 4.75 (raw colour 4.75)
+   blue          #60A5FA on #253351: text #60A5FA 4.94 (raw colour 4.94)
+   chequered     #FFFFFF on #3C4152: text #FFFFFF 10.14 (raw colour 10.14)
+   pit           #F472B6 on #3B2B47: text #F472B6 4.89 (raw colour 4.89)
+   overallBest   #C084FC on #332E51: text #C084FC 4.82 (raw colour 4.82)
+   personalBest  #34D399 on #1E3A42: text #34D399 6.28 (raw colour 6.28)
+   worse         #F0883E on #3A2F35: text #F0883E 5.07 (raw colour 5.07)
+   better        #5DA5E8 on #24334E: text #5DA5E8 4.83 (raw colour 4.83)
+   accent        #E10600 on #381B2B: text #EC5D59 4.62 (raw colour 3.11)
+
+RESULT: PASS

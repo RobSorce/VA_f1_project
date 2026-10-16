@@ -1,0 +1,9 @@
+Demo analytics parity (frontend/src/__tests__/demo.pcaSelectionStats.test.js), input = frontend/public/data, Python = backend modules (pca_compute, predictions.degradation_response)
+demo races: 2024 R16, 2024 R5, 2025 R1; clocks per race: before the start, leader at 1/3 and 2/3 of the laps, post-race, 60 s after the last lap
+constants equal: 20
+default_rng(20261014).random(2000): equal bit for bit
+random baseline: 60 rows x 12 features, 1000 draws, strata {"post-race":7,"session_now":4}: equal
+biplot at a clock: 15 cases equal
+lasso analysis: 37 cases equal (threshold rule per_feature 24, max 12; with rows of the race at the clock 18; no random alternative 7; features above random 18)
+degradation fits: 21 cases equal (46 driver fits)
+compared: 73694 numbers (max relative difference 5.55e-16, tolerance 1e-9), 44137 texts

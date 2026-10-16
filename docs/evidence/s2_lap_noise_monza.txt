@@ -1,0 +1,85 @@
+S2, Monza 2024 (2024 R16): degradation and lap noise of the Monte Carlo engine (extractRaceParams)
+fuel correction: 0.03 s per lap of fuel (degradation.js FUEL_EFFECT_S_PER_LAP, an assumption)
+lap noise before a race's first fit: the cached dry races' value 0.408 s (source prior, n = 0)
+
+clock            MEDIUM deg  src    used/all fits (neg)   HARD deg  src    lap noise  src    n laps  stints  dof
+lap 5 (t=3693)    0.0282     prior     0/0   (0)            0.0174   prior  0.408      prior       0       0     0
+lap 6 (t=3778)    0.0282     prior     0/0   (0)            0.0174   prior  0.408      prior       0       0     0
+lap 7 (t=3863)    0.0282     prior     0/0   (0)            0.0174   prior  0.408      prior       0       0     0
+lap 8 (t=3947)    0.0282     prior     0/0   (0)            0.0174   prior  0.408      prior       0       0     0
+lap 9 (t=4032)    0.0282     prior     0/0   (0)            0.0174   prior  0.408      prior       0       0     0
+lap 10 (t=4116)   0.0282     prior     0/1   (1)            0.0174   prior  0.163      race        8       1     6
+lap 11 (t=4200)   0.0282     prior     0/13  (12)            0.0174   prior  0.438      race      145      18   109
+lap 12 (t=4284)   0.0282     prior     0/13  (12)            0.0174   prior  0.425      race      162      18   126
+lap 13 (t=4369)   0.0282     prior     0/13  (12)            0.0174   prior  0.414      race      175      18   139
+lap 14 (t=4454)   0.0282     prior     0/13  (12)            0.0174   prior  0.413      race      190      18   154
+lap 15 (t=4539)   0.0140     race      1/13  (10)            0.0174   prior  0.431      race      202      18   166
+lap 16 (t=4624)   0.0183     race      5/13  (8)            0.0174   prior  0.393      race      221      19   183
+lap 17 (t=4714)   0.0204     race      5/13  (8)            0.0174   prior  0.407      race      218      18   182
+lap 18 (t=4802)   0.0192     race      6/13  (8)            0.0065   race   0.392      race      235      19   197
+lap 19 (t=4888)   0.0207     race      6/13  (8)            0.0053   race   0.408      race      245      19   207
+lap 20 (t=4977)   0.0207     race      6/13  (8)            0.0072   race   0.436      race      255      19   217
+lap 21 (t=5062)   0.0207     race      6/13  (8)            0.0112   race   0.429      race      267      20   227
+lap 22 (t=5148)   0.0207     race      6/13  (8)            0.0192   race   0.432      race      290      22   246
+lap 23 (t=5236)   0.0207     race      6/13  (8)            0.0291   race   0.439      race      296      22   252
+lap 24 (t=5322)   0.0207     race      6/13  (8)            0.0375   race   0.408      race      310      23   264
+lap 25 (t=5405)   0.0207     race      6/13  (8)            0.0358   race   0.402      race      316      23   270
+lap 26 (t=5489)   0.0207     race      6/13  (8)            0.0370   race   0.392      race      356      27   302
+lap 27 (t=5572)   0.0207     race      6/13  (8)            0.0388   race   0.384      race      391      30   331
+lap 28 (t=5655)   0.0207     race      6/13  (8)            0.0432   race   0.380      race      412      31   350
+lap 29 (t=5738)   0.0207     race      6/13  (8)            0.0383   race   0.384      race      427      31   365
+lap 30 (t=5821)   0.0207     race      6/13  (8)            0.0266   race   0.402      race      463      33   397
+lap 31 (t=5904)   0.0207     race      6/13  (8)            0.0280   race   0.382      race      477      33   411
+lap 32 (t=5987)   0.0207     race      6/13  (8)            0.0240   race   0.402      race      496      33   430
+lap 33 (t=6071)   0.0207     race      6/13  (8)            0.0099   race   0.407      race      510      33   444
+lap 34 (t=6154)   0.0207     race      6/13  (8)            0.0129   race   0.390      race      530      34   462
+lap 35 (t=6237)   0.0207     race      6/13  (8)            0.0141   race   0.387      race      549      35   479
+lap 36 (t=6321)   0.0207     race      6/13  (8)            0.0172   race   0.389      race      563      35   493
+lap 37 (t=6404)   0.0207     race      6/13  (8)            0.0142   race   0.379      race      568      35   498
+lap 38 (t=6488)   0.0207     race      6/13  (8)            0.0157   race   0.379      race      578      35   508
+lap 39 (t=6576)   0.0207     race      6/13  (8)            0.0170   race   0.385      race      591      35   521
+lap 40 (t=6661)   0.0207     race      6/13  (8)            0.0183   race   0.381      race      598      35   528
+lap 41 (t=6745)   0.0207     race      6/13  (8)            0.0205   race   0.386      race      606      35   536
+lap 42 (t=6828)   0.0207     race      6/14  (8)            0.0200   race   0.379      race      625      37   551
+lap 43 (t=6912)   0.0207     race      6/14  (8)            0.0207   race   0.381      race      638      37   564
+lap 44 (t=6996)   0.0207     race      6/14  (8)            0.0216   race   0.379      race      653      38   577
+lap 45 (t=7079)   0.0207     race      6/15  (8)            0.0221   race   0.392      race      682      40   602
+lap 46 (t=7163)   0.0207     race      6/14  (8)            0.0228   race   0.385      race      700      41   618
+lap 47 (t=7247)   0.0207     race      6/16  (9)            0.0231   race   0.395      race      727      43   641
+lap 48 (t=7330)   0.0207     race      6/16  (9)            0.0229   race   0.383      race      749      44   661
+lap 49 (t=7414)   0.0222     race      7/17  (11)            0.0254   race   0.389      race      773      45   683
+lap 50 (t=7497)   0.0207     race      7/17  (10)            0.0244   race   0.390      race      796      46   704
+lap 51 (t=7581)   0.0182     race      7/17  (9)            0.0229   race   0.389      race      809      46   717
+lap 52 (t=7664)   0.0207     race      8/18  (9)            0.0206   race   0.396      race      836      47   742
+race end          0.0162     race      9/18  (9)            0.0162   race   0.401      race      889      47   795
+
+D1 check: lap noise 0.3-0.6 s at the leader's laps 20, 30, 40 (lap-mode clock: the leader starts that lap) and at the race end
+  lap 20: 0.436 s (n = 255 clean laps, 19 stints, dof 217, source race) -> in band
+  lap 30: 0.402 s (n = 463 clean laps, 33 stints, dof 397, source race) -> in band
+  lap 40: 0.381 s (n = 598 clean laps, 35 stints, dof 528, source race) -> in band
+  race end: 0.401 s (n = 889 clean laps, 47 stints, dof 795, source race) -> in band
+  in band: 4 / 4
+
+S2 check: MEDIUM degradation > 0 after fuel correction
+  lap-mode clocks with MEDIUM <= 0: none (of 48)
+  race end: MEDIUM 0.0162 s/lap (race; fits used 9, all 18 of which negative 9, kept as diagnostics)
+
+Sub-lap replay clocks after the leader starts lap 10 (each clock where something new is known, causalKey)
+  t (s)    lap noise  n laps  stints
+    4116   0.408  prior       0       0
+    4117   0.160  race       16       2
+    4119   0.167  race       24       3
+    4121   0.180  race       32       4
+    4123   0.216  race       40       5
+    4125   0.212  race       48       6
+    4126   0.207  race       56       7
+    4127   0.209  race       64       8
+    4133   0.216  race       80      10
+    4134   0.218  race       88      11
+    4135   0.219  race       96      12
+    4136   0.223  race      104      13
+    4138   0.244  race      112      14
+    4139   0.292  race      120      15
+    4141   0.318  race      128      16
+    4143   0.357  race      136      17
+    4144   0.440  race      144      18

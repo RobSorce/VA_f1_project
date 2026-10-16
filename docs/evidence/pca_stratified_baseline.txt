@@ -1,0 +1,29 @@
+PROGRESS_DEPENDENT_FEATURES = ['degradation_slope', 'pit_count', 'avg_stint_length', 'max_stint_length']; 200 random selections per clock and type (seed 7); baseline 1000 draws, seed 20261014
+
+== 1. replay clocks: former baseline (all rows) vs stratified (same mix); b = random selections of 2 to 8 rows of the race on screen, c = 1 to 5 rows of it + 1 to 5 rows of finished races
+race       lap live | a. all live rows flagged: former -> stratified                |   b. live-only: progress / any |    c. mixed: any
+2024 R16    13   19 | degradation_slope,pit_count,avg_stint_length,max_stint_length -> -| 84.5% ->  1.5% / 84.5% ->  5.0% | 45.0% ->  5.0%
+2024 R16    26   19 | pit_count,avg_stint_length,max_stint_length -> -              | 63.5% ->  1.5% / 63.5% ->  4.0% | 19.0% ->  7.0%
+2024 R16    40   19 | avg_stint_length,max_stint_length -> -                        | 21.0% ->  2.5% / 21.0% ->  7.0% |  4.0% ->  7.0%
+2025 R1     14   17 | pit_count,avg_stint_length,max_stint_length -> -              | 87.5% ->  0.5% / 88.0% ->  6.0% | 46.5% ->  5.0%
+2025 R1     28   17 | degradation_slope,pit_count -> -                              | 88.5% ->  0.5% / 88.5% ->  3.5% | 42.0% ->  4.5%
+2025 R1     43   16 | degradation_slope,avg_stint_length -> -                       | 90.5% ->  0.0% / 93.5% ->  6.0% | 38.5% ->  8.0%
+2024 R8     20   16 | degradation_slope,pit_count,avg_stint_length,max_stint_length -> -| 87.5% ->  2.5% / 88.0% ->  9.5% | 37.0% ->  3.5%
+2024 R8     39   16 | pit_count -> -                                                |  4.0% ->  1.5% /  6.5% ->  4.5% |  3.5% ->  3.5%
+2024 R8     58   16 | consistency_pct,max_stint_length -> -                         | 90.0% ->  2.0% / 93.5% ->  7.5% | 54.5% ->  8.0%
+2024 R21    17   18 | degradation_slope,pit_count,avg_stint_length,max_stint_length -> -| 85.0% ->  2.0% / 85.0% ->  6.5% | 39.0% ->  4.5%
+2024 R21    34   16 | avg_stint_length -> -                                         | 76.5% ->  1.0% / 78.0% ->  5.0% | 27.5% ->  2.5%
+2024 R21    52   15 | consistency_pct,degradation_slope -> -                        | 78.5% ->  1.5% / 80.0% ->  4.0% | 28.5% ->  5.5%
+2025 R8     20   19 | best_lap_delta_pct,degradation_slope,pit_count,avg_stint_length,max_stint_length -> -| 79.0% ->  2.0% / 84.0% ->  5.5% | 42.5% ->  7.5%
+2025 R8     39   19 | consistency_pct,pit_count,max_stint_length -> -               | 14.0% ->  1.5% / 59.5% ->  4.5% | 16.5% ->  3.5%
+2025 R8     58   18 | pace_delta_pct,sector2_delta_pct,sector3_delta_pct,consistency_pct -> -|  2.0% ->  4.5% / 81.0% -> 10.5% | 20.0% ->  6.5%
+all 15 clocks of 5 races: b. live-only selections flagging a progress-dependent feature 63.5% (former) -> 1.7% (stratified); any feature 73.0% -> 5.9%; c. mixed selections flagging any feature 30.9% -> 5.4% (3000 and 3000 selections)
+
+== 2. post-race (one kind): stratified baseline == former baseline
+  sizes 1, 2, 5, 10, 20, 50: identical True
+
+== 3. cache key: two clocks inside one leader lap, and one changed value
+  2024 R21 lap 50: clocks 10379.9 / 10461.2; matrices differ True; former key equal True; content key equal False; answer at 10461.2 after a request at 10379.9 == fresh answer True
+  2024 R16 lap 20: clocks 5062.6 / 5147.0; matrices differ True; former key equal True; content key equal False; answer at 5147.0 after a request at 5062.6 == fresh answer True
+  2025 R8 lap 20: clocks 5006.1 / 5080.9; matrices differ True; former key equal True; content key equal False; answer at 5080.9 after a request at 5006.1 == fresh answer True
+  one value of the post-race matrix changed (row 0 pace_delta_pct + 50, same length): content key equal False; answer after a request on the unchanged matrix == fresh answer True

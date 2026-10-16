@@ -1,6 +1,6 @@
 /**
  * The cross-race PCA answers across a session switch (P3 / P6, round 3):
- * writes notes/experiments/phase67/pca_session_switch_check.txt and prints
+ * writes docs/evidence/pca_session_switch_check.txt and prints
  * the same text.
  *
  * Run from frontend/ (after backend: python -m scripts.pca_session_switch_answers):
@@ -9,7 +9,7 @@
  * The real store (loadSession, loadFrames, showRaceOver, fetchPCAAnalysis,
  * pcaRequestOf) and the real panel (PCAAnalysisPanel); the network answered
  * with the cached session / frames files and the backend's own answers
- * (pca_session_switch_answers.json: the 19 rows of 2024 R16 post-race, and at
+ * (docs/evidence/pca_session_switch_answers.json: the 19 rows of 2024 R16 post-race, and at
  * the race clock 0). A request with any other clock is answered with the
  * clock-0 answer as a stand-in (its content is not under test, only that it
  * is asked and lands). The FP2 payload is a stand-in too
@@ -38,9 +38,9 @@ if (typeof globalThis.localStorage === 'undefined') {
 }
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
-const NOTES = path.join(ROOT, 'notes/experiments/phase67');
+const EVIDENCE = path.join(ROOT, 'docs/evidence');
 const read = (p) => JSON.parse(fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\bNaN\b/g, 'null'));
-const ans = JSON.parse(fs.readFileSync(path.join(NOTES, 'pca_session_switch_answers.json'), 'utf8'));
+const ans = JSON.parse(fs.readFileSync(path.join(EVIDENCE, 'pca_session_switch_answers.json'), 'utf8'));
 const emb = read('backend/data/processed/pca_embeddings.json');
 const sessions = {
   'R-16': read('backend/data/processed_cache/session_2024_16_R.json'),
@@ -149,5 +149,5 @@ out(`analysis requests after the load: ${asked.length} (session_now ${JSON.strin
 const pB = await panelText('Differences');
 out(`panel: "Analyzing selection..." ${pB.t.includes('Analyzing selection')}; shows N ${/N = \d+ selected vs \d+ other rows/.test(pB.t)}`);
 
-fs.writeFileSync(path.join(NOTES, 'pca_session_switch_check.txt'), `${lines.join('\n')}\n`);
+fs.writeFileSync(path.join(EVIDENCE, 'pca_session_switch_check.txt'), `${lines.join('\n')}\n`);
 process.exit(0);

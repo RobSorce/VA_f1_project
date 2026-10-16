@@ -24,7 +24,7 @@
   background: var(--rh-surface, #141414);
   /* The field's boundary >= 3:1 on the field and on the weather bar (WCAG 2.1
      SC 1.4.11, UI_COLORS.controlBorder: 4.52:1 / 4.64:1; --rh-border #2A2A2A
-     read 1.28:1 / 1.32:1, D10; notes/experiments/phase9c/state-help/state_help_check.txt) */
+     read 1.28:1 / 1.32:1, D10; docs/evidence/focus_context_contrast.txt) */
   border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: var(--rh-radius-xl, 12px);
   transition: all var(--rh-transition-normal, 0.2s ease);

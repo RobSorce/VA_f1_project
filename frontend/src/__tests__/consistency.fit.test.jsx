@@ -216,7 +216,7 @@ describe('the panel (mini DOM, measured sizes mocked)', () => {
 
   // Phase 9c r2 (F4): the pager kept its index, or jumped back to the focus
   // page, when expanding a card moved the pages: the card just expanded left
-  // the screen (notes/experiments/phase9c/verify_layout-charts_r2/consistency.pagejump.txt)
+  // the screen
   it('expanding a card on a later page keeps that card on screen (no focus driver)', async () => {
     const v = await mount();
     await resize(v.area(), 593, 180);

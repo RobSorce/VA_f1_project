@@ -1,0 +1,21 @@
+Timing Tower text 11 px (CHART_FONT.fixed everywhere in the tower: true); COL sum 476 px, header letter-spacing 0.04 em
+OK   pos      26.0 px holds value "20" (+4 px padding): 16.3 px
+OK   pos      26.0 px holds header "POS": 25.1 px
+OK   num      28.0 px holds badge "44" (minWidth 24 + 4 px padding): 28.0 px
+OK   num      28.0 px holds header "#": 9.7 px
+OK   driver   62.0 px holds "VER" + compound badge 13 + 4 (margins) + "25" (+6 left, 2 right): 60.1 px
+OK   driver   62.0 px holds header "DRIVER" (6 left): 53.2 px
+OK   gap      48.0 px holds "+12.345": 44.3 px
+OK   gap      48.0 px holds "LEADER": 47.6 px
+OK   gap      48.0 px holds "+102.3" (>= 100 s): 38.1 px
+OK   gap      48.0 px holds header "GAP": 25.1 px
+OK   int      48.0 px holds "+12.345": 44.3 px
+OK   int      48.0 px holds header "INT": 25.1 px
+OK   s1       54.0 px holds "◆28.123" (glyph + 2 px margin): 48.7 px
+OK   s1       54.0 px holds header "S1": 16.3 px
+OK   lapTime  62.0 px holds "◆1:21.456": 57.9 px
+OK   lapTime  62.0 px holds header "TIME": 32.8 px
+OK   lap      26.0 px holds "57": 16.3 px
+OK   lap      26.0 px holds header "LAP": 25.1 px
+OK   status   14.0 px holds glyph "✕": 12.8 px
+Every tower cell and header fits its column at the four target viewports (the size does not depend on the viewport).

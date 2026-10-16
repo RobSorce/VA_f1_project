@@ -137,7 +137,7 @@ def test_the_saved_choice_is_the_validation_best_and_the_test_numbers_are_report
         assert block['test_ranking'] == sorted(m, key=lambda k: m[k]['test'])
         assert block['selected'] == block['ranking'][0]
     # the lap-time rankings differ on the saved run: persistence 2nd on
-    # validation, compound_mean 2nd on test (notes/experiments/phase6/evaluate_forecast.txt)
+    # validation, compound_mean 2nd on test (docs/evidence/evaluate_forecast.txt)
     assert sel['lap_time']['ranking'][:2] == ['lstm', 'persistence']
     assert sel['lap_time']['test_ranking'][:2] == ['lstm', 'compound_mean']
 

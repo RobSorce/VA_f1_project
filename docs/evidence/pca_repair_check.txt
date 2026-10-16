@@ -1,0 +1,39 @@
+== 1. The loaded weekend's race at the clock on screen (2024 R16, LEC_2024_16) ==
+artefact: LEC_2024_16 finish_position 1; rows of 2024 R16: 19
+session clock at the last frame: Infinity; half way: 1800
+session on screen      clock     | race clock   result hidden | LEC finish  fill      | 2024 R16 rows drawable (artefact)
+Sprint, last frame     Infinity  | not-started  true          | null        none      | 0
+FP2, last frame        Infinity  | not-started  true          | null        none      | 0
+Q, last frame          Infinity  | not-started  true          | null        none      | 0
+Race, half way         1800      | running      true          | null        none      | 0
+Race, last frame       Infinity  | ended        false         | 1           #fdea45   | 19
+verifier probe call (loadedResultHidden without a session type: false; loaded race of an FP2): LEC finish null, fill none
+shape legend, rows at the replay clock (lap 10): "2024 R16 at lap 10 (on screen)"
+shape legend, post-race rows (race ended): "2024 R16 whole race (on screen)"
+
+== 2. Race Situation Map as drawn: store chain (computePCA align 'rotation') + advanceDisplay, every cached race ==
+1720 laps of 30 cached races
+best-fit angle between the drawn dots and crosshair + Z x arrows: largest 0.000000 deg (2024 R12 lap 14); laps with |angle| > 5 deg: 0
+driver-laps drawn > 0.5 PC units from crosshair + Z x arrows: 0 of 31633; largest gap 6.02e-14 PC units (2024 R6 lap 19)
+largest distance of the drawn field's mean from the 'field avg' crosshair: 0.00e+0 PC units (n/a)
+
+== 3. Lap-to-lap mean move of the points (PC units): live alignment 'rotation' vs 'sign' (the previous store default) ==
+Monza 2024 (R16)   lap | live: move  dot1  dot2 | sign: move  dot1  dot2
+                    40 |       0.73  0.98  0.82 |       1.45  0.75  0.65
+                    41 |       0.47  0.99  0.92 |       0.48  1.00  0.91
+                    42 |       0.47  1.00  0.98 |       2.67  0.22  0.23
+                    43 |       0.60  0.99  0.96 |       2.17  0.48  0.50
+                    44 |       0.35  0.99  1.00 |       0.44  0.98  0.99
+Monza 2024 whole race: live median 0.56 max 1.34; sign median 0.62 max 2.67
+2024 R22 lap 19: live dots 0.74/0.90, move 1.59; sign dots 0.01/0.02, move 3.26
+every cached race: live 1690 lap pairs, median 0.56, p95 1.25, max 1.98; sign median 0.65, p95 1.53, max 3.26
+
+== 4. Axes of the live alignment ('rotation'): inside the PC1-PC2 plane ==
+angle between displayed axis 1 and PC1: median 22.6 deg, p95 75.4 deg, max 89.9 deg (1720 laps)
+largest |axis 1 + axis 2 captured variance - (PC1 + PC2) share|: 6.65e-11; axis titles not "Axis 1/2": 0
+Monza lap 42 titles: "Axis 1: Recent Pace / Gap to Leader (39%)" | "Axis 2: Stint # / Tyre Age (42%)" | "PC1–PC2 plane: 80% of the variance"
+
+== 5. Help texts of the PCA panels (utils/chartHelp.js) ==
+analytics      stale terms: none; numbers in the text: none
+analysis       stale terms: none; numbers in the text: 3, 7, 0.2
+racesituation  stale terms: none; numbers in the text: none

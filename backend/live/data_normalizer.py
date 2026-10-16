@@ -6,7 +6,7 @@ existing FastF1-based pipeline, so all downstream visualizations and
 predictions work unchanged.
 
 Message formats (checked against the recorded live-timing files of the 2024
-Italian GP race, notes/experiments/phase8/live_B/probe_raw_formats.txt):
+Italian GP race; backend/tests/test_live_normalizer.py feeds these formats):
 - TimingData: Position is a string ('2'), NumberOfLaps an int; LastLapTime
   always arrives in the same message as the NumberOfLaps it completes.
   GapToLeader / IntervalToPositionAhead.Value are '+1.234', the race leader's
@@ -17,13 +17,12 @@ Italian GP race, notes/experiments/phase8/live_B/probe_raw_formats.txt):
   set's age, StartLaps its age when fitted, TyresNotChanged '1' a pit-lane
   pass on the same set. A later update can correct a stint already sent
   (recorded races, 1852 stints: Compound 253 times, TyresNotChanged '1' ->
-  '0' 190, '0' -> '1' 12; notes/experiments/phase8/repair/
-  probe_stint_corrections.txt). The index is not always the stint: FastF1
+  '0' 190, '0' -> '1' 12). The index is not always the stint: FastF1
   renumbers it between pit entries (_process_stints).
 - RaceControlMessages: Messages is a list in the first (snapshot) message
   and a dict {"<index>": {...}} afterwards. Every (re-)subscription sends the
   snapshot again; a message is identified by its index (no index re-sent
-  with new content in 3020 recorded messages, repair/probe_rcm_keys.txt).
+  with new content in 3020 recorded messages).
 - LastLapTime of 150 s or more is dropped, as FastF1 drops it (_api.py
   _laps_data_driver): the lap that ends after a red flag carries the
   suspension in it (2024 R4 VER lap 2: 1711.131 s).
@@ -31,7 +30,7 @@ Italian GP race, notes/experiments/phase8/live_B/probe_raw_formats.txt):
 Times: every live time (lap Time / LapStartTime, PitInTime / PitOutTime,
 track-status start_time / end_time, weather Time) is in SESSION seconds on
 one clock (session_time), the time base of the replay's FastF1 SessionTime
-(notes/experiments/phase3_round1/DECISIONS.md, decision D13). Live, session
+(decision D13). Live, session
 time 0 is the first message after a reset; the mock replay pins the clock to
 the replayed session's own times (set_session_time), so its live rows carry
 the replay's session times exactly, and un-pins it when it stops (the clock
@@ -219,8 +218,8 @@ class LiveDataNormalizer:
         own time of the message about to be sent). None un-pins it: the
         clock then runs on from the last pinned time (a stopped mock left it
         pinned, so every later live message got the same time: two laps fed
-        0.4 s apart both ended at 6654.29, notes/experiments/phase8/
-        verify_live/r3_pinned_clock_after_mock.txt)."""
+        0.4 s apart both ended at 6654.29;
+        backend/tests/test_live_mock_replay.py)."""
         if t is None:
             if self._pinned_time is not None:
                 self._clock_origin = _time.monotonic() - self._pinned_time
@@ -542,8 +541,7 @@ class LiveDataNormalizer:
                     # lap then starts LapTime before its end, not at the
                     # connect (it started on the earlier unknown end: 2024 R1
                     # connect on lap 14, VER lap 13 started at 4860.799
-                    # instead of 4763.969, notes/experiments/phase8/
-                    # verify_live/r3_midrace_rows.txt)
+                    # instead of 4763.969)
                     state["last_lap_end"] = None
                 lap_updates.append(row)
             if n is not None and state["snapshot_stints"] and state["snapshot_laps"] is None:
@@ -670,8 +668,7 @@ class LiveDataNormalizer:
         a pass on lap 5, rewritten on lap 34 as the MEDIUM set: MEDIUM from
         lap 5; FastF1 starts it on 34; BEA the same on lap 40). Replaying
         FastF1's rule offline on the recorded feed gives the replay's stints
-        for 597 of 598 drivers, 588 without the renumbering
-        (notes/experiments/phase8/repair_r2/probe_fastf1_stint_rule.txt).
+        for 597 of 598 drivers, 588 without the renumbering.
         One exception, kept from before: a set fitted after the chequered
         flag (below).
         The counter is never below NumberOfPitStops either (process_timing_data,
@@ -763,8 +760,7 @@ class LiveDataNormalizer:
         entries) is the counter in 1757 of 1774 driver-snapshots of the
         recorded feed and never below it; above it 17 times, where FastF1
         found no message in a bracket (2025 R6) or the feed sent more
-        indexes than stops (2025 R1: six indexes for three stops on lap 14,
-        notes/experiments/phase8/repair_r2/probe_pitstops_vs_counter.txt).
+        indexes than stops (2025 R1: six indexes for three stops on lap 14).
         A connect's snapshot stints above it are those extra indexes: they
         are merged (_merge_snapshot_extras) so that the set in use is the
         counter's stint and the feed's later reuse of an index opens a stint
@@ -805,8 +801,7 @@ class LiveDataNormalizer:
         pits into stint pits, which lost a set whenever the extras were
         earlier passes (2025 R1 BOR, connect on lap 47: indexes 0-6 for 5
         pit entries, the INTER of lap 45 overwrote the MEDIUM of laps 34-44;
-        BEA lost its MEDIUM of laps 40-44 the same way;
-        notes/experiments/phase45c/b4_midrace_sweep_STEP3_AFTER.txt). Only
+        BEA lost its MEDIUM of laps 40-44 the same way). Only
         when no such stint is left are the top indexes merged into pits, as
         before. The index map follows the renumbering."""
         feed, index_map = state["feed_stints"], state["stint_index_map"]
@@ -854,8 +849,7 @@ class LiveDataNormalizer:
         (after the earlier ones, not after the set's own). Nothing else moves
         a stint: the age anchor used whenever the runs missed laps moved a
         dry race (2025 R6 Miami, connect on lap 32: BOR's HARD from 26, the
-        runs' 20 is right: its TotalLaps lag its laps), and is gone.
-        notes/experiments/phase45c/b4_midrace_sweep_STEP3_AFTER.txt."""
+        runs' 20 is right: its TotalLaps lag its laps), and is gone."""
         state["snapshot_laps"] = laps_done
         state["snapshot_age_anchor"] = None
         feed = state["feed_stints"]
@@ -915,7 +909,7 @@ class LiveDataNormalizer:
         sent changed (the feed corrected it), the driver's full list goes to
         stint_corrections instead and nothing is returned.
 
-        A stint = one tyre set (DECISIONS.md R1): a stint with
+        A stint = one tyre set (decision R1): a stint with
         TyresNotChanged '1' (pit-lane pass on the same set) is not a new
         set. Its compound, New and TyresNotChanged are the latest the feed
         sent: FastF1 applies the later corrections of a stint to all of it
@@ -1018,8 +1012,7 @@ class LiveDataNormalizer:
     def process_weather(self, data: Dict) -> Dict[str, Any]:
         """Process WeatherData topic → weather_data entry. Time is in session
         seconds, the time base of the lap rows (D13: a weather Time in epoch
-        seconds matched no lap, so every live lap showed the first reading,
-        notes/experiments/phase8/verify_live/r3_weather_card.txt);
+        seconds matched no lap, so every live lap showed the first reading);
         received_at is the wall clock (epoch s)."""
         return {
             "Time": self.session_time(),
@@ -1042,14 +1035,13 @@ class LiveDataNormalizer:
         base), not epoch seconds; received_at keeps the wall clock (epoch s)
         for display: a wall-clock view reads received_at (2024 R21, the red
         flag at 16:37:21.777 UTC next to race control's 'RED FLAG' of
-        16:37:22; start_time read as epoch shows it in 1970,
-        notes/experiments/phase8/repair_r2/live_flag_times_received_at.txt).
+        16:37:22; start_time read as epoch shows it in 1970).
         start_lap is the race leader's lap at the change (the feed's
-        LapCount, DECISIONS.md R5; 1 before the race starts).
+        LapCount, decision R5; 1 before the race starts).
 
         None when Status and Message repeat the status in force: the snapshot
         of a re-subscription sends it again (the feed itself never repeated
-        one in 344 recorded messages, repair/probe_rcm_keys.txt)."""
+        one in 344 recorded messages)."""
         status = str(data.get("Status", "1"))
         message = data.get("Message", "")
         if (status, message or "") == self._track_status_in_force:
@@ -1086,7 +1078,7 @@ class LiveDataNormalizer:
         snapshot) with its Utc, Category and Message: the index alone would
         drop the messages of a new session not preceded by a reset, the
         content alone two real messages (2024 R19 / R20: indexes 0 and 1 are
-        the same text at the same second, repair/probe_rcm_keys.txt)."""
+        the same text at the same second)."""
         messages = data.get("Messages", data) if isinstance(data, dict) else data
         if isinstance(messages, dict):
             iterable = messages.items()
@@ -1187,8 +1179,7 @@ class LiveDataNormalizer:
         red flag: the restart used to be taken for the race start there, so
         restart_time stayed None and every restart lap started at the
         connect (2024 R4 ALO lap 2 at 4630.807 s, not 5458.774). 'Aborted'
-        always follows a 'Started' (34 recorded races, notes/experiments/
-        phase8/repair_r2/session_status_sequences.txt), so the race start is
+        always follows a 'Started' (34 recorded races), so the race start is
         then before the connect and unknown: race_start_time stays None. So
         it does when the 'Started' comes in the snapshot of a connect once
         the race is under way (a lap completed or the leader past lap 1): it

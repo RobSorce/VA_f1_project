@@ -1,0 +1,263 @@
+Shared degradation definition (src/utils/degradation.js = backend/data/processors/degradation.py)
+Constants: FUEL_EFFECT_S_PER_LAP 0.03 s/lap (assumption), MIN_FIT_LAPS 8, OUTLIER_K 3.5, MAD_TO_SIGMA 1.4826, MIN_ROBUST_SCALE_S 0.001, MAX_LAP_TIME_S 200
+All at sessionNow = Infinity (the whole race). Slopes in s per lap of tyre life; slope = fuel-corrected, raw = LapTimeSeconds.
+
+=== Part 1: Monza 2024 (round 16) ===
+
+Clean-lap rule (completed lap rows: 1008)
+  removed, lap 1                                20
+  removed, in-lap (pit entry)                   31
+  removed, out-lap (pit exit)                   30
+  removed, not green (TrackStatus != 1)          0
+  removed, LapTimeSeconds missing or >= 200      0
+  removed, TyreLife missing                      0
+  usable after step 2                          927
+  removed, slow outlier (step 3)                29  (3.13% of the step-2 laps)
+  clean laps                                   898
+  slow outliers (driver stint: lap residual-minus-median / robust sigma):
+    ALB 2 HARD  : L33 +1.48 s / 0.256 s = 5.8; L37 +1.21 s / 0.256 s = 4.7
+    BOT 1 HARD  : L2 +1.79 s / 0.476 s = 3.7; L5 +1.68 s / 0.476 s = 3.5
+    BOT 2 MEDIUM: L38 +1.38 s / 0.301 s = 4.6; L41 +1.33 s / 0.301 s = 4.4; L42 +1.17 s / 0.301 s = 3.9
+    HAM 3 HARD  : L52 +3.13 s / 0.415 s = 7.5
+    HUL 3 HARD  : L37 +4.03 s / 0.309 s = 13.1; L47 +3.18 s / 0.309 s = 10.3; L48 +1.31 s / 0.309 s = 4.2
+    MAG 2 HARD  : L18 +1.25 s / 0.338 s = 3.7
+    NOR 2 HARD  : L17 +1.61 s / 0.148 s = 10.9; L31 +1.73 s / 0.148 s = 11.7
+    NOR 3 HARD  : L40 +1.29 s / 0.322 s = 4.0; L47 +1.38 s / 0.322 s = 4.3
+    PER 2 HARD  : L31 +1.33 s / 0.246 s = 5.4
+    PER 3 MEDIUM: L38 +2.51 s / 0.570 s = 4.4
+    RUS 3 HARD  : L38 +2.00 s / 0.240 s = 8.3; L41 +1.13 s / 0.240 s = 4.7
+    SAI 2 HARD  : L45 +1.36 s / 0.316 s = 4.3; L48 +1.18 s / 0.316 s = 3.7
+    STR 2 HARD  : L30 +1.44 s / 0.358 s = 4.0
+    STR 3 MEDIUM: L40 +2.11 s / 0.306 s = 6.9; L48 +1.93 s / 0.306 s = 6.3
+    VER 2 HARD  : L40 +0.71 s / 0.100 s = 7.0
+    VER 3 MEDIUM: L45 +0.96 s / 0.260 s = 3.7
+    ZHO 1 MEDIUM: L2 +1.62 s / 0.435 s = 3.7; L5 +2.46 s / 0.435 s = 5.7
+
+Per-stint fits (all laps of each stint):
+  drv st compound laps    n  out      slope        raw       s.e.   sigma
+  ALB  1 MEDIUM    1-17   15    0  -0.0020  -0.0320  0.0248  0.416
+  ALB  2 HARD     18-53   33    2  -0.0013  -0.0313  0.0047  0.280
+  ALO  1 MEDIUM    1-12   10    0  -0.0978  -0.1278  0.0292  0.265
+  ALO  2 HARD     13-35   21    0  +0.0283  -0.0017  0.0133  0.370
+  ALO  3 HARD     36-53   17    0  +0.0122  -0.0178  0.0114  0.230
+  BOT  1 HARD      1-33   29    2  +0.0419  +0.0119  0.0097  0.442
+  BOT  2 MEDIUM   34-52   15    3  -0.0541  -0.0841  0.0144  0.301
+  COL  1 MEDIUM    1-16   14    0  -0.0022  -0.0322  0.0321  0.484
+  COL  2 HARD     17-53   36    0  +0.0182  -0.0118  0.0068  0.426
+  GAS  1 MEDIUM    1-10    8    0  +0.0401  +0.0101  0.0666  0.432
+  GAS  2 HARD     11-30   18    0  +0.1004  +0.0704  0.0217  0.478
+  GAS  3 HARD     31-52   21    0  -0.0079  -0.0379  0.0239  0.662
+  HAM  1 MEDIUM    1-15   13    0  -0.0014  -0.0314  0.0315  0.425
+  HAM  2 HARD     16-37   20    0  -0.0580  -0.0880  0.0105  0.271
+  HAM  3 HARD     38-53   14    1  -0.0268  -0.0568  0.0216  0.335
+  HUL  1 MEDIUM     1-5    3    0      -         -        -       -     (n < 8: no fit)
+  HUL  2 HARD      6-32   25    0  +0.0402  +0.0102  0.0088  0.319
+  HUL  3 HARD     33-52   16    3  +0.0437  +0.0137  0.0119  0.264
+  LEC  1 MEDIUM    1-15   13    0  +0.0499  +0.0199  0.0326  0.440
+  LEC  2 HARD     16-53   37    0  +0.0217  -0.0083  0.0036  0.236
+  MAG  1 MEDIUM    1-14   12    0  -0.0340  -0.0640  0.0295  0.353
+  MAG  2 HARD     15-53   37    1  -0.0109  -0.0409  0.0051  0.334
+  NOR  1 MEDIUM    1-14   12    0  -0.0113  -0.0413  0.0285  0.341
+  NOR  2 HARD     15-32   14    2  -0.0350  -0.0650  0.0114  0.176
+  NOR  3 HARD     33-53   18    2  -0.0269  -0.0569  0.0160  0.405
+  OCO  1 HARD      1-31   29    0  +0.0406  +0.0106  0.0099  0.445
+  OCO  2 MEDIUM   32-52   20    0  +0.0263  -0.0037  0.0192  0.495
+  PER  1 HARD      1-23   21    0  +0.0350  +0.0050  0.0164  0.455
+  PER  2 HARD     24-35    9    1  -0.0183  -0.0483  0.0192  0.171
+  PER  3 MEDIUM   36-53   16    1  +0.0507  +0.0207  0.0259  0.489
+  PIA  1 MEDIUM    1-16   14    0  +0.0205  -0.0095  0.0243  0.367
+  PIA  2 HARD     17-38   20    0  -0.0035  -0.0335  0.0144  0.372
+  PIA  3 HARD     39-53   14    0  +0.0240  -0.0060  0.0317  0.478
+  RIC  1 MEDIUM    1-11    9    0  -0.1052  -0.1352  0.0383  0.296
+  RIC  2 HARD     12-53   41    0  +0.0131  -0.0169  0.0044  0.333
+  RUS  1 MEDIUM    1-11    9    0  -0.0657  -0.0957  0.0327  0.253
+  RUS  2 HARD     12-33   20    0  -0.0237  -0.0537  0.0232  0.599
+  RUS  3 HARD     34-53   17    2  -0.0252  -0.0552  0.0105  0.240
+  SAI  1 MEDIUM    1-19   17    0  +0.0494  +0.0194  0.0163  0.329
+  SAI  2 HARD     20-53   31    2  +0.0252  -0.0048  0.0066  0.348
+  STR  1 HARD      1-19   17    0  +0.0160  -0.0140  0.0373  0.753
+  STR  2 HARD     20-36   14    1  +0.0595  +0.0295  0.0177  0.294
+  STR  3 MEDIUM   37-50   10    2  +0.0830  +0.0530  0.0443  0.466
+  STR  4 SOFT     51-52    1    0      -         -        -       -     (n < 8: no fit)
+  TSU  1 HARD       1-7    5    0      -         -        -       -     (n < 8: no fit)
+  VER  1 HARD      1-22   20    0  +0.0249  -0.0051  0.0138  0.356
+  VER  2 HARD     23-41   16    1  +0.0224  -0.0076  0.0047  0.088
+  VER  3 MEDIUM   42-53   10    1  +0.1124  +0.0824  0.0443  0.443
+  ZHO  1 MEDIUM    1-15   11    2  +0.0581  +0.0281  0.0318  0.362
+  ZHO  2 HARD     16-52   36    0  +0.0616  +0.0316  0.0090  0.561
+  stints 50, fitted 47; slope - raw = 0.03 on every fitted stint: true
+
+Compound degradation (compoundDegradation of the per-stint fits, fuel-corrected slope, s/lap):
+  compound    n    mean     median   stdDev  negative
+  MEDIUM     18  +0.0065  +0.0096  0.0602     9
+  HARD       29  +0.0135  +0.0182  0.0341    11
+  raw slopes (fuel burn included) = the values above - 0.03
+
+PIA, laps 10-25 (stintFits { driver: PIA, lapStart: 10, lapEnd: 25 }):
+  stint 1 MEDIUM (laps 1-16): clean laps in range 10-15 n=6, no fit (n < 8)
+    diagnostic OLS of these 6 laps (not returned, below MIN_FIT_LAPS): slope +0.2520, raw +0.2220, s.e. 0.0299
+  stint 2 HARD   (laps 17-38): clean laps in range 18-25 n=8, slope -0.1278, raw -0.1578, s.e. 0.0344, sigma 0.223, TyreLife 2-9
+  whole stints for comparison:
+  stint 1 MEDIUM (laps 1-16): n=14, slope +0.0205, s.e. 0.0243
+  stint 2 HARD   (laps 17-38): n=20, slope -0.0035, s.e. 0.0144
+  stint 3 HARD   (laps 39-53): n=14, slope +0.0240, s.e. 0.0317
+
+Consistency sigma per classified finisher (consistencySigma: pooled residual sigma of the per-stint fits):
+  pos drv   sigma (s)   laps  stints  slow outliers left out
+    1 LEC   0.298       50      2      0
+    2 PIA   0.404       48      3      0
+    3 NOR   0.331       44      3      4
+    4 SAI   0.342       48      2      2
+    5 HAM   0.337       47      3      1
+    6 VER   0.314       46      3      2
+    7 RUS   0.441       46      3      2
+    8 PER   0.433       46      3      2
+    9 ALB   0.326       48      2      2
+   10 MAG   0.338       49      2      1
+   11 ALO   0.307       48      3      0
+   12 COL   0.442       50      2      0
+   13 RIC   0.328       50      2      0
+   14 OCO   0.466       49      2      0
+   15 GAS   0.565       47      3      0
+   16 BOT   0.401       44      2      5
+   17 HUL   0.299       41      2      3
+   18 ZHO   0.525       47      2      2
+   19 STR   0.568       41      3      3
+  finishers 19; sigma median 0.342, min 0.298, max 0.568
+
+=== Part 2: the assumptions on every cached race (30 races: 2024 R1, 2024 R2, 2024 R3, 2024 R4, 2024 R5, 2024 R6, 2024 R7, 2024 R8, 2024 R9, 2024 R10, 2024 R11, 2024 R12, 2024 R13, 2024 R14, 2024 R15, 2024 R16, 2024 R17, 2024 R18, 2024 R19, 2024 R20, 2024 R21, 2024 R22, 2024 R23, 2024 R24, 2025 R1, 2025 R6, 2025 R8, 2025 R16, 2025 R21, 2025 R24) ===
+
+A. Fuel effect (FUEL_EFFECT_S_PER_LAP):
+  stints with step-2 laps 1442; stints where LapNumber - TyreLife is not constant over those laps: 0
+  fitted stints 1222; max |slope - rawSlope - 0.03| = 1.58e-15 s/lap
+  => within a stint fuel burn and tyre age move together; the fuel effect cannot be fitted, it is an assumption.
+
+B. Fit length (MIN_FIT_LAPS). OLS of the step-2 laps at any n >= 3 (diagnostic fit, no outlier step).
+  B1. whole stints, by their number of step-2 laps:
+    n       stints  |slope|>0.3  median s.e.  slope p10   p50     p90
+    3-4        54     61.11%     0.263     -0.7954 -0.0995 +1.6101
+    5          27     37.04%     0.124     -0.6231 -0.0868 +0.6872
+    6          42     35.71%     0.112     -1.1543 -0.0988 +0.1311
+    7          45     22.22%     0.079     -0.3752 +0.0256 +0.2289
+    8          38     13.16%     0.066     -0.1196 +0.1106 +0.2651
+    9          51     11.76%     0.042     -0.1052 +0.0619 +0.2379
+    10-11      82      8.54%     0.039     -0.2730 +0.0511 +0.1908
+    12-14     126     11.11%     0.032     -0.3532 +0.0327 +0.1480
+    15-19     246      2.44%     0.020     -0.0665 +0.0512 +0.1178
+    20-29     466      3.43%     0.013     -0.1388 +0.0350 +0.0964
+    30-99     219      0.00%     0.008     -0.0441 +0.0162 +0.0628
+  B2. the first k step-2 laps of the stints with at least 20, against the whole stint (what a replay shows k laps in):
+    k    stints  |slope|>0.3  median s.e.  median |slope_k - slope_all|
+     4      685     31.82%     0.114        0.176
+     5      685     22.48%     0.086        0.144
+     6      685     19.12%     0.069        0.114
+     7      685     15.62%     0.058        0.101
+     8      685     13.43%     0.051        0.087
+     9      685     10.66%     0.046        0.071
+    10      685     10.22%     0.040        0.066
+    12      685      9.64%     0.031        0.048
+    15      685      6.72%     0.023        0.032
+  => MIN_FIT_LAPS = 8 (assumption read off these tables).
+
+C. Residual tails (slow-outlier rule). Step-2 laps of the stints with a fit (n >= 8): 27262 laps.
+   modified z = (residual - median residual) / robust sigma of the stint
+    K     slow (z > K)        fast (z < -K)       normal, both sides
+    3      1170 ( 4.29%)     155 ( 0.57%)   0.270%
+    3.5     839 ( 3.08%)      88 ( 0.32%)   0.047%
+    4       656 ( 2.41%)      48 ( 0.18%)   0.006%
+    5       412 ( 1.51%)      18 ( 0.07%)   0.000%
+  smallest robust sigma of a fitted stint: 0.0354 s (floor MIN_ROBUST_SCALE_S 0.001 s never binds)
+
+D. Effect of the slow-outlier step (K = 3.5), per race: laps removed, and per fitted stint |slope change|:
+    race       step-2 laps  removed   stints fitted (with / without)  median |dslope|  max |dslope|
+    2024 R1        1006     34 ( 3.38%)    59 /  60                    0.0000         0.0812
+    2024 R2         802     30 ( 3.74%)    22 /  22                    0.0091         0.0342
+    2024 R3         852     34 ( 3.99%)    40 /  40                    0.0000         0.0608
+    2024 R4         765     22 ( 2.88%)    45 /  46                    0.0000         1.2762
+    2024 R5         744     14 ( 1.88%)    39 /  39                    0.0000         0.0237
+    2024 R6         934     31 ( 3.32%)    43 /  43                    0.0000         0.0285
+    2024 R7        1164     37 ( 3.18%)    40 /  40                    0.0001         0.0608
+    2024 R8        1171     36 ( 3.07%)    21 /  21                    0.0046         0.2339
+    2024 R9         914      9 ( 0.98%)    52 /  52                    0.0000         0.1477
+    2024 R10       1206     46 ( 3.81%)    60 /  60                    0.0000         0.0582
+    2024 R11       1250     38 ( 3.04%)    61 /  61                    0.0000         0.0233
+    2024 R12        850     28 ( 3.29%)    54 /  54                    0.0000         0.1443
+    2024 R13       1233     26 ( 2.11%)    49 /  49                    0.0000         0.0495
+    2024 R14        734     18 ( 2.45%)    44 /  45                    0.0000         0.0341
+    2024 R15       1354     45 ( 3.32%)    46 /  46                    0.0013         0.0762
+    2024 R16        927     29 ( 3.13%)    47 /  47                    0.0000         0.1284
+    2024 R17        853     26 ( 3.05%)    36 /  36                    0.0000         0.1377
+    2024 R18       1109     47 ( 4.24%)    40 /  40                    0.0065         0.0594
+    2024 R19        883     35 ( 3.96%)    38 /  39                    0.0068         0.0495
+    2024 R20       1062     40 ( 3.77%)    36 /  36                    0.0027         0.1086
+    2024 R21        800     25 ( 3.13%)    33 /  33                    0.0398         0.2839
+    2024 R22        839     20 ( 2.38%)    49 /  50                    0.0000         0.1068
+    2024 R23        679     28 ( 4.12%)    33 /  33                    0.0061         0.1106
+    2024 R24        883     27 ( 3.06%)    39 /  39                    0.0005         0.0120
+    2025 R1         549     19 ( 3.46%)    17 /  17                    0.0315         0.0702
+    2025 R6         479      8 ( 1.67%)    17 /  17                    0.0000         0.0337
+    2025 R8        1177     10 ( 0.85%)    38 /  39                    0.0000         0.0141
+    2025 R16        897     36 ( 4.01%)    31 /  31                    0.0023         0.0217
+    2025 R21       1032     14 ( 1.36%)    49 /  49                    0.0000         0.0241
+    2025 R24       1082     27 ( 2.50%)    44 /  44                    0.0000         0.0428
+    all           28230    839 ( 2.97%)   stints with both fits 1222: median |dslope| 0.0000, p90 0.0285, max 1.2762 s/lap
+  stints whose slope moves by more than 0.1 s/lap (removed laps: lap number and LapTimeSeconds):
+    2024 R4   GAS 2 HARD         slope -1.0446 -> +0.2316, sigma 9.951 -> 0.479; removed L3 138.362 s; stint median 101.117 s
+    2024 R4   MAG 2 MEDIUM       slope -0.5196 -> -0.0006, sigma 7.165 -> 0.406; removed L3 132.996 s; stint median 99.814 s
+    2024 R4   OCO 2 HARD         slope -0.7770 -> +0.1156, sigma 9.507 -> 0.304; removed L3 140.237 s; stint median 100.528 s
+    2024 R4   SAR 2 HARD         slope -0.5251 -> -0.0140, sigma 7.061 -> 0.507; removed L3 132.603 s; stint median 99.668 s
+    2024 R4   SAR 5 SOFT         slope +0.1919 -> +0.0823, sigma 0.644 -> 0.311; removed L52 97.715 s; stint median 95.554 s
+    2024 R8   BOT 2 MEDIUM       slope -0.4466 -> -0.2127, sigma 1.637 -> 0.282; removed L3 89.743 s; stint median 82.098 s
+    2024 R9   HUL 3 INTERMEDIATE slope -0.4906 -> -0.3429, sigma 1.945 -> 1.185; removed L31 95.980 s; stint median 87.583 s
+    2024 R12  ALB 1 MEDIUM       slope +0.2324 -> +0.1046, sigma 2.840 -> 0.973; removed L19 104.619 s, L26 103.771 s; stint median 93.073 s
+    2024 R12  ALO 1 MEDIUM       slope +0.2479 -> +0.1097, sigma 3.308 -> 1.136; removed L19 107.270 s, L26 103.618 s; stint median 92.712 s
+    2024 R12  MAG 1 MEDIUM       slope +0.2126 -> +0.0683, sigma 2.931 -> 0.791; removed L19 103.505 s, L26 105.466 s; stint median 93.278 s
+    2024 R12  NOR 1 MEDIUM       slope +0.1950 -> +0.0817, sigma 2.726 -> 1.504; removed L19 101.436 s, L26 101.515 s; stint median 91.896 s
+    2024 R12  PIA 1 MEDIUM       slope +0.3075 -> +0.1812, sigma 3.696 -> 2.478; removed L27 109.747 s; stint median 91.926 s
+    2024 R12  SAR 1 MEDIUM       slope +0.2473 -> +0.1172, sigma 2.779 -> 0.897; removed L19 104.090 s, L26 104.642 s; stint median 93.139 s
+    2024 R12  TSU 1 MEDIUM       slope +0.2358 -> +0.1141, sigma 2.766 -> 0.987; removed L19 104.585 s, L26 103.260 s; stint median 93.106 s
+    2024 R16  ZHO 1 MEDIUM       slope -0.0703 -> +0.0581, sigma 0.970 -> 0.362; removed L2 88.721 s, L5 89.256 s; stint median 86.411 s
+    2024 R17  HAM 1 MEDIUM       slope -0.1681 -> -0.0305, sigma 0.883 -> 0.543; removed L2 112.922 s; stint median 110.172 s
+    2024 R20  PER 1 HARD         slope +0.2001 -> +0.0915, sigma 1.180 -> 0.550; removed L18 87.331 s; stint median 83.091 s
+    2024 R21  BOT 1 INTERMEDIATE slope +0.2244 -> -0.0595, sigma 5.103 -> 1.158; removed L29 110.114 s; stint median 85.431 s
+    2024 R21  BOT 2 INTERMEDIATE slope -0.2997 -> -0.1831, sigma 2.704 -> 1.700; removed L34 100.982 s; stint median 83.480 s
+    2024 R21  GAS 1 INTERMEDIATE slope +0.1312 -> -0.0837, sigma 3.719 -> 0.526; removed L29 102.264 s; stint median 84.798 s
+    2024 R21  OCO 1 INTERMEDIATE slope +0.1582 -> -0.0328, sigma 3.392 -> 0.440; removed L29 100.823 s; stint median 84.911 s
+    2024 R21  VER 1 INTERMEDIATE slope +0.2088 -> -0.0311, sigma 4.269 -> 0.636; removed L29 105.014 s; stint median 84.521 s
+    2024 R22  ZHO 1 MEDIUM       slope +0.1992 -> +0.3060, sigma 0.535 -> 0.260; removed L2 100.366 s; stint median 99.911 s
+    2024 R23  HAM 2 HARD         slope -0.1641 -> -0.0535, sigma 1.420 -> 1.043; removed L43 89.654 s; stint median 84.806 s
+  Monza 2024, compound median slope with / without the outlier step:
+    MEDIUM +0.0096 / -0.0017  (n 18 / 18)
+    HARD   +0.0182 / +0.0208  (n 29 / 29)
+
+E. Per race: stints, fitted stints, clean laps, MEDIUM / HARD / SOFT median slope (s/lap, n):
+    2024 R1    stints  63  fitted  59  laps   972  M       -       H +0.0689 (37)  S +0.0816 (22)
+    2024 R2    stints  39  fitted  22  laps   772  M -0.0336 (4)  H -0.0387 (15)  S +0.0794 (3)
+    2024 R3    stints  55  fitted  40  laps   818  M +0.0442 (6)  H +0.0254 (34)  S       -     
+    2024 R4    stints  66  fitted  45  laps   743  M +0.0914 (14)  H +0.0708 (27)  S +0.0727 (4)
+    2024 R5    stints  60  fitted  39  laps   730  M +0.1289 (17)  H +0.0642 (19)  S +0.1467 (3)
+    2024 R6    stints  47  fitted  43  laps   903  M -0.0024 (24)  H +0.0061 (17)  S -0.0161 (2)
+    2024 R7    stints  46  fitted  40  laps  1127  M +0.0732 (21)  H +0.0377 (19)  S       -     
+    2024 R8    stints  42  fitted  21  laps  1135  M -0.0488 (8)  H -0.0251 (12)  S +0.0844 (1)
+    2024 R9    stints  62  fitted  52  laps   905  M -0.2202 (12)  H -0.2575 (4)  S       -     
+    2024 R10   stints  62  fitted  60  laps  1160  M +0.0493 (19)  H +0.0476 (13)  S +0.0764 (28)
+    2024 R11   stints  65  fitted  61  laps  1212  M +0.0937 (34)  H +0.0620 (27)  S       -     
+    2024 R12   stints  65  fitted  54  laps   822  M +0.1155 (22)  H -0.0060 (3)  S +0.1016 (12)
+    2024 R13   stints  60  fitted  49  laps  1207  M +0.0472 (18)  H +0.0739 (30)  S -0.1248 (1)
+    2024 R14   stints  54  fitted  44  laps   716  M +0.0376 (20)  H +0.0189 (22)  S -0.0116 (2)
+    2024 R15   stints  46  fitted  46  laps  1309  M +0.0331 (20)  H +0.0292 (20)  S +0.0464 (6)
+    2024 R16   stints  50  fitted  47  laps   898  M +0.0096 (18)  H +0.0182 (29)  S       -     
+    2024 R17   stints  42  fitted  36  laps   827  M -0.0004 (16)  H -0.0082 (20)  S       -     
+    2024 R18   stints  43  fitted  40  laps  1062  M +0.0399 (19)  H +0.0423 (16)  S -0.0312 (5)
+    2024 R19   stints  43  fitted  38  laps   848  M +0.0042 (19)  H -0.0007 (19)  S       -     
+    2024 R20   stints  41  fitted  36  laps  1022  M +0.0631 (19)  H +0.0138 (17)  S       -     
+    2024 R21   stints  52  fitted  33  laps   775  M       -       H       -       S       -     
+    2024 R22   stints  58  fitted  49  laps   819  M +0.1654 (14)  H +0.0141 (35)  S       -     
+    2024 R23   stints  46  fitted  33  laps   651  M -0.0515 (18)  H -0.0331 (12)  S +0.1128 (3)
+    2024 R24   stints  46  fitted  39  laps   856  M +0.0771 (15)  H +0.0240 (23)  S +0.1371 (1)
+    2025 R1    stints  59  fitted  17  laps   530  M       -       H       -       S       -     
+    2025 R6    stints  38  fitted  17  laps   471  M +0.0426 (5)  H +0.0204 (12)  S       -     
+    2025 R8    stints  59  fitted  38  laps  1167  M +0.0039 (16)  H +0.0061 (21)  S +0.0059 (1)
+    2025 R16   stints  39  fitted  31  laps   861  M -0.0186 (15)  H -0.0101 (16)  S       -     
+    2025 R21   stints  57  fitted  49  laps  1018  M +0.0620 (34)  H +0.0877 (2)  S +0.1448 (13)
+    2025 R24   stints  47  fitted  44  laps  1055  M +0.0651 (23)  H +0.0211 (21)  S       -     

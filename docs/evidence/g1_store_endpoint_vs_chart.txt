@@ -1,0 +1,13 @@
+G1 endpoint vs chart, Monza 2024: 8 brushes x 160 sampled clocks; 979 clock checks (8 at the race end, 931 with the brush applied in the chart), 263 bodies answered by the endpoint; 1135 stint rows compared, 822 fitted; max |endpoint - chart| = 0.00e+0
+BOT 5-15: 29 requests
+ALB 5-15: 13 requests
+PIA 10-25: 29 requests
+LEC 10-25: 44 requests
+NOR 17-38: 37 requests
+HAM 20-40: 34 requests
+VER 30-53: 24 requests
+SAI 1-53: 53 requests
+ALB 5-15 at 5904.094 s: endpoint MEDIUM 0.035482 n=11 = chart MEDIUM 0.035482 n=11
+ALB 5-15 at 6744.894 s: endpoint MEDIUM 0.035482 n=11 = chart MEDIUM 0.035482 n=11
+ALB 5-15 at 7581.294 s: endpoint MEDIUM 0.035482 n=11 = chart MEDIUM 0.035482 n=11
+ALB 5-15 at race end: endpoint MEDIUM 0.035482 n=11 = chart MEDIUM 0.035482 n=11

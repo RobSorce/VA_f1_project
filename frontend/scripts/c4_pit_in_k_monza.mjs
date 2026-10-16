@@ -20,7 +20,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/c4_pit_in_k_monza.mjs
- * Writes notes/experiments/phase45c/c4_pit_in_k_monza.txt and prints the same text.
+ * Writes docs/evidence/c4_pit_in_k_monza.txt and prints the same text.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,7 +36,7 @@ import { perturbFuture } from '../src/utils/__tests__/futureRows.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
 const CACHE = path.resolve(ROOT, 'backend/data/processed_cache');
-const OUT_FILE = path.resolve(ROOT, 'notes/experiments/phase45c/c4_pit_in_k_monza.txt');
+const OUT_FILE = path.resolve(ROOT, 'docs/evidence/c4_pit_in_k_monza.txt');
 const load = (f) => JSON.parse(fs.readFileSync(path.join(CACHE, f), 'utf8').replace(/\bNaN\b/g, 'null'));
 const lines = [];
 const out = (s = '') => { lines.push(s); console.log(s); };

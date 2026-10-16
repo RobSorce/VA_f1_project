@@ -1,0 +1,16 @@
+A. stint click only (README.md:107, INSIGHTS.md Insight 3)
+  stint L5-L15 clicked: brush=[5,15] selected=[5,15] | sheet bar+title [5,15], sheet rows filtered to [5,15] | Position by Lap [5,15] | Strategy Timeline [5,15] | Tyre Degradation [5,15]
+B. sheet bar dragged, then a stint clicked (README.md:107 "shown on the sheet's lap-range bar")
+  drag L10-L20 on the sheet bar: brush=[10,20] selected=[10,20] | sheet bar+title [10,20], sheet rows filtered to [10,20] | Position by Lap [10,20] | Strategy Timeline [10,20] | Tyre Degradation [10,20]
+  stint L5-L15 clicked: brush=[5,15] selected=[5,15] | sheet bar+title [5,15], sheet rows filtered to [5,15] | Position by Lap [5,15] | Strategy Timeline [5,15] | Tyre Degradation [5,15]
+C. stint click, Position by Lap brush, Position by Lap clear
+  stint L5-L15 then Position by Lap L30-L40: brush=[30,40] selected=[30,40] | sheet bar+title [30,40], sheet rows filtered to [30,40] | Position by Lap [30,40] | Strategy Timeline [30,40] | Tyre Degradation [30,40]
+  clear on Position by Lap: brush=null selected=null | sheet bar+title null, sheet rows filtered to null | Position by Lap null | Strategy Timeline null | Tyre Degradation null
+PASS stint L5-L15: every view shows [5,15]
+PASS sheet bar L10-L20: every view shows [10,20]
+PASS stint L5-L15: every view shows [5,15]
+PASS Position by Lap L30-L40: every view shows [30,40]
+PASS clear on Position by Lap: every view shows null
+PASS pit window L20-L24: every view shows [20,24]
+PASS clear selection (Esc): every view shows null
+7 of 7 steps: every view on the same range

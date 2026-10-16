@@ -328,8 +328,7 @@ def test_endpoint_matches_the_chart_at_replay_clocks(api_main, tmp_path, monkeyp
     session_now = that clock agree on every Monza stint to 1e-6 (slope,
     intercept, raw slope, residual sigma; n exactly) at the end of leader
     laps 10, 15, 20, 30, 40, 50 and at the race end (session_now null), and
-    no stint with a slope <= 0 gets a pit lap
-    (notes/experiments/phase45c/g1_endpoint_vs_chart.txt)."""
+    no stint with a slope <= 0 gets a pit lap."""
     laps = load_cached_session(2024, 16)['lap_times']
     lead = leader_lap_times(laps)
     drivers = sorted({r['Driver'] for r in laps if r.get('Driver')})

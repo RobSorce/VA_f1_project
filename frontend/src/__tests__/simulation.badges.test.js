@@ -6,7 +6,7 @@
 // with different seeds (as a replay does when something new becomes known)
 // and count badge flips and listed rows appearing / disappearing, with the
 // bare thresholds / the former top-6 cut and with the rule. The saved figures
-// are scripts/mc_benchmark.mjs section 5 (notes/experiments/mc_benchmark.txt).
+// are scripts/mc_benchmark.mjs section 5 (docs/evidence/mc_benchmark.txt).
 import { describe, it, expect } from 'vitest';
 import {
   wilsonInterval, badgeOn, projectionBadges, battleKey, listedBattles, PODIUM_BADGE_PCT, BATTLE_BADGE_PCT,

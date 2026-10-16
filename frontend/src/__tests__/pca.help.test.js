@@ -64,11 +64,9 @@ describe('docs/PCA_METHODOLOGY.md', () => {
   it('every number it quotes is in a script output it names', () => {
     const names = ['pca_rebuild.txt', 'pca_diagnostic.txt', 'pca_selection_baseline.txt', 'pca_repair_check.txt',
       'pca_clock_check.txt', 'pca_interval_coverage.txt', 'live_pca_rewind.txt'];
-    const outputs = names
-      .map((f) => path.join(ROOT, 'notes/experiments/phase67', f))
-      .filter((f) => fs.existsSync(f));
-    // the outputs are git-ignored notes: check only where they exist
-    if (outputs.length < names.length) return;
+    // the tracked outputs of the scripts (docs/evidence/README.md)
+    const outputs = names.map((f) => path.join(ROOT, 'docs/evidence', f));
+    for (const f of outputs) expect(fs.existsSync(f), f).toBe(true);
     const text = outputs.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
     // [as the doc writes it, as the output prints it]
     const pairs = [
@@ -103,7 +101,27 @@ describe('docs/PCA_METHODOLOGY.md', () => {
       expect(text, inOutput).toContain(inOutput);
     }
   });
+
+  it('T2: the table of every component is the diagnostic\'s, row by row', () => {
+    const diag = fs.readFileSync(path.join(ROOT, 'docs/evidence/pca_diagnostic.txt'), 'utf8');
+    const printed = [...diag.matchAll(/^(PC\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*$/gm)].map((m) => m.slice(1, 5));
+    const inDoc = [...doc.matchAll(/^\| (PC\d+) \| ([\d.]+) \| ([\d.]+) \| ([\d.]+) \|$/gm)].map((m) => m.slice(1, 5));
+    expect(printed).toHaveLength(12);
+    expect(inDoc).toEqual(printed);
+    // the features of the doc's table are FEATURE_COLS of pca_compute.py, and the doc names no deleted module
+    const compute = read('backend/data/processors/pca_compute.py');
+    const cols = [...compute.match(/FEATURE_COLS = \[([\s\S]*?)\]/)[1].matchAll(/'(\w+)'/g)].map((m) => m[1]);
+    expect(cols).toHaveLength(12);
+    for (const c of cols) expect(doc, c).toContain(`\`${c}\``);
+    for (const p of ['docs/PCA_METHODOLOGY.md', 'docs/pca_features.md']) {
+      expect(read(p), p).not.toMatch(/tsne_features|tsne_compute|tsne_scaler|tsne_feature_matrix|\b17 features/);
+    }
+  });
 });
+
+function read(p) {
+  return fs.readFileSync(path.join(ROOT, p), 'utf8');
+}
 
 // P3 (round 4): the interval of g that ships is the 95% normal-approximation
 // (large-sample) interval, g +/- 1.96 SE (backend pca_compute.g_interval); a
@@ -150,12 +168,12 @@ describe('the interval of g and the stratified baseline, as the docs and the hel
     expect(analysis).toMatch(/states the mix and the lap/);
   });
 
-  it('every number the methodology doc quotes for them is in a phase7b output', () => {
+  it('every number the methodology doc quotes for them is in a script output', () => {
     const names = ['pca_stratified_baseline.txt', 'pca_progress_features.txt', 'pca_interval_coverage.txt',
       'pca_selection_baseline.txt', 'pca_mixed_threshold.txt'];
-    const files = names.map((f) => path.join(ROOT, 'notes/experiments/phase7b', f));
-    // the outputs are git-ignored notes: check only where they exist
-    if (!files.every((f) => fs.existsSync(f))) return;
+    // the tracked outputs of the scripts (docs/evidence/README.md)
+    const files = names.map((f) => path.join(ROOT, 'docs/evidence', f));
+    for (const f of files) expect(fs.existsSync(f), f).toBe(true);
     const out = Object.fromEntries(names.map((n, i) => [n, fs.readFileSync(files[i], 'utf8')]));
     const doc = read('docs/PCA_METHODOLOGY.md');
     const line = (name, start) => out[name].split('\n').find((l) => l.startsWith(start)) || '';

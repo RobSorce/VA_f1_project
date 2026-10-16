@@ -12,7 +12,7 @@
  * 1400 px bar at 1536 x 750. The buttons were measured once, when the dock
  * mounted; with the fallback font's labels the default dock is 1292 px wide
  * at 1536 x 750 and fits, with the Formula1 labels (the web font, loaded
- * later) it is 1490 px (font metrics: notes/experiments/v13_audit/dock_fit.mjs),
+ * later) it is 1490 px (font metrics: frontend/scripts/audit/dock_fit.mjs),
  * and the divider's 12 px of margin and the bar's border were not counted.
  * BottomTabBar now measures again when the fonts finish loading and checks
  * the row after every render.

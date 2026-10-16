@@ -27,13 +27,13 @@
  *    evidence beyond the sampling error, or on new data. Marks drawn once per
  *    driver or per pair use intervals simultaneous over the table (familyZ).
  *    Measured by scripts/mc_stability.mjs (lead decision D5:
- *    notes/experiments/phase45c/mc_stability.txt);
+ *    docs/evidence/mc_stability.txt);
  *  - the same rule for the Strategy Simulator's what-if (pairedDifferences,
  *    pairedSign, whatIfVerdict, whatIfMarks): the verdict and the colours of
  *    the differences from the run-by-run differences of the two runs beyond
  *    their error, the cards' P labels as the projection's, chained over the
  *    recomputes of the same what-if. Measured by scripts/whatif_stability.mjs
- *    (notes/experiments/phase45c/whatif_stability.txt).
+ *    (docs/evidence/whatif_stability.txt).
  *
  * The worker is created by the caller (createWorker option): this module never
  * names the worker file, so the worker bundle, which imports this module, does
@@ -469,7 +469,7 @@ function raceOrder(a, b) {
  * possibly in) the listed ones not surely in leave from the back of the race
  * order (raceOrder). scripts/battle_list_rules.mjs compares this rule with a
  * cut at the BATTLE_LIST_SIZE-th battle plus a fill
- * (notes/experiments/battle_list_rules.txt).
+ * (docs/evidence/battle_list_rules.txt).
  *
  * @param {Array<Object>} battles - simulateRaceFinish battles (every pair within 4 positions)
  * @param {number} n - simulations behind the probabilities

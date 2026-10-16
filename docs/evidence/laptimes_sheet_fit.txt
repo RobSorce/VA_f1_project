@@ -1,0 +1,19 @@
+scrolls 1536x750 strategy   pane 1225 x 199 px, room for rows <= 108 px: at most 6 of the 20 rows at 16 px (the field needs 320 px)
+fits    1536x750 tyres      pane 670 x 548 px, room for rows <= 457 px: at most 20 of the 20 rows at 16 px (the field needs 320 px)
+scrolls 1536x750 pace       pane 609 x 286 px, room for rows <= 195 px: at most 12 of the 20 rows at 16 px (the field needs 320 px)
+scrolls 1536x750 prediction pane 670 x 228 px, room for rows <= 137 px: at most 8 of the 20 rows at 16 px (the field needs 320 px)
+scrolls 1366x768 strategy   pane 1088 x 205 px, room for rows <= 114 px: at most 7 of the 20 rows at 16 px (the field needs 320 px)
+fits    1366x768 tyres      pane 595 x 563 px, room for rows <= 472 px: at most 20 of the 20 rows at 16 px (the field needs 320 px)
+scrolls 1366x768 pace       pane 541 x 294 px, room for rows <= 203 px: at most 12 of the 20 rows at 16 px (the field needs 320 px)
+scrolls 1366x768 prediction pane 595 x 235 px, room for rows <= 144 px: at most 8 of the 20 rows at 16 px (the field needs 320 px)
+scrolls 1920x1080 strategy   pane 1594 x 319 px, room for rows <= 221 px: at most 13 of the 20 rows at 16 px (the field needs 320 px)
+fits    1920x1080 tyres      pane 873 x 852 px, room for rows <= 754 px: at most 20 of the 20 rows at 16 px (the field needs 320 px)
+fits    1920x1080 pace       pane 794 x 452 px, room for rows <= 353 px: at most 20 of the 20 rows at 16 px (the field needs 320 px)
+scrolls 1920x1080 prediction pane 873 x 363 px, room for rows <= 265 px: at most 16 of the 20 rows at 16 px (the field needs 320 px)
+scrolls 2048x1100 strategy   pane 1722 x 327 px, room for rows <= 228 px: at most 14 of the 20 rows at 16 px (the field needs 320 px)
+fits    2048x1100 tyres      pane 944 x 872 px, room for rows <= 773 px: at most 20 of the 20 rows at 16 px (the field needs 320 px)
+fits    2048x1100 pace       pane 858 x 463 px, room for rows <= 364 px: at most 20 of the 20 rows at 16 px (the field needs 320 px)
+scrolls 2048x1100 prediction pane 944 x 372 px, room for rows <= 273 px: at most 17 of the 20 rows at 16 px (the field needs 320 px)
+
+summary: the body scrolls in 10 of 16 preset x viewport cases (strategy, pace, prediction); those panes are 199-372 px high; fewest rows shown: 6 of 20
+A focus driver with a forecast adds below the field a header line, one row per forecast lap (5) and the 90 px forecast chart (LapTimeChart.jsx ForecastChart H = 90).

@@ -6,7 +6,7 @@ session of that weekend on screen); the embeddings at clock 0.
 
 Run from backend/:
     python -m scripts.pca_session_switch_answers
-Writes notes/experiments/phase67/pca_session_switch_answers.json.
+Writes docs/evidence/pca_session_switch_answers.json.
 """
 import json
 import os
@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(HERE, '..'))
 
 from data.processors import pca_compute as pc  # noqa: E402
 
-OUT = os.path.join(HERE, '..', '..', 'notes', 'experiments', 'phase67', 'pca_session_switch_answers.json')
+OUT = os.path.join(HERE, '..', '..', 'docs', 'evidence', 'pca_session_switch_answers.json')
 
 
 def main():

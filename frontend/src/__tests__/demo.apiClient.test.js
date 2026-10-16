@@ -163,7 +163,9 @@ describe.skipIf(!HAS_DATA)('V12: no backend -> the static demo answers', () => {
         }
       }
     }
-  });
+    // three cached races and their frames decompressed and compared: about
+    // 2-3 s alone, past the 5 s default when the machine is busy
+  }, 20000);
 
   it('PCA biplot (post-race and at a replay clock) and the lasso analysis come from the demo, computed in the browser', async () => {
     backend.mode = 'down';

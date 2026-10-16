@@ -14,7 +14,7 @@
  *
  * Hooks and pure functions; no component lives here (React Fast Refresh
  * hot-swaps a component module only when every export is a component).
- * No import but React: notes/experiments/v13_audit/layout_fit.mjs loads this
+ * No import but React: frontend/scripts/audit/layout_fit.mjs loads this
  * module in plain node.
  */
 import { useEffect, useRef, useState } from 'react';
@@ -109,23 +109,62 @@ export function contentBox(el) {
   return { width: Math.max(0, Math.floor(width)), height: Math.max(0, Math.floor(height)) };
 }
 
-// One measure per animation frame (setTimeout where there is no frame clock)
+/**
+ * ms after which a pending measure is applied by a timer when no animation
+ * frame came (Phase 9d, G2 / G3): a window resized while the browser holds
+ * its frames back (hidden, occluded, moved to the other screen) runs no
+ * requestAnimationFrame callback, so a measure waiting for one never landed
+ * and the chart kept the layout of its first size (the Track Map's viewBox
+ * stayed "0 0 354 34", the Circle of Doom's plot 356 x 134 at 2048 x 1100).
+ * Timers still run there (throttled), so the chart follows anyway.
+ */
+export const FRAME_FALLBACK_MS = 150;
+
+/**
+ * Smallest width and height (CSS px) a chart lays out at (G2): a box below
+ * it in either dimension (a container still being laid out, a header that
+ * wrapped over the map, a collapsed pane) is not a size to draw for; the
+ * chart waits for the next measure.
+ */
+export const LAYOUT_MIN_PX = 48;
+
+/** True when `size` is at least `min` px in both dimensions (a size to lay out at). */
+export function layoutReady(size, min = LAYOUT_MIN_PX) {
+  return !!size && Number(size.width) >= min && Number(size.height) >= min;
+}
+
+// One measure per animation frame, or after FRAME_FALLBACK_MS when no frame
+// comes (setTimeout alone where there is no frame clock); whichever runs
+// first cancels the other
 function nextFrame(fn) {
-  if (typeof requestAnimationFrame === 'function') {
-    const id = requestAnimationFrame(fn);
-    return () => { if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id); };
-  }
-  const id = setTimeout(fn, 16);
-  return () => clearTimeout(id);
+  const hasFrames = typeof requestAnimationFrame === 'function';
+  let rafId = null;
+  let timerId = null;
+  const cancel = () => {
+    if (rafId != null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafId);
+    if (timerId != null) clearTimeout(timerId);
+    rafId = null;
+    timerId = null;
+  };
+  const run = () => {
+    cancel();
+    fn();
+  };
+  if (hasFrames) rafId = requestAnimationFrame(run);
+  timerId = setTimeout(run, hasFrames ? FRAME_FALLBACK_MS : 16);
+  return cancel;
 }
 
 function unwatch(w) {
   if (w.cancel) w.cancel();
   if (w.obs) w.obs.disconnect();
+  if (w.off) w.off();
   w.cancel = null;
   w.obs = null;
+  w.off = null;
   w.el = null;
   w.rect = null;
+  w.dirty = false;
 }
 
 /**
@@ -140,8 +179,16 @@ function unwatch(w) {
  * until measured (server render, no layout): callers fall back to their
  * default size (chartSize).
  *
+ * Every change of width or height is reported, a growth from a tiny size
+ * included (Phase 9d, G2): the observer's measure lands at the next frame,
+ * or after FRAME_FALLBACK_MS when the browser runs no frame; a window
+ * resize and the page becoming visible again measure the element afresh
+ * (getBoundingClientRect, through the same one-per-frame step), in case
+ * the observer's notification was held back with the frames.
+ *
  * Put `box.width, box.height` in the dependencies of the effect that draws:
- * the chart then lays out again at each new size.
+ * the chart then lays out again at each new size (a size under
+ * LAYOUT_MIN_PX in either dimension is not laid out: layoutReady).
  *
  * @param {{current: Element|null}} ref
  * @param {{parent?: boolean}} [opts]
@@ -149,8 +196,11 @@ function unwatch(w) {
  */
 export function useChartBox(ref, { parent = true } = {}) {
   const [box, setBox] = useState(NO_BOX);
-  // el: the element observed; size: the box last set (kept when the svg moves)
-  const watch = useRef({ el: null, obs: null, cancel: null, rect: null, size: null });
+  // el: the element observed; size: the box last set (kept when the svg moves);
+  // rect: the observer's last box; dirty: measure the element afresh (window resize)
+  const watch = useRef({
+    el: null, obs: null, off: null, cancel: null, rect: null, dirty: false, size: null,
+  });
 
   // After every commit: (re)attach to the element the chart fills
   useEffect(() => {
@@ -169,18 +219,50 @@ export function useChartBox(ref, { parent = true } = {}) {
       w.size = { width: wd, height: ht };
       setBox((b) => (b.width === wd && b.height === ht ? b : { width: wd, height: ht }));
     };
+    // One measure per frame: the observer's box, else the element measured now
+    const schedule = () => {
+      if (w.cancel) return;
+      w.cancel = nextFrame(() => {
+        w.cancel = null;
+        const r = w.rect;
+        const fresh = w.dirty;
+        w.rect = null;
+        w.dirty = false;
+        if (r) {
+          apply(r.width, r.height);
+        } else if (fresh && w.el) {
+          const m = contentBox(w.el);
+          if (m.width > 0 || m.height > 0) apply(m.width, m.height);
+        }
+      });
+    };
     const first = contentBox(el);
     if (first.width > 0 || first.height > 0) apply(first.width, first.height);
+    // A window resize, the page visible again: measure the element itself
+    // (the observer may have reported nothing while the frames were held back)
+    const remeasure = () => {
+      w.rect = null;
+      w.dirty = true;
+      schedule();
+    };
+    const onVisible = () => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') remeasure();
+    };
+    const win = typeof window !== 'undefined' && typeof window.addEventListener === 'function' ? window : null;
+    const doc = typeof document !== 'undefined' && typeof document.addEventListener === 'function' ? document : null;
+    win?.addEventListener('resize', remeasure);
+    doc?.addEventListener('visibilitychange', onVisible);
+    w.off = () => {
+      win?.removeEventListener('resize', remeasure);
+      doc?.removeEventListener('visibilitychange', onVisible);
+    };
     if (typeof ResizeObserver === 'undefined') return;
     w.obs = new ResizeObserver((entries) => {
       const r = entries[entries.length - 1]?.contentRect;
       if (!r) return;
       w.rect = r;
-      if (w.cancel) return;
-      w.cancel = nextFrame(() => {
-        w.cancel = null;
-        if (w.rect) apply(w.rect.width, w.rect.height);
-      });
+      w.dirty = false;
+      schedule();
     });
     w.obs.observe(el);
   });

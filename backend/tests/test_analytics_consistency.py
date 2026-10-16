@@ -66,7 +66,7 @@ def test_monza_endpoint_is_consistency_sigma(api_main):
         assert sum(c['count'] for c in d['compounds'].values()) == cs['n']
         sigmas[d['driver']] = d['std_dev']
     print('Monza 2024 sigma:', sigmas, 'median', round(out['median_sigma'], 3))
-    # notes/experiments/degradation_definition_monza.txt
+    # docs/evidence/degradation_definition_monza.txt
     assert len(sigmas) == 19
     assert (sigmas['LEC'], sigmas['PIA'], sigmas['STR']) == (0.298, 0.404, 0.568)
     assert round(out['median_sigma'], 3) == 0.342

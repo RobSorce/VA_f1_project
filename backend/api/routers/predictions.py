@@ -202,9 +202,10 @@ async def predict_lstm(request: LSTMRequest):
     The window (the driver's last clean laps completed at the clock) is built
     by model/features.py build_window from the cached laps of the session
     (identifier request), from lap_rows (live) or from the legacy lap dicts;
-    model/predict.py returns the forecast of the method with the best
-    held-out MAE (field method; held_out has every method's number), the pit
-    probability of the best held-out Brier score (pit_method), the projected
+    model/predict.py returns the forecast of the method with the best MAE on
+    the validation races (field method; chosen by scripts/evaluate_forecast.py;
+    held_out has every method's number on the test races), the pit
+    probability of the best validation Brier score (pit_method), the projected
     pit lap and stints. No per-driver position change (it compared the driver
     with himself). A request with too few clean laps gets a 200 with empty
     predicted_times and a reason. Falls back to a heuristic only when

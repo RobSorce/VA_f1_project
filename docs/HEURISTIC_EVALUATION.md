@@ -5,6 +5,36 @@ Nielsen's ten usability heuristics applied to the current frontend
 reading every UI component, the keyboard-shortcut hook, the Zustand
 store, and running the app against several cached sessions.
 
+## Status on 2026-10-15: statements of the record that are no longer true
+
+The evaluation below is the record of the first review and is kept as
+written; the line numbers it cites have moved since. These are the
+statements it makes about the system that the code now contradicts (the
+other findings were not found to be contradicted by the code):
+
+| ID | Statement in the record | What the code does now |
+|----|-------------------------|------------------------|
+| V1.1 | No banner tells the user the backend is offline | A failed request raises a persistent error toast, "Backend unreachable (...). Panels may show stale data.", with a Retry action (`reportBackendError` in `useF1Store.js`); a backend that does not answer at all switches the app to the static demo, which a toast and a DEMO chip announce. |
+| V1.2 | Quotes the LSTM errors of `INSIGHTS_BRAZIL_2024.md`; the forecast pill looks the same whatever its error | Those error tables were of the previous model and have been removed from the insight documents. Race Prediction names the method that made the forecast and shows its held-out error (`forecastMethodLabel`, `forecastHeldOutText` in `RacePredictionPanel.jsx`; the numbers are in `docs/evidence/evaluate_forecast.txt`). |
+| V1.4 | No minimum-lap filter on consistency; quotes a σ ranking from `INSIGHTS_BRAZIL_2024.md` | The Consistency panel marks a driver with fewer than 75 % of the most laps completed as LOW DATA and says his σ is not comparable (`LOW_DATA_FRACTION` in `utils/views/degradationViews.js`); σ is now the pooled residual σ of the per-stint fits (`docs/DEGRADATION_METHODOLOGY.md`), so the quoted value is of the earlier definition. |
+| V2.1 | The UI names three modes, "Docked Layout", "Floating Overlays" and "Pit Wall" | Neither of the first two names is shown: every view other than the Pit Wall opens as a tab of one split-pane workspace, and only Settings opens as a floating window (`setActiveTab` in `useF1Store.js`). |
+| V2.2 | `TireDegradation` shows the raw slope in ms/lap | Each stint is labelled with its fuel-corrected and its raw slope, both in s/lap (`TireDegradation.jsx`; `docs/DEGRADATION_METHODOLOGY.md`, "Fuel correction"). |
+| V3.1, V4.3, V5.1 | A ✕ badge on a hovered dock item removes it on a single click | The dock draws no remove badge (its CSS rule is left unused); an item is removed from its right-click menu ("Remove from dock"), from Settings → Dock or from "Customize dock…" (`DockContextMenu.jsx`, `DockCustomizePopover.jsx`). |
+| V3.2, V5.3 | Cmd/Ctrl+Shift+D resets the dock | The chord is now Cmd/Ctrl+Alt+D (`useKeyboardShortcuts.js`); it still resets without a confirmation, while "Reset dock to defaults" in the dock's right-click menu asks for a second click. |
+| V4.1 | The Settings button looks like a reorderable dock tab | A divider separates the fixed Layouts / ⌘K / Settings buttons from the reorderable items (`bottom-tab-bar__divider` in `BottomTabBar.jsx`). |
+| V5.2 | A session switch resets the analysis with no warning | The Session menu asks for confirmation first and lists what the switch keeps and what it clears (`utils/sessionSwitchWarning.js`). |
+| V6.3 | The ⇅ badge is a swap "in the next lap", from "Monte-Carlo N=100" / "100 Monte-Carlo race simulations" | The badge is the chance that the car behind passes the driver before the flag, from `DEFAULT_NUM_SIMULATIONS` = 1,000 runs (`utils/raceSimulation.js`); the Leaderboard legend has a row for each of its three levels (below 30 %, at least 30 %, at least 60 %) and the badge's tooltip explains it. |
+| H7 | Five layout presets | Seven (`utils/windowPresets.js`: Strategy, Tyres, Pace, Prediction, Overview, Pit Window, Simulator). |
+| V8.2 | The dock capacity is computed in `BottomTabBar.jsx` from fixed widths | The dock measures its buttons and moves the items that do not fit into the ⋯ popover (`utils/dockCapacity.js`); it never scrolls (`SCROLL_HEURISTIC_EVALUATION.md`, S2). |
+| V9.1 | The heuristic fallback is logged to the server console only and shown as if it were the model's answer | The forecast response names the method that made it (`method`, `method_label`, `is_heuristic` in `backend/model/predict.py`), and Race Prediction shows the method on a chip with its held-out error. |
+| V9.2 | Fetch errors have no retry | The backend-down toast has a Retry action. Panels still have no inline retry: `RetryPanel.jsx` exists, but no view renders it. |
+| V9.3 | `is_mock` is not shown as a chip | Every assistant answer with `is_mock` carries a MOCK chip (`GeminiAssistant.jsx`). |
+| V10.1 | The only in-product help is the `?` cheatsheet | Each analytical view has a help panel (`utils/chartHelp.js`), some with a link to the methodology documents. |
+| V10.2 | The lasso triggers a Cohen's-d analysis panel | The Cross-Race Analysis panel reports Hedges' g with its interval and a random-selection baseline (`docs/PCA_METHODOLOGY.md`, section 5). |
+| Positive findings | "brush on lap-time chart → degradation re-fits"; "lasso on PCA → strategy-analysis panel fills" | The lap-time chart is now the Timing Sheet, whose lap-range bar sets the range Tyre Degradation fits; the lasso fills the Cross-Race Analysis panel (`PCAAnalysisPanel.jsx`). |
+
+## Original evaluation (record)
+
 ## Severity scale (Nielsen, 1994)
 
 | Score | Meaning |

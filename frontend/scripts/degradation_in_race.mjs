@@ -7,7 +7,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/degradation_in_race.mjs
- * Writes notes/experiments/degradation_in_race.txt and prints the same text.
+ * Writes docs/evidence/degradation_in_race.txt and prints the same text.
  *
  * Every number here is recomputed from the cached races with the same
  * definitions as computePriors and printed next to the value in PRIORS.
@@ -21,11 +21,13 @@
  *     them, by k; the shortest k whose spread is below the compound's
  *     within-race spread (minFitLaps).
  *  C. Lap noise per race, dry races and races with intermediate / wet laps;
- *     the scaled-inverse-chi-square prior (s0, nu0) of each kind.
+ *     the prior of each kind (s0, nu0 of computePriors), which
+ *     lapNoiseFromFits uses only before the race's first fit; from the first
+ *     fit the lap noise is the race's own pooled sigma (no prior mixed in).
  *  D. Monza 2024 (R16), every projection clock (lap 5 to the last but one):
- *     MEDIUM / HARD degradation and lap noise the lap model uses
- *     (degradationFor, raceParams.lapNoise) against the former rule (the
- *     plain mean of every fit so far; the race's own pooled sigma alone).
+ *     MEDIUM / HARD degradation the lap model uses (degradationFor) against
+ *     the former rule (the plain mean of every fit so far), and the lap noise
+ *     it uses (raceParams.lapNoise).
  *  E. Monza 2024: same-set lap-time change from the clock to lap 40 on the
  *     lap model (projectLapTimes, no stop), MEDIUM and HARD, at laps 12 and 30.
  */
@@ -41,7 +43,7 @@ import { resolveSessionNow } from '../src/utils/raceTime.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
 const CACHE_DIR = path.resolve(ROOT, 'backend/data/processed_cache');
-const OUT_FILE = path.resolve(ROOT, 'notes/experiments/degradation_in_race.txt');
+const OUT_FILE = path.resolve(ROOT, 'docs/evidence/degradation_in_race.txt');
 
 const report = [];
 const r = (line = '') => { report.push(line); };
@@ -148,9 +150,10 @@ r('');
 
 // ══════════════════════════════════════════════════════════
 r('=== C. Lap noise: pooled residual sigma of the whole-race stint fits, per race ===');
-r('Prior of a kind of race (lapNoiseFromFits): the per-race variances as a scaled-inverse-chi-square, moments matched:');
-r('nu0 = 4 + 2 / cv^2 (cv: coefficient of variation of the variances), s0 = sqrt(mean x (nu0 - 2) / nu0). A race at');
-r('its clock: sqrt((nu0 x s0^2 + sse) / (nu0 + dof)) over its fits so far.');
+r('Prior of a kind of race (computePriors, lapNoisePrior): the per-race variances as a scaled-inverse-chi-square, moments');
+r('matched: nu0 = 4 + 2 / cv^2 (cv: coefficient of variation of the variances), s0 = sqrt(mean x (nu0 - 2) / nu0).');
+r("lapNoiseFromFits uses s0 only before the race's first fit; from the first fit a race at its clock uses its own pooled");
+r('sigma, sqrt(sse / dof) over its fits so far (no prior mixed in).');
 {
   const rows = races.map((rc, i) => {
     let sse = 0;
@@ -187,9 +190,10 @@ const paramsAt = (lap) => {
 };
 r('=== D. Monza 2024 (R16): what the lap model uses at every projection clock (lap-mode clock) ===');
 r('used = degradationFor (fits used / fits too short, source); former = plain mean of every fit so far (the rule');
-r('before: compoundDegradation of all fits, replacing the prior from the first fit). Lap noise: used (race only).');
+r("before: compoundDegradation of all fits, replacing the prior from the first fit). Lap noise: used (the race's own");
+r('pooled sigma in brackets: the same from the first fit; before it the value used is the prior).');
 {
-  r('  lap   MEDIUM used (n / short, source)   former      HARD used (n / short, source)   former      lap noise used (race only)');
+  r("  lap   MEDIUM used (n / short, source)   former      HARD used (n / short, source)   former      lap noise used (race's own)");
   const c = { m: 0, h: 0, noise: 0, n: 0, mPrior: 0, hPrior: 0, minM: Infinity, minH: Infinity, minNoise: Infinity, maxNoise: -Infinity };
   for (let lap = 5; lap < mzMax; lap++) {
     const rp = paramsAt(lap);

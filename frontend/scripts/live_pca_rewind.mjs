@@ -1,6 +1,6 @@
 /**
  * The Race Situation Map on backward navigation (P10, round 3): writes
- * notes/experiments/phase67/live_pca_rewind.txt and prints the same text.
+ * docs/evidence/live_pca_rewind.txt and prints the same text.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/live_pca_rewind.mjs
@@ -41,7 +41,7 @@ const { biplotArrows, fieldMean, ARROW_COUNT } = await import('../src/utils/view
 const { loadCachedSession, listCachedRaces } = await import('../src/__tests__/helpers/cachedSession.js');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT_FILE = path.resolve(HERE, '../../notes/experiments/phase67/live_pca_rewind.txt');
+const OUT_FILE = path.resolve(HERE, '../../docs/evidence/live_pca_rewind.txt');
 const lines = [];
 const out = (s = '') => { lines.push(s); console.log(s); };
 const q = (arr, p) => {

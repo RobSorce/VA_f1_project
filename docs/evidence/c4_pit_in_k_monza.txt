@@ -1,0 +1,68 @@
+C4, "pit in k laps" (utils/undercut.js pitInLaps, k = 0..10), Monza 2024 (2024 R16)
+
+1. The table at the end of lap 12
+  LEC (P2, MEDIUM age 12, next HARD), t = 4371.1 s, rivals stop off; pit window: P13 at L14, rejoin offset 0.3806
+    k  in-lap  rejoin  place  pit now  +/- vs now  s vs now   ghost   rivals stopping by then
+    0  L13    L14    P13    P13      +0    +0.00  0.3806  -
+    1  L14    L15    P12    P12      +0    +0.50  0.3707  -
+    2  L15    L16    P12    P12      +0    +0.90  0.3614  -
+    3  L16    L17    P11    P11      +0    +1.31  0.3524  -
+    4  L17    L18    P11    P10      -1    +1.73  0.3438  -
+    5  L18    L19    P10    P10      +0    +2.16  0.3355  -
+    6  L19    L20    P10    P9       -1    +2.60  0.3276  -
+    7  L20    L21    P10    P8       -2    +3.06  0.3199  -
+    8  L21    L22    P9     P7       -2    +3.52  0.3126  -
+    9  L22    L23    P8     P7       -1    +3.99  0.3057  -
+   10  L23    L24    P8     P7       -1    +4.48  0.2990  -
+  LEC (P2, MEDIUM age 12, next HARD), t = 4371.1 s, rivals stop on; pit window: P13 at L14, rejoin offset 0.3806
+    k  in-lap  rejoin  place  pit now  +/- vs now  s vs now   ghost   rivals stopping by then
+    0  L13    L14    P13    P13      +0    +0.00  0.3806  -
+    1  L14    L15    P12    P12      +0    +0.50  0.3707  -
+    2  L15    L16    P12    P12      +0    +0.90  0.3614  -
+    3  L16    L17    P11    P11      +0    +1.31  0.3524  -
+    4  L17    L18    P11    P10      -1    +1.73  0.3438  -
+    5  L18    L19    P10    P10      +0    +2.16  0.3355  -
+    6  L19    L20    P10    P9       -1    +2.60  0.3276  -
+    7  L20    L21    P10    P8       -2    +3.06  0.3199  -
+    8  L21    L22    P9     P7       -2    +3.52  0.3126  -
+    9  L22    L23    P8     P7       -1    +3.99  0.3057  -
+   10  L23    L24    P8     P7       -1    +4.48  0.2990  -
+  PIA (P1, MEDIUM age 12, next HARD), t = 4369.1 s, rivals stop off; pit window: P12 at L14, rejoin offset 0.3804
+    k  in-lap  rejoin  place  pit now  +/- vs now  s vs now   ghost   rivals stopping by then
+    0  L13    L14    P12    P12      +0    +0.00  0.3804  -
+    1  L14    L15    P12    P11      -1    +0.50  0.3676  -
+    2  L15    L16    P11    P11      +0    +0.90  0.3555  -
+    3  L16    L17    P10    P10      +0    +1.31  0.3437  -
+    4  L17    L18    P10    P9       -1    +1.73  0.3322  -
+    5  L18    L19    P9     P8       -1    +2.16  0.3211  -
+    6  L19    L20    P8     P7       -1    +2.60  0.3103  -
+    7  L20    L21    P8     P7       -1    +3.06  0.2998  -
+    8  L21    L22    P7     P7       +0    +3.52  0.2897  -
+    9  L22    L23    P7     P7       +0    +3.99  0.2798  -
+   10  L23    L24    P7     P7       +0    +4.48  0.2703  -
+  PIA (P1, MEDIUM age 12, next HARD), t = 4369.1 s, rivals stop on; pit window: P12 at L14, rejoin offset 0.3804
+    k  in-lap  rejoin  place  pit now  +/- vs now  s vs now   ghost   rivals stopping by then
+    0  L13    L14    P12    P12      +0    +0.00  0.3804  -
+    1  L14    L15    P12    P11      -1    +0.50  0.3676  -
+    2  L15    L16    P11    P11      +0    +0.90  0.3555  -
+    3  L16    L17    P10    P10      +0    +1.31  0.3437  -
+    4  L17    L18    P10    P9       -1    +1.73  0.3322  -
+    5  L18    L19    P9     P8       -1    +2.16  0.3211  -
+    6  L19    L20    P8     P7       -1    +2.60  0.3103  -
+    7  L20    L21    P8     P7       -1    +3.06  0.2998  -
+    8  L21    L22    P7     P7       +0    +3.52  0.2897  -
+    9  L22    L23    P7     P7       +0    +3.99  0.2798  -
+   10  L23    L24    P7     P7       +0    +4.48  0.2703  -
+
+2. k = 0 is the pit window: every focus, every 60 s
+  Monza 2024: pit windows 1377; k = 0 row equal to the window (place, crossing, ghost offset, target lap) 1377
+  China 2024: pit windows 1803; k = 0 row equal to the window (place, crossing, ghost offset, target lap) 1803
+
+3. k > 0 moves consistently: no tyre model (zero degradation and fresh-tyre delta), every focus, end of lap 12 / 30 of the leader
+  tables 36; crossing = k = 0 crossing + k x the focus's pace, 0 s and 0 places vs pitting now, ghost moved back by the same step per lap of waiting (the focus's pace minus the reference lap): 36
+
+4. D3 (R2 / R3): a pit-lane visit with no tyre change, and the pit lane read causally
+  2024 R22 t = 4518.3 s, OCO on its out-lap with its own MEDIUM (TyreLife goes on): focus HUL "pit in 1": P18 (-1 vs now, +0.47 s)
+  2024 R22 t = 4518.3 s, OCO on its out-lap with its own MEDIUM (TyreLife goes on): focus HUL "pit in 2": P19 (-2 vs now, +0.84 s)
+  2024 R22 t = 4518.3 s, OCO on its out-lap with its own MEDIUM (TyreLife goes on): focus LEC "pit in 5": P19 (-1 vs now, +0.17 s)
+  every cached race, a clock half way from an in-lap's line crossing to its pit exit (tyre change): clocks 837, tables (every focus, rivals stop on) 15417, differing with the future rows rewritten 0

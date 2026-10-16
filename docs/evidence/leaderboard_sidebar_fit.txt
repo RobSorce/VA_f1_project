@@ -1,0 +1,26 @@
+1536x750: app body 622.5 px, sidebar 288 px, Leaderboard chrome 128 px (legend 2 lines); cards in full: sector 263 + widget 217; collapsed: toggle 22 + 36 + 45; the cards open collapsed by default
+  fits  Analyse, no focus driver (hint line, est. 60 px): cards in the flow 60 px -> 435 px for the rows: all 20 rows at 21 px
+  fits  Analyse, focus driver, default: cards in the flow 103 px -> 392 px for the rows: all 20 rows at 19 px
+  fits  base state, focus driver, default: cards in the flow 67 px -> 428 px for the rows: all 20 rows at 21 px
+  fits  Analyse, focus driver, "Details": cards in the flow 103 px -> 392 px for the rows: all 20 rows at 19 px | the details card (501 px of the 623 px sidebar) is laid over its bottom until "Less"
+  fits  base state, focus driver, "Details": cards in the flow 67 px -> 428 px for the rows: all 20 rows at 21 px | the details card (239 px of the 623 px sidebar) is laid over its bottom until "Less"
+1366x768: app body 637.4 px, sidebar 256 px, Leaderboard chrome 127 px (legend 2 lines); cards in full: sector 263 + widget 218; collapsed: toggle 22 + 36 + 45; the cards open collapsed by default
+  fits  Analyse, no focus driver (hint line, est. 60 px): cards in the flow 60 px -> 450 px for the rows: all 20 rows at 22 px
+  fits  Analyse, focus driver, default: cards in the flow 103 px -> 407 px for the rows: all 20 rows at 20 px
+  fits  base state, focus driver, default: cards in the flow 67 px -> 443 px for the rows: all 20 rows at 22 px
+  fits  Analyse, focus driver, "Details": cards in the flow 103 px -> 407 px for the rows: all 20 rows at 20 px | the details card (502 px of the 637 px sidebar) is laid over its bottom until "Less"
+  fits  base state, focus driver, "Details": cards in the flow 67 px -> 443 px for the rows: all 20 rows at 22 px | the details card (240 px of the 637 px sidebar) is laid over its bottom until "Less"
+1920x1080: app body 936.0 px, sidebar 300 px, Leaderboard chrome 135 px (legend 2 lines); cards in full: sector 279 + widget 234; collapsed: toggle 22 + 37 + 47; the cards open collapsed by default
+  fits  Analyse, no focus driver (hint line, est. 60 px): cards in the flow 60 px -> 741 px for the rows: all 20 rows at 28 px
+  fits  Analyse, focus driver, default: cards in the flow 106 px -> 696 px for the rows: all 20 rows at 28 px
+  fits  base state, focus driver, default: cards in the flow 69 px -> 733 px for the rows: all 20 rows at 28 px
+  fits  Analyse, focus driver, "Details": cards in the flow 106 px -> 696 px for the rows: all 20 rows at 28 px | the details card (535 px of the 936 px sidebar) is laid over its bottom until "Less"
+  fits  base state, focus driver, "Details": cards in the flow 69 px -> 733 px for the rows: all 20 rows at 28 px | the details card (256 px of the 936 px sidebar) is laid over its bottom until "Less"
+2048x1100: app body 956.0 px, sidebar 300 px, Leaderboard chrome 135 px (legend 2 lines); cards in full: sector 279 + widget 236; collapsed: toggle 22 + 37 + 47; the cards open collapsed by default
+  fits  Analyse, no focus driver (hint line, est. 60 px): cards in the flow 60 px -> 761 px for the rows: all 20 rows at 28 px
+  fits  Analyse, focus driver, default: cards in the flow 106 px -> 715 px for the rows: all 20 rows at 28 px
+  fits  base state, focus driver, default: cards in the flow 69 px -> 752 px for the rows: all 20 rows at 28 px
+  fits  Analyse, focus driver, "Details": cards in the flow 106 px -> 715 px for the rows: all 20 rows at 28 px | the details card (537 px of the 956 px sidebar) is laid over its bottom until "Less"
+  fits  base state, focus driver, "Details": cards in the flow 69 px -> 752 px for the rows: all 20 rows at 28 px | the details card (258 px of the 956 px sidebar) is laid over its bottom until "Less"
+
+fewest rows on one page, every state above: 20 of 20 rows on one page

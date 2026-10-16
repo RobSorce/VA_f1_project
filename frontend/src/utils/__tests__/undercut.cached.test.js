@@ -4,9 +4,9 @@
 // time and with the whole race's) and the "pit in k laps" tables (k = 0..10,
 // focus LEC and PIA), k = 0 equal to the pit window for every focus over Monza
 // and China, k capped by the laps left. frontend/scripts/s7_undercut_monza.mjs
-// prints the sweep (notes/experiments/phase45c/s7_undercut_monza.txt),
+// prints the sweep (docs/evidence/s7_undercut_monza.txt),
 // frontend/scripts/c4_pit_in_k_monza.mjs the "pit in k laps" tables
-// (notes/experiments/phase45c/c4_pit_in_k_monza.txt).
+// (docs/evidence/c4_pit_in_k_monza.txt).
 import { describe, it, expect } from 'vitest';
 import {
   undercutSweep, pitInLaps, tyreStates, PIT_IN_LAPS_MAX,
@@ -103,7 +103,7 @@ describe.skipIf(!haveMonza)('Monza 2024: the undercut sweep (S7)', () => {
       + `(in L14-16 ${tally.causal.near}/${tally.causal.cases}); whole race ${[...tally.whole.best]} (in L14-16 ${tally.whole.near}/${tally.whole.cases})`);
     // the data-driven inputs put the balance after the real stops (MEDIUM / HARD = 1.62 with the
     // cached races' estimates at the time; a best lap of L15 needs 2.24:
-    // notes/experiments/phase45c/s7_undercut_monza.txt section 4)
+    // docs/evidence/s7_undercut_monza.txt section 4)
     expect([...tally.causal.best]).toEqual([19]);
     expect([...tally.whole.best].sort()).toEqual([24, 25, 26]);
     expect(tally.causal.near).toBe(0);
@@ -198,7 +198,7 @@ describe.skipIf(!hasCachedSession(2024, 22))('2024 R22: pit-lane visits and "pit
     const sw = undercutSweep('HUL', 'OCO', s.st, s.pitLoss, s.rp);
     expect(sw.rivalStop.source).toBe('in progress');
     expect(sw.rivalNextCompound).toBeNull();
-    // the C4 table of notes/experiments/phase45c/c4_pit_in_k_monza.txt section 4
+    // the C4 table of docs/evidence/c4_pit_in_k_monza.txt section 4
     const hul = pitInLaps('HUL', s.st, s.pitLoss, s.rp);
     expect([hul.rows[1].predictedPosition, hul.rows[1].positionsVsNow]).toEqual([18, -1]);
     expect([hul.rows[2].predictedPosition, hul.rows[2].positionsVsNow]).toEqual([19, -2]);

@@ -1,0 +1,56 @@
+S4 / D5: same state, a new seed per recompute, chained as the store chains them (utils/simulationClient.js withBadges)
+30 cached races x 3 clocks (25 %, 50 %, 75 % of the distance, lap-mode clock) x 10 seeds, 1000 runs each: 810 recomputes compared with the previous one (144 s)
+intervals: per-driver marks and battle colours simultaneous over the rows / pairs (familyZ: 20 rows 3.023, 70 pairs 3.384); battle list and risk rows 1.96 per mark
+
+mark (changed in how many recomputes; target <= 5 %)                     now                         checkpoint 2193a6b rules
+  P label (any row)                                      29 / 810 (3.58%)       ok     145 / 810 (17.90%)
+  gold P label (any row)                                  1 / 810 (0.12%)       ok      16 / 810 (1.98%)
+  podium badge (any row)                                  1 / 810 (0.12%)       ok       4 / 810 (0.49%)
+  gain / loss arrow colour (any row)                      8 / 810 (0.99%)       ok     328 / 810 (40.49%)
+  gain / loss arrow with its number (any row)            29 / 810 (3.58%)       ok     723 / 810 (89.26%)
+  Strategy Analysis driver mark (any row)                29 / 810 (3.58%)       ok     403 / 810 (49.75%)
+  projection row order                                   19 / 810 (2.35%)       ok     671 / 810 (82.84%)
+  battle colour, listed in both                           0 / 810 (0.00%)       ok    
+  listed battles (set)                                    8 / 810 (0.99%)       ok    
+  Battles (N) tab label                                   3 / 810 (0.37%)       ok    
+  insight battle cards (as shown)                         4 / 810 (0.49%)       ok    
+  insight variance cards                                  5 / 810 (0.62%)       ok    
+  Leaderboard overtake badge colour (adjacent pairs)      3 / 810 (0.37%)       ok    
+  risk rows (as shown)                                    8 / 810 (0.99%)       ok    
+  Risks (N) tab label                                     0 / 810 (0.00%)       ok    
+  assistant quick-query battle                            1 / 810 (0.12%)       ok    
+  assistant battle query (any driver)                     7 / 810 (0.86%)       ok    
+  assistant context: first 10 rows + position shown      21 / 810 (2.59%)       ok    
+  assistant context: first 5 battles                      7 / 810 (0.86%)       ok    
+marks over 5 %: 0 of 19
+per row: P label changes   29 / 14976 (0.19%) (checkpoint rule  160 / 14976 (1.07%))
+
+by clock (recomputes with the mark changed):
+  25 % (270): P label (any row) 12; gain / loss arrow with its number (any row) 12; Strategy Analysis driver mark (any row) 12; projection row order 8
+  50 % (270): P label (any row) 11; gain / loss arrow with its number (any row) 11; Strategy Analysis driver mark (any row) 11; projection row order 8
+  75 % (270): P label (any row) 6; gain / loss arrow with its number (any row) 6; Strategy Analysis driver mark (any row) 6; assistant context: first 10 rows + position shown 6
+
+examples of a change (previous -> this recompute):
+  2024 R1 L14 seed 6: P label (any row): PER:5 -> PER:6
+  2024 R1 L14 seed 8: P label (any row): LEC:10 -> LEC:9
+  2024 R3 L29 seed 7: P label (any row): MAG:12 -> MAG:13
+  2024 R4 L13 seed 6: P label (any row): RUS:8 -> RUS:9
+  2024 R4 L13 seed 6: gain / loss arrow colour (any row): RUS:1 -> RUS:0
+  2024 R4 L13 seed 9: P label (any row): MAG:15 -> MAG:14
+  2024 R5 L14 seed 2: P label (any row): STR:9 -> STR:8
+  2024 R5 L14 seed 8: P label (any row): GAS:18 -> GAS:17
+  2024 R7 L32 seed 1: P label (any row): NOR:5 -> NOR:4
+  2024 R7 L47 seed 1: P label (any row): LEC:3 -> LEC:2
+  2024 R7 L47 seed 1: gain / loss arrow colour (any row): LEC:0 -> LEC:1
+  2024 R10 L17 seed 8: P label (any row): VER:6 -> VER:7
+
+lap by lap (laps 10-50, the store's chain from lap to lap), 5 seed salts: a mark that turns on for one lap and off again (or
+the reverse) under some salts only is a blink on noise; under every salt it is in the data
+  2024 R16 pod   : distinct one-lap blinks   5; under every salt   3; under some salts only (noise) 2
+  2024 R16 arrow : distinct one-lap blinks  27; under every salt  12; under some salts only (noise) 15
+  2024 R16 battle: distinct one-lap blinks  19; under every salt   5; under some salts only (noise) 14
+  2024 R16 risk  : distinct one-lap blinks  27; under every salt  15; under some salts only (noise) 12
+  2024 R5 pod   : distinct one-lap blinks   1; under every salt   1; under some salts only (noise) 0
+  2024 R5 arrow : distinct one-lap blinks  42; under every salt  18; under some salts only (noise) 24
+  2024 R5 battle: distinct one-lap blinks  38; under every salt  16; under some salts only (noise) 22
+  2024 R5 risk  : distinct one-lap blinks  31; under every salt   9; under some salts only (noise) 22

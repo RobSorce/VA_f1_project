@@ -1,0 +1,34 @@
+D3   ChampionshipChart.jsx (draws with d3)
+D3   ChampionshipStandings.jsx (draws with d3)
+D3   CircleOfDoom.jsx (draws with d3)
+HTML ConsistencyPanel.jsx
+D3   DriverComparePanel.jsx (draws with d3) (D3 drawing helpers: stintStripChart)
+D3   GeminiAssistant.jsx (D3 drawing helpers: stintStripChart)
+D3   LapDeltaChart.jsx (draws with d3)
+D3   LapTimeChart.jsx (draws with d3)
+HTML Leaderboard.jsx
+D3   PCAAnalysisPanel.jsx (draws with d3) (D3 drawing helpers: pcaForestChart, stintStripChart, d3Legend)
+D3   PCABiplot.jsx (draws with d3)
+D3   PositionByLap.jsx (draws with d3)
+HTML RaceControlPanel.jsx
+HTML RacePaceGrid.jsx (a d3 scale for colours only)
+D3   RacePredictionPanel.jsx (draws with d3) (D3 drawing helpers: positionRangeChart, d3Legend)
+D3   RaceSituationMap.jsx (draws with d3)
+D3   SectorDeltaWaterfall.jsx (D3 drawing helpers: sectorDeltaWaterfallChart)
+D3   SectorsBestChart.jsx (draws with d3)
+HTML SectorsBestTab.jsx
+HTML SectorsPanel.jsx
+D3   StrategyAnalysis.jsx (D3 drawing helpers: stintStripChart, effectBarsChart)
+D3   StrategySimulator.jsx (draws with d3) (D3 drawing helpers: stintStripChart, positionRangeChart, d3Legend)
+D3   StrategyTimeline.jsx (draws with d3)
+D3   TelemetryStrip.jsx (draws with d3)
+HTML TimingTower.jsx
+D3   TireDegradation.jsx (draws with d3)
+HTML TireSilhouette.jsx
+D3   TrackMap.jsx (draws with d3)
+D3   TyreHealth.jsx (draws with d3)
+D3   TyreManagement.jsx (draws with d3)
+D3   UndercutCalculator.jsx (D3 drawing helpers: undercutSweepChart)
+
+31 view files in components/visualizations: 23 draw with D3, 8 are HTML only (ConsistencyPanel, Leaderboard, RaceControlPanel, RacePaceGrid, SectorsBestTab, SectorsPanel, TimingTower, TireSilhouette)
+SpeedPanel.jsx exists: false

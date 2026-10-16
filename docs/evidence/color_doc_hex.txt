@@ -1,0 +1,62 @@
+Hex colours of docs/COLOR_ENCODING.md against the code (frontend/scripts/color_doc_check.mjs)
+code: literals of frontend/src/utils/colors.js and the dark-theme tokens (:root) of frontend/src/styles/tokens.css
+
+#0F0F1E  line  11  x1  SURFACES.page, --color-bg-primary
+#131326  line  11  x1  SURFACES.panel
+#1A1F33  line  11  x1  SURFACES.raised, --color-bg-tertiary
+#242938  line  11  x1  SURFACES.elevated, --color-bg-elevated
+#FFFFFF  line  44  x4  TEXT_COLORS.primary, FLAG_COLORS.chequered, TRACK_COLORS.drs, UI_COLORS.focusRing, --color-text-primary, --track-drs
+#C9CCD6  line  45  x4  TEXT_COLORS.secondary, TRACK_COLORS.drsDetection, --color-text-secondary, --map-overlay-text
+#A3A7B7  line  46  x5  TEXT_COLORS.muted, --color-text-muted, --map-overlay-muted, --status-retired
+#888888  line  52  x2  UNKNOWN_TEAM_COLOR, TYRE_COLORS.UNKNOWN
+#3671C6  line  56  x1  TEAM_COLORS.Red Bull Racing, DRIVER_COLORS.VER, DRIVER_COLORS.PER, --team-redbull
+#64C4FF  line  56  x1  TEAM_COLORS.Williams, DRIVER_COLORS.ALB, DRIVER_COLORS.SAR, DRIVER_COLORS.COL, --team-williams
+#E8002D  line  57  x1  TEAM_COLORS.Ferrari, DRIVER_COLORS.LEC, DRIVER_COLORS.SAI, --team-ferrari
+#6692FF  line  57  x1  TEAM_COLORS.RB, TEAM_COLORS.Racing Bulls, DRIVER_COLORS.TSU, DRIVER_COLORS.RIC, DRIVER_COLORS.LAW, DRIVER_COLORS.HAD, --team-rb
+#27F4D2  line  58  x1  TEAM_COLORS.Mercedes, DRIVER_COLORS.HAM, DRIVER_COLORS.RUS, DRIVER_COLORS.ANT, --team-mercedes
+#5E8FAA  line  58  x1  TEAM_COLORS.AlphaTauri
+#FF8000  line  59  x1  TEAM_COLORS.McLaren, DRIVER_COLORS.NOR, DRIVER_COLORS.PIA, --team-mclaren
+#B6BABD  line  59  x1  TEAM_COLORS.Haas F1 Team, DRIVER_COLORS.HUL, DRIVER_COLORS.MAG, DRIVER_COLORS.BEA, --team-haas
+#229971  line  60  x1  TEAM_COLORS.Aston Martin, DRIVER_COLORS.ALO, DRIVER_COLORS.STR, --team-aston
+#52E252  line  60  x1  TEAM_COLORS.Kick Sauber, DRIVER_COLORS.BOT, DRIVER_COLORS.ZHO, DRIVER_COLORS.BOR, --team-sauber
+#FF87BC  line  61  x1  TEAM_COLORS.Alpine, DRIVER_COLORS.GAS, DRIVER_COLORS.OCO, DRIVER_COLORS.DOO, --team-alpine
+#C92D4B  line  61  x1  TEAM_COLORS.Alfa Romeo
+#F50537  line  62  x1  TEAM_COLORS.Audi
+#909090  line  62  x1  TEAM_COLORS.Cadillac
+#FF3333  line  75  x1  TYRE_COLORS.SOFT, --tyre-soft
+#FFC300  line  76  x1  TYRE_COLORS.MEDIUM, --tyre-medium
+#EEEEEE  line  77  x1  TYRE_COLORS.HARD, --tyre-hard
+#39B54A  line  78  x1  TYRE_COLORS.INTERMEDIATE, --tyre-intermediate
+#00AAFF  line  79  x1  TYRE_COLORS.WET, --tyre-wet
+#C084FC  line  88  x2  STATUS_COLORS.overallBest, --sector-purple
+#34D399  line  89  x2  STATUS_COLORS.personalBest, FLAG_COLORS.green, --sector-green, --flag-green
+#FDE047  line  90  x3  STATUS_COLORS.slower, --sector-yellow
+#F0883E  line  91  x3  DIVERGING.worse, --color-worse
+#5DA5E8  line  92  x2  DIVERGING.better, --color-better
+#E5E7EB  line  93  x1  STATUS_COLORS.normal
+#F472B6  line  94  x2  STATUS_COLORS.pit, --status-pit
+#F5A623  line  96  x2  STATUS_COLORS.predicted, --status-predicted, --color-gemini
+#A855F7  line 113  x1  UI_COLORS.pitWindow, --color-pit-window
+#B56FF8  line 113  x1  UI_COLORS.pitWindowText, --color-pit-window-text
+#8AB4F8  line 114  x1  UI_COLORS.brush, --color-brush
+#E10600  line 119  x1  UI_COLORS.accent, --color-f1-red, --color-accent-primary
+#FF6B63  line 119  x2  TRACK_COLORS.north, --color-f1-red-text
+#FACC15  line 123  x1  FLAG_COLORS.yellow, --flag-yellow
+#F59E0B  line 123  x1  FLAG_COLORS.safetyCar, --flag-sc
+#F87171  line 123  x1  FLAG_COLORS.red, --flag-red
+#60A5FA  line 123  x1  FLAG_COLORS.blue
+#F0E442  line 131  x3  CHANNEL_COLORS.speed, SERIES_COLORS
+#56B4E9  line 131  x3  CHANNEL_COLORS.throttle, SERIES_COLORS, --channel-throttle
+#E69F00  line 131  x2  CHANNEL_COLORS.brake, SERIES_COLORS, --channel-brake
+#5C6677  line 131  x1  CHANNEL_RAMP_LOW
+#CC79A7  line 132  x2  SERIES_COLORS
+#4A5568  line 134  x1  TRACK_COLORS.surface
+#FDEA45  line 135  x1  OUTCOME_COLORS.podium
+#A9A177  line 135  x1  OUTCOME_COLORS.points
+#61636F  line 135  x1  OUTCOME_COLORS.none
+#FFD700  line 136  x1  MEDAL_COLORS.1, --color-accent-warning, --medal-gold
+#C0C0C0  line 136  x1  MEDAL_COLORS.2
+#CD7F32  line 136  x1  MEDAL_COLORS.3
+
+56 distinct hex colours in the document, 0 not in the code
+RESULT: PASS

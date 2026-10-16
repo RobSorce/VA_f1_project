@@ -12,7 +12,7 @@ cached race (whole race, two clocks inside the race, and the lap range 10–25)
 and requires every lap list to match and every number to agree to 1e-9.
 
 Every number below comes from `frontend/scripts/degradation_definition.mjs`
-(output: `notes/experiments/degradation_definition_monza.txt`, 30 cached races).
+(output: `docs/evidence/degradation_definition_monza.txt`, 30 cached races).
 Run it from `frontend/` with `npx vite-node scripts/degradation_definition.mjs`.
 
 ## Clean stint laps — `cleanStintLaps(lapTimes, { sessionNow, driver })`
@@ -129,7 +129,7 @@ Per compound, from the fits at the clock:
 
 The spreads and `minFitLaps` behind steps 1-2 are printed by
 `frontend/scripts/degradation_in_race.mjs`
-(`notes/experiments/degradation_in_race.txt`, sections A-B).
+(`docs/evidence/degradation_in_race.txt`, sections A-B).
 
 Lap noise (`lapNoiseFromFits`, lead decision D1) is the race's pooled residual
 sigma of the per-stint fits at the clock, `sqrt(Σ SSE / Σ (n − 2))` over every
@@ -142,7 +142,7 @@ n = 0.
 
 The Monza 2024 table at every lap-mode clock is printed by
 `frontend/scripts/s2_lap_noise.mjs`
-(`notes/experiments/phase45c/s2_lap_noise_monza.txt`): at the 48 clocks of
+(`docs/evidence/s2_lap_noise_monza.txt`): at the 48 clocks of
 laps 5-52 MEDIUM is +0.0140 s/lap or more and HARD +0.0053 or more (at laps
 11-14, 12 of the 13 MEDIUM fits so far have a negative slope and none is long
 enough to be used). Lap noise is the dry prior 0.408 s (n = 0) at laps 5-9,
@@ -168,8 +168,12 @@ fit changes.
 
 ## Consumers
 
-Every degradation and consistency number of the dashboard comes from this
-definition; nothing fits a line or computes a sigma on its own.
+Every tyre-degradation slope and every consistency sigma of the dashboard
+comes from this definition. Two trends of other quantities are computed
+elsewhere and are not degradation estimates: the pace trend of the Race
+Situation map (a slope over a driver's last 5 pace laps,
+`raceSituationFeatures.js`) and Tyre Health's estimated tyre life (a
+heuristic of the view, `TyreHealth.jsx`, with its constants in its help).
 
 Frontend (`frontend/src/utils/degradation.js`):
 
@@ -178,8 +182,9 @@ Frontend (`frontend/src/utils/degradation.js`):
   at the replay clock, restricted to the brushed lap range once the driver
   has 3 completed laps in it (`BRUSH_MIN_LAPS`).
 - **Brushed fit banner** (`TireDegradation.jsx`, store
-  `fetchDegradationRegression`): `POST /api/predict/degradation` (below). The
-  body carries `session_now` (the replay clock in session seconds, `null` at
+  `fetchDegradationRegression`): `POST /api/predict/degradation` (below),
+  asked by the view for a range of 5 laps or more once the range has not
+  changed for 250 ms. The body carries `session_now` (the replay clock in session seconds, `null` at
   the race end) and the session on screen (`year`, `round`, `session_type`;
   never the pills of the session menus), so the endpoint uses the laps the
   chart uses. The store re-asks whenever the fit's inputs change
@@ -193,7 +198,7 @@ Frontend (`frontend/src/utils/degradation.js`):
   chart's live fits stay. Evidence: `src/__tests__/degradation.endpointClock.test.js`
   sends the store's bodies to the endpoint and compares its stint rows with
   `stintFits` at every sampled clock of Monza 2024 and at the race end
-  (`notes/experiments/phase45c/g1_store_endpoint_vs_chart.txt`: 979 clock checks,
+  (`docs/evidence/g1_store_endpoint_vs_chart.txt`: 979 clock checks,
   8 at the race end, 1135 stint rows, max difference 0).
 - **Consistency cards** (`ConsistencyPanel.jsx`): `consistencyView`, the
   `consistencySigma` of every driver with its fields and rules shared with
@@ -203,10 +208,24 @@ Frontend (`frontend/src/utils/degradation.js`):
   an even count), LOW DATA when the driver completed fewer laps than
   max(3, 75 % of the most laps completed). Evidence:
   `src/__tests__/degradation.consistencyParity.test.js`
-  (`notes/experiments/phase45c/g5_consistency_parity.txt`: 30 races x 3
+  (`docs/evidence/g5_consistency_parity.txt`: 30 races x 3
   clocks, 1627 driver rows equal, sigma difference 0).
 - **Driver comparison** (`DriverComparePanel.jsx`): `consistencySigma` of both
   drivers at the clock.
+- **Static demo** (no backend, `utils/demoMode.js`): `utils/demoData.js`
+  `degradationResponse` answers the brushed fit with `stintFits` in the
+  browser, the same response as the endpoint; `utils/pcaSelectionStats.js`
+  (the PCA features of the demo) uses `cleanStintLaps`, `stintFits`,
+  `consistencySigma` and `fuelCorrectedTime` (parity test
+  `src/__tests__/demo.pcaSelectionStats.test.js`).
+- **Strategy Analysis insights** (`StrategyAnalysis.jsx` ->
+  `utils/insightsGenerator.js`, category "degradation"): reads
+  `degradationRegression.regressions` with `r_squared` and `n_points`, fields
+  the endpoint does not return (it returns the primary fit, `stints` and
+  `all_drivers`), so this insight is never shown.
+- **AI assistant context** (store `sendGeminiQuery`): the brushed fit, as
+  the store holds it, goes into the race context; the backend
+  (`api/routers/gemini.py`) writes it into the prompt as JSON.
 - **Race simulation** (`raceSimulation.js`, and through it the Undercut
   Calculator and the Circle of Doom): `stintFits` / `cleanStintLaps` at the
   clock, combined into `raceDegradation` as described above.
@@ -238,6 +257,13 @@ Backend (`backend/data/processors/degradation.py`):
   payload (the cards compute the same rows at the clock).
 - **PCA race features** (`data/processors/pca_compute.py`): clean laps, the
   fuel correction, per-stint fits and the consistency sigma at `session_now`.
+- **Lap-time forecast** (`model/features.py`, the window of the served
+  methods): the clean laps of the origin stint (`clean_stint_laps`) and its
+  fit (`fit_stint`); `model/prepare_data.py` marks the clean target laps
+  with `is_clean_lap`. The two baselines of `model/baselines.py`: the
+  per-stint linear extrapolation (`fit_stint` of the origin stint) and the
+  compound mean degradation of the training races (`compound_degradation` of
+  their `stint_fits`, computed by `scripts/evaluate_forecast.py`).
 
 ## Limits
 

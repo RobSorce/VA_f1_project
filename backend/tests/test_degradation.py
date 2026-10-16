@@ -218,7 +218,7 @@ def test_consistency_sigma_pools_the_stint_residuals():
 # ---------------------------------------------------------------- Monza 2024 (cached)
 
 def test_monza_2024_numbers():
-    """Numbers of notes/experiments/degradation_definition_monza.txt."""
+    """Numbers of docs/evidence/degradation_definition_monza.txt."""
     laps = load_cached_session(2024, 16)['lap_times']
     pia = stint_fits(laps, driver='PIA', lap_start=10, lap_end=25)
     assert [(f['stint_number'], f['compound'], f['n']) for f in pia] == [(1, 'MEDIUM', 6), (2, 'HARD', 8)]

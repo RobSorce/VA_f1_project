@@ -1,5 +1,14 @@
 # Analytical Insights — Hungarian Grand Prix 2024 (Hungaroring, R13)
 
+> **Status: to be re-derived after the 2026-10 fixes.** The numbers below
+> were computed with the dashboard's definitions before the October 2026
+> fixes: the degradation fit is now fuel-corrected and fitted on clean stint
+> laps only (`docs/DEGRADATION_METHODOLOGY.md`), the consistency σ is now the
+> pooled residual σ of the per-stint fits, and the lap-time forecast model has
+> been replaced. Re-running the steps below on the current code can give
+> other values. The LSTM insight, which compared this race with the disproved
+> Monza forecast table, has been removed (dated note below).
+
 Companion to `INSIGHTS_MONZA_2024.md`. Same methodology, different race
 character: Hungary is a **high-degradation, high-downforce** circuit
 where the Hard tyre cannot coast to the flag on fuel burn alone. The
@@ -104,7 +113,12 @@ losing 0.5–2.0 s/stint to degradation.
 
 ## Insight 3 — Consistency σ still matches the podium
 
-**Panel:** `POST /api/analytics/consistency/2024/13`.
+**Panel:** `GET /api/analytics/consistency/2024/13`.
+
+(Note, 2026-10-15: the σ values below are of the earlier definition, the
+standard deviation of the clean lap times. The endpoint now returns the pooled
+residual σ of the driver's per-stint degradation fits:
+`docs/DEGRADATION_METHODOLOGY.md`, "Consistency sigma".)
 
 | Rank | Driver | σ (s) | Finish |
 |------|--------|-------|--------|
@@ -118,9 +132,10 @@ losing 0.5–2.0 s/stint to degradation.
 
 ### Why it matters
 
-- Top-5 most-consistent drivers (excluding GAS, who had pace but was
-  stuck in dirty air in the midfield) finished P1-P5 in order of
-  consistency — **an exact 1-to-1 mapping**.
+- (Corrected on 2026-10-16: this line said that the five most consistent
+  drivers after GAS finished P1-P5 in order of consistency, an exact 1-to-1
+  mapping. The table above does not show that: in σ order they are PIA (P1),
+  HAM (P3), LEC (P4), NOR (P2) and ALO (P15), and VER (P5) is sixth.)
 - Reproduces the Monza finding (LEC consistency #1 → race winner) with
   an independent race.
 - GAS #1 with σ=0.859 is not noise — he genuinely kept a narrow
@@ -130,37 +145,15 @@ losing 0.5–2.0 s/stint to degradation.
 
 ---
 
-## Insight 4 — LSTM fails predictably at stint transitions
+## Insight 4 — removed (LSTM errors at stint transitions)
 
-**Panel:** `RacePredictionPanel` / `POST /api/predict/lstm`.
-
-Predicting L26–L30 from the previous 10 laps at Hungary:
-
-| Driver | MAE (s) | Context                                     |
-|--------|---------|---------------------------------------------|
-| HAM    | **0.39**| Mid-stint, stable pace                      |
-| VER    | 0.93    | Mid-stint                                   |
-| PIA    | 0.95    | 8 laps into new stint                       |
-| NOR    | 1.27    | 9 laps into new stint                       |
-| LEC    | **3.64**| Pitted L22, predicting laps 3-8 of new stint|
-| SAI    | **4.50**| Pitted L20, predicting laps 5-10 of new stint|
-
-Overall MAE: 1.95 s (vs Monza 0.74 s in mid-stint conditions).
-
-### Why it matters
-
-The model's errors cluster around drivers who have just pitted (LEC,
-SAI). The reason is visible in the data: it was trained on sequences
-with tyre age monotonically increasing, so a sudden reset to fresh
-tyres breaks the conditional pattern. **This is a model limitation
-worth surfacing in the UI** — e.g. grey-out the prediction pill for
-the first 3-5 laps of a new stint, and resume full confidence once
-tyre_life ≥ ~5.
-
-### Reproduction
-
-Double-click a driver who *just* pitted, hit `Shift+P`, observe MAE
-degrade on the displayed confidence band. The effect is reproducible.
+Removed on 2026-10-15. This section gave the previous LSTM's errors on laps
+26–30 per driver and compared its overall error with the Monza table of
+`INSIGHTS_MONZA_2024.md`, which the audit disproved and which has been removed.
+That model was trained on a random split of the forecast windows, not of the
+races (the comment on `EXTRA_TEST_RACES` in `backend/model/train.py`), and has
+been replaced; the served method and its held-out errors are in
+`docs/evidence/evaluate_forecast.txt` (`backend/scripts/evaluate_forecast.py`).
 
 ---
 
@@ -172,8 +165,7 @@ degrade on the displayed confidence band. The effect is reproducible.
 2. Hamilton's +2.4 ms/lap on a 28-lap Hard is an isolated,
    tool-identifiable signature of world-class tyre management that
    explains his race result.
-3. Consistency σ gives a 1-to-1 mapping to finish positions P1-P5
-   (excluding the known outlier GAS).
-4. LSTM error modes are interpretable: model is accurate mid-stint,
-   unreliable in the first ~5 laps after a pit stop — a documentable,
-   actionable UX finding.
+3. Corrected on 2026-10-16: this item claimed a 1-to-1 mapping of the
+   consistency σ to finish positions P1-P5, which the table of Insight 3
+   does not show (see its note).
+4. Removed on 2026-10-15 (the LSTM insight, see its section).

@@ -223,7 +223,7 @@ describe.skipIf(!hasCachedSession(2024, 5))('China 2024 (R5, Safety Car, cached)
     const p = extractRaceParams(s.lap_times, s.tyre_strategy, s.track_status, maxLapOf(s.lap_times),
       { sessionNow: Infinity });
     expect(p.pitLoss.source).toBe('race');
-    // notes/experiments/validate_pit_loss_baseline_2026-10-12.txt: 2024_5 true_loss 24.7
+    // docs/evidence/validate_pit_loss_and_rejoin.txt: 2024_5 true_loss 24.7
     expect(Math.abs(p.pitLoss.median - 24.7)).toBeLessThanOrEqual(0.05);
   });
 });

@@ -284,7 +284,7 @@ describe('view model (utils/views/pcaSelection.js)', () => {
 // P3 (round 3): a click selects one point; one row has no spread of its own,
 // so the backend gives no interval (pca_compute.MIN_GROUP_FOR_INTERVAL; the
 // former percentile bootstrap gave a narrow interval excluding 0 for 11 of
-// 12 features of this very row, notes/experiments/phase67/pca_interval_coverage.txt).
+// 12 features of this very row, docs/evidence/pca_interval_coverage.txt).
 // The rows below are the backend's answer for LEC_2024_16 alone (2 of 12 kept).
 describe('a single selected point (P3)', () => {
   const ONE = ['LEC_2024_16'];

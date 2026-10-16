@@ -57,7 +57,7 @@ export const TIMING_COLUMNS = Object.freeze([
 
 /* ── The sheet fitted to its pane (Phase 9c r2, D3): the floors and the
    fit live in ./timingSheetFit.js (no imports, so the static layout checks
-   of notes/experiments/v13_audit load it in plain node); bound here to the
+   of frontend/scripts/audit load it in plain node); bound here to the
    columns above ── */
 export {
   TIMING_GAP, TIMING_PAD_X, TIMING_FLOORS, TIMING_DROP_ORDER, TIMING_HIDDEN_EM,

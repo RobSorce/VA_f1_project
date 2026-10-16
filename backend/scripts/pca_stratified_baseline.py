@@ -27,8 +27,8 @@ Run from backend/:
    shipped pca_compute.feature_differences: with rows of two kinds each
    feature is held to its own threshold (THRESHOLD_PER_FEATURE; why and how
    it compares with one threshold for all: scripts/pca_mixed_threshold.py).
-   The round-4 output (one threshold for all features) is kept in
-   notes/experiments/phase7b/pca_stratified_baseline_round4.txt.
+   The round-4 rule (one threshold for all features) is the column round4
+   of scripts/pca_mixed_threshold.py.
 2. Post-race (one kind): the stratified baseline is the former one.
 3. Cache key: two clocks inside one leader lap (the r3 verifier's laps), and
    one value of the post-race matrix changed. The former key (file, length;
@@ -56,7 +56,7 @@ SHARES = (0.25, 0.5, 0.75)
 # Seed of the random selections (independent of pca_compute.SELECTION_SEED)
 TRIAL_SEED = 7
 
-# Laps of the r3 verifier's cache-key probe (notes/experiments/phase67/verify_pca/r3/v_cachekey.txt)
+# Laps of the r3 verifier's cache-key probe
 CACHE_LAPS = [(2024, 21, 50), (2024, 16, 20), (2025, 8, 20)]
 
 

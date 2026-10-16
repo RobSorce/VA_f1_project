@@ -361,7 +361,7 @@ export default function RacePredictionPanel() {
                         <span
                           title={`${forecast.held_out?.metric || 'MAE over laps +1..+5'}; the method was chosen `
                             + `on the ${forecast.held_out?.selected_on || 'held-out'} races `
-                            + '(notes/experiments/phase6/evaluate_forecast.txt).'}
+                            + '(held-out evaluation, evaluate_forecast script).'}
                           style={{
                             fontFamily: 'var(--font-mono)', fontSize: CHART_FONT.label, fontWeight: 700, letterSpacing: '0.04em',
                             padding: '1px 6px', borderRadius: 4, ...chipStyle(TEXT_COLORS.muted, 0.08),

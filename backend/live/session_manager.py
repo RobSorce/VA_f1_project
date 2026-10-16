@@ -399,7 +399,7 @@ class LiveSessionManager:
         (the lap a stint arrived on, or the feed's cumulative stint laps for
         the past stints of a mid-race snapshot, which so close on their own
         laps); a stint left with no completed lap keeps EndLap = StartLap - 1
-        and TotalLaps 0 (DECISIONS.md R3)."""
+        and TotalLaps 0 (decision R3)."""
         for existing in reversed(self.tyre_strategy):
             if existing["Driver"] == stint_entry["Driver"] and existing["EndLap"] is None:
                 existing["EndLap"] = stint_entry["StartLap"] - 1

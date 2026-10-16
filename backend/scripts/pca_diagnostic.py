@@ -31,6 +31,16 @@ sys.path.insert(0, os.path.join(HERE, '..'))
 
 DEFAULT_MATRIX = os.path.join(HERE, '..', 'data', 'processed', 'pca_feature_matrix.csv')
 
+
+def shown_path(path):
+    """The path as the report prints it: relative to the repository, never an
+    absolute local path (the report is kept in docs/evidence/)."""
+    try:
+        return os.path.relpath(path, os.path.join(HERE, '..', '..')).replace(os.sep, '/')
+    except ValueError:  # another drive (Windows)
+        return os.path.basename(path)
+
+
 # Pairs at or above this |r| are listed as near-duplicates (reporting threshold only)
 CORR_REPORT = 0.9
 
@@ -69,7 +79,7 @@ def run(matrix_path, features, out=None):
     race = list(zip(df['year'], df['round']))
     per_race = pd.Series(race).value_counts()
 
-    emit(f'matrix: {os.path.normpath(matrix_path)}')
+    emit(f'matrix: {shown_path(matrix_path)}')
     emit(f'rows: {len(df)}  races: {len(per_race)}  rows per race: min {per_race.min()} / median {int(per_race.median())} / max {per_race.max()}')
     emit(f'features ({len(cols)}): {", ".join(cols)}')
     if missing:

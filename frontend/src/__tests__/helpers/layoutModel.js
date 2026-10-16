@@ -1,7 +1,7 @@
 // Test helper (V13 target 1): a static model of the dashboard shell at a
 // viewport, read from the CSS tokens and the layout components as written.
 // Shared by __tests__/layout.viewport.test.js and
-// notes/experiments/v13_audit/layout_fit.mjs (whose output the docs quote).
+// frontend/scripts/audit/layout_fit.mjs (whose output the docs quote).
 //
 // It answers what can be answered without a browser: the page cannot scroll
 // (no rule makes html / body / the shell scroll or grow at any target

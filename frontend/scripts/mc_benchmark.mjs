@@ -6,7 +6,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/mc_benchmark.mjs
- * Writes notes/experiments/mc_benchmark.txt and prints the same text.
+ * Writes docs/evidence/mc_benchmark.txt and prints the same text.
  * Pass --quick to skip the 10,000-run stability rows (development only).
  *
  * HEAD: `git show HEAD:frontend/src/utils/raceSimulation.js` (read-only) is
@@ -79,7 +79,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND = path.resolve(HERE, '..');
 const ROOT = path.resolve(FRONTEND, '..');
 const CACHE_DIR = path.resolve(ROOT, 'backend/data/processed_cache');
-const OUT_FILE = path.resolve(ROOT, 'notes/experiments/mc_benchmark.txt');
+const OUT_FILE = path.resolve(ROOT, 'docs/evidence/mc_benchmark.txt');
 const QUICK = process.argv.includes('--quick');
 
 const report = [];
@@ -146,7 +146,7 @@ r(`races ${priors.races}, longest race ${priors.maxRaceLaps} laps (STINT_LIFE_MA
 r('');
 r('Degradation per compound (pooled per-stint fits, fuel-corrected s per lap of tyre age); raceMean / withinSd / betweenSd');
 r('over the races with two fits or more, minFitLaps from the partial-stint check (raceDegradation; details in');
-r('notes/experiments/degradation_in_race.txt, scripts/degradation_in_race.mjs):');
+r('docs/evidence/degradation_in_race.txt, scripts/degradation_in_race.mjs):');
 r('  compound        n    mean     median   stdDev  negative   races  raceMean  withinSd  betweenSd  minFitLaps');
 for (const [c, d] of Object.entries(priors.degradation)) {
   r(`  ${pad(c, 13)} ${lpad(d.n, 4)}  ${f(d.mean, 4)}  ${f(d.median, 4)}  ${u(d.stdDev, 4)}  ${lpad(d.negativeCount, 5)}   ${lpad(d.races, 5)}  ${lpad(f(d.raceMean, 4), 8)}  ${lpad(u(d.withinSd, 4), 8)}  ${lpad(u(d.betweenSd, 4), 9)}  ${lpad(d.minFitLaps, 10)}`);

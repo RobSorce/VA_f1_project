@@ -5,7 +5,7 @@
 // evidence beyond the Monte Carlo error: utils/simulationClient.js
 // pairedDifferences / pairedSign / whatIfMarks, chained by the store over the
 // recomputes of the same what-if. The flip rates over 30 races x 3 clocks x 10
-// seeds are in notes/experiments/phase45c/whatif_stability.txt
+// seeds are in docs/evidence/whatif_stability.txt
 // (scripts/whatif_stability.mjs).
 import { describe, it, expect } from 'vitest';
 import React from 'react';

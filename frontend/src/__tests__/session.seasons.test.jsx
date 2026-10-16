@@ -116,7 +116,11 @@ describe('B10: no DRS from 2026 (seasonHasDrs)', () => {
   });
 
   it('TrackMap toggle and the DRS command follow the loaded season, not the pill', () => {
-    const drsButton = (html) => />DRS<\/button>/.test(html);
+    // Phase 9d G1: the DRS toggle sits in the Layers popover (closed in a
+    // server render; opened in __tests__/trackmap.toolbar.test.jsx, where a
+    // 2026 session has no DRS toggle) and the map's key shows the DRS zone
+    // in its place; either one follows the season
+    const drsButton = (html) => />DRS<\/button>|>DRS zone</.test(html);
     const drsCommand = () => createCommandRegistry().find((c) => c.id === 'toggle-drs');
     useF1Store.setState({ loadedYear: 2024, loadedRound: 1, loadedSessionType: 'Q', year: 2026 });
     expect(drsButton(renderToString(<TrackMap />))).toBe(true);

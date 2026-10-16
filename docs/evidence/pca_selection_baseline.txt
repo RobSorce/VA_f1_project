@@ -1,0 +1,7 @@
+matrix: 534 rows, 12 features; 200 random selections per size (seed 7)
+size  large(|d|>=0.8)  large(|g|>=0.8)  exceeds_random  threshold(max|g| p95)  median CI width
+   2            84.0%            84.0%            5.0%                  2.514            2.778
+   5            41.0%            41.0%            3.0%                  1.399            1.762
+  10            10.5%            10.0%            3.0%                  0.956            1.252
+  20             1.0%             1.0%            3.5%                  0.675            0.894
+  50             0.0%             0.0%            3.0%                  0.427            0.583

@@ -17,7 +17,7 @@ is read for labels only):
                       is_clean_lap: green, no pit in-lap / out-lap) of the
                       origin's stint (a stop or the race end comes first).
   y[:, PREDICT_LEN]   1 when the origin's stint ends with a stop (a tyre
-                      change, build_tyre_strategy; DECISIONS.md R2) on one
+                      change, build_tyre_strategy; decision R2) on one
                       of the next PREDICT_LEN laps, else 0.
 Outputs (model/saved): lstm_X.npy (unscaled windows, features.FEATURES
 order), lstm_y.npy, lstm_meta.json (race, driver, origin lap of each row,

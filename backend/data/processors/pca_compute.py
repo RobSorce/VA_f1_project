@@ -662,7 +662,7 @@ SELECTION_SEED = 20261014
 # excludes 0 about as often as a 95% interval should at every tested size
 # from 2 on, while the former percentile bootstrap excluded 0 far more often
 # for small groups (scripts/pca_interval_coverage.py ->
-# notes/experiments/phase7b/pca_interval_coverage.txt).
+# docs/evidence/pca_interval_coverage.txt).
 MIN_GROUP_FOR_INTERVAL = 2
 
 # Random selections of the same size behind the baseline. ASSUMPTION: 1000.
@@ -690,7 +690,7 @@ ROW_LIVE = 'session_now'
 # post-race rows (same drivers, median over the cached races), move by half a
 # matrix SD or more, or have their spread doubled or halved
 # (scripts/pca_progress_features.py ->
-# notes/experiments/phase7b/pca_progress_features.txt). A row of one of them
+# docs/evidence/pca_progress_features.txt). A row of one of them
 # is marked progress_dependent when the compared rows mix the two kinds.
 PROGRESS_DEPENDENT_FEATURES = ('degradation_slope', 'pit_count', 'avg_stint_length', 'max_stint_length')
 
@@ -708,7 +708,7 @@ TIE_TOLERANCE = 1e-9
 # - Rows of two kinds (a replay): in random selections with the selection's
 #   mix the progress-dependent features reach far larger |g| than the others
 #   (the mix alone), so that maximum is theirs and the other features could
-#   almost never pass it (notes/experiments/phase7b/verify_r1/v_power.txt).
+#   almost never pass it (docs/evidence/pca_mixed_threshold.txt, section 1).
 #   Each feature gets its own threshold instead (THRESHOLD_PER_FEATURE): the
 #   same quantile level of its own random |g| for every feature, that level
 #   chosen so that a share 1 - BASELINE_QUANTILE of the random selections pass
@@ -716,7 +716,7 @@ TIE_TOLERANCE = 1e-9
 #   per-feature standardised statistics, standardised by ranks, the min-p form
 #   of Westfall and Young 1993, Resampling-Based Multiple Testing). Measured
 #   in scripts/pca_mixed_threshold.py ->
-#   notes/experiments/phase7b/pca_mixed_threshold.txt.
+#   docs/evidence/pca_mixed_threshold.txt.
 THRESHOLD_MAX = 'max'
 THRESHOLD_PER_FEATURE = 'per_feature'
 

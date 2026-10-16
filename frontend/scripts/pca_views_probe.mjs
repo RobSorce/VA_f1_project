@@ -8,7 +8,7 @@
  * Run from frontend/ (vite-node resolves the extensionless imports of src/ and
  * transforms the JSX):
  *     npx vite-node scripts/pca_views_probe.mjs [label]
- * Writes notes/experiments/phase67/pca_views_probe_<label>.txt (label default
+ * Writes docs/evidence/pca_views_probe_<label>.txt (label default
  * 'now') and prints the same text.
  *
  * Sections:
@@ -20,7 +20,7 @@
  *      the tooltip rows;
  *  P3. the lasso analysis: the route the store posts a selection to, and the
  *      text of every tab of the panel for a real analysis response
- *      (notes/experiments/phase67/pca_selection_sample.json, the backend's
+ *      (docs/evidence/pca_selection_sample.json, the backend's
  *      analyze_selection of 5 points; skipped when absent).
  */
 import fs from 'node:fs';
@@ -30,7 +30,7 @@ import { installMiniDom } from '../src/__tests__/helpers/miniDom.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
-const OUT_DIR = path.join(ROOT, 'notes/experiments/phase67');
+const OUT_DIR = path.join(ROOT, 'docs/evidence');
 const label = process.argv[2] || 'now';
 const lines = [];
 const emit = (s = '') => { lines.push(s); console.log(s); };

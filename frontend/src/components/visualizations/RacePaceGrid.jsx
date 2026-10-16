@@ -41,7 +41,7 @@ const tableStyle = {
 
 /* -- Memoized Cell component ----------------------------------------------- */
 // Header of a context driver (not selected): the team colour at 25 % over the
-// panel (repair_contrast.txt: secondary text >= 4.5:1 on every team tint)
+// panel (docs/evidence/contrast_pairs.txt: secondary text >= 4.5:1 on every team tint)
 const dimmedHeaderBg = (teamColor) => compositeOver(withAlpha(teamColor, 0.25), SURFACES.panel);
 
 const PaceCell = React.memo(function PaceCell({

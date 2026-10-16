@@ -14,7 +14,7 @@
 export const WINDOW_PRESETS = {
   strategy: {
     label: 'Strategy',
-    description: 'PCA + Strategy Analysis + Strategy Timeline',
+    description: 'Analytics (PCA) + AI Strategist + Lap Times',
     dockedLayout: {
       direction: 'vertical', ratio: 0.6,
       children: [
@@ -36,7 +36,7 @@ export const WINDOW_PRESETS = {
   },
   tyres: {
     label: 'Tyres',
-    description: 'Lap Times + Tyre Degradation + Tyre Health',
+    description: 'Lap Times + Tyres (Tyre Health, Pace Retention)',
     dockedLayout: {
       direction: 'horizontal', ratio: 0.55,
       children: [
@@ -51,7 +51,7 @@ export const WINDOW_PRESETS = {
   },
   pace: {
     label: 'Pace',
-    description: 'Lap Times + Sectors + Lap Delta',
+    description: 'Lap Times + Sectors & Speeds + Consistency',
     dockedLayout: {
       direction: 'vertical', ratio: 0.55,
       children: [
@@ -73,7 +73,7 @@ export const WINDOW_PRESETS = {
   },
   prediction: {
     label: 'Prediction',
-    description: 'Position Tracker + Race Prediction + AI Assistant',
+    description: 'Position Tracker + Lap Times + Race Prediction + AI Strategist',
     dockedLayout: {
       direction: 'horizontal', ratio: 0.55,
       children: [
@@ -126,7 +126,7 @@ export const WINDOW_PRESETS = {
     label: 'Pit Window',
     description: 'Track Map + Circle of Doom + Strategy Timeline',
     // Half and half: the timeline's 20 driver rows fit one page from
-    // 1536 x 750 up (notes/experiments/phase9/repair_strategy_fit.txt)
+    // 1536 x 750 up (docs/evidence/strategy_fit.txt)
     dockedLayout: {
       direction: 'vertical', ratio: 0.5,
       children: [

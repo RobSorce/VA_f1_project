@@ -76,7 +76,7 @@ def test_a_cached_schedule_answers_without_fastf1(main, monkeypatch, tmp_path):
 
 def test_a_busy_fastf1_lock_does_not_hold_the_route(main, monkeypatch):
     """A first-time session load holds _fastf1_lock for minutes: the route used to wait
-    2 x 30 s for it and then leave out the current season (verify_misc/v_b10_seasons.txt)."""
+    2 x 30 s for it and then leave out the current season."""
     calls = []
     monkeypatch.setattr(main, '_current_year', lambda: 2026)
     monkeypatch.setattr(main, '_SEASON_LOCK_WAIT_S', 0.2)

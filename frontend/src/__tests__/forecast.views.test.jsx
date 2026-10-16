@@ -4,8 +4,8 @@
 //    view reads them; the Leaderboard footer shows no pit probability when
 //    the response has none (it showed "0%") and names the pit method.
 //  - L5: the help text quotes the numbers of
-//    notes/experiments/phase6/evaluate_forecast.txt (parsed here, every
-//    number compared), never "~0.4 s MAE dry / 2.5 s wet" nor "HEURISTIC
+//    docs/evidence/evaluate_forecast.txt (parsed here, every
+//    number compared) and names the script, never a file path, never "~0.4 s MAE dry / 2.5 s wet" nor "HEURISTIC
 //    2-3x worse"; the panel names the served method (method_label) and says
 //    when the LSTM loses (lstm_note).
 import { describe, it, expect, vi, beforeAll } from 'vitest';
@@ -37,7 +37,7 @@ const { default: Leaderboard } = await import('../components/visualizations/Lead
 const { default: RacePredictionPanel } = await import('../components/visualizations/RacePredictionPanel.jsx');
 
 const SRC = path.resolve(__dirname, '..');
-const EVAL_FILE = path.resolve(__dirname, '../../../notes/experiments/phase6/evaluate_forecast.txt');
+const EVAL_FILE = path.resolve(__dirname, '../../../docs/evidence/evaluate_forecast.txt');
 const text = (el) => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
 const store = () => useF1Store.getState();
 const INITIAL = store();
@@ -167,7 +167,7 @@ describe('L5: accuracy claims are the evaluation\'s numbers', () => {
   it('FORECAST_EVALUATION equals evaluate_forecast.txt, number by number', () => {
     const e = parseEvaluation();
     console.log('L5 parsed from evaluate_forecast.txt:', JSON.stringify({ test: e.test, val: e.val, inter: e.inter, pit: e.pit, bins: e.bins, selected: e.selected }));
-    expect(EVAL.source).toBe('notes/experiments/phase6/evaluate_forecast.txt');
+    expect(EVAL.source).toBe('evaluate_forecast script');
     expect([EVAL.valRaces, EVAL.testRaces]).toEqual([e.valRaces, e.testRaces]);
     for (const m of ['lstm', 'compound_mean', 'persistence', 'stint_linear']) {
       expect(EVAL.testMae[m], `test ${m}`).toBe(e.test[m][5]);
@@ -189,10 +189,11 @@ describe('L5: accuracy claims are the evaluation\'s numbers', () => {
     expect(e.selected).toBe('lstm');
   });
 
-  it('the Race Prediction help quotes those numbers, cites the file, and drops the old claims', () => {
+  it('the Race Prediction help quotes those numbers, names the script, and drops the old claims', () => {
     const help = [CHART_HELP.prediction.summary, ...CHART_HELP.prediction.howToRead, ...CHART_HELP.prediction.limitations].join(' ');
     console.log('L5 help text:\n' + [...CHART_HELP.prediction.howToRead.slice(0, 4), ...CHART_HELP.prediction.limitations.slice(0, 3)].join('\n'));
-    expect(help).toContain('notes/experiments/phase6/evaluate_forecast.txt');
+    expect(help).toContain('(evaluate_forecast script)');
+    expect(help).not.toMatch(/notes\/|evidence\/|\.txt/);
     expect(help).toContain('LSTM 0.608 s, last clean lap + compound mean degradation 0.630 s, persistence (next laps = last clean lap) 0.637 s, per-stint linear extrapolation 0.749 s');
     expect(help).toContain('from 0.465 s at lap +1 to 0.737 s at lap +5');
     expect(help).toContain('Validation MAE, on which the method is chosen: LSTM 0.508 s, persistence 0.535 s, compound mean 0.537 s, per-stint linear 0.598 s');

@@ -1,0 +1,16 @@
+== 1. One step back from every lap (real store, lap-mode replay of every cached race) ==
+1690 one-lap steps back over 30 races
+lap L-1 after the step back vs the forward pass's lap L-1: in-plane turn |deg| max 3.62e-11; reflected 0; turned > 45 deg or reflected 0 of 1690
+same lap, two pictures: mean dot distance max 0.00e+0 PC units (2024 R1 lap 56)
+mean dot move on the step back: median 0.56, p95 1.25, max 1.98 PC units; forward lap-to-lap move: median 0.56, p95 1.25, max 1.98
+
+== 2. Rewinds: forward to lap 40, back, forward 5 laps (real store) ==
+2024 R16: rewind 40 -> 20: basis at lap 20 vs the first pass turned -0.0 deg; lap 25 reached again: turned 0.0 deg; largest mean dot distance between the two pictures of laps 20-25: 0.00e+0 PC units
+2024 R22: rewind 40 -> 20: basis at lap 20 vs the first pass turned -0.0 deg; lap 25 reached again: turned -0.0 deg; largest mean dot distance between the two pictures of laps 20-25: 0.00e+0 PC units
+2024 R16: rewind 40 -> 30: basis at lap 30 vs the first pass turned -0.0 deg; lap 35 reached again: turned 0.0 deg; largest mean dot distance between the two pictures of laps 30-35: 0.00e+0 PC units
+
+== 3. A seek straight to a lap from a fresh session vs playing to it (real store) ==
+90 seeks (laps 10, 25, 40 of every race): largest mean dot distance to the played picture 0.00e+0 PC units
+
+== 4. Loading arrows drawn (biplotArrows default: ARROW_COUNT = 7, PCA inputs 7) ==
+1720 laps, 31633 driver-laps: laps with a non-zero loading but no arrow 0; dot vs crosshair + sum of z x arrow (arrows drawn): largest gap 6.02e-14 PC units, gaps > 0.5 PC units 0

@@ -1,0 +1,1 @@
+G5 parity: 30 races x 3 clocks, 1627 driver rows equal (max |sigma diff| 0.00e+0, max |avg_lap diff| 0.000500 s), 829 consistent, 58 race-clocks with an even field; Monza 2024: 19 finishers, sigma 0.2975-0.5676 s (max <= 0.8)

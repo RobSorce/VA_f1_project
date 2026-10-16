@@ -190,3 +190,123 @@ describe('D4: the Track Map follows its panel and keeps its labels at the floors
     expect(underFloor(svg, VP)).toEqual([]);
   });
 });
+
+// Phase 9d G2 (browser pass, "Re-check after Phase 9c"): after a resize
+// 1536 -> 2048 the map's container was 607 x 220 but the viewBox stayed
+// "0 0 354 34" (content drawn at y -56..84, outside the svg): the map had
+// been laid out once in the 34 px high box its wrapped header left, with a
+// negative scale, and the measure of the new box never landed. Now the map
+// waits for a box of MAP_LAYOUT_MIN_PX both ways, and every change of width
+// or height lays it out again (utils/views/chartBox.js useChartBox: the
+// observer's measure at the next frame or, frames held back, after
+// FRAME_FALLBACK_MS; a window resize measures the box afresh).
+describe('G2: the viewBox and the scales follow the container, never a degenerate size', () => {
+  let FRAME_FALLBACK_MS;
+  let MAP_LAYOUT_MIN_PX;
+  beforeAll(async () => {
+    sessionState();
+    ({ FRAME_FALLBACK_MS } = await import('../utils/views/chartBox.js'));
+    ({ MAP_LAYOUT_MIN_PX } = await import('../utils/views/trackMapLayout.js'));
+  });
+  afterAll(async () => {
+    if (view) await view.unmount();
+    view = null;
+    useF1Store.setState({ ...INITIAL });
+  });
+
+  /** Every point of the track outline (x, y in the svg's user space). */
+  const outlinePoints = (svg) => {
+    const d = svg.querySelector('.track-outline')?.getAttribute('d') || '';
+    const nums = (d.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/g) || []).map(Number);
+    const pts = [];
+    for (let i = 0; i + 1 < nums.length; i += 2) pts.push([nums[i], nums[i + 1]]);
+    return pts;
+  };
+  /** The track lies inside the viewBox and fills its smaller side (the scales are the box's). */
+  const expectLaidOutIn = (svg, w, h) => {
+    expect(viewBoxOf(svg)).toBe(`0 0 ${w} ${h}`);
+    expect(svg.getAttribute('data-layout')).toBe('drawn');
+    const pts = outlinePoints(svg);
+    expect(pts.length).toBeGreaterThan(50);
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(w);
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(h);
+    // the round circuit is 1.5 : 1, the smaller side of the box binds: at
+    // least half of it is track (the margin follows the box, 28-70 px)
+    const spanY = Math.max(...ys) - Math.min(...ys);
+    const spanX = Math.max(...xs) - Math.min(...xs);
+    expect(Math.max(spanX / w, spanY / h)).toBeGreaterThanOrEqual(0.5);
+    // corner markers and cars at the new scale: inside the box
+    for (const g of svg.querySelectorAll('.corners-layer g, .cars-layer .car-marker')) {
+      const m = /translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/.exec(g.getAttribute('transform') || '');
+      expect(m, g.getAttribute('class')).not.toBeNull();
+      expect(Number(m[1])).toBeGreaterThanOrEqual(0);
+      expect(Number(m[1])).toBeLessThanOrEqual(w);
+      expect(Number(m[2])).toBeGreaterThanOrEqual(0);
+      expect(Number(m[2])).toBeLessThanOrEqual(h);
+    }
+    expect(underFloor(svg, VP)).toEqual([]);
+  };
+
+  it('354 x 34 (the header wrapped over the map): nothing laid out, the drawing waits hidden', async () => {
+    expect(34).toBeLessThan(MAP_LAYOUT_MIN_PX);
+    const { svg } = await mountMap(354, 34);
+    expect(svg.getAttribute('viewBox')).toBeNull();
+    expect(svg.getAttribute('data-layout')).toBe('waiting');
+    expect(svg.querySelector('.track-group').getAttribute('display')).toBe('none');
+  });
+
+  it('-> 607 x 220 (moved to the 2048 px screen): laid out in the new box', async () => {
+    const { svg } = view;
+    await resizeBox(svg, 607, 220);
+    expect(svg.querySelector('.track-group').getAttribute('display')).toBeNull();
+    expectLaidOutIn(svg, 607, 220);
+  });
+
+  it('-> 354 x 200 (back on the 1536 px screen): laid out again, width and height', async () => {
+    const { svg } = view;
+    await resizeBox(svg, 354, 200);
+    expectLaidOutIn(svg, 354, 200);
+  });
+
+  it('only the height changes (354 x 200 -> 354 x 260): laid out again', async () => {
+    const { svg } = view;
+    await resizeBox(svg, 354, 260);
+    expectLaidOutIn(svg, 354, 260);
+  });
+
+  it('frames held back (window hidden or occluded while resized): the measure lands after FRAME_FALLBACK_MS', async () => {
+    const { svg } = view;
+    const box = svg.parentElement;
+    dom.setRect(box, { left: 0, top: 0, width: 607, height: 220 });
+    await act(async () => { ro.notify(box, 607, 220); });
+    // no frame runs
+    expect(viewBoxOf(svg)).toBe('0 0 354 260');
+    await act(async () => { await new Promise((r) => setTimeout(r, FRAME_FALLBACK_MS + 40)); });
+    expectLaidOutIn(svg, 607, 220);
+    // the frame that never ran was dropped: nothing left pending for this box
+    ro.flushFrames();
+    expectLaidOutIn(svg, 607, 220);
+  });
+
+  it('a window resize the observer did not report: the box is measured afresh', async () => {
+    const { svg } = view;
+    dom.setRect(svg.parentElement, { left: 0, top: 0, width: 354, height: 200 });
+    await act(async () => { dom.mouse(dom.window, 'resize', { bubbles: false }); });
+    await settle();
+    expectLaidOutIn(svg, 354, 200);
+  });
+
+  it('shrunk to a degenerate box again (34 px): the last layout stays, hidden; regrown: laid out', async () => {
+    const { svg } = view;
+    await resizeBox(svg, 354, 34);
+    expect(viewBoxOf(svg)).toBe('0 0 354 200');
+    expect(svg.getAttribute('data-layout')).toBe('waiting');
+    expect(svg.querySelector('.track-group').getAttribute('display')).toBe('none');
+    await resizeBox(svg, 607, 220);
+    expectLaidOutIn(svg, 607, 220);
+  });
+});

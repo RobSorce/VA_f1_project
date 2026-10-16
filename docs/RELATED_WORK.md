@@ -1,55 +1,67 @@
 # Related Work
 
+Every entry below names a source that can be opened (a URL or a DOI). The tools and projects this dashboard builds on are listed under [Credits](#credits).
+
 ## 1. F1 Broadcast & Commercial Systems
 
-### F1 TV Live Timing (Formula 1, 2018-present)
-The official F1 timing application provides real-time leaderboard, sector times, tyre compound indicators, and gap calculations. It serves as the de facto standard for race monitoring UIs, and our Leaderboard and TimingTower components adopt its visual language (position tower, interval/gap columns, compound dots). However, F1 TV is purely informational: it does not support interactive exploration, cross-view coordination, or analytical computations triggered by user interaction. Our system extends this paradigm by making every element selectable and coordinated — clicking a driver in the leaderboard highlights them across all visualizations simultaneously.
+### F1 Live Timing (Formula 1)
+The official F1 timing (the F1 app, and F1.com for F1 TV subscribers) shows a full leaderboard, track segment and driver telemetry data and an interactive circuit map with a real-time driver tracker. Our Leaderboard and TimingTower components adopt its visual language (position tower, interval/gap columns, compound dots). In this dashboard a click on a driver in the leaderboard selects it in every view that subscribes to the driver selection (`selectedDrivers`, `docs/COORDINATION_GRAPH.md`).
 
-### AWS F1 Insights (Amazon Web Services, 2019-present)
-AWS provides on-screen graphics during broadcasts, including tyre performance predictions, pit window estimations, and battle forecasts. These use proprietary ML models running on historical telemetry. While visually polished, they are non-interactive overlays embedded in the broadcast — the viewer cannot select drivers, adjust parameters, or explore alternative strategies. Our LSTM prediction module and Strategy Simulator serve a similar analytical purpose but are fully interactive: the user can trigger predictions by double-clicking a driver and explore "what-if" scenarios through the Strategy Simulator panel.
+Source: Formula 1, "Improved Live Timing on F1.com for the 2022 season", https://www.formula1.com/en/latest/article/improved-live-timing-on-f1-com-for-the-2022-season.3Y1ipx839mv7xeteTqQ8Mk
 
-## 2. Academic Work on Sports/Race Visualization
+### F1 Insights powered by AWS (Amazon Web Services)
+AWS provides on-screen graphics during broadcasts, among them Tyre Performance, Pit Stop Strategy and Battle Forecast, described as AI-powered. They are graphics embedded in the broadcast: the viewer cannot select drivers, adjust parameters, or explore alternative strategies. Our forecast and Strategy Simulator serve a similar analytical purpose but are interactive: the user triggers the lap-time forecast by double-clicking a driver and explores "what-if" scenarios in the Strategy Simulator panel.
 
-### Luo et al. — "RaceVis: Real-time Visual Analytics of Formula 1 Racing" (2022)
-RaceVis proposes a multi-coordinated-view dashboard for F1 race analysis with a focus on real-time data integration. It features a track map with car positions, a strategy timeline, and a gap evolution chart. The key contribution is the coordination between views via linked highlighting. Our system shares this multi-view coordination philosophy but extends it with dimensionality reduction (PCA biplot) as a first-class analytical view, LSTM-based predictive overlays on the strategy timeline, and a lasso-triggered backend computation that re-analyzes strategy patterns on user-selected subsets — moving from information visualization into visual analytics.
+Source: Amazon Web Services, "F1 Insights powered by AWS", https://aws.amazon.com/sports/f1/
 
-### Perin et al. — "SportsXVis: A Visual Analytics Approach to Sports Exploration" (IEEE VIS, 2018)
-Perin et al. present a framework for interactive visual exploration of sports data, emphasizing the importance of overview+detail, filtering, and details-on-demand (Shneiderman's mantra). They demonstrate that pre-attentive visual attributes (color, position, size) are critical for time-pressured decision-making in sports contexts. Our dashboard applies these principles directly: position encoding for the leaderboard (most salient channel for most important data), hue for tyre compounds (categorical), and lightness/saturation for pace classification in the RacePaceGrid.
-
-### Shi et al. — "Visual Analytics for F1 Race Strategy" (2020)
-Shi proposes integrating dimensionality reduction (t-SNE) with strategy timelines to identify clusters of similar race strategies across historical data. Their key insight is that projecting high-dimensional stint features into 2D reveals strategic archetypes (aggressive early-stopper, conservative one-stop, etc.) that are not visible in raw timing data. Our PCA biplot follows this approach but uses PCA instead of t-SNE for interpretability: the loading vectors on the biplot show which features drive the clustering, and the user can lasso-select clusters to trigger a backend analysis that computes Hedges' g effect sizes across strategy dimensions, each with a 95% normal-approximation interval (g +/- 1.96 SE, SE^2 = (n1 + n2) / (n1 n2) + g^2 / (2 (n1 + n2)), the large-sample standard error of Hedges and Olkin 1985; a bootstrap would be degenerate for the one- or two-row selections a click or a short lasso makes) and the value random selections of the same size and the same mix of rows reach (during a replay, rows of the race on screen at the clock and rows of finished races; `docs/PCA_METHODOLOGY.md`, section 5).
-
-## 3. Dimensionality Reduction in Visual Analytics
+## 2. Dimensionality Reduction in Visual Analytics
 
 ### Van der Maaten & Hinton — "Visualizing Data using t-SNE" (JMLR, 2008)
-The foundational paper on t-SNE establishes its strength in preserving local neighborhood structure but warns about its weaknesses: non-preservation of global distances, sensitivity to perplexity, and non-reproducibility across runs. Our system initially used t-SNE but migrated to PCA for the primary projection because: (a) PCA preserves global distances, making inter-cluster comparisons meaningful; (b) PCA axes are linear combinations of input features, enabling the biplot's loading vectors; (c) PCA is deterministic, ensuring consistency across sessions. t-SNE was later removed from the dashboard altogether: the PCA is its one projection (`docs/PCA_METHODOLOGY.md`, section 2 "Why PCA and not t-SNE").
+The paper that introduces t-SNE. Its cost function focuses on retaining the local structure of the data, and among its weaknesses (section 6.2) it names the non-convex cost function: the map depends on the optimization parameters and may differ each time t-SNE is run from a random start. Our system initially used t-SNE but migrated to PCA because: (a) PCA is a linear projection, so a distance along an axis means the same anywhere on the plot and inter-cluster comparisons are meaningful; (b) PCA axes are linear combinations of input features, enabling the biplot's loading vectors; (c) PCA is deterministic, ensuring consistency across sessions. t-SNE was later removed from the dashboard altogether: the PCA is its one projection (`docs/PCA_METHODOLOGY.md`, section 2 "Why PCA and not t-SNE").
 
-### Wattenberg et al. — "How to Use t-SNE Effectively" (Distill, 2016)
-This interactive article demonstrates that t-SNE results are highly sensitive to hyperparameters and that cluster sizes and inter-cluster distances in t-SNE plots are not meaningful. This guided our decision to use PCA as the primary DR method: in our use case (comparing race strategies), the user needs to reason about "how different are these two strategy clusters?" — a question PCA can answer but t-SNE cannot.
+Source: L. van der Maaten, G. Hinton, Journal of Machine Learning Research 9 (2008) 2579-2605, https://www.jmlr.org/papers/v9/vandermaaten08a.html
 
-### Slide VA course (Santucci) — PCA requirements
-The course material specifies that dimensionality reduction must be integrated into the analysis flow, not just used as a static preprocessing step. Our implementation satisfies this by making the PCA biplot interactive: lasso selection triggers a backend `analyze_selection()` call that compares the selection with the other rows feature by feature (Hedges' g with its 95% interval and a random-selection baseline), identifies common pit windows, and extracts strategy patterns. The results are displayed in the PCAAnalysisPanel as a forest plot and strategy bars, closing the visual analytics loop.
+### Wattenberg, Viégas & Johnson — "How to Use t-SNE Effectively" (Distill, 2016)
+This interactive article shows that t-SNE results depend strongly on its hyperparameters (the perplexity among them) and that cluster sizes and the distances between clusters in a t-SNE plot might not mean anything. This guided our decision to use PCA: in our use case (comparing race strategies), the user needs to reason about "how different are these two strategy clusters?", a question a t-SNE plot cannot answer.
 
-## 4. Real-Time Dashboards and Interaction Design
+Source: M. Wattenberg, F. Viégas, I. Johnson, Distill (2016), doi:10.23915/distill.00002, https://distill.pub/2016/misread-tsne/
+
+### The PCA in this dashboard
+The PCA biplot is part of the analysis flow, not a static preprocessing step. Its loading vectors show which features drive the clustering, and a lasso or a click on the biplot triggers a backend `analyze_selection()` call (`POST /api/pca/analyze-selection`) that compares the selected rows with the other rows feature by feature: Hedges' g effect sizes, each with a 95% normal-approximation interval (g +/- 1.96 SE, SE^2 = (n1 + n2) / (n1 n2) + g^2 / (2 (n1 + n2)), the large-sample standard error of Hedges and Olkin 1985; a bootstrap would be degenerate for the one- or two-row selections a click or a short lasso makes) and the value random selections of the same size and the same mix of rows reach (during a replay, rows of the race on screen at the clock and rows of finished races; `docs/PCA_METHODOLOGY.md`, section 5). The same call returns the selection's common pit windows and stint patterns; the Cross-Race Analysis panel draws the comparison as a forest plot and the Strategy Timeline draws the selection's strategies.
+
+Source: L. V. Hedges, I. Olkin, *Statistical Methods for Meta-Analysis*, Elsevier (1985), doi:10.1016/C2009-0-03396-0
+
+## 3. Real-Time Dashboards and Interaction Design
 
 ### Few — "Information Dashboard Design" (2006)
-Stephen Few's principles for dashboard design — no scrolling, maximum data-ink ratio, consistent grid layout, pre-attentive encoding for alerts — inform our 1920x1080 no-scroll layout. The persistent sidebar (leaderboard) follows his recommendation of keeping the most important overview always visible while detail views occupy the main area.
+Stephen Few's principles for dashboard design — no scrolling, maximum data-ink ratio, consistent grid layout, pre-attentive encoding for alerts — inform our layout: the dashboard fills the browser window and the page itself never scrolls; the views that scroll inside their own pane are listed, each with its reason, in `docs/SCROLL_JUSTIFICATIONS.md`. The leaderboard sidebar (the Timing Tower on the Pit Wall) follows his recommendation of keeping the most important overview always visible while detail views occupy the main area.
 
-### Norman — "The Design of Everyday Things" (1988)
-Norman's action cycle (gulf of execution + gulf of evaluation) guides our interaction model. For execution: every interactive element has visible affordance (hover effects, cursor changes, keyboard hints). For evaluation: every action produces immediate visual feedback — selecting a driver highlights them across all views within one render frame (<16ms). The bidirectional coordination ensures that the user always sees the effect of their action reflected everywhere, reducing the evaluation gulf.
+Source: S. Few, *Information Dashboard Design*, O'Reilly Media (2006), ISBN 0-596-10016-7, https://app.oreilly.com/pub/pr/1512
+
+### Norman — "The Design of Everyday Things" (1988; revised and expanded edition 2013)
+Norman's action cycle (gulf of execution + gulf of evaluation) guides our interaction model. For execution: interactive elements show their affordance (hover effects, cursor changes, keyboard hints). For evaluation: an action produces immediate visual feedback, for example selecting a driver highlights them in every view that subscribes to the selection. The bidirectional coordination shows the effect of an action in the linked views, reducing the evaluation gulf.
+
+Source: D. Norman, *The Design of Everyday Things*, revised and expanded edition, Basic Books (2013), ISBN 978-0-465-05065-9, https://www.hachettebookgroup.com/titles/don-norman/the-design-of-everyday-things/9780465050659/
 
 ### Shneiderman — "The Eyes Have It" (1996)
-The visual information-seeking mantra (overview first, zoom and filter, details on demand) structures our three rendering modes: Pit Wall provides the overview (timing tower + track map + race control), the Docked Layout enables zoom and filter (multiple coordinated panels), and the Overlay system provides details on demand (floating resizable panels for specific analyses).
+The visual information-seeking mantra (overview first, zoom and filter, details on demand) structures the dashboard: the Pit Wall gives the overview (timing tower, race pace grid, track map, Circle of Doom, race control feed); the docked layout enables zoom and filter (split panes of coordinated views that share one driver selection and one lap range); details are on demand in the tooltips, in the driver card shown for the driver under the pointer and in the help of each view.
 
-## 5. Comparison Summary
+Source: B. Shneiderman, "The eyes have it: a task by data type taxonomy for information visualizations", Proceedings 1996 IEEE Symposium on Visual Languages, 336-343, doi:10.1109/VL.1996.545307
+
+## 4. Comparison Summary
 
 | System | Interactive | DR | Prediction | Bidirectional Coord. | Analytics on Interaction |
 |--------|-------------|-----|------------|----------------------|--------------------------|
-| F1 TV Live Timing | No | No | No | N/A | No |
-| AWS F1 Insights | No | No | Yes (broadcast-only) | N/A | No |
-| RaceVis (Luo 2022) | Yes | No | No | Yes (linked highlight) | No |
-| SportsXVis (Perin 2018) | Yes | No | No | Yes | Limited |
-| Shi 2020 | Yes | t-SNE | No | Partial | Cluster analysis |
-| **Our system** | **Yes** | **PCA** | **LSTM + Monte Carlo** | **Yes (6 pairs)** | **Yes (lasso→analysis, click→LSTM)** |
+| F1 Live Timing | Partly (interactive circuit map) | No | No | N/A | No |
+| F1 Insights (AWS) | No | No | Yes (broadcast-only) | N/A | No |
+| **Our system** | **Yes** | **PCA** | **LSTM + Monte Carlo** | **Yes (70 view pairs linked both ways)** | **Yes (lasso→analysis, double-click→forecast)** |
+
+The 70 pairs are the rows of the table "Analysis views linked both ways" in `docs/COORDINATION_GRAPH.md`, generated from the code by `frontend/scripts/coordination_matrix.mjs`.
 
 Our system differentiates itself by combining all five capabilities — interactive exploration, dimensionality reduction with interpretable axes, predictive modeling, bidirectional multi-view coordination, and analytics triggered by visual interaction — in a single integrated dashboard.
+
+## Credits
+
+- **FastF1** (theOehrly, MIT licence), https://github.com/theOehrly/Fast-F1, documentation https://docs.fastf1.dev: the backend reads the sessions, laps, telemetry, schedules and results of past sessions through it (`backend/data/extractors/fastf1_extractor.py`); live sessions come through the backend's own live-timing clients (`backend/live/`).
+- **f1-race-replay** (IAmTomShaw, MIT licence), https://github.com/IAmTomShaw/f1-race-replay: the replay frames built by `extract_race_frames` (`backend/data/extractors/fastf1_extractor.py`) reuse its frame format, as the function's docstring says.
+- **MultiViewer, Circle of Doom**, https://multiviewer.app/changelog (introduced in v2.8.0, 24 Jul 2026; changed in v2.9.0, 26 Sep 2026): the inspiration of the Circle of Doom view. Ours differs in four ways: the pit loss comes from an estimator checked on the cached races (`backend/scripts/validate_pit_loss_and_rejoin.py`, `docs/evidence/validate_pit_loss_and_rejoin.txt`); it gives the probability of each rejoin position; it projects the rejoin of a stop k laps later ("pit in k laps"); and it is coordinated with the rest of the dashboard (focus, hover and selection go through the shared store, `docs/COORDINATION_GRAPH.md`).

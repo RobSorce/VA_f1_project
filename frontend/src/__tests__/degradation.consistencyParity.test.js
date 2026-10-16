@@ -8,7 +8,8 @@
 // below 75 % of the most laps completed). Every cached race, at the whole
 // race and at the leader's end of 1/3 and 2/3 of the laps. The Python side is
 // executed here (backend venv), nothing is hard-coded. Skips without the venv
-// or the git-ignored cache.
+// or the git-ignored cache. With WRITE_EVIDENCE=1 the summary is also written
+// to docs/evidence/g5_consistency_parity.txt.
 import { describe, it, expect, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -48,8 +49,8 @@ print(json.dumps(out))
 
 const OUT = [];
 afterAll(() => {
-  const dir = path.resolve(HERE, '../../../notes/experiments/phase45c');
-  if (OUT.length && fs.existsSync(dir)) fs.writeFileSync(path.join(dir, 'g5_consistency_parity.txt'), `${OUT.join('\n')}\n`);
+  const file = path.resolve(HERE, '../../../docs/evidence/g5_consistency_parity.txt');
+  if (OUT.length && process.env.WRITE_EVIDENCE) fs.writeFileSync(file, `${OUT.join('\n')}\n`);
 });
 
 function clocksOf(laps) {

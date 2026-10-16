@@ -7,7 +7,7 @@ import PitWallSectorPanel from '../ui/PitWallSectorPanel';
 // The focus driver's cards under the Leaderboard in the Analyse sidebar
 // (App.jsx). Stacked in the 240-300 px sidebar they take 479-515 px, so the
 // 20 Leaderboard rows and the cards fit together only on a window 1200 px
-// high or more (notes/experiments/phase9/repair3/leaderboard_sidebar_fit.txt).
+// high or more (docs/evidence/leaderboard_sidebar_fit.txt).
 // Below that the cards stay collapsed to their header lines in the sidebar,
 // so the Leaderboard keeps the whole field; "Details" opens them in full as a
 // card laid over the bottom of the sidebar (closed with "Less"), so opening

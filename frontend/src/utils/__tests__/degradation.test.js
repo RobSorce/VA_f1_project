@@ -263,7 +263,7 @@ describe.skipIf(listCachedRaces().length === 0)('cached races', () => {
   });
 });
 
-describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (numbers of notes/experiments/degradation_definition_monza.txt)', () => {
+describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (numbers of docs/evidence/degradation_definition_monza.txt)', () => {
   const laps = loadCachedSession(2024, 16).lap_times;
 
   it('PIA laps 10-25: MEDIUM stint has 6 clean laps (no fit), HARD stint laps 18-25', () => {

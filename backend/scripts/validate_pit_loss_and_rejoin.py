@@ -3,9 +3,9 @@ Validate the pit-loss estimator and the "rejoin position" prediction used by the
 Circle of Doom view, on every cached race in backend/data/processed_cache.
 
 Run from backend/:
-    python -m scripts.validate_pit_loss_and_rejoin
+    python -m scripts.validate_pit_loss_and_rejoin [--out ../docs/evidence/validate_pit_loss_and_rejoin.txt]
 or
-    python scripts/validate_pit_loss_and_rejoin.py
+    python scripts/validate_pit_loss_and_rejoin.py [--out FILE]
 
 Definitions
 -----------
@@ -147,4 +147,8 @@ def main(cache_dir):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else CACHE_DIR)
+    sys.path.insert(0, os.path.join(HERE, ".."))
+    from scripts.evidence_out import pop_out, tee_stdout
+    out, args = pop_out(sys.argv[1:])
+    with tee_stdout(out):
+        main(args[0] if args else CACHE_DIR)

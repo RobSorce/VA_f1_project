@@ -9,7 +9,9 @@
 // pca_embeddings_at, predictions.degradation_response), executed here,
 // nothing hard-coded. Every number equal to 1e-9 (relative above 1), every
 // text and key equal, the seeded random baseline draw for draw (numpy's
-// default_rng). Skips without the venv or the git-ignored cache.
+// default_rng). Skips without the venv or the git-ignored cache. With
+// WRITE_EVIDENCE=1 the summary is also written to
+// docs/evidence/pca_selection_parity.txt.
 import { describe, it, expect, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,7 +26,7 @@ import { hasCachedSession } from './helpers/cachedSession.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND = path.resolve(HERE, '../../../backend');
 const DATA = path.resolve(HERE, '../../public/data');
-const OUT_FILE = path.resolve(HERE, '../../../notes/experiments/phase9/demo/pca_selection_parity.txt');
+const OUT_FILE = path.resolve(HERE, '../../../docs/evidence/pca_selection_parity.txt');
 const PYTHON = [
   path.join(BACKEND, '.venv', 'Scripts', 'python.exe'),
   path.join(BACKEND, '.venv', 'bin', 'python'),
@@ -97,7 +99,7 @@ function diff(a, b, at, out, stat) {
 
 const OUT = [];
 afterAll(() => {
-  if (OUT.length && fs.existsSync(path.dirname(OUT_FILE))) fs.writeFileSync(OUT_FILE, `${OUT.join('\n')}\n`);
+  if (OUT.length && process.env.WRITE_EVIDENCE) fs.writeFileSync(OUT_FILE, `${OUT.join('\n')}\n`);
 });
 
 describe('the comparison of this file', () => {

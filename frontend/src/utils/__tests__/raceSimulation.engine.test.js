@@ -510,7 +510,7 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-whe
       expect(e.value).toBeGreaterThanOrEqual(0.3);
       expect(e.value).toBeLessThanOrEqual(0.6);
     }
-    // values of notes/experiments/phase45c/s2_lap_noise_monza.txt (scripts/s2_lap_noise.mjs)
+    // values of docs/evidence/s2_lap_noise_monza.txt (scripts/s2_lap_noise.mjs)
     expect([noise[20], noise[30], noise[40], atEnd].map((e) => +e.value.toFixed(3))).toEqual([0.436, 0.402, 0.381, 0.401]);
     expect([noise[20], noise[30], noise[40], atEnd].map((e) => e.laps)).toEqual([255, 463, 598, 889]);
     // earlier clocks: the causal value with its n, no floor (lap 10: one stint of 8 laps)

@@ -6,7 +6,7 @@
  * (session seconds, utils/raceTime.js). Where the race has no data yet the
  * estimate is a labelled prior (source 'prior') measured over the cached
  * races by scripts/mc_benchmark.mjs (computePriors; output in
- * notes/experiments/mc_benchmark.txt), never an unlabelled constant.
+ * docs/evidence/mc_benchmark.txt), never an unlabelled constant.
  *
  * Estimates (extractRaceParams, each with its sample size and source):
  *  - pit loss: utils/pitLoss.js estimatePitLoss (median = point estimate);
@@ -84,7 +84,7 @@ const PIT_LOSS_NUMERIC_FLOOR = 5;
  * Simulations per projection. scripts/mc_benchmark.mjs measures runtime and
  * how often a podium (>= 50 %) or battle (>= 30 % / >= 60 %) badge flips
  * between two recomputes with different seeds at 100, 1,000 and 10,000 runs
- * (notes/experiments/mc_benchmark.txt, section 5).
+ * (docs/evidence/mc_benchmark.txt, section 5).
  */
 export const DEFAULT_NUM_SIMULATIONS = 1000;
 
@@ -158,7 +158,7 @@ function deepFreeze(o) {
 /**
  * Priors measured over every cached race (sessionNow = Infinity) by
  * computePriors, printed by scripts/mc_benchmark.mjs (section "Priors",
- * notes/experiments/mc_benchmark.txt) and copied here rounded;
+ * docs/evidence/mc_benchmark.txt) and copied here rounded;
  * src/utils/__tests__/raceSimulation.priors.test.js recomputes them from the
  * cache and checks these values. They include the race being projected when
  * that race is in the cache. Used only where the race itself has no data yet,

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
 import { SLOT_OPTIONS, SLOT_IDS } from '../../utils/slotOptions';
 import { DOCK_STORAGE_KEY } from '../../store/useF1Store';
@@ -120,18 +121,58 @@ export default function BottomTabBar() {
   // load (the Formula1 labels are wider than the fallback's) renders them all
   // again and re-measures; after every render the row is checked once more
   // and one more item goes to the ⋯ popover while it overflows (D2).
+  //
+  // Phase 9d G4: the browser pass saw Pit Wall and Settings cut for about
+  // 2 s after a window resize, until a re-render checked the row. The room
+  // is now followed where it changes, and measured before the browser
+  // paints: a ResizeObserver on the bar and on its container (whose width
+  // sets the bar's max-width), the window resize and the page shown again
+  // render every item and measure at once (flushSync: the render, the
+  // measure of the layout effect below and its capacity commit before the
+  // callback returns), so the first frame at the new size already fits.
+  // availableRef: the room of the last measure; the bar's own changes (an
+  // item moved to the ⋯ popover) leave it as it is and measure nothing.
+  const availableRef = useRef(null);
   useLayoutEffect(() => { setCapacity(Infinity); }, [displayTabs]);
   useEffect(() => {
     const reset = () => { setCapacity(Infinity); setMeasureGen((g) => g + 1); };
-    window.addEventListener('resize', reset);
+    // Outside React's own events (observer, window, fonts): render and measure now
+    const resetNow = () => {
+      try {
+        flushSync(reset);
+      } catch {
+        reset();
+      }
+    };
+    const roomOf = (nav) => {
+      const v = parseFloat(window.getComputedStyle(nav).maxWidth);
+      return Number.isFinite(v) && v > 0 ? v : window.innerWidth - 40;
+    };
+    const onVisible = () => { if (document.visibilityState !== 'hidden') resetNow(); };
+    window.addEventListener('resize', resetNow);
+    document.addEventListener?.('visibilitychange', onVisible);
+    const nav = navRef.current;
+    let obs = null;
+    if (nav && typeof ResizeObserver !== 'undefined') {
+      obs = new ResizeObserver(() => {
+        const room = roomOf(nav);
+        const cut = nav.scrollWidth > nav.clientWidth + 1;
+        if (availableRef.current != null && Math.abs(room - availableRef.current) <= 0.5 && !cut) return;
+        resetNow();
+      });
+      obs.observe(nav);
+      if (nav.parentElement) obs.observe(nav.parentElement);
+    }
     const fonts = typeof document !== 'undefined' ? document.fonts : null;
     let live = true;
-    fonts?.addEventListener?.('loadingdone', reset);
-    fonts?.ready?.then?.(() => { if (live) reset(); });
+    fonts?.addEventListener?.('loadingdone', resetNow);
+    fonts?.ready?.then?.(() => { if (live) resetNow(); });
     return () => {
       live = false;
-      window.removeEventListener('resize', reset);
-      fonts?.removeEventListener?.('loadingdone', reset);
+      obs?.disconnect();
+      window.removeEventListener('resize', resetNow);
+      document.removeEventListener?.('visibilitychange', onVisible);
+      fonts?.removeEventListener?.('loadingdone', resetNow);
     };
   }, []);
   useLayoutEffect(() => {
@@ -152,6 +193,7 @@ export default function BottomTabBar() {
       return { width: el.getBoundingClientRect().width, marginLeft: px(s.marginLeft), marginRight: px(s.marginRight) };
     };
     const available = px(cs.maxWidth) || window.innerWidth - 40;
+    availableRef.current = available;
     const children = [...nav.children];
     if (capacity === Infinity) {
       const items = new Set(itemEls.current.values());

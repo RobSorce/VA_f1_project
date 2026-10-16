@@ -1,0 +1,18 @@
+brush tint alpha 0.048: background #191B30
+Red Bull Racing    before #456497 panel 3.07 tint 2.84 | after #48699D panel 3.29 tint 3.05
+Ferrari            before #AB3B56 panel 3.04 tint 2.81 | after #B13F5B panel 3.25 tint 3.01
+Mercedes           before #1B6F6D panel 3.08 tint 2.85 | after #1F7472 panel 3.31 tint 3.06
+McLaren            before #975011 panel 3.02 tint 2.80 | after #9C5515 panel 3.24 tint 3.00
+Aston Martin       before #1D6F5A panel 3.02 tint 2.80 | after #1F765F panel 3.32 tint 3.07
+Alpine             before #8E4F74 panel 3.06 tint 2.84 | after #93547A panel 3.30 tint 3.05
+Williams           before #39668C panel 3.01 tint 2.78 | after #3D6C93 panel 3.28 tint 3.03
+RB                 before #455FA8 panel 3.01 tint 2.78 | after #4965B0 panel 3.28 tint 3.04
+Racing Bulls       before #455FA8 panel 3.01 tint 2.78 | after #4965B0 panel 3.28 tint 3.04
+AlphaTauri         before #45667E panel 3.01 tint 2.78 | after #496C85 panel 3.28 tint 3.04
+Haas F1 Team       before #61636E panel 3.06 tint 2.84 | after #646774 panel 3.25 tint 3.01
+Kick Sauber        before #2F703A panel 3.05 tint 2.82 | after #33753F panel 3.27 tint 3.03
+Alfa Romeo         before #98495E panel 3.00 tint 2.78 | after #A04D63 panel 3.25 tint 3.01
+Audi               before #B13554 panel 3.05 tint 2.83 | after #BA3959 panel 3.32 tint 3.08
+Cadillac           before #626269 panel 3.02 tint 2.80 | after #66676E panel 3.25 tint 3.01
+before: panel 3.00-3.08, tint 2.78-2.85
+after:  panel 3.24-3.32, tint 3.00-3.08

@@ -1,0 +1,20 @@
+rows: 534 (driver, race) from 30 cached races; 598 (driver, race) pairs with lap rows
+left out: 64 below 90% of the leader's laps, 0 with fewer than 5 clean laps
+features (12): pace_delta_pct, best_lap_delta_pct, recent_pace_delta_pct, sector1_delta_pct, sector2_delta_pct, sector3_delta_pct, consistency_pct, degradation_slope, pit_count, avg_stint_length, max_stint_length, grid_position
+PCA explained variance: PC1 0.441, PC2 0.203 (sum 0.645)
+eta2(race): PC1 0.028, PC2 0.558
+axis labels: PC1 "Race Pace vs Field & Sector 2 vs Field", PC2 "Avg Stint Length & Pit Stops"
+loadings (PC1, PC2):
+  avg_stint_length         -0.059   0.602
+  pit_count                 0.054  -0.562
+  max_stint_length          0.023   0.519
+  pace_delta_pct            0.424  -0.013
+  sector2_delta_pct         0.394   0.003
+  sector3_delta_pct         0.391  -0.026
+  sector1_delta_pct         0.382  -0.036
+  best_lap_delta_pct        0.335   0.177
+  recent_pace_delta_pct     0.343   0.120
+  grid_position             0.346  -0.037
+  consistency_pct           0.096  -0.054
+  degradation_slope         0.013  -0.024
+R2 stops (stint boundaries): 954; in-lap carries PitInTime: 942 (98.7%)

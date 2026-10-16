@@ -1,0 +1,36 @@
+S4 / D5, Strategy Simulator: same state, a new seed per recompute, the what-if's marks chained as the store chains them
+(utils/simulationClient.js whatIfMarks over the recomputes of the same what-if, whatIfKey; job runSimulationJob 'compare')
+set d5: 30 cached races x 3 clocks (25 %, 50 %, 75 % of the distance, lap-mode clock) x 10 seeds, 1000 runs per side: 360 what-ifs, 3240 recomputes compared with the previous one (784 s)
+intervals: simultaneous over the 5 marks of a result (familyZ(5) = 2.576); verdict and colours on the paired differences (mean -/+ z sd / sqrt(n)); mean sd of the position difference 3.46 places
+chained verdicts shown: gain 1183, no clear change 422, loss 1995
+
+mark (changed in how many recomputes; target <= 5 %)   chained (store)              first run alone               checkpoint 2193a6b
+  verdict (label, arrow, colour)       59 / 3240 (1.82%)    ok     253 / 3240 (7.81%)           196 / 3240 (6.05%)
+  plan card P label                    20 / 3240 (0.62%)    ok     627 / 3240 (19.35%)          642 / 3240 (19.81%)
+  baseline card P label                 8 / 3240 (0.25%)    ok     558 / 3240 (17.22%)          558 / 3240 (17.22%)
+  both card P labels                   26 / 3240 (0.80%)    ok    1002 / 3240 (30.93%)         1033 / 3240 (31.88%)
+  podium difference colour             36 / 3240 (1.11%)    ok     172 / 3240 (5.31%)           199 / 3240 (6.14%)
+  points difference colour             65 / 3240 (2.01%)    ok     282 / 3240 (8.70%)           244 / 3240 (7.53%)
+  (information) any of the marks above  166 / 3240 (5.12%)          1372 / 3240 (42.35%)         1422 / 3240 (43.89%)
+marks over 5 % (chained): 0 of 6
+
+consistency of each result (3600 results)                chained (store)              first run alone               checkpoint 2193a6b
+  verdict contradicts the card P labels    3 / 3600 (0.08%)             1 / 3600 (0.03%)           113 / 3600 (3.14%)
+  baseline card != panel P label        0 / 3600 (0.00%)             0 / 3600 (0.00%)          -
+    2024 R11 L18 RUS stop L20 HARD seed 3: verdict -1 (interval [-0.76, -0.02]), cards plan P5 / baseline P6
+    2024 R11 L18 RUS stop L20 HARD seed 5: verdict -1 (interval [-0.84, -0.09]), cards plan P5 / baseline P6
+    2024 R11 L18 RUS stop L20 HARD seed 8: verdict -1 (interval [-0.76, -0.01]), cards plan P5 / baseline P6
+
+examples of a change, chained (previous -> this recompute):
+  2024 R1 L14 PER stop L16 HARD seed 1 -> 2: verdict 0 -> -1 (delta -0.3 -> -0.6, interval [-1.00, -0.10]), P 6/6 -> 6/6, podium -1 -> -1, points 0 -> 0
+  2024 R1 L14 PER stop L16 HARD seed 4 -> 5: verdict -1 -> -1 (delta -0.3 -> -0.6, interval [-1.07, -0.15]), P 6/6 -> 6/6, podium -1 -> -1, points 0 -> -1
+  2024 R1 L14 PER stop L20 HARD seed 5 -> 6: verdict 0 -> -1 (delta -0.3 -> -0.4, interval [-0.91, -0.07]), P 6/6 -> 6/6, podium -1 -> -1, points 0 -> 0
+  2024 R1 L14 RIC stop L16 HARD seed 6 -> 7: verdict 1 -> 1 (delta 0.9 -> 0.7, interval [0.51, 0.96]), P 12/13 -> 13/14, podium 1 -> 1, points 1 -> 1
+  2024 R1 L14 RIC stop L20 HARD seed 6 -> 7: verdict 1 -> 1 (delta 0.6 -> 0.5, interval [0.33, 0.73]), P 12/13 -> 13/14, podium 1 -> 1, points 1 -> 1
+  2024 R1 L29 SAI stop L35 MEDIUM seed 0 -> 1: verdict 0 -> 1 (delta 0.1 -> 0.1, interval [0.02, 0.20]), P 3/3 -> 3/3, podium 1 -> 1, points -1 -> -1
+  2024 R1 L29 ZHO stop L31 MEDIUM seed 7 -> 8: verdict 1 -> 1 (delta 0.9 -> 1.1, interval [0.94, 1.25]), P 12/13 -> 11/13, podium 1 -> 1, points 1 -> 1
+  2024 R1 L29 ZHO stop L35 MEDIUM seed 0 -> 1: verdict 1 -> 1 (delta 0.6 -> 0.7, interval [0.50, 0.72]), P 12/13 -> 12/13, podium 0 -> 1, points 1 -> 1
+  2024 R2 L13 HAM stop L15 HARD seed 1 -> 2: verdict -1 -> 0 (delta -0.1 -> 0, interval [-0.26, 0.29]), P 5/5 -> 5/5, podium 1 -> 1, points -1 -> -1
+  2024 R2 L13 HAM stop L19 HARD seed 1 -> 2: verdict 0 -> 1 (delta 0.1 -> 0.3, interval [0.06, 0.54]), P 4/5 -> 4/5, podium 1 -> 1, points 0 -> 0
+  2024 R2 L13 HAM stop L19 HARD seed 8 -> 9: verdict 1 -> 0 (delta 0.2 -> 0, interval [-0.23, 0.22]), P 4/5 -> 4/5, podium 1 -> 1, points 0 -> -1
+  2024 R2 L25 HUL stop L31 HARD seed 0 -> 1: verdict 0 -> -1 (delta -0.1 -> -0.2, interval [-0.38, -0.05]), P 15/15 -> 15/15, podium 0 -> 0, points 0 -> 0

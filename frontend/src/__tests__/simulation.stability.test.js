@@ -1,7 +1,7 @@
 // S4 / lead decision D5: every categorical mark derived from the Monte Carlo
 // output is stable on a same-state recompute with a different seed. The full
 // measurement (30 races x 3 clocks x 10 seeds, every mark <= 5 %) is
-// scripts/mc_stability.mjs (notes/experiments/phase45c/mc_stability.txt); this
+// scripts/mc_stability.mjs (docs/evidence/mc_stability.txt); this
 // regression test runs the same chain (utils/simulationClient.js withBadges,
 // the store's) on two cached races and checks the marks the checkpoint drew
 // from a raw statistic: the P label (it was the most frequent position), its

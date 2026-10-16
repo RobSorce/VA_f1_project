@@ -1,4 +1,7 @@
-import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import React, {
+  useRef, useEffect, useLayoutEffect, useCallback, useState, useMemo,
+} from 'react';
+import ReactDOM from 'react-dom';
 import * as d3 from 'd3';
 import { useF1Store, sessionScopeOf, telemetryKeySuffix } from '../../store/useF1Store';
 import { seasonHasDrs, sessionSeasonOf } from '../../utils/seasons';
@@ -12,7 +15,14 @@ import { estimateFromFramePositions } from '../../utils/trackPositionEstimator';
 import { leaderLapEndTime } from '../../utils/raceTime';
 import { causalKey, viewSessionType, isRaceSession } from '../../utils/strategyViews';
 import { trackMapDriverStatus, trackMapSessionNow } from '../../utils/views/trackMap';
-import { useChartBox, chartSize, svgScreenScale } from '../../utils/views/chartBox';
+import {
+  useChartBox, chartSize, svgScreenScale, layoutReady,
+} from '../../utils/views/chartBox';
+import {
+  trackMapControls, mapDrawPadding, MAP_LAYOUT_MIN_PX, TOOL_PX, TOOL_GAP_PX, TOOL_SEPARATOR_PX,
+  mapPlan, fitTrack, rotateOutline, hudSlot, hudTable, hudTableWidth, boxOffsets, COMPASS, HUD_TABLE, CAR_LABEL,
+  carLabelOnLeft,
+} from '../../utils/views/trackMapLayout';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 
@@ -47,6 +57,9 @@ const COMPOUND_COLORS = Object.fromEntries(Object.entries(COMPOUND_KEYS).map(([k
 // Car dots and labels on the map: driver colour (teammate tint) as a mark / text
 const carMark = (abbr) => markColor(getDriverColor(abbr), SURFACES.panel);
 const carText = (abbr) => textColor(getDriverColor(abbr), SURFACES.panel);
+// A layout effect in the browser, a plain effect in a server render (no layout there)
+const useLayoutEffectInBrowser = typeof document !== 'undefined' && typeof document.createElement === 'function'
+  ? useLayoutEffect : useEffect;
 // Font sizes of text inside the zoomed group: divided by --map-zoom, the
 // d3.zoom factor times the svg's scale on screen (setMapZoom), so they read
 // at their CHART_FONT size whatever the zoom and the size of the panel (D4)
@@ -177,6 +190,16 @@ export default function TrackMap({ compact = false }) {
   const zoomRef = useRef(null);
   // The box the map fills: the track is laid out again at each new size (D4)
   const box = useChartBox(svgRef);
+  // The panel's room under its header (.panel-content, the parent of the
+  // map's container): where the controls go (G1, utils/views/trackMapLayout.js)
+  const vizRef = useRef(null);
+  const area = useChartBox(vizRef);
+  const { layers: layersPlace, rotateTools } = trackMapControls(area);
+  const layersInline = layersPlace === 'inline';
+  const [layersOpen, setLayersOpen] = useState(false);
+  const layersBtnRef = useRef(null);
+  const closeLayers = useCallback(() => setLayersOpen(false), []);
+  useEffect(() => { if (layersInline) setLayersOpen(false); }, [layersInline]);
   // d3.zoom's factor and the svg's scale on screen: --map-zoom = k x scale
   const zoomKRef = useRef(1);
   const screenScaleRef = useRef(1);
@@ -255,6 +278,33 @@ export default function TrackMap({ compact = false }) {
   const rotateTrackCCW = useF1Store((s) => s.rotateTrackCCW);
   const resetTrackRotation = useF1Store((s) => s.resetTrackRotation);
   const setTrackRotationAbsolute = useF1Store((s) => s.setTrackRotationAbsolute);
+
+  // The map's furniture and the track fitted clear of it (G1 r3,
+  // utils/views/trackMapLayout.js mapPlan): the key row, the telemetry HUD's
+  // slot, the compass rose. It follows the box, the outline as drawn (the
+  // circuit and its rotation), the season and where the layers are; never
+  // the selection, the focus driver, the channel overlay or the layer
+  // toggles, so a click on a car or a Leaderboard row does not move the
+  // track. fitSig names the inputs the layers drawn on the track redraw on.
+  const keyRow = !compact && !layersInline;
+  const fitSig = compact ? '' : `${seasonDrs ? 1 : 0}|${keyRow ? 1 : 0}`;
+  const outline = useMemo(() => (circuitInfo?.track_coordinates?.length
+    ? rotateOutline(circuitInfo.track_coordinates, (circuitInfo.rotation || 0) + trackRotationOffset)
+    : null), [circuitInfo, trackRotationOffset]);
+  const planFor = useCallback((width, height) => {
+    if (compact || !outline || !layoutReady({ width, height }, MAP_LAYOUT_MIN_PX)) return null;
+    const p = mapPlan(outline.points, { width, height }, {
+      padding: mapDrawPadding(width, height), drs: seasonDrs, key: keyRow,
+    });
+    return p && { ...p, width, height };
+  }, [compact, outline, seasonDrs, keyRow]);
+  // The plan for the box the map fills (before its first measure: the size
+  // the map is first laid out at)
+  const measured = box.width > 0 && box.height > 0;
+  const plan = useMemo(
+    () => planFor(measured ? box.width : 800, measured ? box.height : 500),
+    [planFor, measured, box.width, box.height],
+  );
 
   // Individual sector toggles (local refinement)
   const [showSector1, setShowSector1] = useState(true);
@@ -443,48 +493,57 @@ export default function TrackMap({ compact = false }) {
     const { width, height } = chartSize(svgRef.current, box, compact
       ? { width: 300, height: 200 }
       : { width: 800, height: 500 });
+    // G2: never laid out at a degenerate size (a 354 x 34 box gave a negative
+    // scale and a track drawn outside the svg): the drawing waits, hidden,
+    // for the next measure of the box, which lays it out
+    if (!layoutReady({ width, height }, MAP_LAYOUT_MIN_PX)) {
+      svg.attr('data-layout', 'waiting');
+      gRef.current.attr('display', 'none');
+      return;
+    }
+    svg.attr('data-layout', 'drawn');
+    gRef.current.attr('display', null);
     svg.attr('viewBox', `0 0 ${width} ${height}`);
     // its scale on screen (1 when the viewBox is the box), into --map-zoom
     screenScaleRef.current = svgScreenScale(svgRef.current);
     setMapZoom(svgRef.current, zoomKRef.current, screenScaleRef.current);
 
     const g = gRef.current;
-    const rawCoords = circuitInfo.track_coordinates;
 
-    // Apply FastF1 rotation to match official track map orientation
-    const rotationDeg = (circuitInfo.rotation || 0) + trackRotationOffset;
-    const rotationRad = (rotationDeg * Math.PI) / 180;
-    const cosR = Math.cos(rotationRad);
-    const sinR = Math.sin(rotationRad);
-
-    // Compute centroid for rotation pivot
-    const cx = rawCoords.reduce((s, d) => s + d.X, 0) / rawCoords.length;
-    const cy = rawCoords.reduce((s, d) => s + d.Y, 0) / rawCoords.length;
-
-    const coords = rawCoords.map((d) => {
-      const dx = d.X - cx;
-      const dy = d.Y - cy;
-      return { ...d, X: cx + dx * cosR - dy * sinR, Y: cy + dx * sinR + dy * cosR };
-    });
+    // The outline in the official orientation (FastF1 rotation + the user's), about its centroid
+    const {
+      points: coords, cx, cy, cosR, sinR,
+    } = outline || rotateOutline(circuitInfo.track_coordinates, (circuitInfo.rotation || 0) + trackRotationOffset);
 
     const xExtent = d3.extent(coords, (d) => d.X);
     const yExtent = d3.extent(coords, (d) => d.Y);
-    const padding = compact ? 30 : 70;
-    const trackW = xExtent[1] - xExtent[0];
-    const trackH = yExtent[1] - yExtent[0];
-    const scale = Math.min((width - padding * 2) / trackW, (height - padding * 2) / trackH);
+    // The margin follows the box (G1): a fixed 70 px left 50 px of track in a
+    // 190 px tall Pit Wall map; never more than a quarter of the smaller side
+    const padding = compact
+      ? Math.min(30, Math.floor(Math.min(width, height) / 4))
+      : mapDrawPadding(width, height);
+    // The largest track that no overlay hides (G1 r2 / r3): fitted clear of
+    // the map's furniture (mapPlan: the key row, the HUD's slot, the compass
+    // rose), which the selection does not change; the plain fit, centred, in
+    // a compact map
+    const placed = plan && plan.width === width && plan.height === height ? plan : planFor(width, height);
+    const fit = placed ? placed.fit : fitTrack(coords, { width, height }, { padding });
+    const scale = Math.max(1e-6, fit.scale);
+    svg.attr('data-track-fit', fit.clear ? 'clear' : 'overlapped');
     // Pixel-to-coordinate conversion — overlays must be positioned in pixel space
     // because track visual width comes from stroke-width (px), not coordinate offsets
     const pxToCoord = 1 / scale;
 
     const xScale = d3.scaleLinear()
       .domain(xExtent)
-      .range([(width - trackW * scale) / 2, (width + trackW * scale) / 2]);
+      .range([fit.left, fit.left + fit.width]);
     const yScale = d3.scaleLinear()
       .domain(yExtent)
-      .range([(height + trackH * scale) / 2, (height - trackH * scale) / 2]);
+      .range([fit.top + fit.height, fit.top]);
 
     gRef.current.__scales = { xScale, yScale };
+    // the map's width: the car code labels near its right edge go left of the dot
+    gRef.current.__mapWidth = width;
     gRef.current.__rotation = { cosR, sinR, cx, cy };
     gRef.current.__coords = coords;
 
@@ -786,8 +845,9 @@ export default function TrackMap({ compact = false }) {
 
     isInitialRenderRef.current = true;
     trailPositionsRef.current = {}; // Clear stale screen-space trails on redraw
-    // box: the track is laid out again in the panel's new box (D4)
-  }, [circuitInfo, compact, trackRotationOffset, box.width, box.height]);
+    // box: the track is laid out again in the panel's new box (D4); plan /
+    // fitSig: with its furniture (never on a selection change, G1 r3)
+  }, [circuitInfo, compact, trackRotationOffset, box.width, box.height, fitSig, outline, plan, planFor]);
 
   // Update sector visibility
   useEffect(() => {
@@ -925,7 +985,7 @@ export default function TrackMap({ compact = false }) {
         .attr('stroke-linecap', 'round')
         .attr('opacity', 0.95);
     }
-  }, [channelMode, channelTelemetry, circuitInfo, trackRotationOffset, compact, box.width, box.height]);
+  }, [channelMode, channelTelemetry, circuitInfo, trackRotationOffset, compact, box.width, box.height, fitSig]);
 
   // Update track border color based on flag status
   useEffect(() => {
@@ -1034,6 +1094,8 @@ export default function TrackMap({ compact = false }) {
   // ── MAIN EFFECT: Update car positions frame by frame ──────────────
   useEffect(() => {
     if (!gRef.current?.__scales || !sessionData) return;
+    // the map waits for a real size (G2): the cars move again once it is laid out
+    if (svgRef.current?.getAttribute('data-layout') === 'waiting') return;
     const { xScale, yScale } = gRef.current.__scales;
     const rot = gRef.current.__rotation;
 
@@ -1071,7 +1133,7 @@ export default function TrackMap({ compact = false }) {
       let drsText = 'OFF';
       let drsClass = 'drs-off';
       if (drs === 8) { drsText = 'AVAILABLE'; drsClass = 'drs-avail'; }
-      else if (drs === 10 || drs === 12 || drs === 14) { drsText = 'ACTIVE'; drsClass = 'drs-on'; }
+      else if (drs === 10 || drs === 12 || drs === 14) { drsText = 'OPEN'; drsClass = 'drs-on'; }
 
       return `
         <div class="tooltip-title" style="color:${textColor(getDriverColor(abbr), SURFACES.elevated)}">${abbr}</div>
@@ -1207,7 +1269,8 @@ export default function TrackMap({ compact = false }) {
     enter.append('circle').attr('class', 'car-glow').attr('r', glowRadius).attr('fill', 'currentColor').attr('opacity', 0);
     enter.append('circle').attr('class', 'car-dot').attr('r', dotRadius);
     if (!compact) {
-      enter.append('text').attr('class', 'car-label').attr('dx', 12).attr('dy', 4);
+      // right of the dot: a compass rose on the right is kept clear of it (CAR_LABEL, mapPlan)
+      enter.append('text').attr('class', 'car-label').attr('dx', CAR_LABEL.dx).attr('dy', 4);
     }
 
     // Grid mode: also show grid position number
@@ -1277,14 +1340,26 @@ export default function TrackMap({ compact = false }) {
       .classed('car-glow--focused', (d) => d[0] === focusDriver);
 
     if (!compact) {
+      // A car whose code label would cross the map's right edge, where the
+      // svg clips it, has it on the left of its dot (carLabelOnLeft, G1 r4)
+      const mapW = gRef.current.__mapWidth || 0;
+      const labelLeft = (d) => {
+        const pos = d[1];
+        if (pos.x == null || pos.y == null) return false;
+        return carLabelOnLeft(xScale(rotatePos(pos.x, pos.y).x), mapW);
+      };
       merged.select('.car-label')
         .text((d) => d[0])
+        .attr('dx', (d) => (labelLeft(d) ? -CAR_LABEL.dx : CAR_LABEL.dx))
+        .classed('car-label--left', labelLeft)
         .classed('car-label--focused', (d) => d[0] === focusDriver);
 
-      // Update grid position labels
+      // Update grid position labels (on the side the code label is not)
       if (isGridMode) {
         merged.select('.car-grid-pos')
-          .text((d) => d[1].gridPos != null ? `P${d[1].gridPos}` : '');
+          .text((d) => d[1].gridPos != null ? `P${d[1].gridPos}` : '')
+          .attr('dx', (d) => (labelLeft(d) ? CAR_LABEL.dx : -CAR_LABEL.dx))
+          .attr('text-anchor', (d) => (labelLeft(d) ? 'start' : 'end'));
       }
     }
 
@@ -1321,7 +1396,7 @@ export default function TrackMap({ compact = false }) {
   }, [circuitInfo, sessionData, currentFrameIndex, frameData, totalFrames, frameDt,
       selectedDrivers, highlightedDriver, focusDriver, gridPositions, driverStatus, isLiveMode, isQualifyingReplay,
       toggleDriver, setHighlightedDriver, isPlaying, compact, dotRadius, glowRadius,
-      updateTrailPositions, renderTrails, trackRotationOffset, box.width, box.height]);
+      updateTrailPositions, renderTrails, trackRotationOffset, box.width, box.height, fitSig]);
 
   // ── Telemetry HUD data for focused + selected drivers ──────────────
   const hudDrivers = useMemo(() => {
@@ -1352,7 +1427,7 @@ export default function TrackMap({ compact = false }) {
           const drsVal = d.drs;
           let drsText = 'OFF', drsClass = 'hud-drs--off';
           if (drsVal === 8) { drsText = 'AVAIL'; drsClass = 'hud-drs--avail'; }
-          else if (drsVal === 10 || drsVal === 12 || drsVal === 14) { drsText = 'ACTIVE'; drsClass = 'hud-drs--on'; }
+          else if (drsVal === 10 || drsVal === 12 || drsVal === 14) { drsText = 'OPEN'; drsClass = 'hud-drs--on'; }
           return {
             driver: drv,
             isFocused: drv === focusDriver,
@@ -1380,7 +1455,7 @@ export default function TrackMap({ compact = false }) {
         const drsVal = t.drs;
         let drsText = 'OFF', drsClass = 'hud-drs--off';
         if (drsVal === 8) { drsText = 'AVAIL'; drsClass = 'hud-drs--avail'; }
-        else if (drsVal === 10 || drsVal === 12 || drsVal === 14) { drsText = 'ACTIVE'; drsClass = 'hud-drs--on'; }
+        else if (drsVal === 10 || drsVal === 12 || drsVal === 14) { drsText = 'OPEN'; drsClass = 'hud-drs--on'; }
         return {
           driver: drv,
           isFocused: drv === focusDriver,
@@ -1432,27 +1507,49 @@ export default function TrackMap({ compact = false }) {
     lineHeight: '18px',
   });
 
-  const zoomBtnStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 24,
-    height: 24,
-    padding: 0,
-    border: `1.5px solid ${GRID_COLORS.rule}`,
-    borderRadius: '4px',
-    background: 'transparent',
-    color: TEXT_COLORS.muted,
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-  };
+  // Map key: what is drawn (sectors, DRS zones, the channel overlay's ramp
+  // once the overlay is on the track: the focus driver's lap telemetry loaded)
+  const overlayDrawn = !!(channelMode && channelTelemetry);
+  const sectorKeyItems = [1, 2, 3].filter((s) => [showSector1, showSector2, showSector3][s - 1])
+    .map((s) => ({ label: `S${s}`, color: SECTOR_COLORS[s], shape: 'line', strokeWidth: 5 }));
+  const drsKeyItems = seasonDrs && showDRS
+    ? [{ label: 'DRS zone', color: TRACK_COLORS.drs, shape: 'band', fill: TRACK_COLORS.drsFill }]
+    : [];
+  const rampKeyItems = overlayDrawn ? channelLegend(channelMode) : [];
+  const mapKeyItems = [...sectorKeyItems, ...drsKeyItems, ...rampKeyItems];
 
-  const rotateBtnStyle = {
-    ...zoomBtnStyle,
-    fontSize: '11px',
-    fontWeight: 600,
-    fontFamily: "'Space Grotesk', sans-serif",
-  };
+  // The one-line key on the map's corner (popover layout; G1 r2): under a
+  // drawn overlay the ramp takes the place of S1-S3 (dimmed under it; the
+  // full key stays in the Layers popover), so the line holds at 1366 x 768
+  // (the speed / throttle / brake ramp and S1-S3 together needed 375-378 px
+  // of 262-346). Should it still not fit (a narrower map), the last items
+  // give way to a "+k" chip: measured after layout, one item at a time
+  const cornerKeyShown = !layersInline && mapKeyItems.length > 0;
+  const cornerKeyAll = overlayDrawn ? [...rampKeyItems, ...drsKeyItems] : [...sectorKeyItems, ...drsKeyItems];
+  const keyRef = useRef(null);
+  const cornerKeySig = `${cornerKeyAll.map((i) => i.label || '·').join('|')}|${box.width}`;
+  const [keyFit, setKeyFit] = useState({ sig: '', drop: 0 });
+  const keyDrop = keyFit.sig === cornerKeySig ? keyFit.drop : 0;
+  const cornerKeyItems = keyDrop > 0 ? cornerKeyAll.slice(0, cornerKeyAll.length - keyDrop) : cornerKeyAll;
+  useLayoutEffectInBrowser(() => {
+    const el = keyRef.current;
+    if (!el) return;
+    const over = Number(el.scrollWidth) > Number(el.clientWidth) + 1;
+    if (over && keyDrop < cornerKeyAll.length - 1) setKeyFit({ sig: cornerKeySig, drop: keyDrop + 1 });
+  }, [cornerKeySig, keyDrop, cornerKeyAll.length]);
+
+  // The HUD and the compass rose in the map's furniture (mapPlan, G1 r3): the
+  // focus and selected drivers fill the HUD's slot from its bottom
+  // (hudTable), the compass sits at the plan's place; neither moves the track.
+  // No plan yet (the circuit's outline not loaded, or a server render): the
+  // HUD still reads, in the slot of the box (or of the first layout's size)
+  const hudSlotNow = plan
+    ? plan.hud
+    : hudSlot(measured ? box : { width: 800, height: 500 }, { drs: seasonDrs });
+  const hudPlan = hudTable(hudSlotNow, hudDataList.length);
+  const compassOffsets = plan && measured
+    ? boxOffsets(plan, plan.compass.box)
+    : { right: COMPASS.edge, bottom: COMPASS.edge };
 
   /* ── Track Progress Highlight (from Speed Trace playhead) ──── */
   const trackProgress = useF1Store((s) => s.trackProgress);
@@ -1495,69 +1592,112 @@ export default function TrackMap({ compact = false }) {
     } catch {
       // Path not ready yet
     }
-  }, [trackProgress, focusDriverForTrack, box.width, box.height]);
+  }, [trackProgress, focusDriverForTrack, box.width, box.height, fitSig]);
 
-  const controls = (
-    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-      <button style={zoomBtnStyle} onClick={rotateTrackCW} title="Rotate clockwise (R)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-      </button>
-      <button style={zoomBtnStyle} onClick={rotateTrackCCW} title="Rotate counter-clockwise (Shift+R)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-      </button>
-      <button style={{ ...rotateBtnStyle, width: 'auto', padding: '0 6px' }} onClick={resetTrackRotation} title="Reset to default orientation">
-        Auto
-      </button>
-      <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
-      <button style={zoomBtnStyle} onClick={handleZoomIn} title="Zoom in">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
-      <button style={zoomBtnStyle} onClick={handleZoomOut} title="Zoom out">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14"/></svg>
-      </button>
-      <button style={zoomBtnStyle} onClick={handleZoomReset} title="Reset zoom">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-      </button>
-      <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
-      <button style={toggleBtnStyle(showSector1, SECTOR_COLORS[1])} onClick={() => setShowSector1(!showSector1)}>S1</button>
-      <button style={toggleBtnStyle(showSector2, SECTOR_COLORS[2])} onClick={() => setShowSector2(!showSector2)}>S2</button>
-      <button style={toggleBtnStyle(showSector3, SECTOR_COLORS[3])} onClick={() => setShowSector3(!showSector3)}>S3</button>
-      {seasonDrs && (
-        <button style={toggleBtnStyle(showDRS, TRACK_COLORS.drs)} onClick={() => setShowDRS(!showDRS)}>DRS</button>
+  // ── Controls (G1, utils/views/trackMapLayout.js): one row of icon buttons
+  // in the header (never wrapped); the layers, the channel overlay and the
+  // legends above the map in a tall panel, else in the Layers popover, with
+  // a one-line key of what is drawn on the map's top-left corner
+  const icon = (children) => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+  );
+  const separator = (key) => (
+    <span key={key} aria-hidden="true" className="track-map-toolbar__sep" style={{ width: TOOL_SEPARATOR_PX, height: 16, flexShrink: 0 }} />
+  );
+  const rotationTools = [
+    <MapTool key="cw" title="Rotate clockwise (R)" onClick={rotateTrackCW}>
+      {icon(<><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></>)}
+    </MapTool>,
+    <MapTool key="ccw" title="Rotate counter-clockwise (Shift+R)" onClick={rotateTrackCCW}>
+      {icon(<><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></>)}
+    </MapTool>,
+    <MapTool key="auto" title="Reset to default orientation" onClick={resetTrackRotation}>
+      {icon(<polygon points="12 2 19 21 12 17 5 21 12 2" />)}
+    </MapTool>,
+  ];
+
+  const toolbar = (
+    <div
+      className="track-map-toolbar"
+      role="toolbar"
+      aria-label="Track Map tools"
+      style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: TOOL_GAP_PX, flexShrink: 0 }}
+    >
+      {rotateTools && [...rotationTools, separator('sep-rotate')]}
+      <MapTool title="Zoom in" onClick={handleZoomIn}>{icon(<path d="M12 5v14M5 12h14" />)}</MapTool>
+      <MapTool title="Zoom out" onClick={handleZoomOut}>{icon(<path d="M5 12h14" />)}</MapTool>
+      <MapTool title="Reset zoom (whole track)" onClick={handleZoomReset}>
+        {icon(<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />)}
+      </MapTool>
+      {!layersInline && separator('sep-layers')}
+      {!layersInline && (
+        <MapTool
+          ref={layersBtnRef}
+          className="track-map-tool--layers"
+          title={layersOpen ? 'Close the layers' : 'Layers, telemetry overlay and key'}
+          onClick={() => setLayersOpen((v) => !v)}
+          aria-haspopup="dialog"
+          aria-expanded={layersOpen}
+          aria-controls={layersOpen ? 'track-map-layers' : undefined}
+          active={layersOpen}
+        >
+          {icon(<><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></>)}
+        </MapTool>
       )}
-      <button style={toggleBtnStyle(showCorners, TEXT_COLORS.secondary)} onClick={() => setShowCorners(!showCorners)}>Corners</button>
-      <span style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)', flexShrink: 0 }} />
+    </div>
+  );
+
+  // The groups of the layers strip / popover
+  const layerGroups = [
+    !rotateTools && (
+      <LayerGroup key="orientation" label="Orientation">{rotationTools}</LayerGroup>
+    ),
+    <LayerGroup key="layers" label="Layers">
+      <button type="button" aria-pressed={showSector1} style={toggleBtnStyle(showSector1, SECTOR_COLORS[1])} onClick={() => setShowSector1(!showSector1)}>S1</button>
+      <button type="button" aria-pressed={showSector2} style={toggleBtnStyle(showSector2, SECTOR_COLORS[2])} onClick={() => setShowSector2(!showSector2)}>S2</button>
+      <button type="button" aria-pressed={showSector3} style={toggleBtnStyle(showSector3, SECTOR_COLORS[3])} onClick={() => setShowSector3(!showSector3)}>S3</button>
+      {seasonDrs && (
+        <button type="button" aria-pressed={showDRS} style={toggleBtnStyle(showDRS, TRACK_COLORS.drs)} onClick={() => setShowDRS(!showDRS)}>DRS</button>
+      )}
+      <button type="button" aria-pressed={showCorners} style={toggleBtnStyle(showCorners, TEXT_COLORS.secondary)} onClick={() => setShowCorners(!showCorners)}>Corners</button>
+    </LayerGroup>,
+    <LayerGroup key="overlay" label="Overlay">
       <button
+        type="button"
+        aria-pressed={channelMode === 'speed'}
         style={toggleBtnStyle(channelMode === 'speed', CHANNEL_COLORS.speed)}
         onClick={() => setChannelMode(channelMode === 'speed' ? null : 'speed')}
         title={focusDriver ? `Speed overlay (${focusDriver})` : 'Select a focus driver first'}
       >SPD</button>
       <button
+        type="button"
+        aria-pressed={channelMode === 'throttle'}
         style={toggleBtnStyle(channelMode === 'throttle', CHANNEL_COLORS.throttle)}
         onClick={() => setChannelMode(channelMode === 'throttle' ? null : 'throttle')}
         title={focusDriver ? `Throttle overlay (${focusDriver})` : 'Select a focus driver first'}
       >THR</button>
       <button
+        type="button"
+        aria-pressed={channelMode === 'brake'}
         style={toggleBtnStyle(channelMode === 'brake', CHANNEL_COLORS.brake)}
         onClick={() => setChannelMode(channelMode === 'brake' ? null : 'brake')}
         title={focusDriver ? `Brake overlay (${focusDriver})` : 'Select a focus driver first'}
       >BRK</button>
-      {/* Legend (V4): sectors, DRS, the channel overlay's ramp, the cars */}
-      <div style={{ marginLeft: 8, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
-        <Legend items={[
-          ...[1, 2, 3].filter((s) => [showSector1, showSector2, showSector3][s - 1])
-            .map((s) => ({ label: `S${s}`, color: SECTOR_COLORS[s], shape: 'line', strokeWidth: 5 })),
-          ...(seasonDrs && showDRS ? [{ label: 'DRS zone', color: TRACK_COLORS.drs, shape: 'band', fill: TRACK_COLORS.drsFill }] : []),
-          ...(channelMode ? channelLegend(channelMode) : []),
-        ]} />
-      </div>
-      {driverLegendItems.length > 0 && (
-        <div style={{ marginLeft: 8, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: 8 }}>
-          <Legend items={driverLegendItems} shape="circle" />
-        </div>
+      {/* an overlay chosen but not drawn yet: say why (the key shows its ramp once drawn) */}
+      {channelMode && !overlayDrawn && (
+        <span className="track-map-layers__hint">
+          {focusDriver ? `Loading ${focusDriver}'s last lap` : 'Select a focus driver'}
+        </span>
       )}
-    </div>
-  );
+    </LayerGroup>,
+    // Legend (V4): sectors, DRS, the channel overlay's ramp, the cars
+    mapKeyItems.length > 0 && (
+      <LayerGroup key="key" label="Key"><Legend items={mapKeyItems} /></LayerGroup>
+    ),
+    driverLegendItems.length > 0 && (
+      <LayerGroup key="drivers" label="Drivers"><Legend items={driverLegendItems} shape="circle" /></LayerGroup>
+    ),
+  ].filter(Boolean);
 
   if (compact) {
     return (
@@ -1633,19 +1773,51 @@ export default function TrackMap({ compact = false }) {
       };
 
   return (
-    <Panel title="Track Map" controls={controls} style={panelStyle} focused={focusedView === 'trackmap'} shortcutKey="1">
-      <div className="viz-container" style={{
+    <Panel
+      title="Track Map"
+      className="panel--dense track-map-panel"
+      controls={toolbar}
+      style={panelStyle}
+      focused={focusedView === 'trackmap'}
+      shortcutKey="1"
+    >
+      {/* A tall panel: the layers, the overlay and the legends above the map */}
+      {layersInline && (
+        <div className="track-map-layers track-map-layers--inline" aria-label="Track Map layers, overlay and key">
+          {layerGroups}
+        </div>
+      )}
+      <div ref={vizRef} className="viz-container" style={{
         background: 'radial-gradient(ellipse at center, rgba(26,31,51,0.6) 0%, rgba(21,21,30,0.9) 100%)',
         borderRadius: '8px',
         position: 'relative',
       }}>
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
 
-        {/* Compass Rose */}
+        {/* Below LAYERS_INLINE_MIN_H: a one-line key of what is drawn on the
+            map's corner (the full key and the toggles: the Layers popover);
+            the track is fitted clear of it, of the HUD and of the compass */}
+        {cornerKeyShown && (
+          <div ref={keyRef} className="track-map-key" aria-label="Key of the map">
+            <Legend items={cornerKeyItems} />
+            {keyDrop > 0 && (
+              <span className="track-map-key__more">{`+${keyDrop}`}</span>
+            )}
+          </div>
+        )}
+        {!layersInline && layersOpen && (
+          <TrackLayersPopover anchorRef={layersBtnRef} onClose={closeLayers}>
+            {layerGroups}
+          </TrackLayersPopover>
+        )}
+
+        {/* Compass Rose: at the place the map's plan gives it (mapPlan compassAt) */}
         <CompassRose
           trackRotationOffset={trackRotationOffset}
           circuitRotation={circuitInfo?.rotation || 0}
           onClickCardinal={(angle) => setTrackRotationAbsolute(-angle)}
+          offsets={compassOffsets}
+          place={plan?.compass.place || 'br'}
         />
 
         {/* Winner overlay at race end */}
@@ -1702,8 +1874,13 @@ export default function TrackMap({ compact = false }) {
           <LiveRaceControlOverlay />
         )}
 
-        {/* Telemetry HUD overlays — one per selected/focused driver */}
-        {hudDataList.length > 0 && (
+        {/* Telemetry HUD of the focus and selected drivers (G1 r2,
+            trackMapLayout.js hudLayout): a table in a map under
+            HUD_CARDS_MIN_H, one row per driver; a card per driver in a big one */}
+        {hudPlan?.mode === 'table' && (
+          <TrackHudTable rows={hudDataList} plan={hudPlan} />
+        )}
+        {hudPlan?.mode === 'cards' && (
           <div className="track-telemetry-hud-container">
             {hudDataList.map((hud) => (
               <div
@@ -1774,8 +1951,184 @@ export default function TrackMap({ compact = false }) {
   );
 }
 
+/*
+ * The telemetry HUD as a table (G1 r2): one HUD_TABLE.rowPx row per driver
+ * (the focus driver first), the columns of plan.columns at their fixed
+ * widths, so the box is the one hudLayout gave the track fit; drivers past
+ * the row cap are named on a last row. Drawn like the map (dark in both
+ * themes), no pointer events: the map pans and zooms under it.
+ */
+function TrackHudTable({ rows, plan }) {
+  const cols = plan.columns || [];
+  const shown = rows.slice(0, plan.shown);
+  const rest = rows.slice(plan.shown).map((h) => h.driver);
+  const cell = (id, hud) => {
+    switch (id) {
+      case 'drv':
+        return <span className="track-hud__drv" style={{ color: textColor(hud.color, SURFACES.page) }}>{hud.driver}</span>;
+      case 'speed': return hud.speed;
+      case 'gear': return hud.gear;
+      case 'thr': return hud.throttle;
+      case 'brk': return hud.brake;
+      case 'drs': return <span className={`track-hud__drs track-hud__drs--${hud.drsClass.replace('hud-drs--', '')}`}>{hud.drsText}</span>;
+      case 'tyre':
+        return (
+          <>
+            {/* compound badge: FIA colour + letter in contrastText */}
+            <span className="track-hud__tyre" style={{ background: hud.compoundColor, color: contrastText(hud.compoundColor) }}>
+              {tyreLetter(hud.compoundKey)}
+            </span>
+            {hud.tyreLife}
+          </>
+        );
+      default: return null;
+    }
+  };
+  return (
+    <div
+      className="track-hud"
+      style={{ width: hudTableWidth(cols), height: plan.box.y1 - plan.box.y0 }}
+      data-rows={plan.rows}
+    >
+      <table className="track-hud__table" aria-label="Telemetry of the focus and selected drivers">
+        <colgroup>
+          {cols.map((c, i) => <col key={c.id} style={{ width: c.px + (i > 0 ? HUD_TABLE.gapPx : 0) }} />)}
+        </colgroup>
+        <thead>
+          <tr>
+            {cols.map((c) => (
+              <th key={c.id} scope="col" title={c.title} className={`track-hud__h track-hud__h--${c.id}`}>
+                {c.label || <span className="sr-only">{c.title}</span>}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((hud) => (
+            <tr key={hud.driver} className={hud.isFocused ? 'track-hud__row track-hud__row--focus' : 'track-hud__row'}>
+              {cols.map((c) => <td key={c.id} className={`track-hud__c track-hud__c--${c.id}`}>{cell(c.id, hud)}</td>)}
+            </tr>
+          ))}
+          {rest.length > 0 && (
+            <tr className="track-hud__row">
+              <td colSpan={cols.length} className="track-hud__more">{`+${rest.length} more: ${rest.join(', ')}`}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ── Toolbar button: a TOOL_PX square icon button, its title as its name ── */
+const MapTool = React.forwardRef(function MapTool({
+  title, onClick, children, className = '', active = false, ...rest
+}, ref) {
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={`track-map-tool ${className}`.trim()}
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: TOOL_PX,
+        height: TOOL_PX,
+        padding: 0,
+        flexShrink: 0,
+        // the colours: visualizations.css .track-map-tool, per theme (the
+        // header is light in the light theme: >= 3:1 glyph and border in both)
+      }}
+      data-active={active ? 'true' : undefined}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+});
+
+/* ── A labelled group of the layers strip / popover ── */
+function LayerGroup({ label, children }) {
+  return (
+    <div className="track-map-layers__group" role="group" aria-label={label}>
+      <span className="track-map-layers__label">{label}</span>
+      <div className="track-map-layers__items">{children}</div>
+    </div>
+  );
+}
+
+// Width of the Layers popover and its distance to the window's edges (CSS px)
+const LAYERS_POPOVER_W = 320;
+const LAYERS_POPOVER_EDGE = 8;
+
+/*
+ * The Layers popover (G1): under the Layers button, right-aligned to it,
+ * kept inside the window; laid over the dashboard (fixed, on document.body)
+ * so it never takes room from the map. Closed by Escape, the × button, the
+ * Layers button or a click outside.
+ */
+function TrackLayersPopover({ anchorRef, onClose, children }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState({ left: LAYERS_POPOVER_EDGE, top: LAYERS_POPOVER_EDGE });
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const a = anchorRef.current?.getBoundingClientRect?.();
+      if (!a) return;
+      const vw = Number(window.innerWidth) || 0;
+      const vh = Number(window.innerHeight) || 0;
+      const h = ref.current?.offsetHeight || 0;
+      const left = Math.max(LAYERS_POPOVER_EDGE, Math.min(vw - LAYERS_POPOVER_W - LAYERS_POPOVER_EDGE, a.right - LAYERS_POPOVER_W));
+      const top = Math.max(LAYERS_POPOVER_EDGE, Math.min(a.bottom + 6, vh - h - LAYERS_POPOVER_EDGE));
+      setPos((p) => (p.left === left && p.top === top ? p : { left, top }));
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [anchorRef]);
+
+  useEffect(() => {
+    const onDown = (e) => {
+      const inside = ref.current?.contains(e.target) || anchorRef.current?.contains(e.target);
+      if (!inside) onClose();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose, anchorRef]);
+
+  return ReactDOM.createPortal(
+    <div
+      ref={ref}
+      id="track-map-layers"
+      className="track-map-layers track-map-layers--popover"
+      role="dialog"
+      aria-label="Track Map layers, overlay and key"
+      style={{ left: pos.left, top: pos.top, width: LAYERS_POPOVER_W }}
+    >
+      <div className="track-map-layers__head">
+        <span>Track Map</span>
+        <button type="button" className="track-map-layers__close" onClick={onClose} aria-label="Close the layers">×</button>
+      </div>
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
 /* ── Compass Rose: shows geographic north, click cardinal to orient ── */
-function CompassRose({ trackRotationOffset, circuitRotation, onClickCardinal }) {
+function CompassRose({
+  trackRotationOffset, circuitRotation, onClickCardinal,
+  offsets = { right: COMPASS.edge, bottom: COMPASS.edge }, place = 'br',
+}) {
   // Total geographic rotation = FastF1 base + user offset
   // Compass needle must point to TRUE north → rotate inversely
   const totalRotation = (circuitRotation || 0) + (trackRotationOffset || 0);
@@ -1790,10 +2143,12 @@ function CompassRose({ trackRotationOffset, circuitRotation, onClickCardinal }) 
 
   return (
     <svg
+      className="track-map-compass"
+      data-place={place}
       viewBox="-32 -32 64 64"
       style={{
-        position: 'absolute', bottom: 8, right: 8, zIndex: 10,
-        width: 64, height: 64, maxWidth: 64, maxHeight: 64,
+        position: 'absolute', ...offsets, zIndex: 10,
+        width: COMPASS.size, height: COMPASS.size, maxWidth: COMPASS.size, maxHeight: COMPASS.size,
         pointerEvents: 'auto', cursor: 'default',
         filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))',
       }}

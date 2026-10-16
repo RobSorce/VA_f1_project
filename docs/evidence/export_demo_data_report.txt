@@ -1,0 +1,31 @@
+Demo data export (backend/scripts/export_demo_data.py)
+
+2024 R16 Italian Grand Prix (reference race of the methodology documents): 53 laps, 20 drivers, safety car periods 0, VSC periods 0, laps on wet-weather tyres 0 of 1008, rain samples 0 of 133; frames 11406 -> 5703
+2024 R5 Chinese Grand Prix (safety-car race): 56 laps, 20 drivers, safety car periods 2, VSC periods 1, laps on wet-weather tyres 0 of 1032, rain samples 0 of 165; frames 15345 -> 7673
+2025 R1 Australian Grand Prix (wet race): 57 laps, 20 drivers, safety car periods 3, VSC periods 0, laps on wet-weather tyres 750 of 927, rain samples 58 of 178; frames 15418 -> 7709
+
+frame step 2, frame dt 0.8 s
+NaN / inf written as null: 0
+
+file                                                      bytes   json bytes
+2024_16_R/analytics.json.gz                                3123        17768
+2024_16_R/frames.json.gz                                1429646     12639489
+2024_16_R/session.json.gz                                114760       917454
+2024_5_R/analytics.json.gz                                 3184        17789
+2024_5_R/frames.json.gz                                 1893657     16341520
+2024_5_R/session.json.gz                                 124308       956347
+2025_1_R/analytics.json.gz                                 2481        13912
+2025_1_R/frames.json.gz                                 1699563     14444393
+2025_1_R/session.json.gz                                 116675       868526
+championship_2024.json.gz                                  5322        55967
+championship_2025.json.gz                                  2531        19777
+pca/embeddings.json.gz                                    20570       135367
+pca/fit_without_2024_16.json.gz                           20444       132231
+pca/fit_without_2024_5.json.gz                            20579       132787
+pca/fit_without_2025_1.json.gz                            20679       133491
+pca/matrix.json.gz                                        45105       120298
+pca/strategies.json.gz                                     9289       144085
+schedule_2024.json.gz                                       206          335
+schedule_2025.json.gz                                       164          186
+
+total 5535350 bytes = 5.54 MB (budget 20 MB)

@@ -32,7 +32,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/mc_stability.mjs [--seeds 10]
- * Writes notes/experiments/phase45c/mc_stability.txt and prints the same text.
+ * Writes docs/evidence/mc_stability.txt and prints the same text.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,7 +52,7 @@ import { seedFrom } from '../src/utils/prng.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
 const CACHE = path.resolve(ROOT, 'backend/data/processed_cache');
-const OUT_FILE = path.resolve(ROOT, 'notes/experiments/phase45c/mc_stability.txt');
+const OUT_FILE = path.resolve(ROOT, 'docs/evidence/mc_stability.txt');
 const argSeeds = process.argv.indexOf('--seeds');
 const SEEDS = argSeeds > 0 ? Number(process.argv[argSeeds + 1]) : 10;
 const CLOCKS = [0.25, 0.5, 0.75];

@@ -34,7 +34,7 @@ function formatSectorTime(seconds) {
 // Table text at the fixed-width data size (CHART_FONT.fixed, 11 px at every
 // viewport): the 480 px column does not grow with the window, so neither does
 // its type; every cell and header fits its column at this size
-// (notes/experiments/phase9/repair_tower_columns.txt)
+// (docs/evidence/tower_columns.txt)
 const TOWER_FONT = CHART_FONT.fixed;
 
 const containerStyle = {
@@ -109,7 +109,7 @@ const tableStyle = {
 // (table-layout fixed; a cell too narrow would end in an ellipsis). Each one
 // holds its widest value and its header at TOWER_FONT: sector '◆28.123', lap
 // '◆1:21.456', gap '+12.345' / 'LEADER', 'POS', 'LAP'
-// (notes/experiments/phase9/repair_tower_columns.txt).
+// (docs/evidence/tower_columns.txt).
 const COL = {
   pos: 26,
   num: 28,

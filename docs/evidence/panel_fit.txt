@@ -1,0 +1,117 @@
+Fit of the layout lane's views at the V13 target viewports (CSS + components + Formula1 metrics), 2026-10-16
+Leaderboard rows 18-28 px, pager 22 px, legend inline from 900 px of height; focus cards open from 1200 px
+Sectors rows 18-26 px, pager 22 px, ranked columns >= 16 em; Consistency rows 20-30 px, cards >= 32 em
+
+== 1536x750 ==
+  Race tower (sidebar 288 x 622.5): header 36.9, mode bar 24, column header 22.4, legend behind the "?" key (0 px)
+    no focus driver                                496.6 px for the rows -> 20 of 20 at 24 px (body 497 px)
+    focus driver, cards collapsed                  431.4 px for the rows -> 20 of 20 at 21 px (body 431 px)
+    focus driver + flag banner + forecast footer   365.8 px for the rows -> 20 of 20 at 18 px (body 366 px)
+  Sectors preset pace 609x286: live 9 rows a page (pager); best 3/3 columns x 10 rows a page; speeds 3/4 columns (column pages) x 8 rows a page
+    live row 337.0 px in 590.9; ranked row best 173.8 / speeds 167.2 px in columns of 192.3 / 192.3 px (min 177)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1/1 -> 1, speeds 2/2/2 -> 2
+  Sectors preset overview 609x257: live 7 rows a page (pager); best 3/3 columns x 9 rows a page; speeds 3/4 columns (column pages) x 7 rows a page
+    live row 337.0 px in 590.9; ranked row best 173.8 / speeds 167.2 px in columns of 192.3 / 192.3 px (min 177)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1/1 -> 1, speeds 2/2/2 -> 2
+  Sectors floating overlay minimum 420 x 320 (content ~ 418 x 280) 418x280: live 7 rows a page (pager); best 2/3 columns (column pages) x 7 rows a page; speeds 2/4 columns (column pages) x 8 rows a page
+    live row 337.0 px in 400.0; ranked row best 173.8 / speeds 167.2 px in columns of 197.0 / 197.0 px (min 177)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1 -> 1, speeds 2/2 -> 2
+  Consistency preset pace 1225x228: header 1 line(s), room 180.9 px; all collapsed: 3 col x 1 page(s) at 22 px; focus card expanded (wide, 128.6 px, tyre rows 1 line(s)): 3 col x 2 page(s) at 20 px
+    collapsed line 311.1 px (LOW DATA 271.1) in cards >= 353 px
+  Consistency preset overview 609x257: header 2 line(s), room 180.4 px; all collapsed: 1 col x 3 page(s) at 20 px; focus card expanded (wide, 155.4 px, tyre rows 2 line(s)): 1 col x 5 page(s) at 20 px
+    collapsed line 311.1 px (LOW DATA 271.1) in cards >= 353 px
+  Consistency floating overlay minimum (content ~ 418 x 280) 418x280: header 3 line(s), room 173.8 px; all collapsed: 1 col x 3 page(s) at 20 px; focus card expanded (narrow, 201.8 px, tyre rows 1 line(s)): 1 col x 5 page(s) at 20 px
+    collapsed line 311.1 px (LOW DATA 271.1) in cards >= 353 px
+    1536x750 consistency floating overlay minimum (content ~ 418 x 280): an expanded card (201.8) taller than a page (173.8): capped at the area, its details scroll (SCROLL_JUSTIFICATIONS.md "Consistency expanded card")
+  Lap Times preset strategy: rows' box 1188.7 px (data 11.0 px): sheet 775.0 px, every column, default widths
+  Lap Times preset tyres: rows' box 634.1 px (data 11.0 px): sheet 627.0 px, every column, shrunk: pos, team, driver, s1, s2, s3, lapTime, gap, tyre, laps
+  Lap Times preset pace: rows' box 572.8 px (data 11.0 px): sheet 569.0 px, every column, shrunk: pos, team, driver, s1, s2, s3, lapTime, gap, tyre, laps
+  Lap Times preset prediction: rows' box 634.1 px (data 11.0 px): sheet 627.0 px, every column, shrunk: pos, team, driver, s1, s2, s3, lapTime, gap, tyre, laps
+  Lap Times floating overlay minimum 420 px: rows' box 383.8 px (data 11.0 px): sheet 381.0 px, +5 hidden (team, s3, gap, tyre, laps), shrunk: pos, driver, s1, s2, lapTime
+  Weather bar event: "Italian Grand Prix" 117.7 px in a 169.0 px box fits
+
+== 1366x768 ==
+  Race tower (sidebar 256 x 637.4): header 36.9, mode bar 24, column header 22.5, legend behind the "?" key (0 px)
+    no focus driver                                511.3 px for the rows -> 20 of 20 at 25 px (body 511 px)
+    focus driver, cards collapsed                  446.0 px for the rows -> 20 of 20 at 22 px (body 446 px)
+    focus driver + flag banner + forecast footer   380.2 px for the rows -> 20 of 20 at 19 px (body 380 px)
+  Sectors preset pace 541x294: live 9 rows a page (pager); best 2/3 columns (column pages) x 8 rows a page; speeds 2/4 columns (column pages) x 9 rows a page
+    live row 337.0 px in 522.5; ranked row best 174.2 / speeds 167.5 px in columns of 258.3 / 258.3 px (min 178)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1 -> 1, speeds 1/1 -> 1
+  Sectors preset overview 541x264: live 8 rows a page (pager); best 2/3 columns (column pages) x 6 rows a page; speeds 2/4 columns (column pages) x 8 rows a page
+    live row 337.0 px in 522.5; ranked row best 174.2 / speeds 167.5 px in columns of 258.3 / 258.3 px (min 178)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1 -> 1, speeds 1/1 -> 1
+  Sectors floating overlay minimum 420 x 320 (content ~ 418 x 280) 418x280: live 7 rows a page (pager); best 2/3 columns (column pages) x 7 rows a page; speeds 2/4 columns (column pages) x 8 rows a page
+    live row 337.0 px in 400.0; ranked row best 174.2 / speeds 167.5 px in columns of 197.0 / 197.0 px (min 178)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1 -> 1, speeds 2/2 -> 2
+  Consistency preset pace 1088x235: header 1 line(s), room 187.2 px; all collapsed: 2 col x 2 page(s) at 20 px; focus card expanded (wide, 129.1 px, tyre rows 1 line(s)): 2 col x 3 page(s) at 20 px
+    collapsed line 311.7 px (LOW DATA 271.4) in cards >= 355 px
+  Consistency preset overview 541x264: header 2 line(s), room 187.3 px; all collapsed: 1 col x 3 page(s) at 20 px; focus card expanded (wide, 156.2 px, tyre rows 2 line(s)): 1 col x 5 page(s) at 20 px
+    collapsed line 311.7 px (LOW DATA 271.4) in cards >= 355 px
+  Consistency floating overlay minimum (content ~ 418 x 280) 418x280: header 3 line(s), room 173.5 px; all collapsed: 1 col x 3 page(s) at 20 px; focus card expanded (narrow, 202.8 px, tyre rows 1 line(s)): 1 col x 5 page(s) at 20 px
+    collapsed line 311.7 px (LOW DATA 271.4) in cards >= 355 px
+    1366x768 consistency floating overlay minimum (content ~ 418 x 280): an expanded card (202.8) taller than a page (173.5): capped at the area, its details scroll (SCROLL_JUSTIFICATIONS.md "Consistency expanded card")
+  Lap Times preset strategy: rows' box 1053.6 px (data 11.1 px): sheet 775.0 px, every column, default widths
+  Lap Times preset tyres: rows' box 560.6 px (data 11.1 px): sheet 555.0 px, every column, shrunk: pos, team, driver, s1, s2, s3, lapTime, gap, tyre, laps
+  Lap Times preset pace: rows' box 506.1 px (data 11.1 px): sheet 502.0 px, every column, shrunk: pos, team, driver, s1, s2, s3, lapTime, gap, tyre, laps
+  Lap Times preset prediction: rows' box 560.6 px (data 11.1 px): sheet 555.0 px, every column, shrunk: pos, team, driver, s1, s2, s3, lapTime, gap, tyre, laps
+  Lap Times floating overlay minimum 420 px: rows' box 385.5 px (data 11.1 px): sheet 382.0 px, +5 hidden (team, s3, gap, tyre, laps), shrunk: pos, driver, s1, s2, lapTime
+  Weather bar event: "Italian GP" 65.6 px in a 109.3 px box fits
+
+== 1920x1080 ==
+  Race tower (sidebar 300 x 936.0): header 36.9, mode bar 24, column header 24.4, legend 3 lines, 75.9 px
+    no focus driver                                729.9 px for the rows -> 20 of 20 at 28 px (body 560 px)
+    focus driver, cards collapsed                  663.0 px for the rows -> 20 of 20 at 28 px (body 560 px)
+    focus driver + flag banner + forecast footer   593.5 px for the rows -> 20 of 20 at 28 px (body 560 px)
+  Sectors preset pace 794x452: live 20 rows at 18 px; best 3/3 columns x 20 rows at 18 px; speeds 3/4 columns (column pages) x 18 rows a page
+    live row 347.8 px in 775.5; ranked row best 180.6 / speeds 173.1 px in columns of 253.8 / 253.8 px (min 199)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1/1 -> 1, speeds 1/1/1 -> 1
+  Sectors preset overview 794x408: live 17 rows a page (pager); best 3/3 columns x 17 rows a page; speeds 3/4 columns (column pages) x 16 rows a page
+    live row 347.8 px in 775.5; ranked row best 180.6 / speeds 173.1 px in columns of 253.8 / 253.8 px (min 199)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1/1 -> 1, speeds 1/1/1 -> 1
+  Sectors floating overlay minimum 420 x 320 (content ~ 418 x 280) 418x280: live 7 rows a page (pager); best 1/3 columns (column pages) x 7 rows a page; speeds 1/4 columns (column pages) x 8 rows a page
+    live row 347.8 px in 400.0; ranked row best 180.6 / speeds 173.1 px in columns of 402.0 / 402.0 px (min 199)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1 -> 1, speeds 1 -> 1
+  Consistency preset pace 1594x363: header 1 line(s), room 313.3 px; all collapsed: 3 col x 1 page(s) at 30 px; focus card expanded (wide, 138.5 px, tyre rows 1 line(s)): 3 col x 1 page(s) at 20 px
+    collapsed line 341.7 px (LOW DATA 296.0) in cards >= 398 px
+  Consistency preset overview 794x408: header 2 line(s), room 325.5 px; all collapsed: 1 col x 2 page(s) at 20 px; focus card expanded (wide, 169.3 px, tyre rows 2 line(s)): 1 col x 2 page(s) at 20 px
+    collapsed line 341.7 px (LOW DATA 296.0) in cards >= 398 px
+  Consistency floating overlay minimum (content ~ 418 x 280) 418x280: header 3 line(s), room 166.1 px; all collapsed: 1 col x 3 page(s) at 20 px; focus card expanded (narrow, 271.8 px, tyre rows 2 line(s)): 1 col x 5 page(s) at 20 px
+    collapsed line 341.7 px (LOW DATA 296.0) in cards >= 398 px
+    1920x1080 consistency floating overlay minimum (content ~ 418 x 280): an expanded card (271.8) taller than a page (166.1): capped at the area, its details scroll (SCROLL_JUSTIFICATIONS.md "Consistency expanded card")
+  Lap Times preset strategy: rows' box 1554.0 px (data 12.4 px): sheet 775.0 px, every column, default widths
+  Lap Times preset tyres: rows' box 833.3 px (data 12.4 px): sheet 775.0 px, every column, default widths
+  Lap Times preset pace: rows' box 753.5 px (data 12.4 px): sheet 748.0 px, every column, shrunk: pos, team, driver, s1, s2, s3, lapTime, gap, tyre, laps
+  Lap Times preset prediction: rows' box 833.3 px (data 12.4 px): sheet 775.0 px, every column, default widths
+  Lap Times floating overlay minimum 420 px: rows' box 380.0 px (data 12.4 px): sheet 378.0 px, +5 hidden (team, s3, gap, tyre, laps), shrunk: pos, driver, s1, s2, lapTime
+  Weather bar event: "Italian Grand Prix" 132.8 px in a 211.2 px box fits
+
+== 2048x1100 ==
+  Race tower (sidebar 300 x 956.0): header 36.9, mode bar 24, column header 24.5, legend 3 lines, 76.3 px
+    no focus driver                                749.3 px for the rows -> 20 of 20 at 28 px (body 560 px)
+    focus driver, cards collapsed                  682.3 px for the rows -> 20 of 20 at 28 px (body 560 px)
+    focus driver + flag banner + forecast footer   612.5 px for the rows -> 20 of 20 at 28 px (body 560 px)
+  Sectors preset pace 858x463: live 20 rows at 19 px; best 3/3 columns x 20 rows at 19 px; speeds 4/4 columns x 20 rows at 18 px
+    live row 349.0 px in 839.5; ranked row best 181.0 / speeds 173.5 px in columns of 275.2 / 204.4 px (min 200)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1/1 -> 1, speeds 2/2/2/2 -> 2
+  Sectors preset overview 858x418: live 17 rows a page (pager); best 3/3 columns x 17 rows a page; speeds 4/4 columns x 16 rows a page
+    live row 349.0 px in 839.5; ranked row best 181.0 / speeds 173.5 px in columns of 275.2 / 204.4 px (min 200)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1/1/1 -> 1, speeds 2/2/2/2 -> 2
+  Sectors floating overlay minimum 420 x 320 (content ~ 418 x 280) 418x280: live 7 rows a page (pager); best 1/3 columns (column pages) x 7 rows a page; speeds 1/4 columns (column pages) x 8 rows a page
+    live row 349.0 px in 400.0; ranked row best 181.0 / speeds 173.5 px in columns of 402.0 / 402.0 px (min 200)
+    column headers (lines per column of the worst page; the row of a page is its tallest): best 1 -> 1, speeds 1 -> 1
+  Consistency preset pace 1722x372: header 1 line(s), room 322.2 px; all collapsed: 4 col x 1 page(s) at 30 px; focus card expanded (wide, 139.1 px, tyre rows 1 line(s)): 4 col x 1 page(s) at 30 px
+    collapsed line 343.3 px (LOW DATA 297.3) in cards >= 400 px
+  Consistency preset overview 858x418: header 2 line(s), room 335.3 px; all collapsed: 2 col x 1 page(s) at 29 px; focus card expanded (wide, 170.1 px, tyre rows 2 line(s)): 2 col x 2 page(s) at 20 px
+    collapsed line 343.3 px (LOW DATA 297.3) in cards >= 400 px
+  Consistency floating overlay minimum (content ~ 418 x 280) 418x280: header 3 line(s), room 165.7 px; all collapsed: 1 col x 3 page(s) at 20 px; focus card expanded (narrow, 273.2 px, tyre rows 2 line(s)): 1 col x 5 page(s) at 20 px
+    collapsed line 343.3 px (LOW DATA 297.3) in cards >= 400 px
+    2048x1100 consistency floating overlay minimum (content ~ 418 x 280): an expanded card (273.2) taller than a page (165.7): capped at the area, its details scroll (SCROLL_JUSTIFICATIONS.md "Consistency expanded card")
+  Lap Times preset strategy: rows' box 1682.0 px (data 12.5 px): sheet 775.0 px, every column, default widths
+  Lap Times preset tyres: rows' box 903.7 px (data 12.5 px): sheet 775.0 px, every column, default widths
+  Lap Times preset pace: rows' box 817.5 px (data 12.5 px): sheet 775.0 px, every column, default widths
+  Lap Times preset prediction: rows' box 903.7 px (data 12.5 px): sheet 775.0 px, every column, default widths
+  Lap Times floating overlay minimum 420 px: rows' box 380.0 px (data 12.5 px): sheet 379.0 px, +5 hidden (team, s3, gap, tyre, laps), shrunk: pos, driver, s1, s2, lapTime
+  Weather bar event: "Italian Grand Prix" 133.7 px in a 225.3 px box fits
+
+Every row and card of these views is on screen at the four viewports (fitted or paged, never cut).

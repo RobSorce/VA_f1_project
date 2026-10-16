@@ -1,6 +1,4 @@
-// Phase 3 edge cases, view side (decisions R5, R6 of
-// notes/experiments/phase3_round1/DECISIONS.md; probes and their outputs in
-// notes/experiments/phase3_edge/):
+// Phase 3 edge cases, view side (decisions R5, R6):
 //  - P3c: TimelinePlayer flag bands use one axis, the lap axis;
 //  - P3d: a classified driver who stopped before the flag is shown retired
 //    by the Leaderboard from his stop (driverStateAt at the clock), never

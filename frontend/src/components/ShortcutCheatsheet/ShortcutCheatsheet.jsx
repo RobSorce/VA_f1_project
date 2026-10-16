@@ -10,7 +10,7 @@ const SHORTCUT_SECTIONS = [
     shortcuts: [
       { keys: [`${modKey}+K`], desc: 'Open Command Palette' },
       { keys: ['/'], desc: 'Focus Command Bar' },
-      { keys: ['Esc'], desc: 'Close overlay / Deselect' },
+      { keys: ['Esc'], desc: 'Close all windows / exit layout' },
       { keys: ['?'], desc: 'Toggle this cheatsheet' },
       { keys: ['H'], desc: 'Toggle shortcut hints' },
     ],
@@ -28,11 +28,15 @@ const SHORTCUT_SECTIONS = [
       { keys: ['8'], desc: 'Compare' },
       { keys: ['9'], desc: 'Consistency' },
       { keys: ['0'], desc: 'Championship' },
+      { keys: ['⇧', 'C'], desc: 'Championship' },
       { keys: ['P'], desc: 'Toggle Pit Wall / Analysis' },
       { keys: ['W'], desc: 'Close last tab / window' },
       { keys: ['X'], desc: 'Close all windows / exit layout' },
-      { keys: ['Esc'], desc: 'Close overlays / Deselect' },
+      { keys: ['Esc'], desc: 'Close all windows / exit layout' },
       { keys: [`Ctrl+G`], desc: 'Cycle layout arrangements' },
+      // Ctrl only (not Cmd): useKeyboardShortcuts tiles on e.ctrlKey
+      { keys: ['Ctrl+←', 'Ctrl+→'], desc: 'Tile window left / right' },
+      { keys: ['Ctrl+↑', 'Ctrl+↓'], desc: 'Maximise / restore window' },
     ],
   },
   {
@@ -64,7 +68,7 @@ const SHORTCUT_SECTIONS = [
       // first selected) and opens Race Prediction (useKeyboardShortcuts)
       { keys: ['\u21E7', 'P'], desc: 'Run lap-time forecast' },
       { keys: ['S'], desc: 'Strategy Timeline' },
-      { keys: ['T'], desc: 'Tyres (Degradation)' },
+      { keys: ['T'], desc: 'Tyres (Health / Pace Retention)' },
       { keys: ['A'], desc: 'Analytics (PCA)' },
       { keys: ['G'], desc: 'Gemini AI Panel' },
       { keys: ['\u21E7', 'G'], desc: 'Driver Comparison (2 selected)' },

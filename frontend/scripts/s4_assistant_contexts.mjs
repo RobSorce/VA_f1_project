@@ -7,9 +7,8 @@
  * first 5 listed battles, the risk rows, the race parameters, the drivers'
  * features), for every cached race x 25 / 50 / 75 % of the distance
  * (lap-mode clock) x SEEDS seeds of the same state, chained withBadges as
- * the store chains its projections. The seeds are those of the verifier's
- * measurement (notes/experiments/phase45c/verify_strategy_r2/
- * s4_assistant_heuristic.mjs: salt 'verify-r2-assist'), so the two can be
+ * the store chains its projections. The seeds are those of an earlier
+ * measurement of the same cards (salt 'verify-r2-assist'), so the two can be
  * compared. Writes one JSON file of contexts; backend/scripts/
  * s4_assistant_cards.py feeds each to the route's heuristic and counts how
  * often a card's P changes between two seeds of the same state.

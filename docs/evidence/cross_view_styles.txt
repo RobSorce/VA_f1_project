@@ -1,0 +1,7 @@
+2024 championship, no session loaded: teammates sharing a colour or a dash: 0
+2024_16_R loaded: session drivers drawn differently in the championship 0; teammates sharing a colour or a dash 0
+2024_5_R loaded: session drivers drawn differently in the championship 0; teammates sharing a colour or a dash 0
+2025 championship, no session loaded: teammates sharing a colour or a dash: 0
+2025_1_R loaded: session drivers drawn differently in the championship 2; teammates sharing a colour or a dash 0
+  LAW (Racing Bulls): session #90B1E0 6,3 | championship #ABC3FF 6,3
+  TSU (Red Bull Racing): session #ABC3FF 6,3 | championship #90B1E0 6,3

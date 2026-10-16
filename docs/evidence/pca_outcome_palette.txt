@@ -1,0 +1,26 @@
+panel background (composited): #131326
+
+map       t_low  classes (no points / points / podium)                      contrast            L*                min dL*
+cividis   0.37   #61636f / #a9a177 / #fdea45 (t 0.370, 0.685, 1.000)   3.07 / 7.03 / 14.86   42.1 / 66.1 / 92.2   24.0
+viridis   0.33   #31678e / #35b779 / #fde725 (t 0.330, 0.665, 1.000)   3.02 / 7.16 / 14.51   41.3 / 66.4 / 91.3   24.9
+plasma    0.39   #ad2793 / #f1814d / #f0f921 (t 0.390, 0.695, 1.000)   3.04 / 6.97 / 15.95   42.0 / 66.3 / 94.9   24.3
+inferno   0.48   #b3325a / #f8890c / #fcffa4 (t 0.480, 0.740, 1.000)   3.07 / 7.48 / 17.43   42.7 / 68.6 / 98.3   26.0
+
+Chosen: cividis (designed for colour-vision deficiency; monotone lightness).
+
+Team colours on the same background (utils/colors.js TEAM_COLORS):
+  Red Bull Racing  #3671C6  contrast 3.78
+  Ferrari          #E8002D  contrast 3.90
+  Mercedes         #27F4D2  contrast 13.05
+  McLaren          #FF8000  contrast 7.28
+  Aston Martin     #229971  contrast 5.12
+  Alpine           #FF87BC  contrast 8.24
+  Williams         #64C4FF  contrast 9.50
+  RB               #6692FF  contrast 6.21
+  Racing Bulls     #6692FF  contrast 6.21
+  AlphaTauri       #5E8FAA  contrast 5.22
+  Haas F1 Team     #B6BABD  contrast 9.38
+  Kick Sauber      #52E252  contrast 10.78
+  Alfa Romeo       #C92D4B  contrast 3.46
+  Audi             #F50537  contrast 4.33
+  Cadillac         #909090  contrast 5.74

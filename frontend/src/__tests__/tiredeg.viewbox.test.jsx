@@ -4,8 +4,7 @@
 // measure .deg-manager, so its viewBox was taller than the svg drawn and
 // preserveAspectRatio "meet" scaled the whole chart down: at the Tyres preset
 // at 1536 x 750 (box 548 x 480, a two-line note) every label read at 0.938 of
-// its size, 10.31 px data text and 9.38 px labels, under the floors
-// (notes/experiments/phase9c/verify_layout-charts_r2/tiredeg.viewbox.txt).
+// its size, 10.31 px data text and 9.38 px labels, under the floors.
 // The svg now fills .deg-plot, the row the note leaves, and that row is the
 // box it measures.
 //
@@ -97,7 +96,9 @@ describe('Tyre Degradation: the viewBox is the box the svg is drawn in', () => {
       host.remove();
       useF1Store.setState({ ...INITIAL });
     }
-  });
+    // the file's first mount (the view's modules warmed up): about 2 s alone,
+    // past the 5 s default when the machine is busy
+  }, 20000);
 
   it('CSS: the plot row takes what the note and the pit window leave, the svg is laid over it', () => {
     const rules = parseCss(fs.readFileSync(path.join(SRC, 'styles/visualizations.css'), 'utf8'));

@@ -10,7 +10,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/lap_noise_subclock.mjs
- * Writes notes/experiments/lap_noise_subclock.txt and prints the same text.
+ * Writes docs/evidence/lap_noise_subclock.txt and prints the same text.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,7 +22,7 @@ import { causalKey } from '../src/utils/strategyViews.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
-const OUT_FILE = path.resolve(ROOT, 'notes/experiments/lap_noise_subclock.txt');
+const OUT_FILE = path.resolve(ROOT, 'docs/evidence/lap_noise_subclock.txt');
 const s = JSON.parse(fs.readFileSync(path.resolve(ROOT, 'backend/data/processed_cache/session_2024_16_R.json'), 'utf8')
   .replace(/\bNaN\b/g, 'null'));
 const lt = s.lap_times;

@@ -14,7 +14,7 @@
  * The response names the method it served (method / method_label: the
  * method chosen on the validation races, backend/model/predict.py), every
  * method's held-out MAE (held_out.values, the test races of
- * notes/experiments/phase6/evaluate_forecast.txt) and lstm_note, which says
+ * docs/evidence/evaluate_forecast.txt) and lstm_note, which says
  * when the LSTM loses.
  *
  * store.lstmPredictions = null | { [driver]: entry }: one entry, the focus
@@ -31,14 +31,15 @@ export const FORECAST_LAPS = 5;
 /**
  * The held-out evaluation the help text quotes (utils/chartHelp.js
  * prediction): every number is copied from
- * notes/experiments/phase6/evaluate_forecast.txt (backend
+ * docs/evidence/evaluate_forecast.txt (backend
  * scripts/evaluate_forecast.py; __tests__/forecast.views.test.jsx checks each
- * one against that file). MAE in seconds over laps +1..+5, pooled; the method
+ * one against that file). source names the method's script for the help
+ * text, never a file path. MAE in seconds over laps +1..+5, pooled; the method
  * is chosen on the validation races, the test races give the held-out
  * numbers. A response carries its own held_out numbers (the served file).
  */
 export const FORECAST_EVALUATION = Object.freeze({
-  source: 'notes/experiments/phase6/evaluate_forecast.txt',
+  source: 'evaluate_forecast script',
   valRaces: 4,
   testRaces: 7,
   // pooled MAE, s

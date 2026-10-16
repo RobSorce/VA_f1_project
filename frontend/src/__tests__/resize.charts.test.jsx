@@ -162,5 +162,7 @@ describe('D4: every D3 view lays out again when its container is resized, labels
     } finally {
       await view.unmount();
     }
-  });
+    // the first view mounted warms the modules up: about 2 s alone, past the
+    // 5 s default when the machine is busy
+  }, 20000);
 });

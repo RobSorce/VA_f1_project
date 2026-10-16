@@ -1,5 +1,15 @@
 # Analytical Insights — São Paulo Grand Prix 2024 (Interlagos, R21)
 
+> **Status: to be re-derived after the 2026-10 fixes.** The numbers below
+> were computed with the dashboard's definitions before the October 2026
+> fixes: the degradation fit is now fuel-corrected and fitted on clean, green
+> stint laps only (`docs/DEGRADATION_METHODOLOGY.md`), the consistency σ is
+> now the pooled residual σ of the per-stint fits, and the lap-time forecast
+> model has been replaced. Re-running the steps below on the current code can
+> give other values. The LSTM insight, built on the disproved Monza forecast
+> table, has been removed, and so has a pit loss that was not measured (dated
+> notes below).
+
 Companion to `INSIGHTS_MONZA_2024.md` and `INSIGHTS_HUNGARY_2024.md`.
 Brazil 2024 is the **wet-race stress test** for the methodology. Every
 car was on Intermediates from lap 2, there was a red-flag restart, and
@@ -60,6 +70,10 @@ Compare to dry races from the same season:
 - HUL ranks σ-P1 only because he DNF'd early — fewer laps → artificially
   narrow σ. **The tool currently does not enforce a minimum-lap
   filter**, which is a documentable flaw exposed by this race.
+  (Correction, 2026-10-15: the Consistency panel now marks a driver with
+  fewer than 75 % of the most laps completed in the field as LOW DATA and
+  says his σ is not comparable: `LOW_DATA_FRACTION` in
+  `frontend/src/utils/views/degradationViews.js`, `ConsistencyPanel.jsx`.)
 
 ### Recommendation
 
@@ -112,53 +126,16 @@ alongside each slope, or (b) compute slope only on laps where
 
 ---
 
-## Insight 3 — LSTM MAE quantifies race unpredictability
+## Insight 3 — removed (LSTM error as a measure of race unpredictability)
 
-**Panel:** `RacePredictionPanel` / `POST /api/predict/lstm`.
-
-Same procedure as Monza/Hungary — 10-lap input window, 5-lap forecast.
-Brazil window: input L31–L40, forecast L41–L45 (spans the red-flag).
-
-Aggregate MAE comparison across all three races:
-
-| Race                 | Conditions        | Overall MAE (s) | Best driver MAE |
-|----------------------|-------------------|-----------------|-----------------|
-| Monza 2024 (R16)     | Dry, stable       | **0.74**        | LEC 0.19        |
-| Hungary 2024 (R13)   | Dry, high-deg     | 1.95            | HAM 0.39        |
-| Brazil 2024 (R21)    | **Wet + red flag**| **2.50**        | LEC 1.52        |
-
-Per-driver Brazil predictions vs actuals (note L41 and L42 were red-
-flag/restart laps of 125-143 seconds — predictable outliers):
-
-| Driver | MAE   | Comment                                  |
-|--------|-------|------------------------------------------|
-| LEC    | 1.52  | Best; steady pace post-restart           |
-| PIA    | 1.70  | Good                                     |
-| VER    | 2.16  | Attacking; big variance                  |
-| RUS    | 2.16  |                                          |
-| OCO    | 2.25  |                                          |
-| NOR    | 2.69  | Losing pace rapidly through mid-race     |
-| GAS    | 3.69  | Wet-track pace spike                     |
-| HAM    | 3.84  | Worst; variable pace, attacking          |
-
-### Why it matters
-
-- The LSTM MAE is a **proxy for race predictability**. It goes up
-  3.4× from Monza to Brazil without a single line of model code
-  changing.
-- The model correctly refuses to predict sub-90 s laps during the
-  red flag — predictions stay in the 82–95 s band while actuals spike
-  to 125–143 s. **That is a feature, not a bug**: the model does not
-  hallucinate implausible sequences outside its training distribution.
-- An operator watching the dashboard could therefore use *rising MAE*
-  as an operational indicator of "strategy is now guessing, not
-  modelling" — a useful signal.
-
-### Recommendation
-
-Surface a rolling LSTM MAE pill in the `RacePredictionPanel`: when
-> 2.0 s for three consecutive forecasts, display a "model confidence
-low — race volatile" annotation.
+Removed on 2026-10-15. This section compared the previous LSTM's overall error
+at Monza, Hungary and Brazil and read the rise from Monza to Brazil as a
+measure of race unpredictability. Its Monza value is the forecast table of
+`INSIGHTS_MONZA_2024.md` that the audit disproved and that has been removed.
+That model was trained on a random split of the forecast windows, not of the
+races (the comment on `EXTRA_TEST_RACES` in `backend/model/train.py`), and has
+been replaced; the served method and its held-out errors are in
+`docs/evidence/evaluate_forecast.txt` (`backend/scripts/evaluate_forecast.py`).
 
 ---
 
@@ -172,7 +149,9 @@ mechanism clearly:
 - L15–L28: VER's median lap ≈ 80.4 s, field median ≈ 81.8 s → **~1.4
   s/lap clean-air advantage**.
 - Red-flag restart at L29 neutralises pit-stop deltas, enabling VER to
-  convert raw pace into track position without the usual 22 s loss.
+  convert raw pace into track position without the usual pit-stop loss.
+  (Corrected on 2026-10-15: this line quoted a fixed pit-loss value that was
+  never measured for this race.)
 
 No tool-internal analytic is needed to *detect* this — the
 `LapDeltaChart` overlayed between VER and the midfield median makes
@@ -188,7 +167,6 @@ not merely retrodict.
 |----------------------|----------------------------|---------------------------|
 | Consistency σ        | Ranks winner near top-3    | **Ranks winner last**     |
 | Degradation slope    | Dominated by tyre wear     | **Dominated by drying**   |
-| LSTM MAE (5-lap)     | ~0.4–0.8 s                 | ~1.5–3.8 s                |
 | Pit-strategy viewer  | Reads 1-vs-2-stop          | Reads red-flag reset      |
 
 Each of these is a **falsifiable claim** about the tool, not a marketing
@@ -203,8 +181,10 @@ document the conditions under which each metric is safe to trust.
 |----------------------------|----------|----------|-------------------|
 | Hard-stint slope median    | −33 ms/L | +55 ms/L | n/a (intermediates)|
 | Consistency σ, winner rank | #1       | #2       | #17               |
-| LSTM overall MAE           | 0.74 s   | 1.95 s   | 2.50 s            |
 | Strategic narrative        | 1-stop wins | team orders | wet comeback |
+
+(Removed on 2026-10-15 from both tables: the rows of the previous LSTM's
+error, see Insight 3.)
 
 The same six endpoints produce these numbers. That reproducibility
 across three radically different race characters is the central VA

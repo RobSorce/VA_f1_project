@@ -70,7 +70,7 @@ const ROW_MAX = 28;
 const PAGER_H = 22;
 // Below this window height the legend (three lines in the 240-300 px
 // sidebar) opens from a "?" key in the header, so the 20 rows keep the room
-// (notes/experiments/v13_audit/layout_fit.mjs, Leaderboard sidebar)
+// (frontend/scripts/audit/layout_fit.mjs, Leaderboard sidebar)
 const LEGEND_POPOVER_VIEWPORT = '(max-height: 899px)';
 
 /* ── Column display modes ───────────────────────────────────────────── */

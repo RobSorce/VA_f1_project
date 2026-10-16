@@ -1002,7 +1002,7 @@ function ForecastChart({ focusDriver, lstmPredictions, lapTimes, currentLap, ses
 
     const allPoints = [...actualPoints, ...predPoints];
     // Band = ± the served method's held-out MAE (response held_out; test
-    // races of notes/experiments/phase6/evaluate_forecast.txt); none without it
+    // races of docs/evidence/evaluate_forecast.txt); none without it
     const mae = forecastHeldOutMae(pred);
     const band = predPoints.flatMap((d) => (mae != null ? [d.time - mae, d.time + mae] : []));
     const allTimes = [...allPoints.map((d) => d.time), ...band];

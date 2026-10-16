@@ -8,8 +8,7 @@
 // The verifier of round 1 found it read its container's width once inside the
 // draw effect, with no size in the effect's dependencies: drawn at 760 px,
 // shrunk to 456 px, the viewBox stayed "0 0 760 90" and its 12 labels read
-// 6.60 px on screen (notes/experiments/phase9c/verify_layout-charts_r1/
-// forecastChart.resize.txt).
+// 6.60 px on screen.
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import { installMiniDom } from './helpers/miniDom.js';
 

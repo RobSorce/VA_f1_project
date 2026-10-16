@@ -2,7 +2,7 @@
  * The Lap Times timing sheet fitted to its pane (components/visualizations/
  * LapTimeChart.jsx, columns TIMING_COLUMNS of ./lapTimeChart.js).
  *
- * No imports: notes/experiments/v13_audit/panel_fit.mjs loads this module in
+ * No imports: frontend/scripts/audit/panel_fit.mjs loads this module in
  * plain node. Pure functions, tested in __tests__/laptimes.fit.test.jsx.
  */
 
@@ -11,8 +11,7 @@
    clips (overflow hidden): at their 743 px of default widths (775 px with the
    gaps and the padding) the columns past the pane's right edge were cut with
    their values, no ellipsis and no scroll, in 7 of the 16 preset x viewport
-   cases (Gap, Tyre and Laps hidden at 1536 x 750 Pace, Lap Time cut by 6 px;
-   notes/experiments/phase9c/verify_layout-charts_r2/laptimes_sheet_width.txt).
+   cases (Gap, Tyre and Laps hidden at 1536 x 750 Pace, Lap Time cut by 6 px).
    Now the columns shrink to the pane, down to floors that keep every value
    whole; only a pane too narrow for the floors (a floating window near its
    420 px minimum) gives up whole columns, named in a "+N" header cell. */
@@ -27,7 +26,7 @@ export const TIMING_PAD_X = 6;
  * "◆1:21.123" 5.58 em, "+12.345" 4.2 em, "RET" 1.86 em; the widest surname,
  * HULKENBERG, 8.45 em in Formula1 Bold) or in px (the 3 px team bar, the
  * 16-20 px logo, the 14 px compound badge). Measured in
- * notes/experiments/phase9c/repair_r2/timing_floors.txt. A header label
+ * docs/evidence/timing_floors.txt. A header label
  * wider than its floor ends in an ellipsis (its full name in the title).
  */
 export const TIMING_FLOORS = Object.freeze({

@@ -70,8 +70,8 @@ DEMO_RACES = (
 )
 
 # Every FRAME_STEP-th replay frame is kept (0.4 s -> 0.8 s between frames).
-# ASSUMPTION: 2. Measured on the three demo races
-# (notes/experiments/phase9/demo/measure_frames.txt): every frame with whole
+# ASSUMPTION: 2. Measured on the three demo races (gzip size of the frames
+# at each step, a one-off measurement): every frame with whole
 # positions = 9.71 MB gzip in total, every 2nd = 5.02 MB, every 3rd = 3.40 MB;
 # 2 keeps the corners of the track map (a chord of 0.8 s) and half the size.
 FRAME_STEP = 2

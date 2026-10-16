@@ -4,7 +4,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/cod_backtest.mjs [--out <file>]
- * Writes notes/experiments/cod_backtest.txt (or the --out file, relative to
+ * Writes docs/evidence/cod_backtest.txt (or the --out file, relative to
  * frontend/) and prints the same text.
  *
  * Stops: every green stop as defined by the validation script (green_stops):
@@ -69,7 +69,7 @@ const CACHE_DIR = path.resolve(HERE, '../../backend/data/processed_cache');
 const OUT_ARG = process.argv.indexOf('--out');
 const OUT_FILE = OUT_ARG > 0
   ? path.resolve(process.argv[OUT_ARG + 1])
-  : path.resolve(HERE, '../../notes/experiments/cod_backtest.txt');
+  : path.resolve(HERE, '../../docs/evidence/cod_backtest.txt');
 const FALLBACK = 22.0; // the script's FALLBACK
 
 const pct = (k, n) => (n ? `${((100 * k) / n).toFixed(1)}%` : 'n/a');

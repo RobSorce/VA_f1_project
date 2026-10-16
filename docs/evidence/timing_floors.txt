@@ -1,0 +1,8 @@
+data 11 px: surname (weight 800) widest HULKENBERG 170.4 px, VERSTAPPEN 170.1, MAGNUSSEN 164.1; FL chip 50.1
+  sector "◆28.123" 48.2 px (4.38 em); lap "◆1:21.123" 61.4 (5.58 em); gap "+12.345" 46.2, "LEADER" 39.6; pos "RET" 20.5; laps "45" 13.2
+data 11.08 px: surname (weight 800) widest HULKENBERG 171.6 px, VERSTAPPEN 171.3, MAGNUSSEN 165.3; FL chip 50.1
+  sector "◆28.123" 48.5 px (4.38 em); lap "◆1:21.123" 61.8 (5.58 em); gap "+12.345" 46.5, "LEADER" 39.9; pos "RET" 20.6; laps "45" 13.3
+data 12.41 px: surname (weight 800) widest HULKENBERG 192.2 px, VERSTAPPEN 191.9, MAGNUSSEN 185.1; FL chip 50.1
+  sector "◆28.123" 54.1 px (4.36 em); lap "◆1:21.123" 69.0 (5.56 em); gap "+12.345" 52.1, "LEADER" 44.7; pos "RET" 23.1; laps "45" 14.9
+data 12.5 px: surname (weight 800) widest HULKENBERG 193.6 px, VERSTAPPEN 193.3, MAGNUSSEN 186.5; FL chip 50.1
+  sector "◆28.123" 54.5 px (4.36 em); lap "◆1:21.123" 69.5 (5.56 em); gap "+12.345" 52.5, "LEADER" 45.0; pos "RET" 23.2; laps "45" 15.0

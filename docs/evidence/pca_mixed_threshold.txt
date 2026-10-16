@@ -1,0 +1,64 @@
+PROGRESS_DEPENDENT_FEATURES = ['degradation_slope', 'pit_count', 'avg_stint_length', 'max_stint_length']; baseline 1000 draws, seed 20261014, quantile 0.95
+rules: former = unstratified, max over 12 features; round4 = stratified, max over 12; shipped = pca_compute.feature_differences (rows of two kinds: per-feature thresholds at a common level); np8 = stratified, max over the 8 features that are not progress-dependent
+
+== 1. power, synthetic: pace_delta_pct of 5 random rows of the race on screen shifted by delta matrix SDs; 60 selections per clock and delta (seed 3)
+clock              delta | pace flagged: former / round4 / shipped / np8 | median pace threshold: former / round4 / shipped / np8 | shipped level
+2024 R16 lap 20      1.5 |  53.3% /   0.0% /  55.0% /  91.7% | 1.355 / 2.160 / 1.356 / 1.096 | 0.994
+2024 R16 lap 20      2.0 | 100.0% /  23.3% /  96.7% / 100.0% | 1.363 / 2.160 / 1.632 / 1.270 | 0.994
+2024 R16 lap 20      2.5 | 100.0% /  75.0% / 100.0% / 100.0% | 1.368 / 2.160 / 1.938 / 1.501 | 0.994
+2024 R12 lap 15      1.5 |  43.3% /   0.0% /  63.3% /  81.7% | 1.389 / 2.247 / 1.248 / 1.056 | 0.992
+2024 R12 lap 15      2.0 |  86.7% /  21.7% /  88.3% / 100.0% | 1.389 / 2.247 / 1.530 / 1.183 | 0.992
+2024 R12 lap 15      2.5 | 100.0% /  55.0% / 100.0% / 100.0% | 1.389 / 2.247 / 1.819 / 1.421 | 0.992
+2025 R16 lap 24      1.5 |  78.3% /   0.0% /  96.7% / 100.0% | 1.418 / 2.304 / 1.458 / 1.157 | 0.993
+2025 R16 lap 24      2.0 | 100.0% /  25.0% / 100.0% / 100.0% | 1.418 / 2.304 / 1.721 / 1.379 | 0.994
+2025 R16 lap 24      2.5 | 100.0% /  88.3% / 100.0% / 100.0% | 1.418 / 2.304 / 2.057 / 1.611 | 0.994
+2024 R3 lap 26       1.5 |  61.7% /  11.7% /  75.0% /  96.7% | 1.430 / 1.846 / 1.333 / 1.100 | 0.993
+2024 R3 lap 26       2.0 |  96.7% /  70.0% / 100.0% / 100.0% | 1.430 / 1.846 / 1.632 / 1.334 | 0.993
+2024 R3 lap 26       2.5 | 100.0% / 100.0% / 100.0% / 100.0% | 1.430 / 1.846 / 1.954 / 1.587 | 0.993
+post-race            1.5 |  66.7% /  66.7% /  66.7% /  78.3% | 1.399 / 1.399 / 1.399 / 1.263 | -
+post-race            2.0 |  90.0% /  90.0% /  90.0% /  93.3% | 1.400 / 1.400 / 1.400 / 1.282 | -
+post-race            2.5 | 100.0% / 100.0% / 100.0% / 100.0% | 1.404 / 1.404 / 1.404 / 1.282 | -
+
+== 2. power, real lassos: the 5 rows of the race on screen lowest / highest in a feature that is not progress-dependent; is that feature flagged?
+  2024 R16 lap 20: 16 selections; flagged former 2, round4 0, shipped 13, np8 8
+  2024 R12 lap 15: 16 selections; flagged former 3, round4 0, shipped 11, np8 13
+  2025 R16 lap 24: 16 selections; flagged former 2, round4 0, shipped 9, np8 6
+  2024 R3 lap 26: 16 selections; flagged former 0, round4 0, shipped 11, np8 9
+  2024 R7 lap 30: 16 selections; flagged former 2, round4 1, shipped 11, np8 6
+  2025 R1 lap 20: 16 selections; flagged former 12, round4 0, shipped 13, np8 5
+  all: 96 selections; the selected feature flagged: former 21, round4 1, shipped 68, np8 47
+  2025 R1 lap 20, the 5 lowest in sector1_delta_pct: |g| 2.166; thresholds former 1.398, round4 3.878, shipped 1.651, np8 1.776; flagged former True, round4 False, shipped True, np8 True
+
+== 3. calibration on random selections (true difference 0): share with some feature flagged (a progress-dependent one); 150 per clock and type, seed 21
+race       lap live | L: round4 / shipped / np8 | M: round4 / shipped / np8 | F: round4 / shipped / np8
+2024 R3     12   18 | L:  1.3% (1.3%) /  8.0% (1.3%) /  1.3% (0.0%) | M:  4.0% (3.3%) /  4.0% (1.3%) /  4.0% (0.0%) | F:  5.3% (2.7%) /  2.7% (0.7%) /  5.3% (0.0%)
+2024 R3     26   17 | L:  0.0% (0.0%) /  2.0% (0.7%) /  5.3% (0.0%) | M:  5.3% (4.7%) /  3.3% (2.0%) /  4.0% (0.0%) | F:  5.3% (2.7%) /  5.3% (2.0%) /  6.0% (0.0%)
+2024 R3     44   17 | L:  0.7% (0.0%) /  6.7% (2.0%) /  9.3% (0.0%) | M:  6.0% (4.7%) /  2.7% (0.7%) /  4.7% (0.0%) | F:  7.3% (4.0%) /  9.3% (0.7%) /  8.0% (0.0%)
+2024 R12    10   19 | L:  0.0% (0.0%) /  8.7% (0.7%) /  7.3% (0.0%) | M:  3.3% (2.7%) /  3.3% (2.0%) /  3.3% (0.0%) | F:  4.0% (1.3%) /  4.7% (0.7%) /  6.0% (0.0%)
+2024 R12    23   19 | L:  3.3% (0.0%) /  8.7% (3.3%) /  3.3% (0.0%) | M:  5.3% (2.0%) /  6.7% (3.3%) /  6.7% (0.0%) | F:  5.3% (2.7%) /  6.0% (0.7%) /  4.7% (0.0%)
+2024 R12    39   18 | L:  5.3% (0.0%) /  3.3% (0.7%) /  5.3% (0.0%) | M:  3.3% (0.0%) /  4.0% (1.3%) /  4.0% (0.0%) | F:  4.7% (1.3%) /  4.0% (1.3%) /  5.3% (0.0%)
+2025 R6     11    0 | L: (too few rows of the race on screen) | M: (too few rows of the race on screen) | F:  4.0% (3.3%) /  4.0% (3.3%) /  4.0% (0.0%)
+2025 R6     26    0 | L: (too few rows of the race on screen) | M: (too few rows of the race on screen) | F:  6.7% (2.0%) /  6.7% (2.0%) /  6.7% (0.0%)
+2025 R6     43   16 | L:  3.3% (0.0%) /  6.7% (1.3%) /  5.3% (0.0%) | M:  5.3% (0.7%) /  4.7% (0.7%) /  4.7% (0.0%) | F:  6.0% (2.7%) /  5.3% (2.0%) /  7.3% (0.0%)
+2025 R16    11   19 | L:  0.0% (0.0%) /  6.7% (1.3%) /  6.7% (0.0%) | M:  6.7% (5.3%) /  8.7% (2.0%) /  6.0% (0.0%) | F:  4.0% (2.0%) /  5.3% (1.3%) /  4.7% (0.0%)
+2025 R16    24   19 | L:  1.3% (1.3%) /  4.0% (1.3%) /  4.0% (0.0%) | M:  2.0% (1.3%) /  4.0% (1.3%) /  4.7% (0.0%) | F:  8.7% (4.7%) /  6.0% (2.7%) /  8.7% (0.0%)
+2025 R16    40   18 | L:  0.7% (0.7%) /  8.0% (1.3%) /  3.3% (0.0%) | M:  2.0% (2.0%) /  6.0% (1.3%) /  4.7% (0.0%) | F:  6.0% (4.0%) /  7.3% (4.0%) /  4.0% (0.0%)
+  all clocks, type L: 1500 selections; some feature flagged (a progress-dependent one): round4 1.6% (0.3%), shipped 6.3% (1.4%), np8 5.1% (0.0%)
+  all clocks, type M: 1500 selections; some feature flagged (a progress-dependent one): round4 4.3% (2.7%), shipped 4.7% (1.6%), np8 4.7% (0.0%)
+  all clocks, type F: 1800 selections; some feature flagged (a progress-dependent one): round4 5.6% (2.8%), shipped 5.6% (1.8%), np8 5.9% (0.0%)
+
+   post-race (one kind): random selections, 200 per size (seed 7); shipped vs round4 (the same rule)
+  size  2: some feature flagged: round4 5.0%, shipped 5.0%
+  size  5: some feature flagged: round4 3.0%, shipped 3.0%
+  size 10: some feature flagged: round4 3.0%, shipped 3.0%
+  size 20: some feature flagged: round4 3.5%, shipped 3.5%
+  post-race flags and thresholds identical to round4: True
+
+== 4. checks
+  synthetic: shipped flags pace at least as often as round4 at every clock and delta: True
+  real lassos: shipped flags more than round4: True
+  type L: shipped share <= 7.5%: True
+  type M: shipped share <= 7.5%: True
+  type F: shipped share <= 7.5%: True
+  post-race: the rule is unchanged: True
+  all checks pass: True

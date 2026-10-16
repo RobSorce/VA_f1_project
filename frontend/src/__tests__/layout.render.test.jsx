@@ -136,7 +136,7 @@ describe('no hex literal for a semantic colour in the layout views', () => {
 // the focus cards (an inline height of 20 rows in an overflow-hidden wrapper,
 // no scroll, no pager). The rows now fit or page (fitRows / pageOf) and the
 // cards stay collapsed below 1200 px of window height, "Details" laying them
-// over the sidebar (notes/experiments/phase9/repair3/leaderboard_sidebar_fit.txt).
+// over the sidebar (docs/evidence/leaderboard_sidebar_fit.txt).
 describe.skipIf(!haveMonza)('Analyse sidebar: Leaderboard rows and the focus cards', () => {
   const withMatchMedia = (matches, fn) => {
     const saved = globalThis.window;

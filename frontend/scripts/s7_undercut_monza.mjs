@@ -24,7 +24,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/s7_undercut_monza.mjs
- * Writes notes/experiments/phase45c/s7_undercut_monza.txt and prints the same text.
+ * Writes docs/evidence/s7_undercut_monza.txt and prints the same text.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -44,7 +44,7 @@ import { perturbFuture } from '../src/utils/__tests__/futureRows.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
 const CACHE = path.resolve(ROOT, 'backend/data/processed_cache');
-const OUT_FILE = path.resolve(ROOT, 'notes/experiments/phase45c/s7_undercut_monza.txt');
+const OUT_FILE = path.resolve(ROOT, 'docs/evidence/s7_undercut_monza.txt');
 const load = (f) => JSON.parse(fs.readFileSync(path.join(CACHE, f), 'utf8').replace(/\bNaN\b/g, 'null'));
 const monza = load('session_2024_16_R.json');
 const lt = monza.lap_times;

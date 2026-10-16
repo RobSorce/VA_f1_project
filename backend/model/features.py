@@ -9,7 +9,7 @@ or live rows of the same shape) of ONE driver, at a clock:
  1. the driver's rows completed at session_now (data/processors/degradation.py
     _is_lap_completed, the rule of isLapCompleted in raceTime.js), optionally
     capped at lap ``lap``; the origin lap is the last of them. Nothing after
-    the clock is read (DECISIONS.md R3 / R6).
+    the clock is read (decisions R3 / R6).
  2. the clean laps of those rows: clean_stint_laps of degradation.py (stints
     of build_tyre_strategy, green only, no lap 1, no in-lap or out-lap, no
     slow outlier), the definition shared with the degradation fits.
@@ -50,7 +50,7 @@ MIN_WINDOW_LAPS = 3
 # the value of the leader and of a row without a gap. ASSUMPTION: 30 s is
 # above every DRS / dirty-air range and around a pit loss (an undercut
 # target); 95% of the clean-lap gaps of the cached races are below 17.1 s
-# (notes/experiments/phase6/features_profile.txt).
+# (a profile of the cached races' features).
 GAP_AHEAD_CAP_S = 30.0
 
 # Track temperature when no weather row is in force (the frontend fallback)
@@ -233,7 +233,7 @@ def rows_from_legacy_laps(last_laps, driver=None, current_lap=None):
     fuel_estimate, track_temp, drs, lap_number) so that build_window reads
     them like cached rows. The dicts carry no track status, pit times or
     clock: every lap is taken as green and completed, and a stop is inferred
-    from the tyres (DECISIONS.md R2: a stop is a tyre change): between two
+    from the tyres (decision R2: a stop is a tyre change): between two
     consecutive laps with a TyreLife each, a tyre change (stints.py
     is_tyre_change) marks the earlier lap as the in-lap and the later as the
     out-lap (PitInTime / PitOutTime True). lap_number missing: the laps are

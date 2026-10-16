@@ -1,0 +1,6 @@
+worse #F0883E on panel #131326: alpha 0.22 -> 1.44:1; 3:1 from alpha 0.56
+worse #F0883E on raised #1A1F33: alpha 0.22 -> 1.45:1; 3:1 from alpha 0.58
+worse #F0883E on elevated #242938: alpha 0.22 -> 1.45:1; 3:1 from alpha 0.62
+better #5DA5E8 on panel #131326: alpha 0.22 -> 1.45:1; 3:1 from alpha 0.56
+better #5DA5E8 on raised #1A1F33: alpha 0.22 -> 1.47:1; 3:1 from alpha 0.58
+better #5DA5E8 on elevated #242938: alpha 0.22 -> 1.46:1; 3:1 from alpha 0.62

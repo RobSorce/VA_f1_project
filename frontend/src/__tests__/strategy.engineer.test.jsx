@@ -4,7 +4,7 @@
 //  - the risk chip carries its severity glyph and word (!! / ! / i), never
 //    green / amber / red alone; the pace trend its arrow and sign;
 //  - the briefing's projected finish is the Monte Carlo MEDIAN (the Race
-//    Prediction P label), not the mean (minor_backlog_45c: "→ P6.6" vs P5);
+//    Prediction P label), not the mean (it once read "→ P6.6" beside a P5 label);
 //  - the MOCK chip's tooltip names the heuristic fallback and its causes;
 //  - no colour literal, no fixed pixel font size in the panel.
 import { describe, it, expect, vi } from 'vitest';

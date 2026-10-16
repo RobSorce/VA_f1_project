@@ -1,0 +1,77 @@
+S7, Monza 2024 (2024 R16): the undercut sweep (utils/undercut.js undercutSweep)
+rows: the lap in progress and the next 15 (UNDERCUT_SWEEP_LAPS, display only); every row read at the race end (D2); stint feasibility: P90 stint length (STINT_FEASIBLE_QUANTILE, a modelling choice)
+
+1. Real stops (in-laps)
+  NOR: L14, L32
+  LEC: L15
+  PIA: L16, L38
+
+2. Estimates at the time (causal): best in-lap at the end of laps 8-13 (H = the race end; real first stops NOR L14, LEC L15, PIA L16)
+  LEC vs PIA: L8->L19 L9->L19 L10->L19 L11->L19 L12->L19 L13->L19
+  PIA vs LEC: L8->L19 L9->L19 L10->L19 L11->L19 L12->L19 L13->L19
+  NOR vs PIA: L8->L19 L9->L19 L10->L19 L11->L19 L12->L19 L13->L19
+  PIA vs NOR: L8->L19 L9->L19 L10->L19 L11->L19 L12->L19 L13->L19
+  NOR vs LEC: L8->L19 L9->L19 L10->L19 L11->L19 L12->L19 L13->L19
+  LEC vs NOR: L8->L19 L9->L19 L10->L19 L11->L19 L12->L19 L13->L19
+  cases 36; best in L14-16: 0; rows all distinct (rows differ by pit lap): 36/36
+
+3. Whole race's estimates (hindsight): best in-lap at the end of laps 8-13 (H = the race end; real first stops NOR L14, LEC L15, PIA L16)
+  LEC vs PIA: L8->L24 L9->L25 L10->L26 L11->L26 L12->L26 L13->L26
+  PIA vs LEC: L8->L24 L9->L25 L10->L26 L11->L26 L12->L26 L13->L26
+  NOR vs PIA: L8->L24 L9->L25 L10->L26 L11->L26 L12->L26 L13->L26
+  PIA vs NOR: L8->L24 L9->L25 L10->L26 L11->L26 L12->L26 L13->L26
+  NOR vs LEC: L8->L24 L9->L25 L10->L26 L11->L26 L12->L26 L13->L26
+  LEC vs NOR: L8->L24 L9->L25 L10->L26 L11->L26 L12->L26 L13->L26
+  cases 36; best in L14-16: 0; rows all distinct (rows differ by pit lap): 36/36
+
+4. Why: the inputs at each clock (LEC vs PIA) and the closed-form wear balance of the lap model
+   balance: the first in-lap p with dM x (a0 + p - n + 2) >= dH x (H - p), a0 = tyre age after lap n (stopping one lap
+   later adds one in-lap on the old set and an out-lap at its time, and takes one lap off the new set before the flag)
+  end of L8: H L53 (race-end); MEDIUM +0.0282 s/lap (prior, n 470), HARD +0.0174 s/lap (prior, n 542), ratio 1.62; fresh-tyre delta -0.140 s (prior, n 0); stint life MEDIUM median 23 / P90 39 (race), HARD median 38 / P90 66 (race)
+     LEC MEDIUM age 8 after lap 8: balance p = L19; sweep best L19 (-0.43 s at the flag, change +0.46 s); a best lap of L15 needs MEDIUM / HARD = 2.24
+     rows: L9 -2.96 | L10 -2.47 | L11 -2.06 | L12 -1.70 | L13 -1.38 | L14 -1.11 | L15 -0.88 | L16 -0.70 | L17 -0.56 | L18 -0.47 | L19 -0.43 | L20 -0.43 | L21 -0.47 | L22 -0.57 | L23 -0.70 | L24 -0.89
+     rival PIA: in-lap L24 (race), extra stops 0
+  end of L9: H L53 (race-end); MEDIUM +0.0282 s/lap (prior, n 470), HARD +0.0174 s/lap (prior, n 542), ratio 1.62; fresh-tyre delta -0.140 s (prior, n 0); stint life MEDIUM median 24 / P90 40 (race), HARD median 39 / P90 66 (race)
+     LEC MEDIUM age 9 after lap 9: balance p = L19; sweep best L19 (-0.14 s at the flag, change +0.73 s); a best lap of L15 needs MEDIUM / HARD = 2.24
+     rows: L10 -2.22 | L11 -1.78 | L12 -1.41 | L13 -1.10 | L14 -0.82 | L15 -0.60 | L16 -0.41 | L17 -0.28 | L18 -0.19 | L19 -0.14 | L20 -0.14 | L21 -0.19 | L22 -0.28 | L23 -0.42 | L24 -0.60 | L25 -0.83
+     rival PIA: in-lap L25 (race), extra stops 0
+  end of L10: H L53 (race-end); MEDIUM +0.0282 s/lap (prior, n 470), HARD +0.0174 s/lap (prior, n 542), ratio 1.62; fresh-tyre delta -0.140 s (prior, n 0); stint life MEDIUM median 24 / P90 40 (race), HARD median 39 / P90 66 (race)
+     LEC MEDIUM age 10 after lap 10: balance p = L19; sweep best L19 (-1.23 s at the flag, change -0.00 s); a best lap of L15 needs MEDIUM / HARD = 2.24
+     rows: L11 -2.89 | L12 -2.50 | L13 -2.18 | L14 -1.91 | L15 -1.68 | L16 -1.50 | L17 -1.36 | L18 -1.27 | L19 -1.23 | L20 -1.23 | L21 -1.28 | L22 -1.37 | L23 -1.51 | L24 -1.69 | L25 -1.92 | L26 -2.19
+     rival PIA: in-lap L25 (race), extra stops 0
+  end of L11: H L53 (race-end); MEDIUM +0.0282 s/lap (prior, n 470), HARD +0.0174 s/lap (prior, n 542), ratio 1.62; fresh-tyre delta -0.140 s (prior, n 0); stint life MEDIUM median 23 / P90 39 (race), HARD median 39 / P90 66 (race)
+     LEC MEDIUM age 11 after lap 11: balance p = L19; sweep best L19 (-3.62 s at the flag, change -1.79 s); a best lap of L15 needs MEDIUM / HARD = 2.24
+     rows: L12 -4.92 | L13 -4.57 | L14 -4.30 | L15 -4.07 | L16 -3.89 | L17 -3.75 | L18 -3.66 | L19 -3.62 | L20 -3.62 | L21 -3.67 | L22 -3.76 | L23 -3.89 | L24 -4.08 | L25 -4.31 | L26 -4.58 | L27 -4.90
+     rival PIA: in-lap L25 (race), extra stops 0
+  end of L12: H L53 (race-end); MEDIUM +0.0282 s/lap (prior, n 470), HARD +0.0174 s/lap (prior, n 542), ratio 1.62; fresh-tyre delta -0.140 s (prior, n 0); stint life MEDIUM median 21 / P90 38 (race), HARD median 39 / P90 66 (race)
+     LEC MEDIUM age 12 after lap 12: balance p = L19; sweep best L19 (-8.99 s at the flag, change -6.99 s); a best lap of L15 needs MEDIUM / HARD = 2.24
+     rows: L13 -9.97 | L14 -9.67 | L15 -9.44 | L16 -9.26 | L17 -9.12 | L18 -9.03 | L19 -8.99 | L20 -8.99 | L21 -9.03 | L22 -9.13 | L23 -9.26 | L24 -9.45 | L25 -9.68 | L26 -9.95 | L27 -10.27 | L28 -10.64
+     rival PIA: in-lap L26 (race), extra stops 0
+  end of L13: H L53 (race-end); MEDIUM +0.0282 s/lap (prior, n 470), HARD +0.0174 s/lap (prior, n 542), ratio 1.62; fresh-tyre delta -0.140 s (prior, n 0); stint life MEDIUM median 15 / P90 36 (race), HARD median 40 / P90 66 (race)
+     LEC MEDIUM age 13 after lap 13: balance p = L19; sweep best L19 (-20.73 s at the flag, change -17.88 s); a best lap of L15 needs MEDIUM / HARD = 2.24
+     rows: L14 -21.44 | L15 -21.19 | L16 -21.01 | L17 -20.87 | L18 -20.78 | L19 -20.73 | L20 -20.73 | L21 -20.78 | L22 -20.87 | L23 -21.01 | L24 -21.19 | L25 -21.42 | L26 -21.70 | L27 -22.01 | L28 -22.38 | L29 -22.79
+     rival PIA: in-lap L26 (race), extra stops 0
+
+5. The horizon is the race end: the table length and the rival's stop do not move it (LEC vs PIA, end of L10)
+  sweepLaps  5: rows  6, H L53, best L16 (-1.50 s); rows equal to the 60-lap table's: true
+  sweepLaps 10: rows 11, H L53, best L19 (-1.23 s); rows equal to the 60-lap table's: true
+  sweepLaps 15: rows 16, H L53, best L19 (-1.23 s); rows equal to the 60-lap table's: true
+  sweepLaps 20: rows 21, H L53, best L19 (-1.23 s); rows equal to the 60-lap table's: true
+  sweepLaps 30: rows 31, H L53, best L19 (-1.23 s); rows equal to the 60-lap table's: true
+  sweepLaps 60: rows 42, H L53, best L19 (-1.23 s); rows equal to the 60-lap table's: true
+  rival in-lap L12: H L53, best L19 (-0.64 s at the flag); first rows minus row 1: 0.000 0.392 0.711 0.984 1.211 1.393
+  rival in-lap L14: H L53, best L19 (-1.24 s at the flag); first rows minus row 1: 0.000 0.392 0.711 0.984 1.211 1.393
+  rival in-lap L16: H L53, best L19 (-1.65 s at the flag); first rows minus row 1: 0.000 0.392 0.711 0.984 1.211 1.393
+  rival in-lap L20: H L53, best L19 (-1.92 s at the flag); first rows minus row 1: 0.000 0.392 0.711 0.984 1.211 1.393
+  rival in-lap L25: H L53, best L19 (-1.23 s at the flag); first rows minus row 1: 0.000 0.392 0.711 0.984 1.211 1.393
+
+6. D4: a chosen rival stop that is no longer one
+  end of LEC L10: choose PIA L16 (PIA stints 1): rival stop chosen L16
+  end of LEC L20 (PIA stints 2): rival stop race L51; expired choice L16 (past)
+  choose PIA L40 at the end of LEC L10, then the end of LEC L20 (PIA has changed tyres at L16): rival stop race L51; expired choice L40 (tyre-change)
+
+7. D3: pit-lane visits with no tyre change, and the pit lane read causally
+  2024 R22 t = 4518.3 s: OCO tyre state: MEDIUM age 11 after lap 11, fitted none, in the pit lane false, stints 1
+  focus HUL vs OCO: rival stop in progress; new set modelled for OCO: none (keeps its set)
+  focus LEC vs OCO: rival stop in progress; new set modelled for OCO: none (keeps its set)
+  every cached race, tyre changes with the pit exit after the in-lap's line: clocks 837 (half way from the line to the exit); in the pit lane 837; tyre state differs with the future rows rewritten: 0

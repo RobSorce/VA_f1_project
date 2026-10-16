@@ -6,7 +6,7 @@
  * checks that both give the same laps and the same fits (to 1e-9) on every
  * cached race. docs/DEGRADATION_METHODOLOGY.md describes it; its numbers come
  * from scripts/degradation_definition.mjs
- * (notes/experiments/degradation_definition_monza.txt).
+ * (docs/evidence/degradation_definition_monza.txt).
  *
  * Clean stint laps (cleanStintLaps), per stint of stints.js:
  *  1. the stints are deriveStints of the laps completed at sessionNow (the

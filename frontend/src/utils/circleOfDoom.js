@@ -50,7 +50,7 @@
  * 0 = pit-lane start, after every slot). Over the 30 cached races, 1, 5 and
  * 15 s after the first crossing, this order matches the order in which those
  * cars then cross the line for 82.8 % of the places (994), mean error 0.26
- * places (grid only: 38.1 %; notes/experiments/repair_cod2/lap1_order.py).
+ * places (grid only: 38.1 %; a one-off check over the cached races).
  * A car on lap 1 whose place the data leave open (no timing point passed and
  * no grid slot, or tied with another car on every key) has position null.
  *
@@ -94,7 +94,7 @@
  * projected crossings): a rival that takes the chequered flag before lap m
  * never completes it and is not counted ahead (crossing Infinity), as the
  * script counts only the cars with a lap n + 1 Time.
- * Backtest (frontend/scripts/cod_backtest.mjs, notes/experiments/cod_backtest.txt,
+ * Backtest (frontend/scripts/cod_backtest.mjs, docs/evidence/cod_backtest.txt,
  * 709 green stops of 30 races, prediction at the end of lap n - 1): fed the
  * script's inputs, rankByCrossing gives the script's 71 % exact / 88 % within
  * one place; the causal window gives 46.7 % / 72.8 %. The gap is the rivals'

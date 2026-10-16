@@ -7,8 +7,7 @@
 //
 // Round 1 found "GAP TO FASTEST" 121.4 px in its 96 px column at 11 px
 // (136.9 px at 12.41 px), "TEAM" 42.4-47.9 px in 38 and "LAPS" 41.4 px in 38
-// at 12.41 px, cut without an ellipsis or a title
-// (notes/experiments/phase9c/layout/laptimes_header_widths.txt).
+// at 12.41 px, cut without an ellipsis or a title.
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import { installMiniDom } from './helpers/miniDom.js';
 import { haveFormula1, textWidth } from './helpers/fontWidths.js';

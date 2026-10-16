@@ -1,7 +1,6 @@
 """Live timing pipeline (live/data_normalizer.py through LiveSessionManager)
 on real-format messages. The formats are those of the recorded live-timing
-files of the 2024 Italian GP race (FastF1 http cache; notes/experiments/
-phase8/live_B/probe_raw_formats.txt): Position is a string, NumberOfLaps an
+files of the 2024 Italian GP race (FastF1 http cache): Position is a string, NumberOfLaps an
 int and LastLapTime arrives with it; the leader's GapToLeader is 'LAP <n>', a
 lapped car's '1L' or '1 L'; TimingAppData's first Stints and
 RaceControlMessages' first Messages are lists, later ones dicts."""
@@ -176,7 +175,7 @@ def test_mid_race_stint_snapshot_places_past_stints_on_their_laps():
 def test_used_tyres_and_same_set_passes_count_laps_not_stints():
     """Laps of a feed stint = TotalLaps - StartLaps (the set's age now minus
     when fitted). TyresNotChanged '1' (a pit-lane pass on the same set,
-    recorded 2024 R4 red flag) is not a new stint (DECISIONS.md R1), but its
+    recorded 2024 R4 red flag) is not a new stint (decision R1), but its
     laps count."""
     m = manager()
     send(m, "TimingAppData", lines(**{"81": {"Stints": [

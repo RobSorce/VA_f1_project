@@ -1,0 +1,28 @@
+F8 / D7 focus + context (dark theme, on the panel #131326)
+INFO ConsistencyPanel cards (card opacity 0.35 not selected / 0.5 other hovered / 0.55 low data), muted text: 2.00 / 2.82 / 3.14:1, secondary: 2.45 / 3.73 / 4.24:1 (ConsistencyPanel.jsx is not in this lane: left to its owner)
+OK   RacePaceGrid context header (secondary on the 25 % team tint, worst team)      before 2.45  after 6.05  (needs 3)
+OK   RacePaceGrid context cell (muted, no opacity)                                  before    -   after 7.63  (needs 3)
+OK   CircleOfDoom context ring label (muted, no opacity)                            before    -   after 7.63  (needs 3)
+OK   CircleOfDoom context leader line (contextColor of the leader grey)             before 1.25  after 2.01  (needs 2)
+OK   ChampionshipStandings context bar, worst of 45 (Red Bull Racing)               before 1.13  after 2.00  (needs 2)
+OK   ChampionshipStandings teammate dash on a context bar, worst                    before    -   after 2.48  (needs 2)
+OK   ChampionshipStandings context name / points (muted)                            before    -   after 7.63  (needs 3)
+OK   LapTimeChart forecast row tyre letter on its badge, worst compound             before 1.77  after 4.85  (needs 4.5)
+OK   LapTimeChart forecast row tyre badge on the row, worst compound                before    -   after 2.04  (needs 2)
+OK   LapTimeChart retired row text (retired grey, no opacity)                       before    -   after 7.63  (needs 3)
+
+F11 / D10 small contrast items
+OK   search field boundary on the field                                             before 1.28  after 4.52  (needs 3)
+OK   search field boundary on the weather bar                                       before 1.32  after 4.64  (needs 3)
+OK   search field focus boundary                                                    before 2.25  after 14.92  (needs 3)
+OK   welcome toast bottom at 1536x750: 96.5 px, top of the bottom chrome 88.5 px (before: 72 px, inside the timeline row)
+OK   welcome toast bottom at 1366x768: 98.6 px, top of the bottom chrome 90.6 px (before: 72 px, inside the timeline row)
+OK   welcome toast bottom at 1920x1080: 108.0 px, top of the bottom chrome 100.0 px (before: 72 px, inside the timeline row)
+OK   welcome toast bottom at 2048x1100: 108.0 px, top of the bottom chrome 100.0 px (before: 72 px, inside the timeline row)
+OK   light-theme muted text on #F7F6F3 (#6B7280 -> var(--color-text-muted) #5F6673) before 4.47  after 5.35  (needs 4.5)
+OK   light-theme muted text on #FFFFFF (#6B7280 -> var(--color-text-muted) #5F6673) before 4.83  after 5.78  (needs 4.5)
+OK   light-theme muted text on #EFEEE9 (#6B7280 -> var(--color-text-muted) #5F6673) before 4.16  after 4.97  (needs 4.5)
+OK   light-theme muted text on #E8E7E1 (#6B7280 -> var(--color-text-muted) #5F6673) before 3.90  after 4.66  (needs 4.5)
+OK   light-theme rules still in #6B7280: 0 (24 before)
+
+all pass

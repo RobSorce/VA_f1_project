@@ -1,0 +1,23 @@
+Dock fit at the V13 target viewports (dashboard.css .bottom-tab-bar rules, Formula1 Bold metrics), 2026-10-16
+
+== 1536x750 == bar max-width 1400.0 px; label 10.00 px, button padding 14 px, fixed labels shown; gap 2, bar padding 6 + border 0.5 each side, divider 1 + 6 + 6
+  default dock (10 items): all buttons 1489.7 px -> 8 of 10 on the bar + ⋯, row 1272.7 px <= 1400.0 fits
+  every view (25 items): all buttons 3573.1 px -> 8 of 25 on the bar + ⋯, row 1272.7 px <= 1400.0 fits
+  before 9c (measured once with the fallback font): 10 of 10 shown (fallback row 1292.5 px); with the Formula1 labels that row is 1489.7 px, 89.7 px wider than the bar: the first and last buttons cut (centred row)
+
+== 1366x768 == bar max-width 1230.0 px; label 10.08 px, button padding 10 px, fixed labels hidden; gap 2, bar padding 6 + border 0.5 each side, divider 1 + 6 + 6
+  default dock (10 items): all buttons 1303.1 px -> 9 of 10 on the bar + ⋯, row 1220.6 px <= 1230.0 fits
+  every view (25 items): all buttons 3279.1 px -> 9 of 25 on the bar + ⋯, row 1220.6 px <= 1230.0 fits
+  before 9c (measured once with the fallback font): 10 of 10 shown (fallback row 1131.9 px); with the Formula1 labels that row is 1303.1 px, 73.1 px wider than the bar: the first and last buttons cut (centred row)
+
+== 1920x1080 == bar max-width 1784.0 px; label 11.41 px, button padding 14 px, fixed labels shown; gap 2, bar padding 6 + border 0.5 each side, divider 1 + 6 + 6
+  default dock (10 items): all buttons 1641.6 px -> 10 of 10 on the bar, row 1641.6 px <= 1784.0 fits
+  every view (25 items): all buttons 3956.0 px -> 10 of 25 on the bar + ⋯, row 1681.6 px <= 1784.0 fits
+  before 9c (measured once with the fallback font): 10 of 10 shown (fallback row 1415.8 px); with the Formula1 labels that row is 1641.6 px, fits
+
+== 2048x1100 == bar max-width 1912.0 px; label 11.50 px, button padding 14 px, fixed labels shown; gap 2, bar padding 6 + border 0.5 each side, divider 1 + 6 + 6
+  default dock (10 items): all buttons 1650.7 px -> 10 of 10 on the bar, row 1650.7 px <= 1912.0 fits
+  every view (25 items): all buttons 3979.0 px -> 11 of 25 on the bar + ⋯, row 1807.7 px <= 1912.0 fits
+  before 9c (measured once with the fallback font): 10 of 10 shown (fallback row 1423.3 px); with the Formula1 labels that row is 1650.7 px, fits
+
+The dock row fits its bar at the four viewports (default dock and every view).

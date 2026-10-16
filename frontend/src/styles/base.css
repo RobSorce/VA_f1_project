@@ -13,7 +13,7 @@
 html {
   /* Fluid root — scales the rem-based chrome from 16 px at a 1920 px wide
      viewport down to 13 px at 1280, then clamps (14.08 px at 1536, 13.23 px
-     at 1366: notes/experiments/phase9/layout_font_floor_after.txt). Text
+     at 1366: docs/evidence/font_floor.txt). Text
      sizes never go under the type floors of tokens.css whatever the root. */
   font-size: clamp(13px, calc(6.4px + 0.5vw), 16px);
   -webkit-font-smoothing: antialiased;
@@ -26,7 +26,7 @@ html {
    the few panels whose content outgrows them scroll inside themselves, each
    justified in docs/SCROLL_JUSTIFICATIONS.md. The old page-scroll fallback
    below 1440 x 900 is gone: it let the Pit Wall grow to its lap table, a
-   1896 px page at 1536 x 750 (notes/experiments/v13_audit/findings_2026-10-14.md). */
+   1896 px page at 1536 x 750 (docs/evidence/browser_audit_2026-10-14.md). */
 html,
 body {
   overflow: hidden;

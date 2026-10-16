@@ -34,7 +34,7 @@ since). An LSTM whose model_config.json has no race split cannot be
 evaluated on held-out races: the run is refused.
 
 Run from backend/ (seeded, deterministic):
-  python -m scripts.evaluate_forecast > ../notes/experiments/phase6/evaluate_forecast.txt
+  python -m scripts.evaluate_forecast [--out ../docs/evidence/evaluate_forecast.txt]
 """
 import datetime
 import json
@@ -334,4 +334,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    from scripts.evidence_out import pop_out, tee_stdout
+    with tee_stdout(pop_out(sys.argv[1:])[0]):
+        main()

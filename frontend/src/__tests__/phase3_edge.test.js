@@ -1,6 +1,4 @@
-// Phase 3 edge cases, store side (decisions R4, R7, R8 of
-// notes/experiments/phase3_round1/DECISIONS.md; probes and their outputs in
-// notes/experiments/phase3_edge/):
+// Phase 3 edge cases, store side (decisions R4, R7, R8):
 //  - P3a: a live -> replay switch starts a new load generation before anything
 //    is awaited, so a live entry still in flight never lands nor reconnects
 //    the feed, and a live message delivered after the switch is dropped;

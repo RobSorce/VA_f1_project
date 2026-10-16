@@ -4,7 +4,7 @@
 // session badge) and the new layout chrome (docked pane tabs, Pit Wall session
 // bar), each against the surface it is drawn on, read from the CSS as
 // written: >= 4.5:1 (WCAG 2.1 SC 1.4.3; 3:1 for large text).
-// The full chrome sweep is notes/experiments/v13_audit/chrome_contrast.mjs.
+// The full chrome sweep is frontend/scripts/audit/chrome_contrast.mjs.
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

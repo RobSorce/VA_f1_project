@@ -1,0 +1,21 @@
+matrix: 534 rows, 30 races; rows at the clock just after the leader completed 25%, 50%, 75% of the laps vs the same race's post-race rows (same drivers)
+races used per share: 25% 29, 50% 29, 75% 30
+shift = mean at the clock minus post-race mean, in SDs of the feature over the matrix; ratio = SD at the clock / post-race SD; medians over the races
+criterion: median |shift| >= 0.5 or median ratio outside [0.50, 2.00] at some share
+feature                    shift 25%  |shift| 25%   ratio 25%   shift 50%  |shift| 50%   ratio 50%   shift 75%  |shift| 75%   ratio 75%
+pace_delta_pct                 0.040        0.182        0.90       0.003        0.157        1.04      -0.003        0.066        1.01
+best_lap_delta_pct            -0.025        0.128        0.77      -0.099        0.184        0.83       0.014        0.174        0.94
+recent_pace_delta_pct         -0.138        0.179        0.82      -0.192        0.260        1.07      -0.138        0.270        1.08
+sector1_delta_pct             -0.070        0.164        1.04      -0.001        0.094        0.98       0.007        0.083        1.01
+sector2_delta_pct             -0.058        0.124        1.03      -0.086        0.120        1.04      -0.042        0.087        1.01
+sector3_delta_pct              0.037        0.172        1.01      -0.010        0.127        1.01      -0.074        0.093        1.01
+consistency_pct               -0.195        0.214        1.19      -0.122        0.146        1.08      -0.040        0.065        1.09
+degradation_slope             -0.025        0.380        2.49       0.039        0.166        1.76       0.000        0.060        1.35
+pit_count                     -1.984        1.984        0.88      -0.977        0.977        0.88      -0.150        0.150        0.96
+avg_stint_length              -1.752        1.752        0.69      -1.051        1.051        1.23      -0.828        0.828        0.72
+max_stint_length              -1.879        1.879        0.27      -0.864        0.864        0.71      -0.515        0.515        0.84
+grid_position                  0.000        0.000        1.00       0.000        0.000        1.00       0.000        0.000        1.00
+
+features meeting the criterion: ['degradation_slope', 'pit_count', 'avg_stint_length', 'max_stint_length']
+pca_compute.PROGRESS_DEPENDENT_FEATURES: ['degradation_slope', 'pit_count', 'avg_stint_length', 'max_stint_length']
+same set: True

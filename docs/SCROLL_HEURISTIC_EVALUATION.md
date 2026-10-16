@@ -10,13 +10,13 @@ The evaluation below is the record of the first review. Its Tier 1 item 1
 (page scroll below 1440 × 900) was applied and has since been **withdrawn**:
 on a 1536 × 750 window (a 1920 × 1080 screen at 125 % scaling) it let the
 Pit Wall grow to its lap table, a 1896 px page
-(`notes/experiments/v13_audit/findings_2026-10-14.md`). The dashboard is now a
+(`docs/evidence/browser_audit_2026-10-14.md`). The dashboard is now a
 fixed-viewport layout at every supported size: the page never scrolls, the
 chrome rows shrink with the viewport height, every grid track is
 `minmax(0, …)` or has a cell with `min-height: 0`, and the few areas that keep
 an internal scroll are each justified in `docs/SCROLL_JUSTIFICATIONS.md`.
 Static checks at 1536 × 750, 1366 × 768, 1920 × 1080 and 2048 × 1100:
-`notes/experiments/v13_audit/layout_fit.mjs` and
+`frontend/scripts/audit/layout_fit.mjs` and
 `frontend/src/__tests__/layout.viewport.test.js`.
 
 | ID | Original finding | Status now |
@@ -25,9 +25,9 @@ Static checks at 1536 × 750, 1366 × 768, 1920 × 1080 and 2048 × 1100:
 | S2 | Dock: Settings unreachable behind a hidden horizontal scroll | Resolved: the dock never scrolls. `BottomTabBar.jsx` measures its buttons and moves the items that do not fit into the ⋯ popover (`utils/dockCapacity.js`); the fixed Layouts / ⌘K / Settings buttons are always shown, at full opacity (no faded modifier). The shortcut hints card sits above the bottom chrome (`bottom: calc(var(--chrome-bottom) + 8px)`), takes no click (`pointer-events: none`) and hides whole after 5 s, so it never covers or blocks the dock (`ShortcutHints.css`). The fixed 72 px per item quoted below is gone. |
 | S3 | Overlay default sizes too big | Overlays open at 82 % of their container below 1440 × 900 and are clamped to it; the overlay layer sits between the weather bar and the bottom chrome from the same tokens (`--overlay-inset-*`). |
 | S4 | Settings accordion did not scroll | Settings scrolls inside its overlay window (`.settings-tab`, justified); auto-fit is off below 1440 × 900. |
-| S5 | Visualisations below a usable size | Pane sizes of every window preset at the four sizes are listed by `layout_fit.mjs` (`notes/experiments/phase9/layout_fit.txt`); the browser pass judges each view at those sizes. |
+| S5 | Visualisations below a usable size | Pane sizes of every window preset at the four sizes are listed by `layout_fit.mjs` (`docs/evidence/layout_fit.txt`); the browser pass judges each view at those sizes. |
 | S6 | No page-level scroll fallback | By design: a fixed-viewport dashboard. The fallback that was added for it is the regression described above and has been removed. |
-| S7 | Cheatsheet on a short viewport | Three balanced columns in which a section may continue in the next column, modal up to 92 vh: the 42 shortcuts need at most 468 px of column at 1536 x 750 and 469 px at 1366 x 768, against 604 and 620 px of room (`notes/experiments/phase9/repair_cheatsheet_fit.txt`), so no target window shows a scrollbar. With the earlier sections that never split and the 88 vh modal they did not fit at those two sizes (verifier, `verify_layout-visibility_r1/cheatsheet_fit_probe.txt`). The scroll stays as the fallback below 900 px of width. |
+| S7 | Cheatsheet on a short viewport | Three balanced columns in which a section may continue in the next column, modal up to 92 vh: the 45 shortcut rows need at most 492 px of column at 1536 x 750 and 493 px at 1366 x 768, against 604 and 620 px of room (`docs/evidence/cheatsheet_fit.txt`; re-measured on 2026-10-16, after Shift+C and the Ctrl+arrow keys were added to the cheatsheet: 42 rows needed 468 and 469 px), so no target window shows a scrollbar. With the earlier sections that never split and the 88 vh modal they did not fit at those two sizes (a verifier's estimate). The scroll stays as the fallback below 900 px of width. |
 | S8 | Command palette at narrow height | Unchanged: keyboard-first result list, justified. |
 
 Statements of the record below that are no longer true: the dashboard
@@ -35,6 +35,23 @@ header no longer reads "No-scroll tabbed design (1920 × 1080)"; the line
 numbers it cites have moved; the dock capacity is no longer
 `Math.floor((vw - 40 - 160) / 72)`; and the proposals end with a request for
 confirmation that was answered at the time.
+
+More of them, found on a second pass on 2026-10-15:
+
+- Root cause: the shell no longer assumes a 1920 × 1080 canvas. It is
+  exactly the viewport height, and the weather bar, the timeline and the dock
+  shrink with it (`--weather-bar-height`, `--timeline-height`,
+  `--bottom-tab-height` in `tokens.css`).
+- S3 and S5: a floating window's minimum is 420 × 320 px (`MIN_W`, `MIN_H` in
+  `OverlayPanel.jsx`), not `MIN_H = 240`. Only Settings opens as a floating
+  window now: the AI and Championship views, whose 600 px default heights S3
+  discusses, open as tabs of the docked workspace (`setActiveTab` in
+  `useF1Store.js`).
+- S4: `.settings-tab__section` no longer clips its accordion body with
+  `overflow: hidden` (`dashboard.css`).
+- S7: the cheatsheet modal is up to 92 vh, not 80 vh (see the status table).
+- S8: the command palette modal is up to 80 vh, not 70 vh
+  (`CommandPalette.css`).
 
 ## Original evaluation (record)
 

@@ -1,6 +1,6 @@
 // Test helper (V5 / V13): a small, dependency-free reader of the app's CSS for
 // the static layout, type and contrast checks. It is shared by the layout*
-// tests and by the scripts in notes/experiments/v13_audit/.
+// tests and by the scripts in frontend/scripts/audit/.
 //
 //  - parseCss(text): flat list of style rules {selector, media, line, decls}
 //    (@media blocks keep their condition; @keyframes / @font-face are skipped)

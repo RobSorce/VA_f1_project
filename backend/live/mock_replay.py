@@ -194,8 +194,8 @@ class MockReplay:
     async def stop(self):
         """Stop the mock replay and un-pin the manager's session clock (it
         stayed pinned at the last replayed time: after a stopped mock of 2024
-        R16, two live laps fed 0.4 s apart both ended at 6654.29,
-        notes/experiments/phase8/verify_live/r3_pinned_clock_after_mock.txt)."""
+        R16, two live laps fed 0.4 s apart both ended at 6654.29;
+        backend/tests/test_live_mock_replay.py)."""
         self._running = False
         if self._task:
             self._task.cancel()

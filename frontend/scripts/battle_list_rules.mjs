@@ -4,7 +4,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/battle_list_rules.mjs
- * Writes notes/experiments/battle_list_rules.txt and prints the same text.
+ * Writes docs/evidence/battle_list_rules.txt and prints the same text.
  *
  * Three rules, each chained recompute after recompute as the store does:
  *  - cut+fill (round 4): a listed pair stays unless its Wilson interval is
@@ -42,7 +42,7 @@ import {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../..');
 const CACHE_DIR = path.resolve(ROOT, 'backend/data/processed_cache');
-const OUT_FILE = path.resolve(ROOT, 'notes/experiments/battle_list_rules.txt');
+const OUT_FILE = path.resolve(ROOT, 'docs/evidence/battle_list_rules.txt');
 const report = [];
 const r = (line = '') => { report.push(line); console.log(line); };
 const parseJson = (text) => JSON.parse(text.replace(/([:\[,]\s*)-?NaN\b/g, '$1null'));

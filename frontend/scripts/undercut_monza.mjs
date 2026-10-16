@@ -1,13 +1,13 @@
 /**
  * Undercut and "pit in k laps" on Monza 2024 (utils/undercut.js), the
- * evidence of S7 and C4. Writes notes/experiments/undercut_monza.txt and
+ * evidence of S7 and C4. Writes docs/evidence/undercut_monza.txt and
  * prints the same text.
  *
  * Since lead decision D2 (phase45c) the sweep reads every row at the race
  * end, whatever the table length, so the "end of the table" / "read at the
  * flag" comparisons of sections 2 and 5 below now give the same lap; the
  * evidence of this round is scripts/s7_undercut_monza.mjs (sweep) and
- * scripts/c4_pit_in_k_monza.mjs ("pit in k laps"), in notes/experiments/phase45c/.
+ * scripts/c4_pit_in_k_monza.mjs ("pit in k laps"), in docs/evidence/.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/undercut_monza.mjs
@@ -50,7 +50,7 @@ import { stintsByDriver } from '../src/utils/stints.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.resolve(HERE, '../../backend/data/processed_cache');
 const FILE = path.resolve(CACHE_DIR, 'session_2024_16_R.json');
-const OUT_FILE = path.resolve(HERE, '../../notes/experiments/undercut_monza.txt');
+const OUT_FILE = path.resolve(HERE, '../../docs/evidence/undercut_monza.txt');
 
 const raw = fs.readFileSync(FILE, 'utf8');
 const session = JSON.parse(raw.replace(/\bNaN\b/g, 'null'));

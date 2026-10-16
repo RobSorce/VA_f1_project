@@ -1,0 +1,92 @@
+Layout fit at the V13 target viewports, CSS + components of the working tree, 2026-10-16
+Pit Wall grid (PitWallLayout.jsx): columns "480px 1fr", rows "44px 1fr 35vh", map row "minmax(0, 1fr) minmax(0, 1fr) 280px"
+Timing Tower (TimingTower.jsx): rows 18-24 px (fitRows), column widths (COL) sum 476 px, drawn as percentages (table-layout fixed)
+Race Pace Grid (utils/views/racePaceGrid.js): lap column 34 px + 20 drivers x 36-78 px cells (paceColumns), header 30 px, rows 18-26 px (fitRows), laps that do not fit paged
+Leaderboard (Leaderboard.jsx): rows 18-28 px, each calc(100% / n) of a flex body moved by translateY(k x 100 %), 20 rows in 360 px at the minimum, paged below that (fitRows); the Analyse sidebar in every state, the Sectors and Consistency panels, the weather event: panel_fit.mjs; the dock: dock_fit.mjs
+Floating overlay minimum (OverlayPanel.jsx): 420 x 320 px
+
+== 1536x750 ==
+  page scroll: none (html, body, .app-container, .app-body overflow hidden; shell 100vh)
+  root font 14.08 px; chrome: weather 39 + timeline 36 (expanded 140) + dock 46.5 + margin 6.0 = 127.5 px
+  app body 1536 x 622.5 px (timeline expanded: 622.5 px, the event strip opens over the body); Leaderboard sidebar 288 px
+  Pit Wall: timing column 480 x 623; main 1055 wide: session bar 44, pace grid 316, map row 263 (Track Map / Circle of Doom 387 x 263, side column 280)
+  Timing Tower chrome 101 px (header 31, column header 25, legend 45; a flag banner adds 19); the 20 rows need 360 px at 18 px
+  Timing Tower, no focus driver: 522 px for rows -> 20 of 20 rows at 24 px (all); columns 476 px of design widths in the 480 px column (fits)
+  Timing Tower, focus cards collapsed (default here) (est. 68 px): 454 px for rows -> 20 of 20 rows at 22 px
+  Timing Tower, focus cards open (on demand) (est. 285 px): 237 px for rows -> 13 of 20 rows at 18 px, the body scrolls (justified)
+  Pit Wall side column 280 x 263: Weather 76 + Ask 85 (est.) leave Race Control 102 px -> 3 newest message lines of 20 px (needs >= 55 for one)
+  Race Pace Grid: 20 of 20 driver columns of 51 px (seconds labels) = 1054 px in a 1055 px cell (fits); 15 of 53 laps at 18 px in 316 px (legend row not counted), the others paged
+    legend bar: the lap pager's slot is always in the bar (hidden while every lap fits): the grid the rows are fitted to is the final one
+  preset strategy   analytics 670x315, ai 548x315, laptimes 1225x199  (smallest 548 x 199)
+  preset tyres      laptimes 670x548, tyres 548x548  (smallest 548 x 548)
+  preset pace       laptimes 609x286, sectors 609x286, consistency 1225x228  (smallest 609 x 228)
+  preset prediction positionlaps 670x286, laptimes 670x228, prediction 548x257, ai 548x257  (smallest 548 x 228)
+  preset overview   sectors 609x257, consistency 609x257, compare 1225x257  (smallest 609 x 257)
+  preset pitwindow  trackmap 609x257, circle 609x257, strategy 1225x257  (smallest 609 x 257)
+  preset simulator  simulator 486x286, strategy 732x286, prediction 1225x228  (smallest 486 x 228)
+  floating overlays: 603 px high (timeline expanded 499), minimum panel 320 + 2 x 8 px edge
+
+== 1366x768 ==
+  page scroll: none (html, body, .app-container, .app-body overflow hidden; shell 100vh)
+  root font 13.23 px; chrome: weather 40 + timeline 37 (expanded 141) + dock 47.6 + margin 6.1 = 130.6 px
+  app body 1366 x 637.4 px (timeline expanded: 637.4 px, the event strip opens over the body); Leaderboard sidebar 256 px
+  Pit Wall: timing column 480 x 637; main 885 wide: session bar 44, pace grid 325, map row 269 (Track Map / Circle of Doom 302 x 269, side column 280)
+  Timing Tower chrome 100 px (header 31, column header 25, legend 44; a flag banner adds 19); the 20 rows need 360 px at 18 px
+  Timing Tower, no focus driver: 537 px for rows -> 20 of 20 rows at 24 px (all); columns 476 px of design widths in the 480 px column (fits)
+  Timing Tower, focus cards collapsed (default here) (est. 68 px): 470 px for rows -> 20 of 20 rows at 23 px
+  Timing Tower, focus cards open (on demand) (est. 285 px): 253 px for rows -> 14 of 20 rows at 18 px, the body scrolls (justified)
+  Pit Wall side column 280 x 269: Weather 76 + Ask 85 (est.) leave Race Control 108 px -> 3 newest message lines of 20 px (needs >= 55 for one)
+  Race Pace Grid: 20 of 20 driver columns of 42 px (short labels) = 874 px in a 885 px cell (fits); 16 of 53 laps at 18 px in 325 px (legend row not counted), the others paged
+    legend bar: the lap pager's slot is always in the bar (hidden while every lap fits): the grid the rows are fitted to is the final one
+  preset strategy   analytics 595x324, ai 486x324, laptimes 1088x205  (smallest 486 x 205)
+  preset tyres      laptimes 595x563, tyres 486x563  (smallest 486 x 563)
+  preset pace       laptimes 541x294, sectors 541x294, consistency 1088x235  (smallest 541 x 235)
+  preset prediction positionlaps 595x294, laptimes 595x235, prediction 486x264, ai 486x264  (smallest 486 x 235)
+  preset overview   sectors 541x264, consistency 541x264, compare 1088x264  (smallest 541 x 264)
+  preset pitwindow  trackmap 541x264, circle 541x264, strategy 1088x264  (smallest 541 x 264)
+  preset simulator  simulator 432x294, strategy 650x294, prediction 1088x235  (smallest 432 x 235)
+  floating overlays: 617 px high (timeline expanded 513), minimum panel 320 + 2 x 8 px edge
+
+== 1920x1080 ==
+  page scroll: none (html, body, .app-container, .app-body overflow hidden; shell 100vh)
+  root font 16.00 px; chrome: weather 44 + timeline 40 (expanded 144) + dock 52.0 + margin 8.0 = 144.0 px
+  app body 1920 x 936.0 px (timeline expanded: 936.0 px, the event strip opens over the body); Leaderboard sidebar 300 px
+  Pit Wall: timing column 480 x 936; main 1439 wide: session bar 44, pace grid 514, map row 378 (Track Map / Circle of Doom 579 x 378, side column 280)
+  Timing Tower chrome 106 px (header 31, column header 25, legend 50; a flag banner adds 19); the 20 rows need 360 px at 18 px
+  Timing Tower, no focus driver: 830 px for rows -> 20 of 20 rows at 24 px (all); columns 476 px of design widths in the 480 px column (fits)
+  Timing Tower, focus cards open (default here) (est. 301 px): 530 px for rows -> 20 of 20 rows at 24 px
+  Timing Tower, focus cards collapsed (on demand) (est. 69 px): 761 px for rows -> 20 of 20 rows at 24 px
+  Pit Wall side column 280 x 378: Weather 77 + Ask 90 (est.) leave Race Control 211 px -> 7 newest message lines of 22 px (needs >= 58 for one)
+  Race Pace Grid: 20 of 20 driver columns of 70 px (seconds labels) = 1434 px in a 1439 px cell (fits); 26 of 53 laps at 18 px in 514 px (legend row not counted), the others paged
+    legend bar: the lap pager's slot is always in the bar (hidden while every lap fits): the grid the rows are fitted to is the final one
+  preset strategy   analytics 873x496, ai 714x496, laptimes 1594x319  (smallest 714 x 319)
+  preset tyres      laptimes 873x852, tyres 714x852  (smallest 714 x 852)
+  preset pace       laptimes 794x452, sectors 794x452, consistency 1594x363  (smallest 794 x 363)
+  preset prediction positionlaps 873x452, laptimes 873x363, prediction 714x408, ai 714x408  (smallest 714 x 363)
+  preset overview   sectors 794x408, consistency 794x408, compare 1594x408  (smallest 794 x 408)
+  preset pitwindow  trackmap 794x408, circle 794x408, strategy 1594x408  (smallest 794 x 408)
+  preset simulator  simulator 634x452, strategy 953x452, prediction 1594x363  (smallest 634 x 363)
+  floating overlays: 916 px high (timeline expanded 812), minimum panel 320 + 2 x 8 px edge
+
+== 2048x1100 ==
+  page scroll: none (html, body, .app-container, .app-body overflow hidden; shell 100vh)
+  root font 16.00 px; chrome: weather 44 + timeline 40 (expanded 144) + dock 52.0 + margin 8.0 = 144.0 px
+  app body 2048 x 956.0 px (timeline expanded: 956.0 px, the event strip opens over the body); Leaderboard sidebar 300 px
+  Pit Wall: timing column 480 x 956; main 1567 wide: session bar 44, pace grid 527, map row 385 (Track Map / Circle of Doom 643 x 385, side column 280)
+  Timing Tower chrome 106 px (header 31, column header 25, legend 50; a flag banner adds 19); the 20 rows need 360 px at 18 px
+  Timing Tower, no focus driver: 850 px for rows -> 20 of 20 rows at 24 px (all); columns 476 px of design widths in the 480 px column (fits)
+  Timing Tower, focus cards open (default here) (est. 301 px): 549 px for rows -> 20 of 20 rows at 24 px
+  Timing Tower, focus cards collapsed (on demand) (est. 69 px): 781 px for rows -> 20 of 20 rows at 24 px
+  Pit Wall side column 280 x 385: Weather 77 + Ask 90 (est.) leave Race Control 218 px -> 7 newest message lines of 22 px (needs >= 58 for one)
+  Race Pace Grid: 20 of 20 driver columns of 76 px (seconds labels) = 1554 px in a 1567 px cell (fits); 27 of 53 laps at 18 px in 527 px (legend row not counted), the others paged
+    legend bar: the lap pager's slot is always in the bar (hidden while every lap fits): the grid the rows are fitted to is the final one
+  preset strategy   analytics 944x508, ai 771x508, laptimes 1722x327  (smallest 771 x 327)
+  preset tyres      laptimes 944x872, tyres 771x872  (smallest 771 x 872)
+  preset pace       laptimes 858x463, sectors 858x463, consistency 1722x372  (smallest 858 x 372)
+  preset prediction positionlaps 944x463, laptimes 944x372, prediction 771x418, ai 771x418  (smallest 771 x 372)
+  preset overview   sectors 858x418, consistency 858x418, compare 1722x418  (smallest 858 x 418)
+  preset pitwindow  trackmap 858x418, circle 858x418, strategy 1722x418  (smallest 858 x 418)
+  preset simulator  simulator 685x463, strategy 1030x463, prediction 1722x372  (smallest 685 x 372)
+  floating overlays: 936 px high (timeline expanded 832), minimum panel 320 + 2 x 8 px edge
+
+All static layout checks pass at the four viewports.

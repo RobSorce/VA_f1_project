@@ -129,6 +129,12 @@
   pointer-events: none;
 }
 
+/* A car near the map's right edge: its code label on the left of the dot
+   (TrackMap.jsx, trackMapLayout.js carLabelOnLeft), so the edge never cuts it */
+.car-label--left {
+  text-anchor: end;
+}
+
 .car-marker.selected .car-dot {
   stroke: var(--color-brush);
   stroke-width: 3;
@@ -191,7 +197,309 @@
 }
 
 /* --------------------------------------------------------------------------
-   Telemetry HUD Overlay (fixed in bottom-left of TrackMap)
+   Track Map controls (TrackMap.jsx, utils/views/trackMapLayout.js; Phase 9d
+   G1): one row of icon buttons in the header; the layers, the telemetry
+   overlay and the legends above the map in a tall panel, else in the Layers
+   popover, with a one-line key of what is drawn on the map's corner. The
+   popover and the key are drawn like the map (dark in both themes): the
+   toggles and legend labels inside carry the map's dark-theme colours
+   -------------------------------------------------------------------------- */
+.track-map-layers--inline {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-bottom: var(--spacing-xs);
+}
+
+.track-map-layers--popover {
+  position: fixed;
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 10px 10px;
+  background: #0f0f1e;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.track-map-layers__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--map-overlay-text);
+}
+
+.track-map-layers__close {
+  min-width: 22px;
+  height: 20px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  color: var(--map-overlay-text);
+  font-size: var(--font-size-data);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.track-map-layers__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.track-map-layers--popover .track-map-layers__group {
+  align-items: flex-start;
+}
+
+.track-map-layers__label {
+  flex: 0 0 auto;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.track-map-layers--popover .track-map-layers__label {
+  color: var(--map-overlay-muted);
+  width: 84px;
+  line-height: 24px;
+}
+
+.track-map-layers__items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.track-map-layers__items .chart-legend {
+  padding: 0;
+}
+
+/* the legend chips on the dark popover and key: the dark chip colour in both themes */
+.track-map-layers--popover .legend-item,
+.track-map-key .legend-item {
+  background-color: #1a1f33;
+}
+
+/* The one-line key on the map's top-left corner (popover layout): no
+   pointer events, so the map pans and zooms under it. One line, 24 px high
+   (trackMapLayout.js MAP_KEY: the track is fitted clear of it); the items
+   that would not fit give way to a "+k" chip (TrackMap.jsx) */
+.track-map-key {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgba(15, 15, 30, 0.82);
+  pointer-events: none;
+}
+
+.track-map-key .chart-legend {
+  flex-wrap: nowrap;
+  padding: 0 4px;
+}
+
+.track-map-key .legend-item {
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.track-map-key__more {
+  flex: 0 0 auto;
+  padding: 2px 6px 2px 0;
+  font-size: var(--font-size-label);
+  line-height: 16px;
+  color: var(--map-overlay-text);
+}
+
+/* An overlay chosen but not drawn yet (no focus driver, its lap loading) */
+.track-map-layers__hint {
+  font-size: var(--font-size-label);
+  line-height: 24px;
+  color: var(--map-overlay-text);
+}
+
+/* The toolbar's icon buttons (MapTool) in the panel header, themed: the
+   glyph in the muted text colour, the border >= 3:1 on the header in both
+   themes (light: #7B8190 on #f8f8f8, 3.7:1); the open Layers button in the
+   primary text colour */
+.track-map-tool {
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.track-map-tool:hover,
+.track-map-tool:focus-visible {
+  border-color: var(--color-text-secondary);
+  color: var(--color-text-secondary);
+}
+
+.track-map-tool[data-active="true"] {
+  border-color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-primary);
+}
+
+.track-map-toolbar__sep {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] .track-map-tool {
+  border-color: #7B8190;
+}
+
+[data-theme="light"] .track-map-tool:hover,
+[data-theme="light"] .track-map-tool:focus-visible,
+[data-theme="light"] .track-map-tool[data-active="true"] {
+  border-color: var(--color-text-secondary);
+}
+
+[data-theme="light"] .track-map-tool[data-active="true"] {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .track-map-toolbar__sep {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* --------------------------------------------------------------------------
+   Telemetry HUD as a table (Phase 9d G1 r2; TrackMap.jsx TrackHudTable,
+   trackMapLayout.js HUD_TABLE): in a map under HUD_CARDS_MIN_H, one 16 px
+   row per driver under a 14 px header, fixed column widths, so its box is
+   the one the track is fitted clear of. Drawn like the map and its key
+   (dark in both themes)
+   -------------------------------------------------------------------------- */
+.track-hud {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 10;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(15, 15, 30, 0.88);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.track-hud__table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.track-hud__h,
+.track-hud__c,
+.track-hud__more {
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.track-hud__h + .track-hud__h,
+.track-hud__c + .track-hud__c {
+  padding-left: 5px;
+}
+
+.track-hud__h {
+  height: 14px;
+  line-height: 14px;
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  color: var(--map-overlay-muted);
+}
+
+.track-hud__c,
+.track-hud__more {
+  height: 16px;
+  line-height: 16px;
+  font-size: var(--font-size-data);
+  font-weight: 700;
+  color: #E5E7EB;
+}
+
+.track-hud__h--drv,
+.track-hud__c--drv,
+.track-hud__more {
+  text-align: left;
+}
+
+.track-hud__drv {
+  font-family: 'Formula1', 'Titillium Web', sans-serif;
+  font-weight: 700;
+}
+
+.track-hud__row--focus .track-hud__c {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.track-hud__drs--off {
+  color: var(--map-overlay-muted);
+  font-weight: 500;
+}
+
+.track-hud__drs--avail {
+  color: #E5E7EB;
+}
+
+.track-hud__drs--on {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.track-hud__tyre {
+  display: inline-block;
+  min-width: 16px;
+  height: 13px;
+  margin-right: 3px;
+  padding: 0 1px;
+  border-radius: 3px;
+  vertical-align: 1px;
+  font-family: 'Formula1', 'Titillium Web', sans-serif;
+  font-size: var(--font-size-label);
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+}
+
+.track-hud__more {
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  color: var(--map-overlay-text);
+}
+
+/* --------------------------------------------------------------------------
+   Telemetry HUD Overlay (fixed in bottom-left of TrackMap): the cards, in a
+   map from HUD_CARDS_MIN_H tall. Fixed header and row heights
+   (trackMapLayout.js HUD_CARD: the track is fitted clear of the cards)
    -------------------------------------------------------------------------- */
 /* HUD container — holds one or more driver HUD cards stacked horizontally */
 .track-telemetry-hud-container {
@@ -229,9 +537,11 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  height: 24px;
   margin-bottom: 6px;
   padding-bottom: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  line-height: 18px;
 }
 
 .track-telemetry-hud__driver {
@@ -252,7 +562,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 1.5px 0;
+  height: 18px;
+  padding: 0;
+  line-height: 18px;
 }
 
 .track-telemetry-hud__label {
@@ -282,6 +594,7 @@
 .track-telemetry-hud__gear {
   font-size: 16px;
   font-weight: 900;
+  line-height: 18px;
   color: #fff;
 }
 
@@ -657,7 +970,7 @@
 /* ── Broadcast Header ───────────────────────────────────────────────── */
 /* 6 px above and below (10 / 8 before Phase 9c): with the column header and
    the flag banner a step tighter, the 20 sidebar rows keep >= 18 px with a
-   flag banner and the forecast footer at 1536 x 750 (v13_audit/panel_fit.mjs) */
+   flag banner and the forecast footer at 1536 x 750 (frontend/scripts/audit/panel_fit.mjs) */
 .tower-broadcast-header {
   display: flex;
   align-items: center;
@@ -1089,7 +1402,7 @@
 }
 
 /* the PIT text blinks without losing its contrast: 0.85 keeps 4.86:1 on the
-   pitting row, 0.5 read 2.55:1 (notes/experiments/phase9/repair2_contrast.txt) */
+   pitting row, 0.5 read 2.55:1 (docs/evidence/contrast_pairs.txt) */
 @keyframes pit-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.85; }
@@ -2322,7 +2635,7 @@
 [data-theme="light"] .pos-chart-toggle--active {
   background: rgba(29, 78, 216, 0.08);
   border-color: rgba(29, 78, 216, 0.45);
-  color: #1D4ED8; /* the selection blue, 6.70:1 on white (notes/experiments/phase9/integrate_light_contrast.txt) */
+  color: #1D4ED8; /* the selection blue, 6.70:1 on white (docs/evidence/light_contrast.txt) */
 }
 
 [data-theme="light"] .pos-chart-clear-brush {

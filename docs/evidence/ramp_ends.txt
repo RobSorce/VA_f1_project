@@ -1,0 +1,3 @@
+bg #0f0f1e: track grey #4A5568 2.52 -> lifted #5C6677 3.27; cividis first t >= 3:1 = 0.36 (#5e616e 3.08)
+bg #131326: track grey #4A5568 2.43 -> lifted #5C6677 3.15; cividis first t >= 3:1 = 0.37 (#61636f 3.07)
+bg #101020: track grey #4A5568 2.50 -> lifted #5C6677 3.24; cividis first t >= 3:1 = 0.36 (#5e616e 3.05)

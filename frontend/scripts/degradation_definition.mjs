@@ -4,7 +4,7 @@
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/degradation_definition.mjs
- * Writes notes/experiments/degradation_definition_monza.txt and prints the
+ * Writes docs/evidence/degradation_definition_monza.txt and prints the
  * same text.
  *
  * Part 1, Monza 2024 (round 16): what the clean-lap rule removes, every
@@ -26,7 +26,7 @@ import { hasPitIn, hasPitOut, isGreenLap } from '../src/utils/raceTime.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.resolve(HERE, '../../backend/data/processed_cache');
-const OUT_FILE = path.resolve(HERE, '../../notes/experiments/degradation_definition_monza.txt');
+const OUT_FILE = path.resolve(HERE, '../../docs/evidence/degradation_definition_monza.txt');
 
 const report = [];
 const r = (line = '') => report.push(line);

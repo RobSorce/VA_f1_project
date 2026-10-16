@@ -1,7 +1,7 @@
 // Phase 9c F1 (D1): the Analyse sidebar's race tower shows every driver row
 // at the four target viewports.
 //
-// The browser pass (notes/experiments/v13_audit/browser_pass_2026-10-16.md)
+// The browser pass (docs/evidence/browser_audit_2026-10-16.md)
 // found the tower body at 440 px with 554 px of content: P16-P20 and the
 // retired rows below it, no scroll, no pager. 554 = 19 x 28 + 22: the rows
 // still stood at the 28 px spacing of the first, unmeasured render while the
@@ -220,7 +220,7 @@ describe('the tower in the sidebar (mini DOM, measured sizes mocked)', () => {
 
 // ---------------------------------------------------------------------------
 // Static fit at the four viewports (the model of
-// notes/experiments/v13_audit/panel_fit.mjs): the sidebar's height less the
+// frontend/scripts/audit/panel_fit.mjs): the sidebar's height less the
 // tower chrome (CSS rules and tokens), the legend (inline from 900 px of
 // height, its lines from the real Formula1 widths), a flag banner, the
 // forecast footer and the focus cards (collapsed below 1200 px, SidebarFocusCards)

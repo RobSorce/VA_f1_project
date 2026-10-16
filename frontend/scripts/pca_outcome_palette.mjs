@@ -7,7 +7,7 @@
  *
  * Run from frontend/:
  *     npx vite-node scripts/pca_outcome_palette.mjs
- * Writes notes/experiments/phase67/pca_outcome_palette.txt and prints it.
+ * Writes docs/evidence/pca_outcome_palette.txt and prints it.
  *
  * Method: the panel background is --color-bg-panel (rgba(20,20,40,0.75))
  * over --color-bg-primary (#0f0f1e) (styles/tokens.css, dark theme: the only
@@ -24,7 +24,7 @@ import * as d3 from 'd3';
 import { TEAM_COLORS } from '../src/utils/colors.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.resolve(HERE, '../../notes/experiments/phase67/pca_outcome_palette.txt');
+const OUT = path.resolve(HERE, '../../docs/evidence/pca_outcome_palette.txt');
 const lines = [];
 const emit = (s = '') => { lines.push(s); console.log(s); };
 

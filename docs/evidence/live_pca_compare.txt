@@ -1,0 +1,165 @@
+== 1. Procrustes on known rotations ==
+procrustesAlign2D (20 points; new = rotate(ref, theta) x scale + shift):
+  theta   10 deg, scale 1, shift 0: residual angle 0.000000 deg, RMS 0.000000
+  theta   45 deg, scale 1, shift 0: residual angle 0.000000 deg, RMS 0.000000
+  theta   90 deg, scale 1, shift 0: residual angle 0.000000 deg, RMS 0.000000
+  theta  135 deg, scale 1, shift 0: residual angle 0.000000 deg, RMS 0.000000
+  theta  170 deg, scale 1, shift 0: residual angle 0.000000 deg, RMS 0.000000
+  theta  -60 deg, scale 1, shift 0: residual angle 0.000000 deg, RMS 0.000000
+  theta   30 deg, scale 1.4, shift 3: residual angle 0.000000 deg, RMS 0.000000
+orthogonalProcrustes (7 x 2 orthonormal basis B; A = B x rotation(-theta)): angle of B vs A x R
+  theta   10 deg: ||A R - B||_F = 0.00000000
+  theta   45 deg: ||A R - B||_F = 0.00000000
+  theta   90 deg: ||A R - B||_F = 0.00000000
+  theta  170 deg: ||A R - B||_F = 0.00000000
+
+== 2. Monza 2024 (R16), lap by lap, alignment "sign" (the store default before the repair round; now LIVE_PCA_ALIGN = "rotation") ==
+PCA inputs (7): position, gap_to_leader, recent_pace, pace_trend, tyre_life, stint_number, position_trend
+lap  n | label Ax1  Ax2  (sum) | eigen PC1  PC2  (sum) | dot1  dot2 | rot deg refl | ||WR-B|| | field mean      | max|z|       | move | eig.res
+  4 20 | 56.5% 32.5% (89.0%) | 56.5% 32.5% (89.0%) |   n/a   n/a |    n/a n/a | n/a | (0.000000, -0.000000) | 2.18 position_trend | n/a | 8.3e-12
+  5 20 | 65.7% 22.3% (88.0%) | 65.7% 22.3% (88.0%) |  0.74  0.98 |    0.0 no  | 0.744 | (0.000000, 0.000000) | 2.18 position_trend | 0.49 | 3.6e-12
+  6 20 | 64.2% 23.2% (87.3%) | 64.2% 23.2% (87.3%) |  1.00  0.99 |    0.0 no  | 0.112 | (-0.000000, -0.000000) | -2.40 pace_trend     | 0.14 | 1.9e-12
+  7 20 | 48.6% 29.6% (78.2%) | 48.6% 29.6% (78.2%) |  0.61  0.28 |    0.0 no  | 1.492 | (0.000000, -0.000000) | 4.25 stint_number   | 1.36 | 3.7e-11
+  8 20 | 51.3% 28.1% (79.5%) | 51.3% 28.1% (79.5%) |  0.87  0.82 |    0.0 no  | 0.782 | (-0.000000, 0.000000) | 4.25 stint_number   | 0.95 | 2.9e-13
+  9 19 | 58.7% 33.1% (91.7%) | 58.7% 33.1% (91.7%) |  0.88  0.66 |    0.0 no  | 0.963 | (0.000000, -0.000000) | 4.13 stint_number   | 0.96 | 5.3e-11
+ 10 19 | 58.6% 31.4% (90.0%) | 58.6% 31.4% (90.0%) |  0.99  0.96 |    0.0 no  | 0.325 | (0.000000, -0.000000) | 4.13 stint_number   | 0.40 | 7.2e-11
+ 11 19 | 51.2% 35.4% (86.6%) | 51.2% 35.4% (86.6%) |  0.98  0.91 |    0.0 no  | 0.469 | (-0.000000, 0.000000) | 4.13 stint_number   | 0.52 | 6.5e-12
+ 12 19 | 51.3% 26.7% (78.1%) | 51.3% 26.7% (78.1%) |  0.93  0.91 |    0.0 no  | 0.564 | (0.000000, -0.000000) | -3.50 tyre_life      | 0.81 | 6.2e-11
+ 13 19 | 52.8% 28.6% (81.4%) | 52.8% 28.6% (81.4%) |  0.97  0.88 |    0.0 no  | 0.543 | (-0.000000, 0.000000) | -2.95 position_trend | 0.91 | 2.0e-11
+ 14 19 | 56.6% 23.5% (80.0%) | 56.6% 23.5% (80.0%) |  0.94  0.94 |    0.0 no  | 0.487 | (0.000000, -0.000000) | -2.64 position_trend | 0.73 | 1.6e-11
+ 15 19 | 63.3% 24.3% (87.6%) | 63.3% 24.3% (87.6%) |  0.96  0.98 |    0.0 no  | 0.362 | (-0.000000, 0.000000) | -2.82 pace_trend     | 0.41 | 4.5e-12
+ 16 19 | 57.2% 25.4% (82.6%) | 57.2% 25.4% (82.6%) |  0.98  0.98 |    0.0 no  | 0.264 | (-0.000000, -0.000000) | -3.09 pace_trend     | 0.58 | 3.9e-12
+ 17 19 | 53.1% 25.5% (78.6%) | 53.1% 25.5% (78.6%) |  1.00  1.00 |    0.0 yes | 0.116 | (0.000000, 0.000000) | -2.22 pace_trend     | 0.83 | 1.8e-11
+ 18 19 | 52.8% 25.6% (78.5%) | 52.8% 25.6% (78.5%) |  1.00  0.98 |    0.0 no  | 0.236 | (0.000000, 0.000000) | -2.55 pace_trend     | 0.85 | 8.0e-12
+ 19 19 | 51.0% 23.4% (74.4%) | 51.0% 23.4% (74.4%) |  0.99  0.95 |    0.0 no  | 0.337 | (-0.000000, -0.000000) | -2.08 pace_trend     | 0.83 | 4.1e-12
+ 20 19 | 52.4% 25.4% (77.8%) | 52.4% 25.4% (77.8%) |  1.00  0.88 |    0.0 yes | 0.492 | (-0.000000, -0.000000) | 2.02 recent_pace    | 0.62 | 1.2e-11
+ 21 19 | 47.1% 25.6% (72.6%) | 47.1% 25.6% (72.6%) |  1.00  0.97 |    0.0 yes | 0.277 | (-0.000000, -0.000000) | 2.19 recent_pace    | 0.68 | 2.4e-12
+ 22 19 | 45.0% 31.6% (76.6%) | 45.0% 31.6% (76.6%) |  0.99  0.94 |    0.0 no  | 0.365 | (-0.000000, -0.000000) | -2.01 pace_trend     | 0.65 | 8.2e-12
+ 23 19 | 46.9% 31.2% (78.0%) | 46.9% 31.2% (78.0%) |  0.98  0.98 |    0.0 yes | 0.285 | (0.000000, 0.000000) | -2.33 position_trend | 0.59 | 1.9e-11
+ 24 19 | 41.3% 34.1% (75.4%) | 41.3% 34.1% (75.4%) |  0.89  0.87 |    0.0 no  | 0.685 | (0.000000, 0.000000) | -2.72 position_trend | 1.09 | 4.2e-11
+ 25 19 | 41.5% 28.0% (69.5%) | 41.5% 28.0% (69.5%) |  0.72  0.72 |  180.0 yes | 1.058 | (0.000000, -0.000000) | -3.25 pace_trend     | 1.71 | 2.0e-12
+ 26 19 | 43.2% 25.4% (68.6%) | 43.2% 25.4% (68.6%) |  0.99  0.95 |  180.0 yes | 0.338 | (-0.000000, 0.000000) | -2.84 stint_number   | 0.49 | 8.0e-12
+ 27 19 | 50.0% 22.0% (72.0%) | 50.0% 22.0% (72.0%) |  0.99  0.95 |  180.0 no  | 0.342 | (-0.000000, -0.000000) | -2.84 stint_number   | 0.50 | 1.2e-11
+ 28 19 | 51.3% 23.4% (74.7%) | 51.3% 23.4% (74.7%) |  1.00  0.58 |  180.0 no  | 0.918 | (0.000000, 0.000000) | -2.84 stint_number   | 0.93 | 4.0e-12
+ 29 19 | 51.3% 21.5% (72.8%) | 51.3% 21.5% (72.8%) |  1.00  0.99 |  180.0 no  | 0.146 | (0.000000, 0.000000) | -2.84 stint_number   | 0.36 | 8.4e-12
+ 30 19 | 50.0% 28.0% (78.1%) | 50.0% 28.0% (78.1%) |  0.93  0.40 |  180.0 no  | 1.160 | (-0.000000, 0.000000) | -2.84 stint_number   | 1.55 | 1.9e-11
+ 31 19 | 52.3% 30.9% (83.3%) | 52.3% 30.9% (83.3%) |  0.99  0.99 |  180.0 yes | 0.179 | (0.000000, -0.000000) | -2.84 stint_number   | 0.55 | 5.3e-12
+ 32 19 | 42.8% 28.4% (71.2%) | 42.8% 28.4% (71.2%) |  0.86  0.75 |  180.0 no  | 0.880 | (-0.000000, -0.000000) | 3.26 pace_trend     | 1.21 | 4.3e-11
+ 33 19 | 42.3% 29.1% (71.4%) | 42.3% 29.1% (71.4%) |  0.92  0.72 |  180.0 no  | 0.857 | (0.000000, -0.000000) | 3.00 stint_number   | 0.97 | 6.8e-13
+ 34 19 | 43.2% 28.9% (72.1%) | 43.2% 28.9% (72.1%) |  0.98  0.99 |  180.0 no  | 0.214 | (0.000000, -0.000000) | -2.62 position_trend | 0.50 | 4.1e-11
+ 35 19 | 44.2% 30.3% (74.5%) | 44.2% 30.3% (74.5%) |  0.96  0.93 |  180.0 no  | 0.467 | (0.000000, 0.000000) | -2.48 position_trend | 0.82 | 4.1e-12
+ 36 19 | 49.6% 27.5% (77.1%) | 49.6% 27.5% (77.1%) |  0.89  0.84 |  180.0 yes | 0.739 | (-0.000000, -0.000000) | -2.89 pace_trend     | 1.19 | 3.1e-11
+ 37 19 | 47.3% 30.1% (77.5%) | 47.3% 30.1% (77.5%) |  0.99  0.91 |  180.0 yes | 0.439 | (0.000000, 0.000000) | 2.37 recent_pace    | 0.63 | 4.5e-11
+ 38 19 | 53.2% 30.3% (83.5%) | 53.2% 30.3% (83.5%) |  0.98  0.98 |  180.0 yes | 0.299 | (0.000000, 0.000000) | -2.78 pace_trend     | 0.55 | 4.0e-11
+ 39 19 | 42.1% 34.2% (76.3%) | 42.1% 34.2% (76.3%) |  1.00  0.98 |  180.0 yes | 0.204 | (0.000000, 0.000000) | 1.92 recent_pace    | 0.59 | 1.9e-11
+ 40 19 | 40.2% 34.2% (74.4%) | 40.2% 34.2% (74.4%) |  0.75  0.65 |  180.0 yes | 1.099 | (0.000000, 0.000000) | 2.09 pace_trend     | 1.45 | 2.8e-12
+ 41 19 | 39.1% 33.9% (73.0%) | 39.1% 33.9% (73.0%) |  1.00  0.91 |  180.0 yes | 0.420 | (-0.000000, -0.000000) | -2.33 position_trend | 0.48 | 7.4e-11
+ 42 19 | 41.7% 38.7% (80.3%) | 41.7% 38.7% (80.3%) |  0.22  0.23 |    0.0 no  | 1.763 | (-0.000000, 0.000000) | -2.40 position_trend | 2.67 | 1.3e-11
+ 43 19 | 39.8% 29.8% (69.6%) | 39.8% 29.8% (69.6%) |  0.48  0.50 |    0.0 no  | 1.425 | (-0.000000, -0.000000) | 1.93 recent_pace    | 2.17 | 6.2e-12
+ 44 19 | 42.3% 31.3% (73.6%) | 42.3% 31.3% (73.6%) |  0.98  0.99 |    0.0 yes | 0.226 | (-0.000000, -0.000000) | -2.80 pace_trend     | 0.44 | 4.8e-11
+ 45 19 | 50.0% 27.6% (77.7%) | 50.0% 27.6% (77.7%) |  0.98  0.85 |    0.0 yes | 0.592 | (-0.000000, 0.000000) | 2.09 recent_pace    | 0.61 | 6.6e-11
+ 46 19 | 52.0% 28.6% (80.6%) | 52.0% 28.6% (80.6%) |  0.97  0.97 |    0.0 yes | 0.355 | (-0.000000, 0.000000) | 2.32 pace_trend     | 0.62 | 6.1e-11
+ 47 19 | 46.7% 31.5% (78.1%) | 46.7% 31.5% (78.1%) |  0.97  0.96 |    0.0 yes | 0.374 | (0.000000, -0.000000) | 2.40 recent_pace    | 0.40 | 5.3e-11
+ 48 19 | 47.5% 30.6% (78.1%) | 47.5% 30.6% (78.1%) |  0.95  0.98 |    0.0 yes | 0.348 | (0.000000, -0.000000) | -2.39 pace_trend     | 0.38 | 4.3e-11
+ 49 19 | 50.8% 29.3% (80.2%) | 50.8% 29.3% (80.2%) |  0.97  0.98 |    0.0 no  | 0.316 | (0.000000, -0.000000) | 2.45 position_trend | 0.35 | 5.0e-11
+ 50 19 | 47.2% 28.5% (75.7%) | 47.2% 28.5% (75.7%) |  0.95  0.90 |    0.0 yes | 0.548 | (0.000000, -0.000000) | 3.32 pace_trend     | 0.51 | 4.2e-11
+ 51 19 | 45.5% 31.0% (76.5%) | 45.5% 31.0% (76.5%) |  0.99  0.96 |    0.0 no  | 0.311 | (-0.000000, 0.000000) | -2.68 position_trend | 0.46 | 1.2e-11
+ 52 19 | 45.3% 29.5% (74.8%) | 45.3% 29.5% (74.8%) |  1.00  1.00 |    0.0 no  | 0.131 | (0.000000, -0.000000) | 2.80 pace_trend     | 0.29 | 2.0e-11
+ 53 19 | 41.3% 31.5% (72.7%) | 41.3% 31.5% (72.7%) |  0.99  0.98 |    0.0 yes | 0.275 | (0.000000, -0.000000) | -3.00 position_trend | 0.54 | 1.3e-12
+summary: 50 laps; smallest alignment dot 0.2191; largest |label - variance of the plotted scores / total| 2.78e-16; largest |field mean| 2.24e-14 PC units; largest eigen-residual 7.42e-11
+
+== 3. Alignment modes on every cached race (lap-to-lap mean move of the points, PC units) ==
+race      laps | rotation: median  p95   max  min dot  axis1-vs-PC1 median/max | sign: median  p95   max  min dot | none: median  p95   max
+2024 R1     54 |  0.62  1.27  1.61   0.03    23.5/89.0 |  0.77  1.72  2.39   0.01 |  1.31  2.57  2.77
+2024 R2     47 |  0.44  0.90  1.35   0.29     9.5/53.3 |  0.45  1.49  2.25   0.27 |  0.91  2.57  2.71
+2024 R3     55 |  0.71  1.36  1.92   0.02    30.7/59.1 |  0.79  1.57  1.93   0.00 |  1.00  2.40  2.47
+2024 R4     48 |  0.61  1.29  1.74   0.14    17.5/74.1 |  0.72  1.56  1.78   0.14 |  1.25  2.43  2.60
+2024 R5     53 |  0.61  1.16  1.95   0.06    27.6/68.4 |  0.68  1.53  2.53   0.04 |  0.91  2.44  2.60
+2024 R6     54 |  0.51  1.11  1.57   0.09    16.6/40.8 |  0.58  1.29  1.96   0.08 |  0.82  2.23  2.72
+2024 R7     60 |  0.51  0.94  1.15   0.31    17.8/71.6 |  0.56  1.37  2.19   0.27 |  0.65  2.11  3.25
+2024 R8     73 |  0.39  0.70  1.14   0.64     9.5/88.3 |  0.47  1.50  2.03   0.28 |  0.55  1.89  2.85
+2024 R9     67 |  0.48  1.41  1.93   0.15    20.5/76.6 |  0.61  1.51  1.95   0.03 |  0.92  2.28  2.63
+2024 R10    63 |  0.63  1.05  1.23   0.25    17.4/75.9 |  0.69  1.32  1.94   0.13 |  1.06  2.57  2.84
+2024 R11    68 |  0.59  1.28  1.81   0.02    30.4/89.6 |  0.67  1.72  2.67   0.00 |  0.94  2.32  2.69
+2024 R12    49 |  0.80  1.53  1.98   0.11    17.3/85.8 |  0.82  1.56  1.88   0.09 |  1.01  2.11  2.47
+2024 R13    67 |  0.66  1.22  1.53   0.08    19.1/86.5 |  0.76  1.50  1.78   0.10 |  0.99  2.46  2.94
+2024 R14    41 |  0.63  1.18  1.34   0.50    19.0/89.9 |  0.73  1.35  2.12   0.33 |  0.87  2.51  2.63
+2024 R15    69 |  0.56  1.20  1.81   0.09    41.3/82.2 |  0.69  1.40  1.98   0.10 |  1.08  2.44  4.17
+2024 R16    50 |  0.56  0.91  1.34   0.38    27.1/89.3 |  0.62  1.71  2.67   0.22 |  0.93  2.60  2.73
+2024 R17    48 |  0.50  1.10  1.20   0.21    14.9/86.4 |  0.58  1.35  1.53   0.13 |  0.75  2.48  4.03
+2024 R18    59 |  0.53  1.04  1.44   0.16    54.9/87.6 |  0.62  1.42  2.31   0.09 |  0.70  2.63  4.22
+2024 R19    53 |  0.55  0.90  1.37   0.31    19.3/44.1 |  0.63  1.16  1.40   0.39 |  0.76  2.12  2.36
+2024 R20    68 |  0.60  1.23  1.67   0.45    29.9/87.5 |  0.64  1.41  2.03   0.08 |  0.77  2.38  3.01
+2024 R21    66 |  0.62  1.36  1.55   0.02    11.4/77.6 |  0.67  1.54  2.13   0.00 |  1.13  2.33  3.08
+2024 R22    47 |  0.68  1.58  1.70   0.26    50.8/86.8 |  0.71  1.87  3.26   0.01 |  1.37  2.63  3.26
+2024 R23    54 |  0.59  1.16  1.45   0.23    15.3/45.9 |  0.66  1.26  2.01   0.12 |  1.04  2.24  2.49
+2024 R24    55 |  0.55  1.10  1.71   0.21    40.7/85.0 |  0.66  1.44  2.47   0.01 |  0.97  2.52  2.59
+2025 R1     50 |  0.50  1.52  1.80   0.22    25.6/70.8 |  0.59  1.50  2.64   0.06 |  0.85  2.23  2.64
+2025 R6     54 |  0.62  1.24  1.51   0.00    19.5/40.3 |  0.66  1.34  1.63   0.00 |  0.85  1.82  2.14
+2025 R8     75 |  0.44  0.91  1.29   0.40    20.8/80.5 |  0.56  1.51  3.19   0.06 |  0.63  2.41  2.78
+2025 R16    50 |  0.61  1.61  1.75   0.08    27.8/83.5 |  0.76  1.81  2.71   0.01 |  1.24  2.42  3.07
+2025 R21    68 |  0.60  1.29  1.40   0.02    31.3/82.7 |  0.77  1.40  1.55   0.01 |  1.10  2.25  3.93
+2025 R24    55 |  0.50  1.10  1.21   0.59    26.0/86.5 |  0.59  1.48  2.65   0.01 |  0.76  2.44  3.74
+all races, rotation: 1690 lap pairs, mean move median 0.56, p95 1.25, max 1.98, pairs with a mean move > 2.5 (the former display-smoothing threshold): 0; driver moves > 2.5: 853 of 31056
+all races, sign    : 1690 lap pairs, mean move median 0.65, p95 1.53, max 3.26, pairs with a mean move > 2.5 (the former display-smoothing threshold): 9; driver moves > 2.5: 1163 of 31056
+all races, none    : 1690 lap pairs, mean move median 0.90, p95 2.46, max 4.22, pairs with a mean move > 2.5 (the former display-smoothing threshold): 60; driver moves > 2.5: 3886 of 31056
+smallest alignment dot: rotation 0.0007, sign 0.0007
+rotation mode, angle between displayed axis 1 and PC1: median 22.6 deg, p95 75.4 deg, max 89.9 deg
+
+== 4. Old frozen basis on Monza 2024: means, SDs and axes of lap 11 held fixed ==
+frozen at lap 11: label PC1 51.2% / PC2 35.4%
+  lap 15: frozen axes capture 60.0% / 23.1% (label still 51.2% / 35.4%); refit: 63.3% / 24.3%; max |z| frozen -7.47 (position_trend); field mean frozen (0.02, 0.08) vs crosshair (0, 0)
+  lap 20: frozen axes capture 43.6% / 21.2% (label still 51.2% / 35.4%); refit: 52.4% / 25.4%; max |z| frozen 7.75 (tyre_life); field mean frozen (1.56, 0.98) vs crosshair (0, 0)
+  lap 30: frozen axes capture 17.8% / 17.1% (label still 51.2% / 35.4%); refit: 50.0% / 28.0%; max |z| frozen 15.49 (tyre_life); field mean frozen (0.16, -0.05) vs crosshair (0, 0)
+  lap 40: frozen axes capture 33.8% / 30.2% (label still 51.2% / 35.4%); refit: 40.2% / 34.2%; max |z| frozen 14.72 (tyre_life); field mean frozen (2.68, 2.07) vs crosshair (0, 0)
+  lap 50: frozen axes capture 20.2% / 17.7% (label still 51.2% / 35.4%); refit: 47.2% / 28.5%; max |z| frozen 22.46 (tyre_life); field mean frozen (0.31, -0.61) vs crosshair (0, 0)
+
+== 5. PCA inputs: largest |r| between two non-constant inputs, per cached race (every lap) ==
+2024 R1    54 laps: max |r| 0.9894 (position~gap_to_leader, lap 4); smallest eigenvalue of the correlation matrix 1.1e-3
+2024 R2    47 laps: max |r| 0.9979 (position~gap_to_leader, lap 13); smallest eigenvalue of the correlation matrix 4.1e-4
+2024 R3    55 laps: max |r| 0.9982 (position~gap_to_leader, lap 5); smallest eigenvalue of the correlation matrix 4.9e-4
+2024 R4    48 laps: max |r| 0.9952 (recent_pace~pace_trend, lap 6); smallest eigenvalue of the correlation matrix 2.7e-5
+2024 R5    53 laps: max |r| 0.9992 (position~gap_to_leader, lap 33); smallest eigenvalue of the correlation matrix 1.6e-4
+2024 R6    54 laps: max |r| 0.9927 (position~gap_to_leader, lap 19); smallest eigenvalue of the correlation matrix 2.2e-3
+2024 R7    60 laps: max |r| 0.9983 (gap_to_leader~recent_pace, lap 6); smallest eigenvalue of the correlation matrix 4.9e-4
+2024 R8    73 laps: max |r| 0.9979 (gap_to_leader~recent_pace, lap 6); smallest eigenvalue of the correlation matrix 8.5e-4
+2024 R9    67 laps: max |r| 0.9914 (position~gap_to_leader, lap 4); smallest eigenvalue of the correlation matrix 3.5e-5
+2024 R10   63 laps: max |r| 0.9962 (position~gap_to_leader, lap 49); smallest eigenvalue of the correlation matrix 1.7e-3
+2024 R11   68 laps: max |r| 0.9936 (position~gap_to_leader, lap 5); smallest eigenvalue of the correlation matrix 6.0e-4
+2024 R12   49 laps: max |r| 0.9966 (tyre_life~stint_number, lap 15); smallest eigenvalue of the correlation matrix 1.4e-4
+2024 R13   67 laps: max |r| 0.9930 (position~gap_to_leader, lap 67); smallest eigenvalue of the correlation matrix 4.2e-4
+2024 R14   41 laps: max |r| 0.9986 (position~gap_to_leader, lap 4); smallest eigenvalue of the correlation matrix 1.7e-4
+2024 R15   69 laps: max |r| 0.9981 (tyre_life~stint_number, lap 16); smallest eigenvalue of the correlation matrix 7.8e-4
+2024 R16   50 laps: max |r| 0.9961 (position~gap_to_leader, lap 7); smallest eigenvalue of the correlation matrix 2.1e-4
+2024 R17   48 laps: max |r| 0.9941 (position~gap_to_leader, lap 13); smallest eigenvalue of the correlation matrix 1.1e-3
+2024 R18   59 laps: max |r| 0.9931 (position~gap_to_leader, lap 5); smallest eigenvalue of the correlation matrix 1.3e-3
+2024 R19   53 laps: max |r| 0.9995 (position~gap_to_leader, lap 7); smallest eigenvalue of the correlation matrix 1.6e-4
+2024 R20   68 laps: max |r| 0.9993 (position~gap_to_leader, lap 8); smallest eigenvalue of the correlation matrix 2.0e-4
+2024 R21   66 laps: max |r| 0.9976 (position~gap_to_leader, lap 43); smallest eigenvalue of the correlation matrix 1.2e-3
+2024 R22   47 laps: max |r| 0.9964 (position~gap_to_leader, lap 4); smallest eigenvalue of the correlation matrix 1.0e-3
+2024 R23   54 laps: max |r| 0.9984 (position~gap_to_leader, lap 4); smallest eigenvalue of the correlation matrix 8.4e-4
+2024 R24   55 laps: max |r| 0.9957 (position~gap_to_leader, lap 4); smallest eigenvalue of the correlation matrix 7.0e-4
+2025 R1    50 laps: max |r| 0.9959 (position~gap_to_leader, lap 8); smallest eigenvalue of the correlation matrix 2.0e-3
+2025 R6    54 laps: max |r| 0.9913 (position~gap_to_leader, lap 4); smallest eigenvalue of the correlation matrix 3.9e-3
+2025 R8    75 laps: max |r| 0.9759 (position~gap_to_leader, lap 15); smallest eigenvalue of the correlation matrix 1.4e-3
+2025 R16   50 laps: max |r| 0.9963 (position~gap_to_leader, lap 4); smallest eigenvalue of the correlation matrix 3.3e-4
+2025 R21   68 laps: max |r| 0.9966 (position~gap_to_leader, lap 6); smallest eigenvalue of the correlation matrix 1.7e-3
+2025 R24   55 laps: max |r| 0.9916 (position~gap_to_leader, lap 5); smallest eigenvalue of the correlation matrix 7.3e-4
+all races: 1720 laps, laps with a pair at |r| >= 0.999: 4; largest |r| 0.9995 (position~gap_to_leader, 2024 R19 lap 7); smallest eigenvalue 2.7e-5
+
+== 6. Estimated laps to the stop on Monza 2024 (stint-life survival) ==
+MEDIUM sets changed during the race (events): n 15, life 5-19 laps, median 15
+HARD sets changed during the race (events): n 15, life 12-34 laps, median 22
+old fixed table (removed): SOFT 18, MEDIUM 28, HARD 40 laps of stint
+  lap  5: LEC M3 -> 20 (race), PIA M4 -> 19 (race), NOR M3 -> 20 (race), VER H3 -> 34 (race), HAM M3 -> 20 (race)
+  lap 10: LEC M8 -> 17 (race), PIA M9 -> 16 (race), NOR M8 -> 17 (race), VER H8 -> 31 (race), HAM M8 -> 17 (race)
+  lap 15: LEC M13 -> 14 (race), PIA M14 -> 13 (race), NOR M13 -> 14 (race), VER H13 -> 27 (race), HAM M13 -> 14 (race)
+  lap 20: LEC H3 -> 39 (race), PIA H2 -> 40 (race), NOR H4 -> 38 (race), VER H19 -> 23 (race), HAM H3 -> 39 (race)
+  lap 30: LEC H13 -> 10 (race), PIA H13 -> 10 (race), NOR H14 -> 9 (race), VER H6 -> 17 (race), HAM H13 -> 10 (race)
+  lap 40: LEC H24 -> 7 (race), PIA H1 -> 22 (race), NOR H6 -> 17 (race), VER H16 -> 8 (race), HAM H1 -> 22 (race)
+every cached race, every lap: 31633 driver estimates, 3 at 0 (set older than every life in the table), 0 at the table end (100 laps of tyre age)
+
+== 7. Recent-pace windows (last 3 pace laps) holding lap 1 or a non-green lap ==
+every cached race, every lap, every driver in the field: 31633 windows; old rule (non-pit laps) 4531 with lap 1 or a non-green lap; now 0 on clean laps
+laps whose pace still uses the field's non-pit laps (not every driver has 2 clean laps yet): 63 of 1720
+  by race (laps): 2024 R1: 4; 2024 R2: 4; 2024 R3: 4; 2024 R4: -; 2024 R5: 4; 2024 R6: 4; 2024 R7: 4; 2024 R8: -; 2024 R9: 4; 2024 R10: 4; 2024 R11: 4; 2024 R12: 4; 2024 R13: 4,6; 2024 R14: 4,5; 2024 R15: 4; 2024 R16: 4; 2024 R17: 4; 2024 R18: 4; 2024 R19: 4,5,6,7,8; 2024 R20: 4,5,6,7,8,9; 2024 R21: 4; 2024 R22: 4; 2024 R23: 4,5,6,7,8,9; 2024 R24: 4,5,6,7,8; 2025 R1: 8,9,10; 2025 R6: 4,5,6; 2025 R8: 4,5,6,7; 2025 R16: 4; 2025 R21: 4,5,6,7,8,9,10,11,12; 2025 R24: 4

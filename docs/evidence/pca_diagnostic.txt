@@ -1,0 +1,36 @@
+matrix: backend/data/processed/pca_feature_matrix.csv
+rows: 534  races: 30  rows per race: min 14 / median 18 / max 20
+features (12): pace_delta_pct, best_lap_delta_pct, recent_pace_delta_pct, sector1_delta_pct, sector2_delta_pct, sector3_delta_pct, consistency_pct, degradation_slope, pit_count, avg_stint_length, max_stint_length, grid_position
+
+PC   explained   cumulative   eta2(race)
+PC1       0.441        0.441        0.028
+PC2       0.203        0.645        0.558
+PC3       0.129        0.774        0.753
+PC4       0.053        0.827        0.197
+PC5       0.049        0.876        0.603
+PC6       0.029        0.905        0.231
+PC7       0.027        0.932        0.221
+PC8       0.021        0.954        0.083
+PC9       0.019        0.973        0.137
+PC10      0.017        0.989        0.087
+PC11      0.010        0.999        0.626
+PC12      0.001        1.000        0.662
+
+feature                 eta2(race)   PC1 loading   PC2 loading
+pace_delta_pct               0.059         0.424        -0.013
+best_lap_delta_pct           0.037         0.335         0.177
+recent_pace_delta_pct        0.059         0.343         0.120
+sector1_delta_pct            0.065         0.382        -0.036
+sector2_delta_pct            0.043         0.394         0.003
+sector3_delta_pct            0.042         0.391        -0.026
+consistency_pct              0.574         0.096        -0.054
+degradation_slope            0.810         0.013        -0.024
+pit_count                    0.473         0.054        -0.562
+avg_stint_length             0.618        -0.059         0.602
+max_stint_length             0.674         0.023         0.519
+grid_position                0.007         0.346        -0.037
+
+feature pairs with |r| >= 0.9: 2
+  pace_delta_pct ~ sector2_delta_pct: r = 0.918
+  pace_delta_pct ~ sector3_delta_pct: r = 0.905
+degradation_slope: n = 534, negative 168 (31.5%), median 0.0298

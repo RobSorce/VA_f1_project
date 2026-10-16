@@ -1,0 +1,21 @@
+cap 0.9: smallest distance to the team colour / tint 1 marks 11.0; smallest distance between third-driver marks of two teams 0.4 (Ferrari #FDE6EA / Audi #FEE6EB)
+cap 0.7: smallest distance to the team colour / tint 1 marks 11.0; smallest distance between third-driver marks of two teams 0.6 (Ferrari #5D0012 / Audi #560213)
+cap 0.6: smallest distance to the team colour / tint 1 marks 10.1; smallest distance between third-driver marks of two teams 1.0 (Ferrari #5D0012 / Audi #620216)
+cap 0.5: smallest distance to the team colour / tint 1 marks 8.5; smallest distance between third-driver marks of two teams 0.9 (Alfa Romeo #791B2D / Cadillac #6C6C6C)
+   Red Bull Racing  #3671C6 -> #6895D4 (white 0.25), mark #6895D4, dE to own 8.5
+   Ferrari          #E8002D -> #8B001B (black 0.40), mark #AE4D5F, dE to own 15.6
+   Mercedes         #27F4D2 -> #1FC3A8 (black 0.20), mark #1FC3A8, dE to own 11.0
+   McLaren          #FF8000 -> #804000 (black 0.50), mark #996633, dE to own 17.5
+   Aston Martin     #229971 -> #13543E (black 0.45), mark #427665, dE to own 11.1
+   Alpine           #FF87BC -> #CC6C96 (black 0.20), mark #CC6C96, dE to own 9.3
+   Williams         #64C4FF -> #509DCC (black 0.20), mark #509DCC, dE to own 11.1
+   RB               #6692FF -> #38508C (black 0.45), mark #566A9D, dE to own 18.3
+   AlphaTauri       #5E8FAA -> #2F4855 (black 0.50), mark #596D77, dE to own 13.8
+   Haas F1 Team     #B6BABD -> #929597 (black 0.20), mark #929597, dE to own 10.8
+   Kick Sauber      #52E252 -> #42B542 (black 0.20), mark #42B542, dE to own 11.3
+   Alfa Romeo       #C92D4B -> #791B2D (black 0.40), mark #A15F6C, dE to own 10.3
+   Audi             #F50537 -> #87031E (black 0.45), mark #AB4F62, dE to own 16.4
+   Cadillac         #909090 -> #6C6C6C (black 0.25), mark #6C6C6C, dE to own 13.9
+cap 0.4: smallest distance to the team colour / tint 1 marks 8.5; smallest distance between third-driver marks of two teams 0.9 (Alfa Romeo #791B2D / Cadillac #6C6C6C)
+2024, cap 0.9: third drivers of two teams (both dashed 2,2) at least 0.7 apart (Alpine #FFF3F8 / Haas F1 Team #F8F8F8); a third driver and another team's solid or 6,3 mark at least 2.1 apart (RB third #0A0F1A / Haas F1 Team mark #717375)
+2024, cap 0.6: third drivers of two teams (both dashed 2,2) at least 1.4 apart (Red Bull Racing #162D4F / RB #293A66); a third driver and another team's solid or 6,3 mark at least 2.2 apart (Ferrari third #5D0012 / Alpine mark #9E5475)

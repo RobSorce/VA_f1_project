@@ -10,7 +10,7 @@ import { evalCssLength } from './cssLength.js';
 //    protanopia, deuteranopia and tritanopia (Machado et al. 2009, severity 1,
 //    CIEDE2000 between every pair) or always drawn with a redundant cue (a
 //    letter, glyph, sign or dash): scripts/cvd_check.mjs prints both, its
-//    output is saved under notes/experiments/phase9/.
+//    output is docs/evidence/cvd_check.txt.
 
 // ── Surfaces of the dark theme (styles/tokens.css) ─────────────────────
 // page = --color-bg-primary; panel = --color-bg-panel over the page; raised =
@@ -28,7 +28,7 @@ export const CHART_SURFACE = SURFACES.raised;
 
 // Neutral text of the views (dark theme). Contrast on the elevated surface:
 // primary 14.49, secondary 9.03, muted 6.05, and muted 5.10 on a hovered row
-// (notes/experiments/phase9/cvd_check.txt): every one passes 4.5:1 everywhere.
+// (docs/evidence/cvd_check.txt): every one passes 4.5:1 everywhere.
 export const TEXT_COLORS = {
   primary: '#FFFFFF',
   secondary: '#C9CCD6',
@@ -414,7 +414,7 @@ export function closestPair(palette, type = 'normal') {
 // ── Diverging pair (better / worse) ────────────────────────────────────
 // Blue / orange instead of green / red: CIEDE2000 between the two >= 47.2
 // under every vision type, both >= 5.53:1 on the elevated surface (text-safe,
-// notes/experiments/phase9/cvd_check.txt). Always
+// docs/evidence/cvd_check.txt). Always
 // shown with the sign of the value (+ / −, signedDelta) or a ▲ ▼ glyph, so the
 // colour is never the only cue. "better" = faster / gained / closing in.
 export const DIVERGING = {
@@ -561,7 +561,7 @@ export const CHANNEL_COLORS = {
 };
 // Low ends of the Track Map channel ramps, >= 3:1 on the panel so 0 % brake
 // (most of a lap) and the slowest corners never vanish into the background
-// (notes/experiments/phase9/repair/ramp_ends.txt): throttle / brake start at
+// (docs/evidence/ramp_ends.txt): throttle / brake start at
 // the track grey lifted to 3:1 (3.15:1), speed is cividis from t = 0.37, its
 // first t at 3:1 (3.07:1)
 export const CHANNEL_RAMP_LOW = '#5C6677';
@@ -592,7 +592,7 @@ export const MEDAL_COLORS = { 1: '#FFD700', 2: '#C0C0C0', 3: '#CD7F32' };
 
 // Finishing-outcome classes of the PCA biplot (sequential, brighter = better):
 // cividis at t = 1, 0.685 and 0.37, the lowest t still at 3:1 on the panel
-// (scripts/pca_outcome_palette.mjs; notes/experiments/phase67/
+// (scripts/pca_outcome_palette.mjs; docs/evidence/
 // pca_outcome_palette.txt: 14.86 / 7.03 / 3.07); ordered by lightness, so it
 // stands on colour alone under every vision type (cvd_check.txt)
 export const OUTCOME_COLORS = {
@@ -612,7 +612,7 @@ export const UI_COLORS = {
   focusRing: '#FFFFFF',
   // Boundary of a text field or an outlined control: >= 3:1 on every dark
   // surface (WCAG 2.1 SC 1.4.11; 4.16:1 on the elevated surface, 4.49:1 on
-  // the panel; notes/experiments/phase9/repair_contrast.txt)
+  // the panel; docs/evidence/contrast_pairs.txt)
   controlBorder: 'rgba(255,255,255,0.45)',
   predicted: STATUS_COLORS.predicted,
   // The pit window, in every view that draws one (Circle of Doom band and
@@ -818,7 +818,7 @@ const _worstDeltaE = (a, b) => Math.min(...CVD_TYPES.map((t) => (t === 'normal'
  * a reserve of the championship): the mix toward white or black, in 5 % steps
  * from 10 to 60 %, whose mark is farthest (worst vision type) from the marks
  * of the team colour and of tint 1: CIEDE2000 >= 10.1 for every team colour
- * (notes/experiments/phase9/repair3/third_tint_hue.txt), so three drivers of a
+ * (docs/evidence/third_tint_hue.txt), so three drivers of a
  * team are never drawn alike. The mix keeps at least 40 % of the team colour,
  * so its hue: with mixes up to 90 % most third tints were near-white or
  * near-black and the third drivers of two teams were CIEDE2000 0.7 apart

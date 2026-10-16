@@ -4,8 +4,7 @@
 // 775 px of the default widths the columns past the pane's right edge were
 // cut with their values, no ellipsis and no scroll, in 7 of the 16 preset x
 // viewport cases (1536 x 750 Pace, 578.8 px: Lap Time cut by 6 px, Gap, Tyre
-// and Laps hidden; notes/experiments/phase9c/verify_layout-charts_r2/
-// laptimes_sheet_width.txt). Now the columns shrink to the rows' box down to
+// and Laps hidden). Now the columns shrink to the rows' box down to
 // floors that keep every value whole (utils/views/timingSheetFit.js); a pane
 // too narrow for the floors gives up whole columns, named in a "+N" header
 // cell, never cut.
@@ -43,7 +42,7 @@ const rowsWidth = (ws, shown) => {
   return idx.reduce((a, i) => a + ws[i], 0) + 2 * TIMING_PAD_X + TIMING_GAP * (idx.length - 1);
 };
 // panel content widths of the Lap Times panes (pane - 2 px of border - 2 x
-// --spacing-md), the data type size there: laptimes_sheet_width.txt
+// --spacing-md), the data type size there (a static measure of the panes)
 const PANES = [
   ['1536x750 pace', 578.8, 11], ['1536x750 tyres / prediction', 640.1, 11], ['1536x750 strategy', 1194.7, 11],
   ['1366x768 pace', 512.1, 11.08], ['1366x768 tyres / prediction', 566.6, 11.08],
