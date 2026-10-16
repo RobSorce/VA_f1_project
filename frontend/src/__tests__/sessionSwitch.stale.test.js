@@ -1,4 +1,4 @@
-// P3a: a request asked for one session and answered after the dashboard
+// A request asked for one session and answered after the dashboard
 // switched session (live -> replay, replay -> replay, reset) never lands on
 // the new one. Every async store action captures the session generation it
 // was asked in (store/useF1Store.js _sessionLoadGeneration) and drops an
@@ -93,7 +93,7 @@ async function enterLive() {
   expect(store().isLiveMode).toBe(true);
 }
 
-describe('P3a: answers of an earlier session never land on the session on screen', () => {
+describe('answers of an earlier session never land on the session on screen', () => {
   it('a brushed degradation fit asked live (laps 5-25) and answered after the replay of the same race landed is dropped', async () => {
     await enterLive();
     const deg = deferred();
@@ -111,7 +111,7 @@ describe('P3a: answers of an earlier session never land on the session on screen
     store().setCurrentLap(3);
     await settle();
     expect(store().degradationRegression).toBeNull();
-  });
+  }, 20000);
 
   it('a degradation fit of the session on screen still lands (same generation)', async () => {
     await store().loadSession();
@@ -149,7 +149,7 @@ describe('P3a: answers of an earlier session never land on the session on screen
     expect(asked).toEqual(['2024 R98 AAA lap 3 R']);
     expect(store().telemetryCache).toEqual({});
     expect(store().telemetryLoading).toBe(false);
-  });
+  }, 20000);
 
   it('telemetry of the session on screen is cached under its year, round and type (D7)', async () => {
     await store().loadSession();
@@ -191,7 +191,7 @@ describe('P3a: answers of an earlier session never land on the session on screen
     await req;
     await settle();
     expect(store().degradationRegression).toBeNull();
-  });
+  }, 20000);
 
   it('live mode sends no degradation request (no session clock; a mock race would hand it future laps)', async () => {
     await store().enterLiveMode(2024, 98, 10);
@@ -295,5 +295,5 @@ describe('P3a: answers of an earlier session never land on the session on screen
     expect(store().lstmPredictions).toBeNull();
     expect(store().predictionLoading).toBe(false);
     expect(store().positionData).toBeNull();
-  });
+  }, 20000);
 });

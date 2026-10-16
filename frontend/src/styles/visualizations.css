@@ -31,7 +31,7 @@
 
 /* Track Map sectors (.sector-path .sector-N): coloured by TrackMap.jsx with
    SECTOR_COLORS of utils/colors.js, the colours of their legend. No CSS
-   stroke here: a CSS rule beats an SVG presentation attribute (V4 r2). */
+   stroke here: a CSS rule beats an SVG presentation attribute. */
 
 .drs-zone {
   fill: none;
@@ -338,6 +338,14 @@
   color: var(--map-overlay-text);
 }
 
+/* The telemetry HUD's columns and drivers left out for room, named (B7) */
+.track-map-layers__note {
+  padding: 4px 0;
+  font-size: var(--font-size-label);
+  line-height: 16px;
+  color: var(--map-overlay-text);
+}
+
 /* The toolbar's icon buttons (MapTool) in the panel header, themed: the
    glyph in the muted text colour, the border >= 3:1 on the header in both
    themes (light: #7B8190 on #f8f8f8, 3.7:1); the open Layers button in the
@@ -386,7 +394,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   Telemetry HUD as a table (Phase 9d G1 r2; TrackMap.jsx TrackHudTable,
+   Telemetry HUD as a table (TrackMap.jsx TrackHudTable,
    trackMapLayout.js HUD_TABLE): in a map under HUD_CARDS_MIN_H, one 16 px
    row per driver under a 14 px header, fixed column widths, so its box is
    the one the track is fitted clear of. Drawn like the map and its key
@@ -397,7 +405,7 @@
   left: 10px;
   bottom: 10px;
   z-index: 10;
-  padding: 3px 6px;
+  padding: 3px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 6px;
   background: rgba(15, 15, 30, 0.88);
@@ -455,6 +463,20 @@
 .track-hud__drv {
   font-family: 'Formula1', 'Titillium Web', sans-serif;
   font-weight: 700;
+}
+
+/* The columns left out for room, counted in the driver column's header
+   (trackMapLayout.js hudColumnsHint, "+k cols"): it may run into the left
+   of the tyre column's header, whose label is right-aligned */
+.track-hud__h--drv {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.track-hud__cols {
+  font-family: 'Formula1', 'Titillium Web', sans-serif;
+  font-weight: 400;
+  color: var(--map-overlay-text);
 }
 
 .track-hud__row--focus .track-hud__c {
@@ -970,12 +992,14 @@
 /* ── Broadcast Header ───────────────────────────────────────────────── */
 /* 6 px above and below (10 / 8 before Phase 9c): with the column header and
    the flag banner a step tighter, the 20 sidebar rows keep >= 18 px with a
-   flag banner and the forecast footer at 1536 x 750 (frontend/scripts/audit/panel_fit.mjs) */
+   flag banner and the forecast footer at 1536 x 750 (frontend/scripts/audit/panel_fit.mjs).
+   12 px at the right (26 before): at 1366 x 768 the 255 px sidebar header
+   cut "/53" of "LAP 51/53" by 12 px. */
 .tower-broadcast-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 26px 6px 12px;
+  padding: 6px 12px;
   background: linear-gradient(135deg, var(--color-f1-red) 0%, var(--color-f1-red-dark) 50%, rgba(20, 20, 40, 0.95) 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px 20px 0 0;
@@ -1024,6 +1048,13 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 700;
+}
+
+/* In the 255 px sidebar of a 1366 px window "RACE" + the buttons + "LAP 51/53"
+   need 280 px: the word LAP goes (the numbers stay; the block's title names
+   it). The qualifying label is not affected. */
+@media (max-width: 1440px) {
+  .tower-broadcast-header__lap-label--lap { display: none; }
 }
 
 .tower-broadcast-header__lap-current {
@@ -1101,7 +1132,7 @@
   justify-content: center;
   gap: 6px;
   padding: 3px 8px;
-  animation: flag-pulse 1.5s ease-in-out infinite;
+  /* static: pulsed down to opacity 0.8 (flag-pulse), its RED FLAG label read 3.93:1 on the panel */
   flex-shrink: 0;
 }
 
@@ -1248,9 +1279,10 @@
   z-index: 2;
 }
 
+/* at most the static 0.14: on 0.18 the row's ▲ / ▼ text read 4.03 / 4.18:1, its muted text 4.41:1 */
 @keyframes focus-row-pulse {
-  0%, 100% { background: rgba(255, 255, 255, 0.12); }
-  50% { background: rgba(255, 255, 255, 0.18); }
+  0%, 100% { background: rgba(255, 255, 255, 0.10); }
+  50% { background: rgba(255, 255, 255, 0.14); }
 }
 
 /* ── Position group (arrows + number) ──────────────────────────────── */
@@ -1523,7 +1555,7 @@
 /* ── Battle indicator ─────────────────────────────────────────────── */
 /* A row in a battle (within 1 s of the car ahead or behind): a neutral
    highlight, so orange keeps one meaning in the tower (places lost ▼, and
-   the top level of the overtake badge, which carries its ⇅ and %) (V2 r2) */
+   the top level of the overtake badge, which carries its ⇅ and %) */
 .tower-row--battle {
   background: rgba(255, 255, 255, 0.06) !important;
 }
@@ -1602,12 +1634,6 @@
 @keyframes winner-row-pulse {
   0%, 100% { background: linear-gradient(90deg, color-mix(in srgb, var(--medal-gold) 12%, transparent), color-mix(in srgb, var(--medal-gold) 4%, transparent)); }
   50% { background: linear-gradient(90deg, color-mix(in srgb, var(--medal-gold) 22%, transparent), color-mix(in srgb, var(--medal-gold) 8%, transparent)); }
-}
-
-/* Winner banner glow */
-@keyframes winner-banner-glow {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 1; }
 }
 
 /* ── Green flag flash animation ─────────────────────────────────────── */
@@ -2522,7 +2548,7 @@
 .pos-undercut-label {
   pointer-events: none;
   /* the pit-window purple of its band, as text (UI_COLORS.pitWindowText);
-     a CSS fill beats the presentation attribute PositionByLap sets (V2 r2) */
+     a CSS fill beats the presentation attribute PositionByLap sets */
   fill: var(--color-pit-window-text);
   font-family: var(--font-mono, monospace);
   font-size: var(--font-size-data);
@@ -2887,7 +2913,7 @@
   pointer-events: none;
 }
 
-/* Selected in another view: the Track Map's selected-car red (.car-marker.selected) */
+/* Selected in another view: the selection blue (--color-brush), as the Track Map's selected cars (.car-marker.selected) */
 .cod-select-ring {
   fill: none;
   stroke: var(--color-brush);

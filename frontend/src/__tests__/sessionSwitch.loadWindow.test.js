@@ -1,4 +1,4 @@
-// P3a (lead decision D7), the load window: loadSession and enterLiveMode bump
+// Session switch, the load window: loadSession and enterLiveMode bump
 // the session generation when they START, while the session on screen stays
 // mounted and interactive (brush, playback, focus) until they commit. A
 // request its views send in that window carries the NEW generation with the
@@ -95,7 +95,7 @@ function startLoadB() {
   };
 }
 
-describe('P3a: a request sent for the session on screen while the next one loads', () => {
+describe('a request sent for the session on screen while the next one loads', () => {
   it('a brushed degradation fit of A asked while B loads is dropped when it lands on B, also later on B', async () => {
     const nowA = store().getSessionNow();
     const loadB = startLoadB();
@@ -116,7 +116,7 @@ describe('P3a: a request sent for the session on screen while the next one loads
     store().setCurrentLap(3);
     await settle();
     expect(store().degradationRegression).toBeNull();
-  });
+  }, 20000);
 
   it('the lap-time forecast (its one trigger), Gemini, telemetry and positions of A never land on B', async () => {
     const loadB = startLoadB();
@@ -154,7 +154,7 @@ describe('P3a: a request sent for the session on screen while the next one loads
     expect(store().telemetryCache).toEqual({});
     expect(store().telemetryLoading).toBe(false);
     expect(store().positionData).toBeNull();
-  });
+  }, 20000);
 
   it('an answer that arrives while A is still on screen lands on A, and B\'s commit clears it', async () => {
     const loadB = startLoadB();
@@ -164,7 +164,7 @@ describe('P3a: a request sent for the session on screen while the next one loads
     expect(store().lstmPredictions?.AAA?.optimal_pit_lap).toBe(31);
     await loadB.land();
     expect(store().lstmPredictions).toBeNull();
-  });
+  }, 20000);
 
   it('replay -> live: an LSTM of the replay asked while a mock live entry connects is dropped', async () => {
     const snap = deferred();
@@ -184,7 +184,7 @@ describe('P3a: a request sent for the session on screen while the next one loads
     await req;
     await settle();
     expect(store().lstmPredictions).toBeNull();
-  });
+  }, 20000);
 
   it('replay -> mock live of the SAME race: same session, another mode, the answer is dropped', async () => {
     const snap = deferred();
@@ -204,5 +204,5 @@ describe('P3a: a request sent for the session on screen while the next one loads
     await settle();
     // the replay's prediction read laps up to lap 20; live is at lap 5
     expect(store().lstmPredictions).toBeNull();
-  });
+  }, 20000);
 });

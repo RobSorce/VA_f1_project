@@ -39,7 +39,7 @@
  * Kaplan-Meier, past its data the prior's tail), charged the pit-loss median.
  * A car with a stop in progress at sessionNow (pit entry passed) is already
  * charged by the window (pending loss); its new set follows the same model.
- * A pit-lane visit with no tyre change (R2, lead decision D3: a drive-through,
+ * A pit-lane visit with no tyre change (a drive-through,
  * a pass through the pits under SC) is not a stop: once its pit exit has
  * passed with no new stint (stints.js), the car keeps its set (no new set, no
  * fresh-tyre delta, TyreLife continues); its time in the pit lane is the
@@ -48,7 +48,7 @@
  * The compound fitted at a stop: likelyNextCompound (this race's tyre changes
  * from that compound, else the cached races', the two-dry-compound rule).
  *
- * Undercut sweep (undercutSweep, lead decision D2): every candidate in-lap of
+ * Undercut sweep (undercutSweep): every candidate in-lap of
  * the focus is compared over ONE fixed horizon, the race end (the last lap
  * both cars complete), with the rival's stop scheduled in every row. A plan
  * is feasible only when each of its stints is within the
@@ -83,12 +83,12 @@ export const PIT_IN_LAPS_MAX = 10;
  * Candidate in-laps of the Undercut Calculator: the lap in progress and the
  * next UNDERCUT_SWEEP_LAPS laps. A range of the table (how many rows are
  * displayed), not a model value: every row is read at the race end whatever
- * the table length (lead decision D2).
+ * the table length.
  */
 export const UNDERCUT_SWEEP_LAPS = 15;
 
 /**
- * Stint-length feasibility of the undercut sweep (lead decision D2). MODELLING
+ * Stint-length feasibility of the undercut sweep. MODELLING
  * CHOICE, not a value read off data: a set may run up to the tyre age by
  * which STINT_FEASIBLE_QUANTILE of the sets of its compound have been changed
  * (the 90th percentile of the stint-life survival, raceSimulation.js
@@ -216,13 +216,14 @@ function pitLaneNow(lastRow, nextRow, now) {
 /**
  * Compound fitted at a stop from `compound`: among the dry compounds (only
  * those not used yet when the driver has used fewer than two dry compounds in
- * a dry race: the sporting rule), the one this race has fitted most often
+ * a dry race with a mandatory stop: the sporting rule, not in a sprint), the
+ * one this race has fitted most often
  * after `compound` (raceParams.transitions), else the cached races'
  * (PRIORS.transitions); with no count at all, the hardest. Wet compounds stay
  * (the weather is not forecast). The same rule as the Monte Carlo engine's
  * stops (raceSimulation.js).
  *
- * @param {Object} raceParams - extractRaceParams result (transitions, dryRace)
+ * @param {Object} raceParams - extractRaceParams result (transitions, dryRace, mandatoryStop)
  * @param {string} compound
  * @param {string[]} [used] - compounds used so far
  * @returns {string}
@@ -231,7 +232,7 @@ export function likelyNextCompound(raceParams, compound, used = []) {
   const c = compoundKey(compound);
   if (WET.has(c)) return c;
   const usedDry = new Set([...used, c].map(compoundKey).filter((x) => DRY.has(x)));
-  const mustChange = raceParams?.dryRace !== false && usedDry.size < 2;
+  const mustChange = raceParams?.dryRace !== false && raceParams?.mandatoryStop !== false && usedDry.size < 2;
   const candidates = DRY_COMPOUNDS.filter((x) => !mustChange || !usedDry.has(x));
   if (!candidates.length) return c;
   const order = [...candidates].reverse();
@@ -269,7 +270,7 @@ export function likelyStop(raceParams, tyre) {
 }
 
 /**
- * The longest feasible stint of a compound (lead decision D2): the tyre age by
+ * The longest feasible stint of a compound: the tyre age by
  * which STINT_FEASIBLE_QUANTILE of its sets are changed, read off its
  * stint-life survival (stintLifeFor; the smallest age t with S[t] <= 1 -
  * STINT_FEASIBLE_QUANTILE). Infinity when the table never gets that low.
@@ -578,7 +579,7 @@ export function pitInLaps(focus, state, pitLoss, raceParams, opts = {}) {
 }
 
 /**
- * Undercut sweep of the Undercut Calculator (lead decision D2): for every
+ * Undercut sweep of the Undercut Calculator: for every
  * candidate in-lap p of the focus car (the lap in progress and the next
  * UNDERCUT_SWEEP_LAPS: how many rows are displayed), both cars projected
  * (module header) over ONE fixed horizon H, the race end: the last lap both
@@ -588,7 +589,7 @@ export function pitInLaps(focus, state, pitLoss, raceParams, opts = {}) {
  * latest out-lap of the table (horizon.source 'table').
  * The rival's stop q is scheduled in every row: its stop in progress, else
  * opts.rivalStopLap (a choice of the view), else its likely stop (likelyStop:
- * stint-life survival). A choice is no longer one (lead decision D4) once its
+ * stint-life survival). A choice is no longer one once its
  * lap is not in the future of the rival (q < its lap in progress) or the
  * rival has changed tyres since it was made (opts.rivalStopStints, the
  * rival's stint count then, differs from now): rivalStop.expiredChoice

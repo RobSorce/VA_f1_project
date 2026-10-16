@@ -1,5 +1,5 @@
 /**
- * S4 done-when (lead decision D5): every categorical mark the views derive
+ * Every categorical mark the views derive
  * from a Monte Carlo projection must be stable on a same-state recompute with
  * a different seed. Every cached race x 3 clocks (25 / 50 / 75 % of the
  * distance, lap-mode clock) x SEEDS seeds, DEFAULT_NUM_SIMULATIONS runs each,

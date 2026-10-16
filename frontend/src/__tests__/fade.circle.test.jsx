@@ -1,4 +1,4 @@
-// F8 / D7 in the Circle of Doom: with a selection on, the cars that are not
+// Focus + context in the Circle of Doom: with a selection on, the cars that are not
 // selected are context. Their ring labels turn to the muted text colour
 // (>= 3:1, in fact 7.63:1 on the panel) and their leader lines are drawn in
 // the leader grey mixed toward the panel (contextColor, >= 2:1); nothing of

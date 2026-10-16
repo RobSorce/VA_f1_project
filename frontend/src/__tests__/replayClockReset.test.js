@@ -1,5 +1,5 @@
-// R8, R5 (frontend events), R2 (store stops) and the store parts of D2 / D4 /
-// D5: the replay clock is reset on every session load / reset / qualifying
+// Decisions R8, R5 (frontend events) and R2 (store stops), store side: the
+// replay clock is reset on every session load / reset / qualifying
 // segment change, a qualifying segment has its own origin, every
 // clock-derived analytic follows any clock jump, and the timeline and
 // race-control lists show only what has happened at the replay's now.
@@ -316,7 +316,7 @@ describe.skipIf(!(have(2024, 16) && have(2024, 5)))('R8: the replay clock is res
     expect(s.isPlaying).toBe(false);
     expect([s.currentTime, s.maxTime, s.currentFrameIndex, s.totalFrames]).toEqual([0, 0, 0, 0]);
     expect(s.sessionTimeOffset).toBeCloseTo(3318.169, 3);
-    // the race start, not 3318.169 + 3200 (the verifier's 6518.169)
+    // the race start, not 3318.169 + 3200 (6518.169)
     expect(s.getSessionNow()).toBe(s.sessionTimeOffset);
     expect(s.currentFlagStatus).toBe(flagAtSessionTime(china.track_status, s.getSessionNow()));
     const startWeather = weatherAtSessionTime(china.weather_data, s.getSessionNow());
@@ -347,7 +347,7 @@ describe.skipIf(!(have(2024, 16) && have(2024, 5)))('R8: the replay clock is res
     expect(s.sessionTimeOffset).toBe(0);
   });
 
-  // Round 3 (D2 problem 1): a historical load still in flight never lands on
+  // A historical load still in flight never lands on
   // what replaced it. Each switch (live entry, live exit, the reset to the
   // selector) starts a new load generation, so the old frames are dropped.
   const leaveFor = {
@@ -367,7 +367,7 @@ describe.skipIf(!(have(2024, 16) && have(2024, 5)))('R8: the replay clock is res
     resetSession: async () => { store().resetSession(); },
   };
   for (const [name, leave] of Object.entries(leaveFor)) {
-    it(`frames of a 2024 R16 load still in flight when ${name} runs are discarded (round 3)`, async () => {
+    it(`frames of a 2024 R16 load still in flight when ${name} runs are discarded`, async () => {
       vi.useFakeTimers();
       let release;
       fixtures.framesGate = new Promise((r) => { release = r; });
@@ -410,7 +410,7 @@ describe.skipIf(!(have(2024, 16) && have(2024, 5)))('R8: the replay clock is res
 // The session-type pill (store.sessionType) is the type of the NEXT load: the
 // session menus change it without loading. The R7 gate must follow the type of
 // the session on screen (loadedSessionType, recorded by loadSession).
-describe.skipIf(!(hasCachedSession(2026, 1, 'FP2') && have(2024, 16)))('R7: the session-type gate follows the loaded session, not the pill, in the views and the store (round 2)', () => {
+describe.skipIf(!(hasCachedSession(2026, 1, 'FP2') && have(2024, 16)))('the session-type gate follows the loaded session, not the pill, in the views and the store (R7)', () => {
   /** Visible text of a StrategyTimeline render at the store's current state. */
   const timelineText = () => renderWithStore(createElement(StrategyTimeline))
     .replace(/<!-- -->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
@@ -489,7 +489,7 @@ describe.skipIf(!(hasCachedSession(2026, 1, 'FP2') && have(2024, 16)))('R7: the 
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe.skipIf(!have(2024, 8, 'Q'))('R8: qualifying replay, one origin per segment (D2 problem 3)', () => {
+describe.skipIf(!have(2024, 8, 'Q'))('qualifying replay, one origin per segment (R8)', () => {
   let session;
   let segments;
   beforeAll(async () => {
@@ -577,7 +577,7 @@ describe.skipIf(!have(2024, 8, 'Q'))('R8: qualifying replay, one origin per segm
     expect(store().currentTime).toBe(segments.Q2.frames[0].t);
   });
 
-  it('Leaderboard PIT column = the Strategy Timeline STOPS badge (tyre changes at now, R2; round 2)', () => {
+  it('Leaderboard PIT column = the Strategy Timeline STOPS badge (tyre changes at now, R2)', () => {
     vi.useFakeTimers();
     const lt = session.lap_times;
     for (const seg of ['Q1', 'Q3']) {
@@ -604,7 +604,7 @@ describe.skipIf(!have(2024, 8, 'Q'))('R8: qualifying replay, one origin per segm
     }
   });
 
-  it('P3f: at the last frame of every segment the Leaderboard shows the official segment order (segment laps only, the segment end as clock)', () => {
+  it('at the last frame of every segment the Leaderboard shows the official segment order (segment laps only, the segment end as clock)', () => {
     vi.useFakeTimers();
     const results = session.race_results;
     const official = (seg) => results
@@ -648,7 +648,7 @@ describe.skipIf(!have(2024, 8, 'Q'))('R8: qualifying replay, one origin per segm
     console.log(`[P3f] last-frame orders: ${JSON.stringify(shownOrders)}`);
   });
 
-  it('TrackMap: the last frame of a segment is not the end of the session, and nobody "wins" (round 2, D2 problem 1)', () => {
+  it('TrackMap: the last frame of a segment is not the end of the session, and nobody "wins"', () => {
     vi.useFakeTimers();
     const plain = (html) => html.replace(/<!-- -->/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     for (const seg of ['Q1', 'Q2', 'Q3']) {
@@ -675,7 +675,7 @@ describe.skipIf(!have(2024, 8, 'Q'))('R8: qualifying replay, one origin per segm
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe.skipIf(!have(2024, 16))('R8: clock-derived analytics follow every clock jump (Monza 2024, D5 problem 1)', () => {
+describe.skipIf(!have(2024, 16))('clock-derived analytics follow every clock jump (Monza 2024, R8)', () => {
   let session;
   beforeAll(async () => {
     vi.useFakeTimers();
@@ -851,7 +851,7 @@ describe.skipIf(!have(2024, 16))('R8: clock-derived analytics follow every clock
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe.skipIf(!have(2025, 1))('R2: the focus-driver pit trigger counts tyre changes only (2025 R1, NOR)', () => {
+describe.skipIf(!have(2025, 1))('the focus-driver pit trigger counts tyre changes only (2025 R1, NOR)', () => {
   it('SC pit-lane passes on laps 2-4 do not fire it; the lap-35 stop does', async () => {
     vi.useFakeTimers();
     await load(2025, 1);
@@ -907,8 +907,8 @@ describe.skipIf(!have(2025, 1))('R2: the focus-driver pit trigger counts tyre ch
 // the last lap is the leader starting it (R4), as the replay's seek to that
 // lap; the race-over state (Infinity: skip to end, showRaceOver, as the
 // replay's last frame) shows the flag in force at the chequered flag, never a
-// period that began after the race (rounds 2-3, D2 problems 2 and 3).
-describe('the flag follows the dashboard clock on every lap seek (round 2, D2 problems 2-3)', () => {
+// period that began after the race.
+describe('the flag follows the dashboard clock on every lap seek', () => {
   /** Lap-mode store state (no frames) for a cached race. */
   function lapMode(session) {
     useF1Store.setState({
@@ -926,7 +926,7 @@ describe('the flag follows the dashboard clock on every lap seek (round 2, D2 pr
     lapMode(session);
     const last = store().maxLap;
     store().setCurrentLap(last);
-    // R4 on the last lap too: the leader's end of lap 49
+    // on the last lap too (R4): the leader's end of lap 49
     expect(store().getSessionNow()).toBe(leaderLapEndTime(session.lap_times, last - 1));
     expect(store().currentFlagStatus).toBe('1');
     // the race-over state (the timeline's skip to end): every lap complete
@@ -1044,7 +1044,7 @@ describe('the flag follows the dashboard clock on every lap seek (round 2, D2 pr
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe.skipIf(!have(2024, 5))('R5 (frontend): track-status events on the leader lap, causal (2024 R5)', () => {
+describe.skipIf(!have(2024, 5))('frontend: track-status events on the leader lap, causal (2024 R5)', () => {
   let session;
   let frames;
   beforeAll(async () => {

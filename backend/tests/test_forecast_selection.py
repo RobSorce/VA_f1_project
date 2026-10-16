@@ -1,4 +1,4 @@
-"""L2: the split is grouped by race and seeded, the test races (the latest
+"""The split is grouped by race and seeded, the test races (the latest
 season and Monza 2024) are never seen in training, the served forecast is
 the method model/saved/forecast_selection.json chose on the validation races
 (read from the file, never hard-coded; the test races give only its held-out

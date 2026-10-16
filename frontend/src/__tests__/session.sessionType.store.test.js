@@ -1,4 +1,4 @@
-// B9 (D16), the store side: the analytics, strategy, telemetry, degradation
+// Session type, the store side: the analytics, strategy, telemetry, degradation
 // and LSTM requests of a loaded session carry ITS type (loadedSessionType),
 // year and round, never the pills the session menus change without loading.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -50,7 +50,7 @@ beforeEach(() => {
   for (const f of Object.values(api)) if (f?.mockClear) f.mockClear();
 });
 
-describe('B9: requests of a loaded session carry its type', () => {
+describe('requests of a loaded session carry its type', () => {
   for (const type of ['S', 'FP2', 'R']) {
     it(`loaded ${type}, then the pills moved to 2023 R5 Q: every request names 2024 R7 ${type}`, async () => {
       useF1Store.setState({ year: 2024, round: 7, sessionType: type, isLiveMode: false });

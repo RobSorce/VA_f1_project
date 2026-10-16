@@ -478,7 +478,7 @@ function ProjectionTable({ projection, selectedDrivers, numDrivers }) {
       { key: 'limits', label: 'podium | points limit', shape: 'dash', color: RANGE_COLORS.rule },
       { key: 'gain', label: `${UP} places gained`, shape: 'rect', color: CHART_COLORS.better },
       { key: 'loss', label: `${DOWN} places lost`, shape: 'rect', color: CHART_COLORS.worse },
-      // the gold of the P label and of the "pod" share (V4 r2: only in tooltips)
+      // the gold of the P label and of the "pod" share (it was only in tooltips)
       { key: 'podium', label: `gold P / pod: a podium (in >= ${PODIUM_BADGE_PCT} % of runs)`, shape: 'rect', color: PODIUM_COLOR },
     ], {
       font: CHART_FONT.data, fontPx: chartFontPx('data'), maxWidth: width - 8, textColor: RANGE_COLORS.text,

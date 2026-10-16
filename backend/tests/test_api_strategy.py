@@ -91,7 +91,7 @@ def test_extractor_splits_stints_by_the_stint_column():
 
 
 def test_extractor_keeps_the_set_through_sc_pit_lane_passes():
-    """R1 in the extractor: 2025 R1 (wet, SC) led the field through the pit
+    """In the extractor: 2025 R1 (wet, SC) led the field through the pit
     lane on laps 2-4, so FastF1 Stint changes there with no tyre change. The
     extractor must pass TyreLife to build_tyre_strategy, or every Stint change
     counts as a tyre change (NOR would get 6 stints instead of 3)."""

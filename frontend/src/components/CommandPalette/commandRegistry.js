@@ -1,5 +1,6 @@
 import { useF1Store } from '../../store/useF1Store';
 import { seasonHasDrs, sessionSeasonOf } from '../../utils/seasons';
+import { stepPlaybackSpeed } from '../../utils/playbackSpeed';
 import { getDriverColor, markColor, SURFACES } from '../../utils/colors';
 
 // Team dot of a driver command: the driver's palette colour (team colour or
@@ -270,9 +271,8 @@ export function createCommandRegistry() {
       icon: 'chevrons-r',
       action: () => {
         const s = getState();
-        const speeds = [0.25, 0.5, 1, 2, 4, 8];
-        const idx = speeds.indexOf(s.playSpeed);
-        if (idx < speeds.length - 1) s.setPlaySpeed(speeds[idx + 1]);
+        const next = stepPlaybackSpeed(s.playSpeed, 1);
+        if (next != null) s.setPlaySpeed(next);
         s.closeCommandPalette();
       },
     },
@@ -284,9 +284,8 @@ export function createCommandRegistry() {
       icon: 'chevrons-l',
       action: () => {
         const s = getState();
-        const speeds = [0.25, 0.5, 1, 2, 4, 8];
-        const idx = speeds.indexOf(s.playSpeed);
-        if (idx > 0) s.setPlaySpeed(speeds[idx - 1]);
+        const next = stepPlaybackSpeed(s.playSpeed, -1);
+        if (next != null) s.setPlaySpeed(next);
         s.closeCommandPalette();
       },
     },

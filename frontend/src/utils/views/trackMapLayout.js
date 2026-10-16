@@ -116,8 +116,8 @@ export function mapDrawPadding(width, height) {
 }
 
 /* ── The overlays on the map, and the track fitted clear of them ─────────
- * Phase 9d G1, round 2. The verifier measured on the real Monza 2024
- * outline in the Pit Wall cells: one telemetry HUD card (148 px wide,
+ * Measured on the real Monza 2024 outline in the Pit Wall cells, before
+ * this layout: one telemetry HUD card (148 px wide,
  * 168 px tall, at the map's bottom-left) hid 51 % of the track at
  * 1536 x 750 and 65 % at 1366 x 768; the focus driver and two selected
  * drivers, 100 % at both. Now:
@@ -129,7 +129,7 @@ export function mapDrawPadding(width, height) {
  *  - the track is fitted clear of the three (fitTrack): the largest scale
  *    at which some placement keeps every point of the outline at least
  *    OVERLAY_GAP_PX (the outline's 12 px half-width + 1 px) off each one.
- * Round 3. Fitted around the HUD as drawn, the track was laid out again at
+ * Fitted around the HUD as drawn, the track was then laid out again at
  * every change of the selection: a click on a car (or its Leaderboard row)
  * shrank the track and moved every car 16-33 px at 1536 x 750 (Shanghai
  * 104 px, to the other half of the map), and the focus driver with two
@@ -139,13 +139,13 @@ export function mapDrawPadding(width, height) {
  *  - the key row: the corner key's whole line (mapKeyBox), whatever it lists;
  *  - the HUD's slot: its capacity, not its rows (hudSlot: HUD_CARDS_MAX
  *    cards, or a table of the rows HUD_MAX_SHARE allows); the drivers fill
- *    it from the bottom (hudTable), the ones past it named on a last row;
+ *    it from the bottom (hudTable), the ones past it counted on a last row;
  *  - the compass rose at one of COMPASS_PLACES, and the HUD table's columns,
  *    chosen for the map and the outline as drawn: the most columns whose
  *    track is HUD_KEEP_SHARE of the largest any choice gives;
  *  - a compass on the right is kept CAR_LABEL_REACH_PX further off the track
  *    on its left side: the car code labels are drawn right of the dots;
- *  - round 4: a car whose label would cross the map's right edge has it on
+ *  - a car whose label would cross the map's right edge has it on
  *    the left of its dot (carLabelOnLeft), so the edge never cuts a label.
  * The sizes here are the sizes the CSS gives the boxes (visualizations.css,
  * "Track Map overlays"); __tests__/trackmap.overlays.test.jsx checks both.
@@ -252,27 +252,39 @@ export function hudCardHeight({ drs = true } = {}) {
  * gap between two columns, and the columns, each as wide as its header
  * (mono, --font-size-label, at most 11.5 px) and its widest value (mono,
  * --font-size-data, at most 12.5 px; the driver code in Formula1 Bold, the
- * tyre letter in a 16 px badge) at 0.61 em per mono character. The columns
- * dropped first when the map is too narrow, or when they cost the track
- * (mapPlan): dropOrder; the driver, the speed and the throttle always stay.
+ * tyre letter in a 16 px badge) at 0.61 em per mono character.
+ * Phase 10b B7: the columns in their order of use to a strategist, the
+ * driver, the tyre (compound and laps on the set) and the speed always
+ * shown, then the gear, the brake, the throttle and DRS as room allows; the
+ * columns dropped first when the map is too narrow, or when they cost the
+ * track (mapPlan): dropOrder, that order reversed. Before, the tyre was
+ * dropped before the brake, and the speed and the throttle stayed: at
+ * 1536 x 750 the HUD showed the driver, the speed and the throttle only,
+ * and nothing said so. The columns left out are counted in the header
+ * ("+k cols", hudColumnsHint) and named in the Layers popover. The three
+ * always shown are 11 px wider than the three before: the side padding
+ * (6 px before) gives 6 px of it back, so the track keeps 70.6 % of its
+ * plain fit at 1536 x 750 and 90.6 % at 2048 x 1100 at the worst
+ * (Melbourne 2025 in its default orientation; 68.5 % and 89.8 % with the
+ * 6 px padding).
  */
 export const HUD_TABLE = Object.freeze({
   border: 1,
-  padX: 6,
+  padX: 3,
   padY: 3,
   headPx: 14,
   rowPx: 16,
   gapPx: 5,
   columns: Object.freeze([
     Object.freeze({ id: 'drv', label: '', title: 'Driver', px: 38 }),
+    Object.freeze({ id: 'tyre', label: 'TYRE', title: 'Tyre: compound and laps on the set', px: 35 }),
     Object.freeze({ id: 'speed', label: 'KPH', title: 'Speed (km/h)', px: 23 }),
     Object.freeze({ id: 'gear', label: 'GEAR', title: 'Gear', px: 30 }),
-    Object.freeze({ id: 'thr', label: 'THR', title: 'Throttle (%)', px: 24 }),
     Object.freeze({ id: 'brk', label: 'BRK', title: 'Brake (%)', px: 24 }),
+    Object.freeze({ id: 'thr', label: 'THR', title: 'Throttle (%)', px: 24 }),
     Object.freeze({ id: 'drs', label: 'DRS', title: 'DRS: off, available or open', px: 40 }),
-    Object.freeze({ id: 'tyre', label: 'TYRE', title: 'Tyre: compound and laps on the set', px: 35 }),
   ]),
-  dropOrder: Object.freeze(['drs', 'gear', 'tyre', 'brk']),
+  dropOrder: Object.freeze(['drs', 'thr', 'brk', 'gear']),
 });
 
 /**
@@ -318,7 +330,7 @@ export function hudTableColumns(room, { drs = true } = {}) {
 /**
  * The column sets the HUD table may take, widest first: `columns`, then
  * one more of dropOrder's dropped at a time (a drop that changes nothing
- * skipped), down to the driver, the speed and the throttle.
+ * skipped), down to the driver, the tyre and the speed.
  *
  * @param {Array<{id: string, px: number}>} columns
  * @returns {Array<Array<{id: string, px: number}>>}
@@ -332,6 +344,34 @@ export function hudColumnSets(columns) {
     out.push(cols);
   }
   return out;
+}
+
+/**
+ * The columns the HUD table leaves out (B7): those of HUD_TABLE.columns (DRS
+ * only in a season with DRS) not in `shown`, in their order of priority.
+ *
+ * @param {Array<{id: string}>} shown
+ * @param {{drs?: boolean}} [opts]
+ * @returns {Array<{id: string, label: string, title: string, px: number}>}
+ */
+export function hudHiddenColumns(shown, { drs = true } = {}) {
+  const ids = new Set((Array.isArray(shown) ? shown : []).map((c) => c.id));
+  return HUD_TABLE.columns.filter((c) => (drs || c.id !== 'drs') && !ids.has(c.id));
+}
+
+/**
+ * The hint of the columns left out, in the header of the driver column:
+ * "+k cols" ('' for none). Drawn in Formula1 Regular at --font-size-label
+ * ("+4 cols": 45 px at 11.5 px), it runs past the driver column into the
+ * left of the tyre column's header, whose label is right-aligned
+ * (__tests__/trackmap.hud.test.jsx: it never reaches the label).
+ *
+ * @param {number} hidden - how many columns are left out
+ * @returns {string}
+ */
+export function hudColumnsHint(hidden) {
+  const n = Math.max(0, Math.floor(Number(hidden) || 0));
+  return n > 0 ? `+${n} cols` : '';
 }
 
 // A rectangle of the map, origin top-left (CSS px)
@@ -390,7 +430,8 @@ export function hudSlot(map, { drs = true, columns = null } = {}) {
  * The HUD drawn in its slot for `n` drivers (the focus driver first, then
  * the selected ones): a card each while the slot holds cards and n is at
  * most its cards, else the slot's table, a row each, the drivers past its
- * rows named on a last "+k more" row. Anchored at the slot's bottom-left;
+ * rows counted on a last "+k more" row (B7: named in the Layers popover; the
+ * names cut that row to an ellipsis). Anchored at the slot's bottom-left;
  * `box`: the drawn rectangle, inside the slot. null for no driver.
  *
  * @param {ReturnType<typeof hudSlot>} slot

@@ -1,4 +1,4 @@
-// P3f minor (Phase 9 cleanup): qualifyingOrder (utils/driverState.js) ranked
+// qualifyingOrder (utils/driverState.js) ranked
 // laps deleted by the stewards (Deleted true, track limits) as valid times.
 // A deleted lap now never ranks. The rule before this change is the same
 // function on rows with the flag cleared ({...row, Deleted: false}).

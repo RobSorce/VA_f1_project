@@ -228,7 +228,7 @@
   --chrome-bottom: calc(var(--timeline-height) + var(--bottom-tab-height) + var(--dock-margin));
   /* The assistant button (GeminiFloatingButton.jsx) sits in the dock row, in
      the gutter right of the dock pill: never over the timeline row or a
-     panel (V13 r2). The dock keeps both gutters free (.bottom-tab-bar). */
+     panel. The dock keeps both gutters free (.bottom-tab-bar). */
   --assistant-button-size: 44px;
   --dock-side-gutter: calc(var(--assistant-button-size) + 24px);
   /* Floating overlays sit between the weather bar and the bottom chrome

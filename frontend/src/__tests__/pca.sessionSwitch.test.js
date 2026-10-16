@@ -1,10 +1,10 @@
-// P6 / P3 (round 3): the cross-race PCA answers follow the screen.
-//  - P6: a session load drops the previous screen's embeddings and lasso
+// The cross-race PCA answers follow the screen.
+//  - a session load drops the previous screen's embeddings and lasso
 //    analysis (store pcaScreenReset): the post-race analysis of a race never
 //    shows on a practice session of its weekend, nor on the same race
 //    reloaded at its start; the selection stays and its analysis is asked
 //    again for the new screen (practice: session_now 0, the race not started).
-//  - P3: whatever drops the analysis of a selection on screen also asks for it
+//  - whatever drops the analysis of a selection on screen also asks for it
 //    again (refetchDroppedPCA): the frames of a replay moving the clock back
 //    (loadFrames -> laterClockReset), and an answer that arrives after the
 //    clock moved back; the panel never waits on an analysis nobody asked for.
@@ -109,7 +109,7 @@ async function postRaceAnalysis() {
   return store().pcaStrategyAnalysis;
 }
 
-describe('P6: a session load drops the previous screen\'s PCA answers', () => {
+describe('a session load drops the previous screen\'s PCA answers', () => {
   it('pcaScreenReset drops the embeddings and the analysis, keeps the selection, and moves both sequences on', () => {
     const s = { _pcaEmbeddingsSeq: 4, _pcaAnalysisSeq: 7, selectedPCAPoints: IDS };
     expect(pcaScreenReset(s)).toEqual({
@@ -173,7 +173,7 @@ describe('P6: a session load drops the previous screen\'s PCA answers', () => {
   });
 });
 
-describe('P3: a dropped analysis of a selection on screen is asked again', () => {
+describe('a dropped analysis of a selection on screen is asked again', () => {
   it('frames that put the clock before the analysis drop it and ask it again at the frame clock', async () => {
     const fr = deferred();
     fx.getFrames = () => fr.promise;

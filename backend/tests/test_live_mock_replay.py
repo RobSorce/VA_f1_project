@@ -33,7 +33,7 @@ def monza():
 
 
 def test_mock_monza_2024_yields_every_lap(monza):
-    """B1: Position was sent as str(2.0) and int('2.0') raised inside the
+    """Position was sent as str(2.0) and int('2.0') raised inside the
     swallowed TimingData handler: 1008 errors, zero laps."""
     s, m, errors = monza
     assert errors.by_topic == {}
@@ -106,7 +106,7 @@ def test_mock_snapshot_is_valid_json(monza):
 
 
 def test_stopping_the_mock_unpins_the_session_clock():
-    """B5 (D13): MockReplay.stop left the manager's clock pinned at the last
+    """MockReplay.stop left the manager's clock pinned at the last
     replayed time, so after a stopped mock of 2024 R16 two live laps fed
     0.4 s apart both ended at 6654.29 (lap 40 started and ended there). The
     clock is un-pinned on stop and runs on from the last replayed time."""

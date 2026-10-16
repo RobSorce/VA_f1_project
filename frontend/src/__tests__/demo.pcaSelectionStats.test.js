@@ -1,4 +1,4 @@
-// V12, the static demo's light analytics: utils/pcaSelectionStats.js (the
+// The static demo's light analytics: utils/pcaSelectionStats.js (the
 // lasso analysis of POST /api/pca/analyze-selection and the biplot at a
 // replay clock of GET /api/pca/embeddings) and utils/demoData.js
 // degradationResponse (POST /api/predict/degradation) give the backend's
@@ -114,7 +114,7 @@ describe('the comparison of this file', () => {
   });
 });
 
-describe.skipIf(!READY)('V12: the demo analytics == the backend (pca_compute, degradation_response), same input', () => {
+describe.skipIf(!READY)('the demo analytics == the backend (pca_compute, degradation_response), same input', () => {
   it('rng, baseline, g, biplot at a replay clock, lasso analysis and degradation fits to 1e-9', () => {
     const matrix = readData('pca/matrix.json.gz');
     const strategies = readData('pca/strategies.json.gz');

@@ -1,4 +1,4 @@
-// V13 target (2), the chrome of the layout lane: the text the findings of
+// Contrast of the chrome of the layout lane: the text the findings of
 // 2026-10-14 measured as unreadable (key caps, shortcut hints, dock tab
 // labels, weather labels, layout labels, the red-on-dark-red lap counter and
 // session badge) and the new layout chrome (docked pane tabs, Pit Wall session

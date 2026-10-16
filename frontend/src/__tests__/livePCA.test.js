@@ -137,12 +137,12 @@ describe('computePCA: alignment to the previous lap (P9)', () => {
 describe.skipIf(!HAS_MONZA)('Monza 2024 (R16, cached): every lap as the store computes it', () => {
   const rows = HAS_MONZA ? chain(monza.lap_times) : [];
 
-  it('P10: the live path (the store, computePCA\'s default) is the Procrustes rotation', () => {
+  it('the live path (the store, computePCA\'s default) is the Procrustes rotation', () => {
     expect(LIVE_PCA_ALIGN).toBe('rotation');
     for (const r of rows.filter((x) => x.prev)) expect(r.p.alignment.mode).toBe(LIVE_PCA_ALIGN);
   });
 
-  it('P10: the rotation undoes the in-plane turn the sign alignment drew as a jump (lap 42)', () => {
+  it('the rotation undoes the in-plane turn the sign alignment drew as a jump (lap 42)', () => {
     const move = (list, lap) => {
       const r = list.find((x) => x.lap === lap);
       const before = list.find((x) => x.lap === lap - 1);
@@ -165,7 +165,7 @@ describe.skipIf(!HAS_MONZA)('Monza 2024 (R16, cached): every lap as the store co
     expect(largest(rows)).toBeLessThan(largest(sign));
   });
 
-  it('P9: each displayed axis . the previous lap\'s >= 0 on every call, sign mode', () => {
+  it('each displayed axis . the previous lap\'s >= 0 on every call, sign mode', () => {
     const sign = chain(monza.lap_times, { align: 'sign' });
     expect(sign.length).toBeGreaterThan(45);
     const aligned = sign.filter((r) => r.prev);
@@ -182,13 +182,13 @@ describe.skipIf(!HAS_MONZA)('Monza 2024 (R16, cached): every lap as the store co
     }
   });
 
-  it('P9: the rotation mode keeps every dot >= 0 too (diag(V S V^T) >= 0)', () => {
+  it('the rotation mode keeps every dot >= 0 too (diag(V S V^T) >= 0)', () => {
     for (const r of chain(monza.lap_times, { align: 'rotation' }).filter((x) => x.prev)) {
       expect(Math.min(...r.p.alignment.dots)).toBeGreaterThanOrEqual(-1e-12);
     }
   });
 
-  it('P10: points and loading arrows share one basis (score = sum_j z_j x arrow_j)', () => {
+  it('points and loading arrows share one basis (score = sum_j z_j x arrow_j)', () => {
     for (const r of rows) {
       const { standardized } = standardize(r.res.matrix);
       const byFeature = new Map(r.p.loadings.map((l) => [l.feature, l]));
@@ -204,7 +204,7 @@ describe.skipIf(!HAS_MONZA)('Monza 2024 (R16, cached): every lap as the store co
     }
   });
 
-  it('P11: the label is the variance each axis captures at that lap, the field mean is the origin', () => {
+  it('the label is the variance each axis captures at that lap, the field mean is the origin', () => {
     for (const r of rows) {
       const { standardized } = standardize(r.res.matrix);
       const C = covarianceMatrix(standardized);

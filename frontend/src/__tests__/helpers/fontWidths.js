@@ -1,4 +1,4 @@
-// Test helper (Phase 9c): advance widths of the app's Formula1 faces read
+// Test helper: advance widths of the app's Formula1 faces read
 // from the TTF files of public/fonts (cmap format 4 + hmtx), for the fit
 // tests that measure labels (sectors / consistency / leaderboard keep their
 // own copy of the reader). The CSS maps font-weight to the @font-face rules

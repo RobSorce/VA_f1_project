@@ -1,4 +1,4 @@
-// D4 (Phase 9c, browser pass 2026-10-16 #2): every D3 view follows its
+// Browser pass 2026-10-16 #2: every D3 view follows its
 // container. Each chart is mounted in the mini DOM (helpers/miniDom.js) with
 // a synthetic race (helpers/chartFixtures.js), drawn at one size, then its
 // box is resized (ResizeObserver + the frame the shared hook waits for,
@@ -134,7 +134,7 @@ const WIDE = { width: 1000, height: 560 };
 const NARROW = { width: 600, height: 336 };
 const TALL = { width: 1200, height: 700 };
 
-describe('D4: every D3 view lays out again when its container is resized, labels at the floors on screen', () => {
+describe('every D3 view lays out again when its container is resized, labels at the floors on screen', () => {
   beforeAll(() => raceState());
   afterAll(() => { useF1Store.setState({ ...INITIAL }); });
 

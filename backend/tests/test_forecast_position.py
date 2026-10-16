@@ -1,4 +1,4 @@
-"""L4: no response of POST /api/predict/lstm carries a predicted position
+"""No response of POST /api/predict/lstm carries a predicted position
 change. The old field compared a driver's predicted pace with his own recent
 laps (a faster forecast from fuel burn alone gave +1) and was summed over the
 field to a non-zero total at Monza lap 25 (+6), so it was removed from every

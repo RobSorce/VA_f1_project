@@ -1,4 +1,4 @@
-// S4 with a worker: the store's Monte Carlo jobs leave the calling thread and
+// With a worker: the store's Monte Carlo jobs leave the calling thread and
 // come back later; a result for a state no longer on screen (a newer lap, a
 // session reset, a seek back) never lands. Worker is defined here before the
 // store loads, so the store's client runs every job through it.

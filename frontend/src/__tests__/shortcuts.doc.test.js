@@ -1,4 +1,4 @@
-// T4: docs/SHORTCUTS.md is the code. Its generated block is the output of
+// docs/SHORTCUTS.md is the code. Its generated block is the output of
 // scripts/shortcuts_table.mjs, which sends every key combination to the real
 // handler (hooks/useKeyboardShortcuts.js) and compares the cheatsheet and the
 // command palette's key labels with what the handler does.
@@ -10,7 +10,7 @@ import {
 
 const report = shortcutsReport();
 
-describe('T4: the shortcuts document is generated from the handler', () => {
+describe('the shortcuts document is generated from the handler', () => {
   it('the block in docs/SHORTCUTS.md equals the script output', () => {
     const block = blockOf(fs.readFileSync(DOC, 'utf8'));
     expect(block, 'markers missing').not.toBeNull();

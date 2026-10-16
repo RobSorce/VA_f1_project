@@ -422,7 +422,7 @@ describe.skipIf(!HAVE)('per-driver timing views on cached Monza 2024 (R16)', () 
     expect(end.slice(0, 3)).toEqual(classified.slice(0, 3));
   });
 
-  it('LapDeltaChart: cumulative times from completed laps only (frame 3194; round 2)', () => {
+  it('LapDeltaChart: cumulative times from completed laps only (frame 3194)', () => {
     const now = 4628.094; // LEC 0.68 s before his pit entry; his lap 15 ends at 4632.468
     const real = cumulativeLapTimes(lapTimes, now);
     const changed = cumulativeLapTimes(perturbUnknown(lapTimes, now), now);
@@ -437,7 +437,7 @@ describe.skipIf(!HAVE)('per-driver timing views on cached Monza 2024 (R16)', () 
     }
   });
 
-  it.skipIf(!fs.existsSync(path.join(CACHE_DIR, 'telemetry_2024_16_R_PIA_16.json')))('TelemetryStrip: a running lap never sets an axis with samples after now (round 2)', () => {
+  it.skipIf(!fs.existsSync(path.join(CACHE_DIR, 'telemetry_2024_16_R_PIA_16.json')))('TelemetryStrip: a running lap never sets an axis with samples after now', () => {
     const tel = JSON.parse(fs.readFileSync(path.join(CACHE_DIR, 'telemetry_2024_16_R_PIA_16.json'), 'utf8')).telemetry;
     const now = 4654; // PIA's lap 16 runs 4624.029 - 4713.968
     const limit = recordedExtent(tel, now);
@@ -636,7 +636,7 @@ describe.skipIf(!HAVE)('the timing components render only what is known (Monza 2
     expect(towerStatus(after.TimingTower)).toBe('Retired');
   });
 
-  it('after the winner takes the flag, before the last car finishes: winner from the rows, no final points (round 2)', () => {
+  it('after the winner takes the flag, before the last car finishes: winner from the rows, no final points', () => {
     const frames = framesPayload.frames;
     const chequered = session.lap_times.find((r) => r.LapNumber === maxLap && r.Position === 1).Time;
     const raceEnd = Math.max(...session.lap_times.map((r) => r.Time).filter(Number.isFinite));
@@ -666,7 +666,7 @@ describe.skipIf(!HAVE)('the timing components render only what is known (Monza 2
     expect(renderAll(session.lap_times, { frame: frames.length - 1 }).Leaderboard).toContain('tower-row__points-badge');
   });
 
-  it('TSU 1 s after his pit entry: the retirement lap comes from the rows, not race_results Laps (round 2)', () => {
+  it('TSU 1 s after his pit entry: the retirement lap comes from the rows, not race_results Laps', () => {
     const frames = framesPayload.frames;
     const frame = frames.findIndex((f) => f.t + offset >= 3983.674 + 1);
     const render = () => ({
@@ -697,8 +697,8 @@ describe.skipIf(!HAVE)('the timing components render only what is known (Monza 2
 // lap-50 rows end at 8718.092 / 8721.891 s with no Position and no lap time
 // (the truncated lap of a car that stopped). Ranking on those rows put PER at
 // the head of the tower from 8718 s while PIA, the leader, was still on lap
-// 50 (it ends at 8800.013). Round 2.
-describe.skipIf(!hasCachedSession(2024, 17))('a car that stopped on track does not lead (2024 R17, round 2)', () => {
+// 50 (it ends at 8800.013).
+describe.skipIf(!hasCachedSession(2024, 17))('a car that stopped on track does not lead (2024 R17)', () => {
   const baku = hasCachedSession(2024, 17) ? loadCachedSession(2024, 17) : { lap_times: [] };
   const lt = baku.lap_times;
   const dnfMap = hasCachedSession(2024, 17) ? buildDnfMap(baku) : {};

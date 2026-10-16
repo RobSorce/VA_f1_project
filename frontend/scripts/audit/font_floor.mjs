@@ -125,7 +125,7 @@ export function jsSizes() {
 // LO resolved through the file's numeric constants. A floor under 10 px is a
 // FAIL, 10 to 11 px a CHECK (a label may sit there, data may not). This is
 // the check that missed the Circle of Doom's clamp(minSide / 38, 8, 11) and
-// MIN_LABEL_FONT = 7 (verifier, 2026-10-15).
+// MIN_LABEL_FONT = 7 (found on 2026-10-15).
 export function jsFloors() {
   const out = [];
   const FONTISH = /^(fs\w*|\w*[Ff]ont\w*|\w*FONT\w*|\w*_FS)$/;
@@ -161,7 +161,7 @@ export function jsFloors() {
 
 // The DYNAMIC sizes of jsSizes() are expressions, not literals; this pass
 // resolves every one of them to its floor, and the gate fails on any it cannot
-// resolve (the verifier's process finding of 2026-10-15: DYNAMIC was listed,
+// resolve (the gap found on 2026-10-15: DYNAMIC was listed,
 // never evaluated, so the Circle of Doom's clamp(minSide / 38, 8, 11) passed).
 //  UNSET   .attr('font-size', null): the attribute is removed, the style size
 //          set next to it applies (that one is checked on its own line)

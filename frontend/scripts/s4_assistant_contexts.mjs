@@ -1,5 +1,5 @@
 /**
- * S4 / lead decision D5, the assistant's strategy cards (backend
+ * The assistant's strategy cards (backend
  * api/routers/gemini.py heuristic fallback, rendered as "Finish P{n}" by
  * GeminiAssistant.jsx): the Monte Carlo part of the context the store sends
  * (useF1Store.js sendGeminiQuery: monteCarloProjections = the first 10 rows

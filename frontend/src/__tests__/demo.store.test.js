@@ -1,4 +1,4 @@
-// V12, the static demo through the real store (store/useF1Store.js with the
+// The static demo through the real store (store/useF1Store.js with the
 // real utils/apiClient.js in a demo build, the data files of
 // frontend/public/data read from disk by fetch): the session menu's seasons
 // and schedule, a race load (session, frames, circuit, strategy, analytics),
@@ -43,7 +43,7 @@ globalThis.fetch = vi.fn(async (url) => {
 const HAS_DATA = fs.existsSync(path.join(DATA, 'manifest.json'));
 const settle = async (n = 60) => { for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0)); };
 
-describe.skipIf(!HAS_DATA)('V12: the store on the static demo', () => {
+describe.skipIf(!HAS_DATA)('the store on the static demo', () => {
   it('seasons, schedule, a race, its biplot at the clock and a lasso analysis; model features say they need the backend', async () => {
     const { setDemoDataRoot } = await import('../utils/demoData.js');
     setDemoDataRoot(ROOT);

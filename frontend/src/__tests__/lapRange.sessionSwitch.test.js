@@ -1,4 +1,5 @@
-// F9 / D8: the lap range (selectedLapRange / brushLapRange, the one range of
+// Decision D8 of docs/COORDINATION_GRAPH.md: the lap range (selectedLapRange /
+// brushLapRange, the one range of
 // every view) belongs to the race it was drawn on. A switch of what the
 // dashboard shows (loadSession, enterLiveMode, exitLiveMode, resetSession)
 // clears it, so laps 30-40 brushed on one race never filter the Timing Sheet,
@@ -76,7 +77,7 @@ beforeEach(async () => {
   await onRaceWithRange();
 });
 
-describe('D8: a session switch clears the lap range', () => {
+describe('a session switch clears the lap range (decision D8)', () => {
   it('loadSession: the range of race 1 does not filter race 2', async () => {
     useF1Store.setState({ round: 2 });
     await store().loadSession();

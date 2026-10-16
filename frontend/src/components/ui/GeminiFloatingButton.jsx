@@ -18,7 +18,7 @@ function GeminiLogo({ size = 22 }) {
 
 // In the dock row, in the gutter right of the dock pill (tokens.css
 // --dock-side-gutter): centred on the dock, never over the timeline row, the
-// status text or a panel (V13 r2: at bottom 76 px it covered 12-24 px of the
+// status text or a panel (at bottom 76 px it covered 12-24 px of the
 // timeline row)
 const fabStyle = {
   position: 'fixed',

@@ -4,7 +4,7 @@ Focused follow-up to `HEURISTIC_EVALUATION.md`. Target: the dashboard's
 **scroll and viewport-fit behaviour on sub-1920 × 1080 displays**
 (15-inch laptops typically run 1366 × 768 or 1440 × 900).
 
-## Status on 2026-10-15 (V5 / V13): read this first
+## Status on 2026-10-15: read this first
 
 The evaluation below is the record of the first review. Its Tier 1 item 1
 (page scroll below 1440 × 900) was applied and has since been **withdrawn**:
@@ -27,7 +27,7 @@ Static checks at 1536 × 750, 1366 × 768, 1920 × 1080 and 2048 × 1100:
 | S4 | Settings accordion did not scroll | Settings scrolls inside its overlay window (`.settings-tab`, justified); auto-fit is off below 1440 × 900. |
 | S5 | Visualisations below a usable size | Pane sizes of every window preset at the four sizes are listed by `layout_fit.mjs` (`docs/evidence/layout_fit.txt`); the browser pass judges each view at those sizes. |
 | S6 | No page-level scroll fallback | By design: a fixed-viewport dashboard. The fallback that was added for it is the regression described above and has been removed. |
-| S7 | Cheatsheet on a short viewport | Three balanced columns in which a section may continue in the next column, modal up to 92 vh: the 45 shortcut rows need at most 492 px of column at 1536 x 750 and 493 px at 1366 x 768, against 604 and 620 px of room (`docs/evidence/cheatsheet_fit.txt`; re-measured on 2026-10-16, after Shift+C and the Ctrl+arrow keys were added to the cheatsheet: 42 rows needed 468 and 469 px), so no target window shows a scrollbar. With the earlier sections that never split and the 88 vh modal they did not fit at those two sizes (a verifier's estimate). The scroll stays as the fallback below 900 px of width. |
+| S7 | Cheatsheet on a short viewport | Three balanced columns in which a section may continue in the next column, modal up to 92 vh: the 45 shortcut rows need at most 492 px of column at 1536 x 750 and 493 px at 1366 x 768, against 604 and 620 px of room (`docs/evidence/cheatsheet_fit.txt`; re-measured on 2026-10-16, after Shift+C and the Ctrl+arrow keys were added to the cheatsheet: 42 rows needed 468 and 469 px), so no target window shows a scrollbar. With the earlier sections that never split and the 88 vh modal they did not fit at those two sizes (an estimate). The scroll stays as the fallback below 900 px of width. |
 | S8 | Command palette at narrow height | Unchanged: keyboard-first result list, justified. |
 
 Statements of the record below that are no longer true: the dashboard

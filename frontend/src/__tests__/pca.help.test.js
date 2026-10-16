@@ -102,7 +102,7 @@ describe('docs/PCA_METHODOLOGY.md', () => {
     }
   });
 
-  it('T2: the table of every component is the diagnostic\'s, row by row', () => {
+  it('the table of every component is the diagnostic\'s, row by row', () => {
     const diag = fs.readFileSync(path.join(ROOT, 'docs/evidence/pca_diagnostic.txt'), 'utf8');
     const printed = [...diag.matchAll(/^(PC\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*$/gm)].map((m) => m.slice(1, 5));
     const inDoc = [...doc.matchAll(/^\| (PC\d+) \| ([\d.]+) \| ([\d.]+) \| ([\d.]+) \|$/gm)].map((m) => m.slice(1, 5));
@@ -123,7 +123,7 @@ function read(p) {
   return fs.readFileSync(path.join(ROOT, p), 'utf8');
 }
 
-// P3 (round 4): the interval of g that ships is the 95% normal-approximation
+// The interval of g that ships is the 95% normal-approximation
 // (large-sample) interval, g +/- 1.96 SE (backend pca_compute.g_interval); a
 // bootstrap is degenerate for the one- or two-row selections a click makes.
 // docs/RELATED_WORK.md called it a bootstrap interval. During a replay the
@@ -185,7 +185,7 @@ describe('the interval of g and the stratified baseline, as the docs and the hel
         'progress-dependent feature 63.5% (former) -> 1.7% (stratified)'],
       ['(some feature: 73.0% and 5.9%)', out['pca_stratified_baseline.txt'], 'any feature 73.0% -> 5.9%'],
       ['some feature in 30.9% and 5.4% of the cases', out['pca_stratified_baseline.txt'], 'flagging any feature 30.9% -> 5.4%'],
-      // verifier r1: per-feature thresholds with rows of two kinds (backend/scripts/pca_mixed_threshold.py)
+      // per-feature thresholds with rows of two kinds (backend/scripts/pca_mixed_threshold.py)
       ['(0.992 to 0.994 at the four clocks of section 1', line('pca_mixed_threshold.txt', '2024 R12 lap 15      1.5'), '| 0.992'],
       ['(0.992 to 0.994 at the four clocks of section 1', line('pca_mixed_threshold.txt', '2024 R16 lap 20      1.5'), '| 0.994'],
       ['flagged in 0.0% of 60 selections with one threshold for all and in 55.0% with per-feature thresholds',

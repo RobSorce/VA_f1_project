@@ -101,7 +101,7 @@ describe('extractRaceParams: pit loss (D5)', () => {
     expect(SOURCE.match(/raceParams\.pitLoss\.median/g).length).toBeGreaterThanOrEqual(2);
     expect(SOURCE).not.toMatch(/pitLoss\.mean/);
     // the estimator is reused, not re-implemented here
-    expect(SOURCE).toMatch(/import \{ estimatePitLoss \} from '\.\/pitLoss';/);
+    expect(SOURCE).toMatch(/import \{ estimatePitLoss\b[^}]*\} from '\.\/pitLoss';/);
   });
 });
 

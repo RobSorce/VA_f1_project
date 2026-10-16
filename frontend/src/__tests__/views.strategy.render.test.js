@@ -1,8 +1,8 @@
 // Server-side renders of the strategy panels with a real store state, to prove
 // what the user reads: the pit-loss legend and the quali gate (R7), the panels
-// computing the pit loss at the current clock after a backward seek (D5 #1),
-// the session-type gate (D5 #2), the fitted range of the degradation banner
-// (D4), the PCA pattern label (D1) and the new set from the pit exit (R3).
+// computing the pit loss at the current clock after a backward seek,
+// the session-type gate, the fitted range of the degradation banner,
+// the PCA pattern label and the new set from the pit exit (R3).
 // D3 drawing runs in effects, which server rendering does not run: what the
 // D3 code draws comes from the view models tested in views.strategy.test.js.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -231,7 +231,7 @@ describe.skipIf(!haveMonza)('Race Prediction render (D5 #1, #2)', () => {
     const src = fs.readFileSync(path.join(VIZ, 'RacePredictionPanel.jsx'), 'utf8');
     expect(src).toMatch(/causalKey\(lapTimesAll, sessionNow, trackStatus\)/);
     expect(src).toMatch(/sessionTimeOffset,\s*causal, isRace, sessionType, running\]\);/);
-    // S5: the panel no longer runs the simulation; the store's job does, for
+    // the panel no longer runs the simulation; the store's job does, for
     // every reader, with the session type (R7) and the running stints
     expect(src).not.toMatch(/simulateRaceFinish/);
     monzaAtLap(30, { sessionType: 'S' });
@@ -309,7 +309,7 @@ describe.skipIf(!haveMonza)('pit exit in the views (R2, R3)', () => {
   });
 });
 
-describe.skipIf(!haveMonza)('live mode: the set a driver races on is ongoing until the flag (R3, round 2)', () => {
+describe.skipIf(!haveMonza)('live mode: the set a driver races on is ongoing until the flag (R3)', () => {
   /** Live-style store state: the Monza laps received up to lap upTo, no session clock. */
   function liveAt(upTo, extra = {}) {
     const rows = monza.lap_times

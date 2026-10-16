@@ -1,4 +1,4 @@
-// V6 / V1 / V5, Race Prediction (components/visualizations/RacePredictionPanel.jsx):
+// Race Prediction (components/visualizations/RacePredictionPanel.jsx):
 //  - the Monte Carlo finishing positions are a D3 chart
 //    (utils/views/positionRangeChart.js) on a position axis drawn by
 //    d3-axis, beside a table of the P label, places gained / lost, driver,

@@ -1,11 +1,11 @@
-// Phase 5 frontend (G4, G5): the Tyre Degradation chart, the Consistency
+// Frontend: the Tyre Degradation chart, the Consistency
 // panel and the Driver Comparison consistency row on the shared degradation
 // definition (utils/degradation.js, through utils/views/degradationViews.js).
 //
-// G4: stints of utils/stints.js (Monza 2024 ALO: 3 stints, the last two on
+// Tyre Degradation: stints of utils/stints.js (Monza 2024 ALO: 3 stints, the last two on
 // HARD), lap 1 and non-green laps out of every fit (the old 1.3 x median rule
 // kept them), the fuel constant labelled as an assumption on screen.
-// G5: consistency = consistencySigma (pooled residual sigma of the per-stint
+// Consistency = consistencySigma (pooled residual sigma of the per-stint
 // fits), equal to backend/data/processors/degradation.py per driver (the
 // Python side is executed here), every Monza 2024 finisher <= 0.8 s, causal.
 //
@@ -186,7 +186,7 @@ beforeEach(() => {
   useF1Store.setState({ ...INITIAL });
 });
 
-describe.skipIf(!haveMonza)('G4 Tyre Degradation chart on the shared definition (Monza 2024)', () => {
+describe.skipIf(!haveMonza)('Tyre Degradation chart on the shared definition (Monza 2024)', () => {
   it('ALO: 3 stints (MEDIUM, HARD, HARD) — the same-compound stop opens a new stint, each with its own fit', () => {
     const view = tyreDegradationView(LT, 'ALO');
     const rows = view.stints.map((s) => `S${s.stintNumber} ${s.compound} L${s.startLap}-${s.endLap} n${s.cleanCount} `
@@ -370,7 +370,7 @@ describe.skipIf(!haveMonza)('G4 Tyre Degradation chart on the shared definition 
   });
 });
 
-describe.skipIf(!haveMonza)('G5 consistency on the shared definition (Monza 2024)', () => {
+describe.skipIf(!haveMonza)('consistency on the shared definition (Monza 2024)', () => {
   const view = consistencyView(LT, Infinity);
   const byDriver = Object.fromEntries(view.drivers.map((d) => [d.driver, d]));
 

@@ -1,7 +1,7 @@
-// Phase 9 cleanup: dead code gone, t-SNE leftovers reduced to commented
-// aliases, help texts that match the code (V9, V10, V11 and the minor
-// backlog: DRS for 2026, the Shift+P label, the MOCK chip, stale App.jsx
-// summaries, the Race Situation wording).
+// Cleanup: dead code gone, t-SNE leftovers reduced to commented aliases,
+// help texts that match the code (the undercut help, DRS for 2026, the
+// Shift+P label, the MOCK chip, stale App.jsx summaries, the Race Situation
+// wording).
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,7 +25,7 @@ function sources(dir = SRC) {
   return out;
 }
 
-describe('V10 and the dead view helper: deleted, nothing imports them', () => {
+describe('dead code and the dead view helper: deleted, nothing imports them', () => {
   it('StrategyBriefing.jsx and utils/views/consistencyPanel.js are gone and not imported', () => {
     expect(fs.existsSync(path.join(SRC, 'components/visualizations/StrategyBriefing.jsx'))).toBe(false);
     expect(fs.existsSync(path.join(SRC, 'utils/views/consistencyPanel.js'))).toBe(false);
@@ -34,7 +34,7 @@ describe('V10 and the dead view helper: deleted, nothing imports them', () => {
   });
 });
 
-describe('V9: t-SNE leftovers', () => {
+describe('t-SNE leftovers', () => {
   it('the files of this lane name no t-SNE; elsewhere only the commented alias and two comments (requested to other lanes)', () => {
     for (const f of ['App.jsx', 'utils/chartHelp.js', 'components/ui/SessionMenu.jsx',
       'components/ShortcutCheatsheet/ShortcutCheatsheet.jsx', 'hooks/useKeyboardShortcuts.js']) {
@@ -70,7 +70,7 @@ describe('help texts that match the code', () => {
   it('Shift+P is the forecast of the focus driver, not "Run LSTM Prediction"', () => {
     const sheet = read('components/ShortcutCheatsheet/ShortcutCheatsheet.jsx');
     expect(sheet).not.toMatch(/Run LSTM Prediction/);
-    // the label of lead decision D9 (phase 9c)
+    // the label the cheatsheet shows for Shift+P
     expect(sheet).toMatch(/keys: \['\\u21E7', 'P'\], desc: 'Run lap-time forecast'/);
   });
 
@@ -113,7 +113,7 @@ describe('help texts that match the code', () => {
     expect(panel).toMatch(/function LapRangeBrush/);
   });
 
-  it('V7: the Lap Times bar and the Position Tracker brush are one range, and both helps say so', () => {
+  it('the Lap Times bar and the Position Tracker brush are one range, and both helps say so', () => {
     const lt = all(CHART_HELP.laptimes);
     expect(lt).toMatch(/same brushed range as the Position Tracker's, so a range set in either view is drawn in both/);
     expect(all(CHART_HELP.positionlaps)).toMatch(/same range as the Lap Times bar's \(either view sets it, both draw it\)/);
@@ -129,7 +129,7 @@ describe('help texts that match the code', () => {
     expect(read('utils/views/lapTimeChart.js')).toMatch(/glyph: STATUS_GLYPHS\.overallBest/);
   });
 
-  it('P3: "above random" for on-screen rows only is a baseline within the race on screen', () => {
+  it('"above random" for on-screen rows only is a baseline within the race on screen', () => {
     expect(all(CHART_HELP.crossrace)).toMatch(/a baseline within the race on screen/);
   });
 
@@ -139,7 +139,7 @@ describe('help texts that match the code', () => {
   });
 });
 
-describe('V11: the undercut help matches utils/undercut.js and UndercutCalculator.jsx', () => {
+describe('the undercut help matches utils/undercut.js and UndercutCalculator.jsx', () => {
   const help = all(CHART_HELP.undercut);
   const panel = read('components/visualizations/UndercutCalculator.jsx');
 

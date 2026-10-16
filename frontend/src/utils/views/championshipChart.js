@@ -24,7 +24,7 @@ export const PREDICTION_DASH = '1,4';
  * is drawn as in the Track Map, the tower and the lap charts; the other
  * drivers of the team (a reserve, a driver of other rounds) take the places
  * left, by the static 2024 order, then championship position, so the drivers
- * of a team never share a style. (V3 r2: a reserve sorted ahead of the
+ * of a team never share a style. (Formerly a reserve sorted ahead of the
  * session's second driver and took his style, e.g. BEA before HUL.)
  *
  * @param {Array<{abbr?: string, team?: string, teamColor?: string, position?: number}>} entries
@@ -200,7 +200,7 @@ export function championshipLegend({ isDriverView, showPredictions, dashes = nul
 }
 
 /**
- * Legend rows of the standings bars (ChampionshipStandings, V4 r2): one row
+ * Legend rows of the standings bars (ChampionshipStandings): one row
  * per team, its swatch the bar colour as drawn (markColor on `surface`; the
  * driver view shows the first driver and the teammate tint side by side), and
  * the teammate patterns drawn inside a teammate's bar (dashed, dash-dot).

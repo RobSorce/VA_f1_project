@@ -58,7 +58,7 @@ export default function ChampionshipStandings() {
   // drivers of a team never share a bar colour (palette team colour, then the
   // teammate tints; never the backend's raw TeamColor)
   const styles = useMemo(() => championshipStyles(entries, isDriverView), [entries, isDriverView]);
-  // Legend (V4 r2): every team's bar colour (first driver and teammate tint)
+  // Legend: every team's bar colour (first driver and teammate tint)
   // and the teammate patterns drawn inside the bars
   const legendItems = useMemo(
     () => championshipStandingsLegend(entries, styles, isDriverView, SURFACES.panel),
@@ -166,7 +166,7 @@ export default function ChampionshipStandings() {
 
       // The teammate's bar carries the chart's teammate dash as a line along
       // its middle, in the text colour of the bar (contrastText, >= 4.5:1 on
-      // it): the pattern reads on the bar (V3 r2: a dashed outline in the
+      // it): the pattern reads on the bar (a dashed outline in the
       // bar's own colour was invisible); on a context bar, mixed toward the
       // bar (>= 2:1 on it, D7)
       if (style.dash && barW > 8) {

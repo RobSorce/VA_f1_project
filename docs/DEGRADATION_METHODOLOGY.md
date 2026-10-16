@@ -131,7 +131,7 @@ The spreads and `minFitLaps` behind steps 1-2 are printed by
 `frontend/scripts/degradation_in_race.mjs`
 (`docs/evidence/degradation_in_race.txt`, sections A-B).
 
-Lap noise (`lapNoiseFromFits`, lead decision D1) is the race's pooled residual
+Lap noise (`lapNoiseFromFits`) is the race's pooled residual
 sigma of the per-stint fits at the clock, `sqrt(Σ SSE / Σ (n − 2))` over every
 fitted stint of every driver (the consistency sigma below, pooled over the
 field), with no floor and no prior mixed in: early in a race it is the value
@@ -206,7 +206,9 @@ Frontend (`frontend/src/utils/degradation.js`):
   (the clean laps of the fitted stints), Consistent when sigma <= the true
   median of the listed drivers' sigmas (the mean of the two middle values for
   an even count), LOW DATA when the driver completed fewer laps than
-  max(3, 75 % of the most laps completed). Evidence:
+  max(3, floor(0.75 x the most laps completed)) (`LOW_DATA_MIN_LAPS`,
+  `LOW_DATA_FRACTION` in `utils/views/degradationViews.js`; the backend's
+  `max(3, int(race_length * MIN_RACE_SHARE))`). Evidence:
   `src/__tests__/degradation.consistencyParity.test.js`
   (`docs/evidence/g5_consistency_parity.txt`: 30 races x 3
   clocks, 1627 driver rows equal, sigma difference 0).

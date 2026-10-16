@@ -1,4 +1,4 @@
-// T3: docs/COLOR_ENCODING.md writes only colours of the code. Every hex in it
+// docs/COLOR_ENCODING.md writes only colours of the code. Every hex in it
 // is a literal of utils/colors.js or a dark-theme token of styles/tokens.css
 // (scripts/color_doc_check.mjs, output docs/evidence/color_doc_hex.txt); a
 // computed colour (a teammate tint, a lifted mark) is described by its rule.
@@ -9,7 +9,7 @@ import { CVD_MIN_DELTA_E, CONTEXT_FLOOR, TEAMMATE_DASHES } from '../utils/colors
 
 const doc = fs.readFileSync(DOC, 'utf8');
 
-describe('T3: the colour document is the palette module', () => {
+describe('the colour document is the palette module', () => {
   it('every hex of the document is a literal of colors.js or a token of tokens.css', () => {
     const { rows, missing } = checkDoc(doc);
     expect(rows.length).toBeGreaterThan(20);

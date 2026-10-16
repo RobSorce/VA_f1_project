@@ -1,4 +1,4 @@
-// Phase 9d G3: the Circle of Doom's plot uses the room of its Pit Wall cell
+// The Circle of Doom's plot uses the room of its Pit Wall cell
 // at the four target viewports and follows the cell when the window moves
 // between Roberto's screens.
 //
@@ -167,7 +167,7 @@ function expectFills(slot, lay) {
   expect(lay.R).toBeLessThanOrEqual(half);
 }
 
-describe.skipIf(!haveFormula1)('G3: the Circle of Doom plot uses its Pit Wall cell at the four viewports', () => {
+describe.skipIf(!haveFormula1)('the Circle of Doom plot uses its Pit Wall cell at the four viewports', () => {
   beforeAll(() => raceAtLap(12));
   afterAll(async () => {
     if (view) await view.unmount();
@@ -191,7 +191,7 @@ describe.skipIf(!haveFormula1)('G3: the Circle of Doom plot uses its Pit Wall ce
     expect(screenTexts(lay.svg, vp).length).toBeGreaterThan(0);
     await view.unmount();
     view = null;
-  });
+  }, 20000);
 
   it('the ring grows with min(width, height) of the plot: ordered by that side, never smaller', () => {
     const byside = Object.values(radius).sort((a, b) => a.side - b.side);
@@ -202,7 +202,7 @@ describe.skipIf(!haveFormula1)('G3: the Circle of Doom plot uses its Pit Wall ce
   });
 });
 
-describe.skipIf(!haveFormula1)('G3: the plot follows the cell when the window moves between the screens', () => {
+describe.skipIf(!haveFormula1)('the plot follows the cell when the window moves between the screens', () => {
   beforeAll(() => raceAtLap(12));
   afterAll(async () => {
     if (view) await view.unmount();

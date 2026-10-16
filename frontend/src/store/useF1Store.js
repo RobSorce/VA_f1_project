@@ -2755,7 +2755,7 @@ export const useF1Store = create(persist((set, get) => ({
   selectedDrivers: [],
   highlightedDriver: null,
   highlightedDriverPosition: null, // {x, y} | null — for MFD card positioning
-  // ONE lap range for every view (V7 r2). Both names hold the same value:
+  // ONE lap range for every view. Both names hold the same value:
   // every lap-range action (the Position by Lap brush and its clear, the
   // Timing Sheet's lap-range bar, a stint click in the Strategy Timeline, a
   // pit window of the PCA analysis, a race event of the timeline) sets both,
@@ -2866,7 +2866,7 @@ export const useF1Store = create(persist((set, get) => ({
       highlightedDriver: null,
       highlightedDriverPosition: null,
       selectedLapRange: null,
-      brushLapRange: null, // the one lap range (V7 r2)
+      brushLapRange: null, // the one lap range
       selectedPCAPoints: [],
       focusDriver: null,
       focusTeam: null,

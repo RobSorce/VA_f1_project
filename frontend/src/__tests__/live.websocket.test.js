@@ -1,4 +1,4 @@
-// B6 (D14), the client socket (utils/liveWebSocket.js): after the backend's
+// The client socket (utils/liveWebSocket.js): after the backend's
 // resync close (code 1013) the client reconnects once, and the new
 // connection's session_init reaches the store's handler; a socket the
 // client replaced or closed itself never schedules a reconnect of its own

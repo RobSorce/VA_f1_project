@@ -1,15 +1,15 @@
 // The PCA biplot (components/visualizations/PCABiplot.jsx) mounted with the
 // real artefact (backend/data/processed/pca_embeddings.json) in a minimal DOM
 // (helpers/miniDom.js), its marks and legends read back:
-//  - P5: every team name maps to a colour, the legend has every team drawn
+//  - every team name maps to a colour, the legend has every team drawn
 //    (11 in the artefact) with swatches equal to the marks (same path, same
 //    fill), and the star of the loaded race has a star swatch;
-//  - P2: a race filter (all / season / this race) and the finishing position
+//  - a race filter (all / season / this race) and the finishing position
 //    as a sequential colour with its legend, in the tooltip too; the loaded
 //    race's own result is withheld until that race has been run at the clock
 //    on screen (its own replay at its end; never during another session of
 //    the weekend);
-//  - P6: during a replay of the loaded race the biplot asks for its rows at
+//  - during a replay of the loaded race the biplot asks for its rows at
 //    the replay clock (store loadPCAEmbeddings, backend pca_embeddings_at) and
 //    draws them, labelled "at lap N"; its post-race rows are never drawn
 //    before the race has ended.
@@ -342,7 +342,7 @@ describe('PCA biplot race filter and outcome colour (P2)', () => {
   });
 
   it('another session of the weekend on screen (a sprint at its last frame): the race has not started', async () => {
-    // the verifier's case: the session clock is Infinity at the end of the sprint
+    // the session clock is Infinity at the end of the sprint
     await act(async () => {
       useF1Store.setState({
         loadedSessionType: 'S', totalFrames: 1000, currentTime: 999.5, sessionTimeOffset: 0, maxTime: 1000, frameDt: 1,

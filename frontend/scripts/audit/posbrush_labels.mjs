@@ -1,4 +1,4 @@
-// Repair r2 (F8 minor): Position Tracker context end labels on the panel and
+// Position Tracker context end labels on the panel and
 // on the brush tint, before (contextText on the panel) and after (on the tint).
 //   node frontend/scripts/audit/posbrush_labels.mjs
 // Writes docs/evidence/posbrush_labels.txt (or the file after --out) and prints the same text.

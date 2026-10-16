@@ -2,7 +2,7 @@
 
 Where the keys are handled:
 
-- `frontend/src/hooks/useKeyboardShortcuts.js`: the global handler, one `keydown` listener on the window (capture phase). It never acts while a text field has the focus (input, textarea, select, editable element), except for `Esc` and the Ctrl/Cmd combinations; while the command palette is open it leaves every key but the Ctrl/Cmd combinations to the palette; while the cheatsheet is open only `Esc` and the Ctrl/Cmd combinations act; with Alt held only Ctrl/Cmd+Alt+D acts.
+- `frontend/src/hooks/useKeyboardShortcuts.js`: the global handler, one `keydown` listener on the window (capture phase). It never acts while a text field has the focus (input, textarea, select, editable element), except for `Esc` and the Ctrl/Cmd combinations; while the command palette is open it leaves every key but the Ctrl/Cmd combinations to the palette; while the cheatsheet is open only `Esc`, `?` (both close it) and the Ctrl/Cmd combinations act; with Alt held only Ctrl/Cmd+Alt+D acts.
 - Two keys are handled by a view, not by the global handler: `[` and `]` by the Circle of Doom (`CircleOfDoom.jsx`, with the rule `pitInLapsKeyStep` of the same hook module), `/` by the command bar (`CommandBar.jsx`).
 - What the user is shown: the cheatsheet opened with `?` (`frontend/src/components/ShortcutCheatsheet/ShortcutCheatsheet.jsx`), the key labels next to the commands of the command palette (`frontend/src/components/CommandPalette/commandRegistry.js`) and the hint bar, a few keys shown for 5 s after a key press (`frontend/src/components/ShortcutHints/ShortcutHints.jsx`).
 
@@ -81,13 +81,14 @@ Each key was sent to the handler during a replay of a 2024 race at lap 10 of 53,
 | `Ctrl+↓` | the active window is not tiled | nothing |
 | `Ctrl+K` | the command palette is open | open / close the command palette |
 | `any other key` | the command palette is open (the palette handles the keys) | nothing |
+| `?` | the cheatsheet is open | close the cheatsheet |
 | `Ctrl+K` | the cheatsheet is open | open / close the command palette |
-| `any key but Esc and the Ctrl/Cmd combinations` | the cheatsheet is open | nothing |
+| `any key but Esc, ? and the Ctrl/Cmd combinations` | the cheatsheet is open | nothing |
 | `Esc` | a text field has the focus and a window is open | close every floating window and the docked layout |
 | `any key but Esc and the Ctrl/Cmd combinations` | a text field has the focus (input, textarea, select, editable) | nothing |
 | `Alt + any key but Ctrl/Cmd+Alt+D` | Alt is held | nothing |
 
-Playback speeds (`<` and `>` step through them, no wrap): 0.25x, 0.5x, 1x, 2x, 4x, 8x.
+Playback speeds (`<` and `>` step through them, no wrap): 0.5x, 1x, 2x, 5x, 10x, 20x, 50x. From 3x, a speed not in the list, `>` goes to 5x and `<` to 2x.
 
 ### Keys handled by a view
 

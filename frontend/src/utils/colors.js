@@ -822,7 +822,7 @@ const _worstDeltaE = (a, b) => Math.min(...CVD_TYPES.map((t) => (t === 'normal'
  * team are never drawn alike. The mix keeps at least 40 % of the team colour,
  * so its hue: with mixes up to 90 % most third tints were near-white or
  * near-black and the third drivers of two teams were CIEDE2000 0.7 apart
- * (Alpine #FFF3F8 / Haas #F8F8F8, V3 r2).
+ * (Alpine #FFF3F8 / Haas #F8F8F8).
  *
  * @param {string} color - team colour
  * @param {number} [index=1] - place of the driver in his team (teammateIndex)
@@ -851,7 +851,7 @@ export function teammateTint(color, index = 1) {
 
 // Line dash of a teammate (1) and of a third driver of the team (2): dashed
 // and dash-dot, never dotted (a dotted line is a projection: the predicted
-// total of the championship chart, PREDICTION_DASH '1,4'; V4 r2)
+// total of the championship chart, PREDICTION_DASH '1,4')
 export const TEAMMATE_DASHES = [null, '6,3', '8,3,2,3'];
 
 /**

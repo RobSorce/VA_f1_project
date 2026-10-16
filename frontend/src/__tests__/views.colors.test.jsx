@@ -1,4 +1,4 @@
-// V1 / V2 / V3 / V4, the colour helpers of the views: the legends hold every
+// The colour helpers of the views: the legends hold every
 // colour the views draw (with the glyph or dash drawn next to it), the
 // teammate rule reaches every team-coloured view, the diverging pair carries
 // its sign, and the Legend swatches are drawn like the marks.
@@ -33,7 +33,7 @@ const LINEUP = [
 ];
 beforeEach(() => setSessionDriverColors(LINEUP));
 
-describe('V2 / V4: one status map, every status colour in the legend with its glyph', () => {
+describe('one status map, every status colour in the legend with its glyph', () => {
   it('timing sheet: the colours of TIME_COLORS that carry a meaning are legend rows with ◆ ● PIT', () => {
     const legend = timingSheetLegend({ forecast: true });
     const colors = legend.map((i) => i.color);
@@ -85,7 +85,7 @@ describe('V2 / V4: one status map, every status colour in the legend with its gl
     expect(pitWallDeltaColor(0.1)).toBe(TEXT_COLORS.muted);
   });
 
-  it('V2: one set of timing bands, one ordered scale (normal, yellow, orange) in the tower, the pit wall and the pace grid', () => {
+  it('one set of timing bands, one ordered scale (normal, yellow, orange) in the tower, the pit wall and the pace grid', () => {
     const order = [STATUS_COLORS.normal, STATUS_COLORS.slower, STATUS_COLORS.muchSlower];
     for (const kind of ['sector', 'lap']) {
       const seq = [0, 0.1, 0.3, 0.31, 0.5, 0.51, 0.99, 1.01, 1.99, 2.01, 5].map((d) => order.indexOf(timingBandColor(d, kind)));
@@ -110,7 +110,7 @@ describe('V2 / V4: one status map, every status colour in the legend with its gl
     expect(paceLegend().find((i) => i.color === STATUS_COLORS.muchSlower).label).toContain(`+${TIMING_BANDS.lap.muchSlower} s`);
   });
 
-  it('V1: the delta areas are hatched in the diverging pair, rising for behind, falling for ahead', () => {
+  it('the delta areas are hatched in the diverging pair, rising for behind, falling for ahead', () => {
     expect(deltaHatchCss('worse')).toContain(DIVERGING.worse);
     expect(deltaHatchCss('better')).toContain(DIVERGING.better);
     expect(deltaHatchCss('worse')).toMatch(/^repeating-linear-gradient\(-45deg/);
@@ -121,7 +121,7 @@ describe('V2 / V4: one status map, every status colour in the legend with its gl
   });
 });
 
-describe('V3: the teammate rule in every team-coloured view', () => {
+describe('the teammate rule in every team-coloured view', () => {
   it('session line-up: the second driver tinted and dashed (lines of lap delta, telemetry, compare)', () => {
     expect(getDriverColor('PIA')).toBe(teammateTint(TEAM_COLORS.McLaren));
     expect(getDriverDash('NOR')).toBeNull();
@@ -163,7 +163,7 @@ describe('V3: the teammate rule in every team-coloured view', () => {
       .toEqual(expect.arrayContaining(['6,3', PREDICTION_DASH]));
   });
 
-  // V3 r2: a reserve (BEA, Haas) sorted ahead of the session's second driver
+  // A reserve (BEA, Haas) sorted ahead of the session's second driver
   // (HUL) and took his style in the Championship tab; the championship now
   // gives every driver of the loaded session exactly his session style
   it('championship: a driver of the loaded session keeps his session style; reserves take the free places', () => {
@@ -192,7 +192,7 @@ describe('V3: the teammate rule in every team-coloured view', () => {
     expect(PREDICTION_DASH).not.toBe('8,3,2,3');
   });
 
-  // V4 r2: the standings bars had no legend
+  // The standings bars had no legend
   it('championship standings: one legend row per team (bar colours as drawn) and the teammate patterns', () => {
     const entries = [
       { abbr: 'NOR', team: 'McLaren', position: 1 }, { abbr: 'PIA', team: 'McLaren', position: 2 },

@@ -47,7 +47,7 @@ real telemetry  ->  feature engineering  ->  dimensionality reduction + ML
        <-  visual interaction  <-  analytics triggered by visual selection
 ```
 
-so that a pit-wall strategist can answer questions of the form *"is this stint tracking toward an undercut opportunity and which historically similar strategies succeeded?"* in under 30 seconds.
+so that a pit-wall strategist can answer questions of the form *"is this stint tracking toward an undercut opportunity and which historically similar strategies succeeded?"* quickly.
 
 The project targets the **Visual Analytics** course at Sapienza, so three things are non-negotiable:
 
@@ -72,7 +72,7 @@ A performance engineer seated on the F1 pit wall during a Grand Prix. Real-time 
 
 > *Focus driver: Norris.* Current stint on the Hard compound (Strategy Timeline). A click on the stint sets the dashboard's one lap range: each row of the Timing Sheet shows the driver's latest lap inside it, the Position Tracker brushes it and Tyre Degradation fits it. The double-click that set the focus also asked the lap-time forecast of the next five laps (Timing Sheet forecast rows, Race Prediction). Call: *"Box this lap."*
 
-(Corrected on 2026-10-15: the scenario quoted a stint length, a degradation trend and a forecast spike that no script measured, and said the PCA biplot clusters "this stint profile"; the biplot shows (driver, race) rows and does not follow the lap range, `docs/COORDINATION_GRAPH.md`, section 7.)
+(Corrected on 2026-10-15: the scenario quoted a stint length, a degradation trend and a forecast spike that no script measured, and said the PCA biplot clusters "this stint profile"; the biplot shows (driver, race) rows and does not follow the lap range, `docs/COORDINATION_GRAPH.md`, section 8.)
 
 The full persona, goals, and tasks are in [`INTENDED_USER.md`](INTENDED_USER.md).
 
@@ -574,7 +574,7 @@ Native HTML5 drag & drop. `onDragStart` sets `dragId`; `onDragOver` sets `dropTa
 - **Keyboard:** `Cmd/Ctrl+Alt+D` resets the dock (no confirmation).
 
 ### 11.5 Categories (from `slotOptions.js`)
-`monitor` · `timing` · `tyres` · `strategy` · `analysis` · `prediction`. Each slot carries a Feather-style SVG `icon`, `category`, `hint` letter (single-key shortcut), and `isMode` flag (Pit Wall / Settings are marked non-dockable).
+`monitor` · `timing` · `tyres` · `strategy` · `analysis` · `prediction` · `system` (`CATEGORY_ORDER`). Each slot carries a Feather-style SVG `icon`, `category` and `hint` letter (single-key shortcut); only Pit Wall carries the `isMode` flag (a mode switch, not a view). The dock's toggle lists leave out Pit Wall (`isMode`) and Settings (by its id).
 
 ### 11.6 No scroll
 The dock never scrolls: `.bottom-tab-bar` has `overflow: hidden` and `max-width: calc(100vw - 2 * var(--dock-side-gutter))`, and the items that do not fit go into the `⋯` popover (§11.1; `docs/SCROLL_HEURISTIC_EVALUATION.md`, S2).

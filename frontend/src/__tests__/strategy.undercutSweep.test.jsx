@@ -1,4 +1,4 @@
-// V6 / V1 / V5, Undercut Calculator (components/visualizations/UndercutCalculator.jsx):
+// Undercut Calculator (components/visualizations/UndercutCalculator.jsx):
 //  - the pit-lap sweep is a D3 column chart (utils/views/undercutSweepChart.js)
 //    with a signed y axis, an in-lap x axis, a zero line and a legend;
 //  - one column per row of undercutSweep, its height the row's gap; ahead /

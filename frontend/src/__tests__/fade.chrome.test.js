@@ -1,4 +1,4 @@
-// F11 / D10, small contrast items of the chrome, read from the CSS as written:
+// Small contrast items of the chrome, read from the CSS as written:
 //  - the command search field (weather bar): its boundary >= 3:1 against the
 //    field and the bar (WCAG 2.1 SC 1.4.11; --rh-border read 1.28:1) and a
 //    visible focus (the 27 % accent read 2.25:1), dark and light theme;

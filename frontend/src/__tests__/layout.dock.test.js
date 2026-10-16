@@ -1,4 +1,4 @@
-// V13 / V5: the dock never scrolls. BottomTabBar measures its buttons (their
+// The dock never scrolls. BottomTabBar measures its buttons (their
 // labels follow the type tokens) and dockCapacity says how many items fit next
 // to the ⋯ overflow button; the rest go to the overflow popover.
 import { describe, it, expect } from 'vitest';

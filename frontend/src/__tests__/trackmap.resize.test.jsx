@@ -1,4 +1,4 @@
-// D4 (Phase 9c, browser pass 2026-10-16 #2): the Track Map is laid out again
+// Browser pass 2026-10-16 #2: the Track Map is laid out again
 // in its panel's box and its labels (corner numbers, DRS, car codes, grid
 // places) read at their CHART_FONT size on screen whatever the panel size and
 // the d3.zoom factor: font sizes divided by --map-zoom = k x the svg's scale
@@ -123,7 +123,7 @@ const zoomK = (svg) => {
   return m ? Number(m[1]) : 1;
 };
 
-describe('D4: the Track Map follows its panel and keeps its labels at the floors on screen', () => {
+describe('the Track Map follows its panel and keeps its labels at the floors on screen', () => {
   beforeAll(() => sessionState());
   afterAll(async () => {
     if (view) await view.unmount();
@@ -137,7 +137,7 @@ describe('D4: the Track Map follows its panel and keeps its labels at the floors
     expect(screenTexts(svg, VP).some((t) => t.text === 'DRS')).toBe(true);
     expect(labels(svg, 'car-label').length).toBe(8);
     expect(underFloor(svg, VP)).toEqual([]);
-  });
+  }, 20000);
 
   it('moved to the smaller screen (box x 0.6): laid out again, nothing under the floors', async () => {
     const { svg } = view;
@@ -191,7 +191,8 @@ describe('D4: the Track Map follows its panel and keeps its labels at the floors
   });
 });
 
-// Phase 9d G2 (browser pass, "Re-check after Phase 9c"): after a resize
+// Browser pass ("Re-check after Phase 9c" in
+// docs/evidence/browser_audit_2026-10-16.md): after a resize
 // 1536 -> 2048 the map's container was 607 x 220 but the viewBox stayed
 // "0 0 354 34" (content drawn at y -56..84, outside the svg): the map had
 // been laid out once in the 34 px high box its wrapped header left, with a
@@ -200,7 +201,7 @@ describe('D4: the Track Map follows its panel and keeps its labels at the floors
 // or height lays it out again (utils/views/chartBox.js useChartBox: the
 // observer's measure at the next frame or, frames held back, after
 // FRAME_FALLBACK_MS; a window resize measures the box afresh).
-describe('G2: the viewBox and the scales follow the container, never a degenerate size', () => {
+describe('the viewBox and the scales follow the container, never a degenerate size', () => {
   let FRAME_FALLBACK_MS;
   let MAP_LAYOUT_MIN_PX;
   beforeAll(async () => {

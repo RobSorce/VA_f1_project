@@ -1127,7 +1127,7 @@
   height: calc(var(--timeline-height) + var(--timeline-expanded-extra));
   /* The event strip opens over the bottom of the app body (negative top
      margin = its extra height): the flex column keeps the body's height, so
-     no view re-lays out while the user scrubs (V13 r2). Opaque enough to
+     no view re-lays out while the user scrubs. Opaque enough to
      read over the panels it covers for the moment it is open. */
   margin-top: calc(-1 * var(--timeline-expanded-extra));
   background: var(--color-bg-primary);
@@ -1894,6 +1894,8 @@
 @media (max-width: 1600px) {
   .weather-bar__pill-label--long { display: none; }
   .weather-bar__pill-label--short { display: inline; }
+  /* the wind pill wrapped out of sight at 1536 x 750 by ~8 px */
+  .weather-bar__pill { padding: 3px 6px; }
   .layout-preset-bar__label { display: none; }
   .weather-bar .search-bar { max-width: 180px; }
 }
@@ -2462,7 +2464,7 @@
   cursor: pointer;
 }
 .settings-dock__toggle-row .settings-tab__toggle input:checked + .settings-tab__toggle-slider {
-  /* "on": the selection accent, not the intermediate-tyre green (V2 r2) */
+  /* "on": the selection accent, not the intermediate-tyre green */
   background: var(--color-brush);
 }
 .settings-dock__toggle-row .settings-dock__icon { color: rgba(255,255,255,0.55); }
@@ -3470,10 +3472,10 @@
   color: #000;
 }
 
-/* Race Situation Map styles */
+/* Race Situation Map styles. The focus ring (a status mark) pulses down to opacity 0.5: 5.28:1 on the panel (0.3 read 2.69:1) */
 @keyframes situation-pulse {
   0%, 100% { opacity: 0.8; }
-  50% { opacity: 0.3; }
+  50% { opacity: 0.5; }
 }
 
 .situation-focus-ring {
@@ -3685,7 +3687,7 @@
    first column's). A header that wrapped onto one more line than the
    first column's left its body 15-17.5 px shorter than the fit, P20 cut
    by about 7 px (Top Speeds at 2048 x 1100, "FINISH LINE" / "SPEED TRAP"
-   on three lines, "SECTOR 1" on two: verifier r1) */
+   on three lines, "SECTOR 1" on two) */
 @supports (grid-template-rows: subgrid) {
   .sectors-panel__columns {
     display: grid;
@@ -3841,7 +3843,7 @@
    selected, or another row hovered) keeps its text at full opacity in the
    muted colour (>= 4.5:1); its team bar is mixed toward the panel in
    SectorsPanel.jsx (contextColor, >= 2:1, D7), never an opacity (0.35 read
-   1.36:1). Row opacity 0.3 put the text at 1.77-2.69:1 (verifier r2) */
+   1.36:1). Row opacity 0.3 put the text at 1.77-2.69:1 */
 .sectors-panel__row--context,
 .sectors-panel__row--context > span {
   color: var(--color-text-muted) !important;
@@ -4204,7 +4206,7 @@
 /* A low-data card is told by its LOW DATA chip (and its title), not by a
    filter: saturate(0.6) on the card took a context card's team bar, mixed to
    2.01:1 (contextColor), down to about 1.5:1, and greyed the tyre and badge
-   colours of every low-data card (verifier r2, D7) */
+   colours of every low-data card (D7) */
 
 /* Collapsed state — one line, its height fitted by ConsistencyPanel.jsx
    (20-30 px: 18 px of content under the card's border); its parts keep one
@@ -7449,7 +7451,7 @@
   font-family: 'JetBrains Mono', monospace;
 }
 .layout-dock-popover__check {
-  /* the selection accent, not the intermediate-tyre green (V2 r2) */
+  /* the selection accent, not the intermediate-tyre green */
   color: var(--color-brush);
   font-weight: 700;
   font-size: 12px;

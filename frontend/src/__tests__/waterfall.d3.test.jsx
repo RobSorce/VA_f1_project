@@ -1,4 +1,4 @@
-// V6 / V1 / V5, Sector Delta (components/visualizations/SectorDeltaWaterfall.jsx):
+// Sector Delta (components/visualizations/SectorDeltaWaterfall.jsx):
 //  - the chart is drawn by D3 (utils/views/sectorDeltaWaterfallChart.js) into
 //    an SVG with a signed y axis, a lap x axis, a zero line and a legend;
 //  - a real waterfall: in each lap S1 starts at 0, each next sector where the

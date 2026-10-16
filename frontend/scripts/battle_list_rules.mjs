@@ -7,11 +7,11 @@
  * Writes docs/evidence/battle_list_rules.txt and prints the same text.
  *
  * Three rules, each chained recompute after recompute as the store does:
- *  - cut+fill (round 4): a listed pair stays unless its Wilson interval is
+ *  - cut+fill (an earlier rule): a listed pair stays unless its Wilson interval is
  *    entirely below the 6th's, an unlisted one enters when entirely above;
  *    then filled up to 6 with the most likely unlisted pairs (point estimate)
  *    or cut back keeping the most likely;
- *  - cut+race-order fill (tried in round 5): the same, the fill / cut-back
+ *  - cut+race-order fill (tried, not shipped): the same, the fill / cut-back
  *    choice among the pairs within the error of the cut made in race order;
  *  - rank evidence: a pair enters when fewer than 6 other pairs could be as
  *    likely (their interval reaches its interval), and stays while fewer than

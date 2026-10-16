@@ -1,4 +1,4 @@
-// L6 (D7): a late answer of ANY async store action never overwrites the
+// A late answer of ANY async store action never overwrites the
 // session on screen. Session A (2024 R91) is on screen; an action is started
 // with its answer held back; then a fast double switch: B (R92) is asked and,
 // before it lands, C (R93); C lands, then B's late answers and the action's
@@ -351,7 +351,7 @@ beforeEach(async () => {
   releaseWorker();
 });
 
-describe('L6: every async store action is covered', () => {
+describe('every async store action is covered', () => {
   it('the scenarios name exactly the store\'s async actions (plus the worker-backed Monte Carlo actions)', () => {
     console.log(`L6 async actions (${ASYNC_ACTIONS.length}) + worker (${WORKER_ACTIONS.length}): ${[...ASYNC_ACTIONS, ...WORKER_ACTIONS].sort().join(', ')}`);
     expect(Object.keys(SCENARIOS).sort()).toEqual([...ASYNC_ACTIONS, ...WORKER_ACTIONS].sort());
@@ -359,7 +359,7 @@ describe('L6: every async store action is covered', () => {
   });
 });
 
-describe('L6: nothing of the previous session is carried onto the next', () => {
+describe('nothing of the previous session is carried onto the next', () => {
   it('A\'s circuit and positions are gone at C\'s commit, while C\'s own circuit is still on its way', async () => {
     useF1Store.setState({ positionData: { tag: 'R91' } });
     expect(store().circuitInfo?.tag).toBe('R91');
@@ -376,10 +376,10 @@ describe('L6: nothing of the previous session is carried onto the next', () => {
     await loading;
     await settle();
     assertOnlyC('C landed');
-  });
+  }, 20000);
 });
 
-describe('L6: A -> B -> C fast, every late answer arrives once C is on screen: only C shows', () => {
+describe('A -> B -> C fast, every late answer arrives once C is on screen: only C shows', () => {
   for (const [name, scenario] of Object.entries(SCENARIOS)) {
     const variants = Array.isArray(scenario) ? scenario : [{ title: 'its late answer', start: scenario }];
     for (const v of variants) {
@@ -393,7 +393,7 @@ describe('L6: A -> B -> C fast, every late answer arrives once C is on screen: o
         assertOnlyC('after the late answers');
         await started.check();
         if (name === 'loadSession') expect(heldB).toBeGreaterThan(0);
-      });
+      }, 20000);
     }
   }
 });

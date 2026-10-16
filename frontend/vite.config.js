@@ -25,4 +25,10 @@ export default defineConfig(({ mode }) => ({
     outDir: 'dist',
     assetsDir: 'assets',
   },
+  // Vitest: a test without its own timeout gets 20 s, not the 5 s default.
+  // In a full run (every worker busy) async tests that mount a view or read
+  // the stylesheets took 3.5-4.7 s (B9), at the edge of the default
+  test: {
+    testTimeout: 20000,
+  },
 }));

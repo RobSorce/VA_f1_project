@@ -1,4 +1,4 @@
-// G5: the consistency cards (utils/views/degradationViews.js consistencyView)
+// The consistency cards (utils/views/degradationViews.js consistencyView)
 // and the backend's /consistency payload (backend/api/routers/analytics.py
 // consistency_response) are one definition: per driver the same sigma (the
 // pooled residual sigma of the per-stint fits, to 1e-9), the same
@@ -59,7 +59,7 @@ function clocksOf(laps) {
   return [null, leaderLapEndTime(laps, Math.round(maxLap / 3)), leaderLapEndTime(laps, Math.round((2 * maxLap) / 3))];
 }
 
-describe.skipIf(!PYTHON || RACES.length === 0)('G5: consistency cards == backend /consistency, every cached race', () => {
+describe.skipIf(!PYTHON || RACES.length === 0)('consistency cards == backend /consistency, every cached race', () => {
   it('sigma, is_consistent (true median), sample, avg_lap and LOW DATA per driver; Monza finishers sigma <= 0.8 s', () => {
     const sessions = Object.fromEntries(RACES.map((r) => [r.file, parseJson(fs.readFileSync(r.file, 'utf8'))]));
     const req = Object.fromEntries(RACES.map((r) => [r.file, clocksOf(sessions[r.file].lap_times || [])]));

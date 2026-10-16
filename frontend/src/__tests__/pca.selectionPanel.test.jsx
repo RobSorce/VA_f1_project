@@ -1,4 +1,4 @@
-// P3: the lasso analysis, from the request to what the panel shows.
+// The lasso analysis, from the request to what the panel shows.
 //  - the store posts the selection to POST /api/pca/analyze-selection (the
 //    former /tsne/ route stays a backend alias); only the newest request's
 //    answer is kept, a cleared selection drops an answer on its way;
@@ -281,7 +281,7 @@ describe('view model (utils/views/pcaSelection.js)', () => {
   });
 });
 
-// P3 (round 3): a click selects one point; one row has no spread of its own,
+// A click selects one point; one row has no spread of its own,
 // so the backend gives no interval (pca_compute.MIN_GROUP_FOR_INTERVAL; the
 // former percentile bootstrap gave a narrow interval excluding 0 for 11 of
 // 12 features of this very row, docs/evidence/pca_interval_coverage.txt).
@@ -318,7 +318,7 @@ describe('a single selected point (P3)', () => {
   });
 });
 
-// P6: the analysis of a selection is asked at the biplot's clock
+// The analysis of a selection is asked at the biplot's clock
 // (store pcaRequestOf): during a replay of the loaded race its rows, stints
 // and stops stop at the replay clock (backend analyze_selection, tested in
 // backend/tests/test_pca_causal.py), before the race (another session of the
@@ -405,7 +405,7 @@ describe('the request at the biplot clock (P6)', () => {
   });
 });
 
-// P3 (round 4): during a replay the rows of the race on screen are taken at
+// During a replay the rows of the race on screen are taken at
 // the replay clock and the other races are whole races. The backend draws the
 // random baseline with the selection's mix of the two kinds (stratified), the
 // statistics block states the composition and the lap, and the features whose
@@ -500,7 +500,7 @@ describe('a replay selection: composition and progress-dependent rows (P3)', () 
     expect(selectionRows(ANSWER).some((r) => r.progressDependent)).toBe(false);
   });
 
-  // Verifier r1: with rows of two kinds the one threshold of every feature
+  // With rows of two kinds the one threshold of every feature
   // (95th percentile of the largest |g|, 1.555 here) was set by the
   // progress-dependent features; each feature now has its own
   // (threshold_abs_g, the same quantile level of its own random |g|), and the
@@ -539,7 +539,7 @@ describe('a replay selection: composition and progress-dependent rows (P3)', () 
   });
 });
 
-describe('a post-race answer keeps one threshold (P3, verifier r1)', () => {
+describe('a post-race answer keeps one threshold', () => {
   it('no per-row threshold text; the method gives the one threshold', async () => {
     useF1Store.setState({ ...INITIAL, selectedPCAPoints: SELECTION, pcaStrategyAnalysis: ANSWER, pcaAnalysisIds: SELECTION });
     const view = await mountPanel();

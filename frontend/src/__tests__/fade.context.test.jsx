@@ -1,4 +1,5 @@
-// F8 / D7, focus + context: a de-emphasised (context) item keeps its text at
+// Focus + context (docs/COLOR_ENCODING.md, decision D7): a de-emphasised
+// (context) item keeps its text at
 // >= 3:1 and its marks at >= 2:1 against its background, and is de-emphasised
 // by mixing its colour toward that background (contextColor / contextText of
 // utils/colors.js), never by an opacity on its text.
@@ -249,7 +250,7 @@ describe('every opacity left in the views of focus + context has a reason', () =
     ['LapTimeChart.jsx', /\.attr\('opacity', 0\.18\)/, 'forecast uncertainty band (an area, not context)'],
     ['LapTimeChart.jsx', /tooltip\.style\.opacity = '[01]'/, 'tooltip shown / hidden'],
     ['LapTimeChart.jsx', /pointerEvents: 'none', opacity: 0,/, 'tooltip hidden until hovered'],
-    // Phase 9c repair (verifier r1, F8): the views below drew context text and
+    // The views below drew context text and
     // marks at an opacity; they now mix the colour (contextColor / contextText)
     ['ChampionshipChart.jsx', /\.attr\('stroke-opacity', isDimmed \? 1 : 0\.8\)/, 'the dashed projection of a focus line (a context one is mixed, at 1)'],
     ['PositionByLap.jsx', /\.attr\('opacity', op\)/, 'op: 0.8 / 0.85 for lines that are not context (>= 3:1); a context line is mixed, op 1'],
@@ -268,7 +269,7 @@ describe('every opacity left in the views of focus + context has a reason', () =
     ['TrackMap.jsx', /\.style\('opacity', 1\);|tooltip\.classed\('visible', false\)\.style\('opacity', 0\)/, 'tooltip shown / hidden'],
     ['TrackMap.jsx', /\.attr\('opacity', 0\.15\);/, 'the glow around the focus driver\'s progress marker (a halo, the dot itself opaque)'],
     ['PCABiplot.jsx', /\.style\('opacity', [01]\)/, 'tooltip shown / hidden'],
-    // Phase 9c repair r2 (verifier r2, F8): the Race Situation map faded its
+    // The Race Situation map faded its
     // context codes, dots, tyre badges and letters by opacity (1.16-2.81:1)
     ['RaceSituationMap.jsx', /let opacity, strokeW;|opacity = 0\.(2|06) \+ progress|\.attr\('stroke-opacity', opacity\)|const dotOpacity = |\.attr\('opacity', dotOpacity\)|\.attr\('opacity', showFull \? 0\.6 : 0\.25\)/,
       'the trail of a driver who is not context: older positions fainter (an encoding of time); a context driver has no trail'],

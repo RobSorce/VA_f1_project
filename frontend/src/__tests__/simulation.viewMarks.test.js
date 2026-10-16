@@ -1,4 +1,4 @@
-// S4: every mark the views draw from a Monte Carlo projection changes only on
+// Every mark the views draw from a Monte Carlo projection changes only on
 // evidence beyond the sampling error (utils/simulationClient.js
 // projectionBadges, raceSimulation.js evaluateRisks), never on a point
 // estimate within it: the battle list (no fill by a point estimate) and its

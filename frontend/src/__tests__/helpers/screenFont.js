@@ -1,4 +1,4 @@
-// Test helper (Phase 9c, D4): the size a <text> of a mounted D3 chart is
+// Test helper: the size a <text> of a mounted D3 chart is
 // drawn at ON SCREEN (CSS px), as a browser computes it, in the mini DOM
 // (helpers/miniDom.js):
 //  1. its font-size: the inline style, else the CSS rule of styles/*.css

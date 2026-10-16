@@ -3,6 +3,7 @@ import { useF1Store } from '../../store/useF1Store';
 import * as api from '../../utils/apiClient';
 import { yearOptions } from '../../utils/seasons';
 import { sessionSwitchMessage } from '../../utils/sessionSwitchWarning';
+import { useBackendOnlyText } from '../../utils/demoMode';
 
 const SESSION_TYPES = [
   { value: 'FP1', label: 'FP1' },
@@ -56,6 +57,12 @@ export default function SessionMenu({ isOpen, onClose }) {
   const fetchSeasons = useF1Store((s) => s.fetchSeasons);
   useEffect(() => { fetchSeasons(); }, [fetchSeasons]);
 
+  // Static demo (utils/demoMode.js): live timing and the mock replay need the
+  // local backend (their calls reject with a BackendOnlyError), so the menu
+  // says so, as the start screen does, instead of "No active F1 session" /
+  // "No cached sessions", and does not ask
+  const backendOnly = useBackendOnlyText();
+
   // Live timing state
   const [liveStatus, setLiveStatus] = useState(null);
   const [mockSessions, setMockSessions] = useState([]);
@@ -64,7 +71,7 @@ export default function SessionMenu({ isOpen, onClose }) {
 
   // Poll live status when menu is open — auto-connect SignalR on first check
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || backendOnly) return;
     let cancelled = false;
     const check = async () => {
       try {
@@ -83,13 +90,13 @@ export default function SessionMenu({ isOpen, onClose }) {
     check();
     const interval = setInterval(check, 30000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [isOpen]);
+  }, [isOpen, backendOnly]);
 
   // Load mock sessions list
   useEffect(() => {
-    if (!showMock) return;
+    if (!showMock || backendOnly) return;
     api.getMockSessions().then((r) => setMockSessions(r.sessions || [])).catch(() => {});
-  }, [showMock]);
+  }, [showMock, backendOnly]);
 
   const handleConnectLive = async () => {
     await enterLiveMode();
@@ -257,7 +264,7 @@ export default function SessionMenu({ isOpen, onClose }) {
             </div>
           ) : (
             <div className="session-menu__live-actions">
-              {liveStatus?.active ? (
+              {!backendOnly && liveStatus?.active ? (
                 <button
                   className="session-menu__load-btn session-menu__load-btn--live"
                   onClick={handleConnectLive}
@@ -268,7 +275,7 @@ export default function SessionMenu({ isOpen, onClose }) {
                 </button>
               ) : (
                 <div className="session-menu__live-inactive">
-                  No active F1 session
+                  {backendOnly ? `${backendOnly}: live timing.` : 'No active F1 session'}
                 </div>
               )}
               <button
@@ -290,10 +297,12 @@ export default function SessionMenu({ isOpen, onClose }) {
                     />
                   </div>
                   <div className="session-menu__mock-list">
-                    {mockSessions.length === 0 && (
-                      <span className="session-menu__empty">No cached sessions</span>
+                    {(backendOnly || mockSessions.length === 0) && (
+                      <span className="session-menu__empty">
+                        {backendOnly ? `${backendOnly}: the mock replay streams a cached race through it.` : 'No cached sessions'}
+                      </span>
                     )}
-                    {mockSessions.map((s) => (
+                    {!backendOnly && mockSessions.map((s) => (
                       <button
                         key={`${s.year}-${s.round}`}
                         className="session-menu__race-item"

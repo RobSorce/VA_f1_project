@@ -1,5 +1,5 @@
 /**
- * C4 done-when: the Circle of Doom's "pit in k laps" (utils/undercut.js
+ * The Circle of Doom's "pit in k laps" (utils/undercut.js
  * pitInLaps, k = 0..PIT_IN_LAPS_MAX) on Monza 2024 (2024 R16), causal at
  * every clock (session seconds).
  *  1. the table of LEC and PIA at the end of their lap 12, rivals stop off
@@ -12,7 +12,7 @@
  *     fresh-tyre delta) the crossing grows by exactly the focus's pace per
  *     lap of waiting, nothing changes against pitting now, and the ghost
  *     moves by the same step per lap (pace minus reference lap);
- *  4. lead decision D3 (R2 / R3): 2024 R22 t = 4518.3 s, OCO on its out-lap
+ *  4. 2024 R22 t = 4518.3 s, OCO on its out-lap
  *     after a pit-lane visit with no tyre change keeps its set; and the
  *     tables at every clock between an in-lap's line crossing and its pit
  *     exit (a tyre change), every cached race, on the real rows against the

@@ -1,11 +1,11 @@
-// Phase 6, lap-time forecast in the store (L1, L3).
-//  - L1: the store builds no model features; POST /api/predict/lstm gets
+// Lap-time forecast in the store.
+//  - the store builds no model features; POST /api/predict/lstm gets
 //    identifiers only, in the shape of the backend (backend/api/routers/
 //    predictions.py LSTMRequest): {year, round, session_type, driver,
 //    session_now, max_lap, lap} for a session with cached rows, and
 //    {driver, session_now, session_type, lap_rows, weather_rows, max_lap}
 //    for a live feed without one.
-//  - L3: one trigger (triggerPrediction, a double-click), one shape
+//  - one trigger (triggerPrediction, a double-click), one shape
 //    (lstmPredictions = { [driver]: entry } tagged {driver, lap, method}),
 //    cleared on a focus change, a session switch and a later-clock reset:
 //    rapid focus switching with delayed answers never shows another driver's
@@ -120,7 +120,7 @@ beforeEach(async () => {
   for (const f of Object.values(api)) if (f?.mockClear) f.mockClear();
 });
 
-describe('L1: the forecast request carries identifiers, never features', () => {
+describe('the forecast request carries identifiers, never features', () => {
   it('replay: {year, round, session_type, driver, session_now, max_lap, lap}; a later clicked lap is clamped', async () => {
     fx.predictLSTM = async (b) => answer(b);
     await doubleClick('AAA', 20);
@@ -208,7 +208,7 @@ describe('L1: the forecast request carries identifiers, never features', () => {
   });
 });
 
-describe('L3: one trigger, one shape, never another driver\'s forecast', () => {
+describe('one trigger, one shape, never another driver\'s forecast', () => {
   const orders = [];
   const permute = (rest, acc = []) => {
     if (!rest.length) { orders.push(acc); return; }

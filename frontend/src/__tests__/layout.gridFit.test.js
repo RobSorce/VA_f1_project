@@ -1,4 +1,4 @@
-// V5 / V13 target (1) inside the Pit Wall: the Timing Tower and the Race Pace
+// Fixed viewport inside the Pit Wall: the Timing Tower and the Race Pace
 // Grid fit their cells at the four target viewports instead of scrolling.
 //  - Timing Tower: column widths in shares of the 480 px timing column (no
 //    horizontal scroll), rows fitted to the body (fitRows, 24 px down to
@@ -8,7 +8,7 @@
 //    the height and the laps that do not fit paged (paceLapWindow): the most
 //    recent laps follow the replay, older ones a page back.
 // Static model of the layout (helpers/layoutModel.js) and the pure helpers;
-// the lead's browser pass checks the rendered tables.
+// a browser pass checks the rendered tables.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -116,7 +116,7 @@ describe('Race Pace Grid: no scroll, the cells fit the Pit Wall centre at the fo
   });
 });
 
-// V13 (verifier): the Driver Comparison cut its lap chart and never showed its
+// The Driver Comparison cut its lap chart and never showed its
 // metric tables in the overview preset (fixed 200 + 160 px charts, body
 // overflow hidden). Now its sections flow into columns and pages that fit the
 // pane (utils/views/driverCompare.js; frontend/scripts/audit/compare_fit.mjs)
@@ -158,7 +158,7 @@ describe('Driver Comparison: every section in a column of a page that fits its p
   }
 });
 
-// V13 (verifier): the Strategy Timeline put 20 driver rows on a band of the
+// The Strategy Timeline put 20 driver rows on a band of the
 // pane height with no fitRows (7.4 px rows for 11 px labels in the Pit Window
 // preset at 1536 x 750). Now the rows keep ceil(data type + ROW_MIN_PAD) px;
 // a wide, low pane lays them in up to MAX_COLS columns, the rest is paged
@@ -198,11 +198,11 @@ describe('Strategy Timeline: driver rows never under their minimum, in columns t
   }
 });
 
-// V5 / V13 r2: in the Analyse sidebar the Leaderboard rows were clipped under
+// In the Analyse sidebar the Leaderboard rows were clipped under
 // the focus cards. The cards now stay collapsed to their header lines below
 // 1200 px of window height (SidebarFocusCards.jsx), "Details" laying them
-// over the sidebar, and the rows fit (fitRows 28 -> 18 px) or page. Phase 9c
-// (D1): the legend (three lines in the sidebar) opens from a "?" key below
+// over the sidebar, and the rows fit (fitRows 28 -> 18 px) or page. Later
+// the legend (three lines in the sidebar) opens from a "?" key below
 // 900 px of height, the header, column header and banner are a step tighter
 // (the full model, with the real font widths and the flag banner and the
 // forecast footer: __tests__/leaderboard.fit.test.jsx and

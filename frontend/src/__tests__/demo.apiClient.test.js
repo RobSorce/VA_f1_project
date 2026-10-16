@@ -1,4 +1,4 @@
-// V12, the static demo seen from the store's side (utils/apiClient.js,
+// The static demo seen from the store's side (utils/apiClient.js,
 // utils/demoData.js, utils/demoMode.js): with no backend every data call of
 // the store is answered from frontend/public/data (gzip JSON decoded with
 // DecompressionStream), with the backend's answer shape; the model features
@@ -100,7 +100,7 @@ describe('demo data files', () => {
   });
 });
 
-describe.skipIf(!HAS_DATA)('V12: no backend -> the static demo answers', () => {
+describe.skipIf(!HAS_DATA)('no backend -> the static demo answers', () => {
   it('a failed call with no /api/health switches to the demo; the store\'s race load is answered from public/data', async () => {
     backend.mode = 'down';
     const seasons = await api.getSeasons();

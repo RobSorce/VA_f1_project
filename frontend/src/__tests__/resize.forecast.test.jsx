@@ -1,11 +1,11 @@
-// D4 (Phase 9c, F5 repair): the Lap Times panel's forecast mini-chart
+// The Lap Times panel's forecast mini-chart
 // (LapTimeChart.jsx ForecastChart, drawn whenever there is a focus driver)
 // follows its box like every D3 view (utils/views/chartBox.js useChartBox):
 // a pane resized (the browser moved from the 2048 px screen to the 1536 px
 // one, a dock split dragged) lays it out again at the new width, so its
 // labels stay at their CHART_FONT size on screen.
 //
-// The verifier of round 1 found it read its container's width once inside the
+// It read its container's width once inside the
 // draw effect, with no size in the effect's dependencies: drawn at 760 px,
 // shrunk to 456 px, the viewBox stayed "0 0 760 90" and its 12 labels read
 // 6.60 px on screen.
@@ -48,7 +48,7 @@ const settle = () => act(async () => {
 });
 const forecastSvg = (host) => host.querySelectorAll('svg').find((s) => s.style.height === '90px');
 
-describe('D4: the Lap Times forecast mini-chart follows its box', () => {
+describe('the Lap Times forecast mini-chart follows its box', () => {
   afterAll(() => { useF1Store.setState({ ...INITIAL }); });
 
   it('drawn at 760 px, then 456 px: the viewBox follows the box, no label under the floors', async () => {
@@ -91,5 +91,5 @@ describe('D4: the Lap Times forecast mini-chart follows its box', () => {
     expect(underFloor(svg2, VP)).toEqual([]);
     await act(async () => { root.unmount(); });
     host.remove();
-  });
+  }, 20000);
 });

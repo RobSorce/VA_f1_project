@@ -1,4 +1,4 @@
-// Phase 9c F4 (D1): the Consistency panel shows every driver's card, on one
+// The Consistency panel shows every driver's card, on one
 // page when they fit, else on pages with a visible pager; it never scrolls.
 //
 // The browser pass found 2-6 of the 20 cards at 1536 x 750: the grid
@@ -214,7 +214,7 @@ describe('the panel (mini DOM, measured sizes mocked)', () => {
     await v.unmount();
   });
 
-  // Phase 9c r2 (F4): the pager kept its index, or jumped back to the focus
+  // The pager kept its index, or jumped back to the focus
   // page, when expanding a card moved the pages: the card just expanded left
   // the screen
   it('expanding a card on a later page keeps that card on screen (no focus driver)', async () => {

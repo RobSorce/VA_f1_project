@@ -1,4 +1,4 @@
-// V6 / V1 / V5, Strategy Simulator (components/visualizations/StrategySimulator.jsx):
+// Strategy Simulator (components/visualizations/StrategySimulator.jsx):
 //  - the plan and the actual strategy are D3 stint strips
 //    (utils/views/stintStripChart.js) on a lap axis with the lap in progress
 //    marked; every segment carries its compound letter (black or white by

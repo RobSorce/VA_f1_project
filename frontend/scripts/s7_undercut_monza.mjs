@@ -1,5 +1,5 @@
 /**
- * S7 done-when (lead decisions D2, D3, D4): the Undercut Calculator's sweep
+ * The Undercut Calculator's sweep
  * (utils/undercut.js undercutSweep) on Monza 2024 (2024 R16), causal at every
  * clock (the end of the focus driver's lap L, session seconds).
  *  1. the real stops of NOR / LEC / PIA;

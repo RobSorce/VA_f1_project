@@ -1,4 +1,4 @@
-// R7 for the Monte Carlo jobs: the store passes the type of the session on
+// Decision R7 for the Monte Carlo jobs: the store passes the type of the session on
 // screen, and outside race sessions ('R', 'S') it never starts a projection or
 // a what-if, so no race pit-loss logic runs on practice or qualifying laps.
 import { describe, it, expect, vi, beforeEach } from 'vitest';

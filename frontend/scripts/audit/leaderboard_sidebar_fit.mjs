@@ -1,4 +1,4 @@
-// Repair 3 (V5 / V13 r2): the Leaderboard rows of the Analyse sidebar
+// The Leaderboard rows of the Analyse sidebar
 // (App.jsx: Leaderboard, then SidebarFocusCards) at the four target viewports.
 // Leaderboard.jsx now fits the rows to the room left (chartBox.fitRows, 28 px
 // down to 18 px) and pages them below that (pageOf, 22 px pager line); the

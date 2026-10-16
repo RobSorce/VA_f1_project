@@ -43,7 +43,9 @@
  * (scripts/mc_benchmark.mjs: in the 26 cached dry races 461 of 466 finishers
  * used two dry compounds, the 5 others have rows without a compound or one
  * compound recorded twice); it is applied only when the driver's stints are
- * known and no INTERMEDIATE / WET lap has been completed. Any other (optional) stop is taken only when at least
+ * known and no INTERMEDIATE / WET lap has been completed, and never in a
+ * sprint, which has no mandatory stop (pitLoss.js hasMandatoryStop: then every
+ * stop is optional). Any other (optional) stop is taken only when at least
  * OPTIONAL_STOP_MIN_LAPS_LEFT laps would be left after it; otherwise the set
  * runs to the flag. This caps the stops by the laps remaining. A plan
  * ({ [driver]: [{ lap, compound }] }) replaces the model for that driver: it
@@ -62,7 +64,7 @@ import {
   completedLaps, resolveSessionNow, mapTrackStatusToLaps,
 } from './raceTime';
 import { deriveStints, stintsByDriver, pitStops } from './stints';
-import { estimatePitLoss } from './pitLoss';
+import { estimatePitLoss, hasMandatoryStop } from './pitLoss';
 import {
   cleanStintLaps, stintFits, compoundDegradation, fitStint, fuelCorrectedTime, isCleanLap,
   FUEL_EFFECT_S_PER_LAP, MIN_FIT_LAPS,
@@ -344,7 +346,7 @@ function residualSums(fits) {
 }
 
 /**
- * Lap noise of a race at its clock (S2, lead decision D1): the race's pooled
+ * Lap noise of a race at its clock: the race's pooled
  * residual sigma of the per-stint fits at the clock, sqrt(sse / dof)
  * (residualSums: the consistencySigma definition of utils/degradation.js,
  * pooled over every driver), with no floor and no prior mixed in, so early in
@@ -905,7 +907,8 @@ function compoundTransitions(lapTimes, sessionNow) {
  *   when omitted, derived in lap mode from currentLap
  * @param {number} [opts.sessionTimeOffset] - session seconds of replay time 0
  * @param {string} [opts.sessionType] - 'R', 'S', 'Q', 'FP2', ...; omitted = race. Outside
- *   'R' / 'S' the pit loss is { source: 'not-applicable' } with no numbers (pitLoss.js)
+ *   'R' / 'S' the pit loss is { source: 'not-applicable' } with no numbers (pitLoss.js);
+ *   'S' (sprint): no mandatory stop (mandatoryStop false)
  * @param {*} [opts.running] - deriveStints option: in live mode the stints still being run
  *   are censored, not completed (stints.js stintsRunning); boolean, function, list or map
  * @param {Object} [opts.dnfMap] - store.dnfMap: results non-finishers (their final stint is
@@ -925,6 +928,8 @@ function compoundTransitions(lapTimes, sessionNow) {
  *                each with its sample size and source ('race' / 'prior' / 'assumption')
  *   transitions  { from: { to: count } } tyre changes so far
  *   dryRace      no lap on INTERMEDIATE / WET completed so far
+ *   mandatoryStop the two-dry-compound stop applies (pitLoss.js hasMandatoryStop:
+ *                a race, not a sprint)
  *   sessionNow   the clock used (session seconds)
  */
 export function extractRaceParams(lapTimes, strategies, trackStatus, currentLap, opts = {}) {
@@ -989,6 +994,7 @@ export function extractRaceParams(lapTimes, strategies, trackStatus, currentLap,
     },
     transitions: rows.length ? compoundTransitions(rows, sessionNow) : {},
     dryRace,
+    mandatoryStop: hasMandatoryStop(o.sessionType),
     sessionNow,
   };
 }
@@ -1123,6 +1129,8 @@ function buildContext({
     .filter((v) => v != null);
   const fieldPace = median(paces) ?? 0;
   const dryRace = raceParams?.dryRace !== false;
+  // No mandatory stop in a sprint (raceParams without the field: a race)
+  const mandatoryStop = raceParams?.mandatoryStop !== false;
   const statics = drivers.map((drv) => {
     const feat = driverFeatures[drv] || {};
     const compound = compoundKey(feat.compoundName);
@@ -1148,7 +1156,7 @@ function buildContext({
       refCompound: ref ? ref.compound : compound,
       sameStint,
       used,
-      mustStop: dryRace && ruleKnown && DRY.has(compound) && dryUsed < 2,
+      mustStop: mandatoryStop && dryRace && ruleKnown && DRY.has(compound) && dryUsed < 2,
       trend,
       plan: null,
     };
@@ -2123,7 +2131,7 @@ function degradationHierarchy(perRaceFits, partialDiffs) {
  * moments matched: nu0 = 4 + 2 / cv^2 (cv = coefficient of variation of the
  * variances), s0^2 = mean x (nu0 - 2) / nu0. lapNoiseFromFits uses s0 only
  * before a race's first fit; nu0 is a measurement (how much races differ),
- * no longer a weight (lead decision D1).
+ * no longer a weight.
  */
 function lapNoisePrior(raceVariances) {
   const n = raceVariances.length;

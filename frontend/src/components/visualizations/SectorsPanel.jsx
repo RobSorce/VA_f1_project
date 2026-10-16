@@ -54,7 +54,7 @@ export default function SectorsPanel() {
   // the fit, so the fit does not change when it appears. Whether the pager
   // was on screen travels with each measure of the body (box.tag): a render
   // between the commit that shows the pager and the measure that sees it
-  // still gives back nothing (round 1 added the pager line of the previous
+  // still gives back nothing (an earlier version added the pager line of the previous
   // render to a body measured without it, and could unpage for a frame)
   const pagerInDomRef = useRef(false);
   const bodyBox = useBoxSize(useMemo(() => ({ current: bodyEl }), [bodyEl]), undefined, { tagRef: pagerInDomRef });

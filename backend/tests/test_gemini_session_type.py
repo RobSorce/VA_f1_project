@@ -1,4 +1,4 @@
-"""Gemini request session type (decision R7, Phase 3 edge case P3g): the
+"""Gemini request session type: the
 frontend sends the type of the session on screen; outside race sessions
 ('R', 'S') neither the prompt nor the mock response carries a pit loss
 (api/routers/gemini.py). A request without a type keeps the race behaviour."""

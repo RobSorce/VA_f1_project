@@ -1,5 +1,5 @@
 /**
- * The Race Situation Map on backward navigation (P10, round 3): writes
+ * The Race Situation Map on backward navigation: writes
  * docs/evidence/live_pca_rewind.txt and prints the same text.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):

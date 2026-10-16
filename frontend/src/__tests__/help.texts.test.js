@@ -1,4 +1,4 @@
-// F10 / D9: the help texts describe what is drawn and what is done.
+// The help texts describe what is drawn and what is done.
 //  - Tyre Health: the real encoding (one driver, one curve per stint, the
 //    zones, the stint bar) and the model's constants as the view's source has
 //    them; no "bars" that are not drawn;

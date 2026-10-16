@@ -1,4 +1,4 @@
-// Test helper (Phase 9d, G1 / G3): the room of the two maps of the Pit Wall
+// Test helper: the room of the two maps of the Pit Wall
 // row (Track Map, Circle of Doom) at a viewport, from the CSS as written,
 // PitWallLayout.jsx's grid (layoutModel.js pitWallAt), the Track Map's
 // controls (utils/views/trackMapLayout.js) and the Formula1 font metrics

@@ -1,4 +1,4 @@
-"""L1: one window builder (model/features.py build_window) for training
+"""One window builder (model/features.py build_window) for training
 (model/prepare_data.py) and serving (POST /api/predict/lstm builds the window
 from the cached laps given identifiers). Clean laps only (degradation.py
 rule: no pit in-lap or out-lap, no non-green lap, no lap 1), nothing read

@@ -38,13 +38,13 @@ export default function SessionInfoBar() {
         Lap <strong>{currentLap}</strong> / {totalRaceLaps || maxLap}
       </span>
 
+      {/* static: it pulsed down to opacity 0.8 (flag-pulse), its RED FLAG label read 4.15:1 */}
       <span
         className="session-info-bar__flag"
         style={{
           background: flag.background,
           color: flag.color,
           borderColor: flag.borderColor,
-          animation: currentFlagStatus && currentFlagStatus !== '1' ? 'flag-pulse 1.5s ease-in-out infinite' : 'none',
         }}
       >
         {flag.label}

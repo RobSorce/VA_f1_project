@@ -1,4 +1,4 @@
-// G1 / D6: the brushed degradation fit the store holds and the Tyre
+// The brushed degradation fit the store holds and the Tyre
 // Degradation chart agree at every replay clock. The store sends the clock
 // (session_now) and the session on screen with every request, and re-asks
 // whenever the fit's inputs change (brushFitKey: the clean laps of the
@@ -62,9 +62,8 @@ const HAVE = hasCachedSession(2024, 16) && hasCachedFrames(2024, 16) && !!PYTHON
 // The store's re-request debounce (useF1Store.js DEGRADATION_REFRESH_MS)
 const DEGRADATION_REFRESH_MS = 150;
 const TOL = 1e-6;
-// Brushes of the done-when (driver, [lo, hi]): the verifier's cases (BOT and
-// ALB 5-15 froze a fit of an earlier clock; PIA 10-25 spans a stop) and
-// longer windows
+// Brushes checked (driver, [lo, hi]): BOT and ALB 5-15 (both froze a fit of
+// an earlier clock), PIA 10-25 (spans a stop) and longer windows
 const BRUSHES = [
   ['BOT', [5, 15]], ['ALB', [5, 15]], ['PIA', [10, 25]], ['LEC', [10, 25]],
   ['NOR', [17, 38]], ['HAM', [20, 40]], ['VER', [30, 53]], ['SAI', [1, 53]],
@@ -101,7 +100,7 @@ afterAll(() => {
   fs.writeFileSync(path.resolve(HERE, '../../../docs/evidence/g1_store_endpoint_vs_chart.txt'), `${OUT.join('\n')}\n`);
 });
 
-describe.skipIf(!HAVE)('G1: the store\'s brushed fit = the chart at every replay clock (Monza 2024, D6)', () => {
+describe.skipIf(!HAVE)('the store\'s brushed fit = the chart at every replay clock (Monza 2024)', () => {
   const store = () => useF1Store.getState();
   let lapTimes;
 
@@ -214,7 +213,7 @@ describe.skipIf(!HAVE)('G1: the store\'s brushed fit = the chart at every replay
           }
         }
       });
-      // the verifier's frozen case: ALB 5-15 at the first sampled clock after
+      // the case that froze: ALB 5-15 at the first sampled clock after
       // the leader's laps 30, 40 and 50, and at the race end
       const first = (l) => checks.find((x) => x.driver === 'ALB' && x.now >= leaderLapEndTime(lapTimes, l));
       if (c.driver === 'ALB' && ([30, 40, 50].some((l) => first(l) === c) || c.now === Infinity)) {

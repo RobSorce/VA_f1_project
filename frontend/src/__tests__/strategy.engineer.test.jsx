@@ -1,4 +1,4 @@
-// V6 / V1 / minor backlog, Strategy Engineer (components/visualizations/GeminiAssistant.jsx):
+// Strategy Engineer (components/visualizations/GeminiAssistant.jsx):
 //  - a scenario's stints are a D3 strip (utils/views/stintStripChart.js) with
 //    the compound letter on each segment, not percentage-positioned divs;
 //  - the risk chip carries its severity glyph and word (!! / ! / i), never

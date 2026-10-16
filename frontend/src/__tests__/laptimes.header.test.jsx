@@ -1,11 +1,11 @@
-// D3 (Phase 9c, F3 repair): the Lap Times timing-sheet header never clips
+// The Lap Times timing-sheet header never clips
 // silently. Each label (uppercase Formula1 Bold at the data size, 0.06 em
 // letter-spacing) fits its default column width at every size of
 // --font-size-data (11 px at 1536 x 750 up to the 12.5 px top of the clamp,
 // 12.41 px at 1920 x 1080); a label still too wide (a column dragged narrow)
 // ends in an ellipsis with its full name in the header cell's title.
 //
-// Round 1 found "GAP TO FASTEST" 121.4 px in its 96 px column at 11 px
+// Before: "GAP TO FASTEST" 121.4 px in its 96 px column at 11 px
 // (136.9 px at 12.41 px), "TEAM" 42.4-47.9 px in 38 and "LAPS" 41.4 px in 38
 // at 12.41 px, cut without an ellipsis or a title.
 import { describe, it, expect, vi, afterAll } from 'vitest';

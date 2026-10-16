@@ -1,4 +1,4 @@
-// B10 (D15): the year pickers list the seasons of GET /api/seasons (store
+// The year pickers list the seasons of GET /api/seasons (store
 // fetchSeasons, newest first) with the previous hard-coded list as the
 // offline fallback, and every DRS layer, toggle and readout is hidden for a
 // session of 2026 or later through one helper, seasonHasDrs(year). The
@@ -64,7 +64,7 @@ beforeEach(() => {
   useF1Store.setState({ isLiveMode: false, year: 2024, round: null, seasons: [...FALLBACK_SEASONS], liveSessionInfo: null });
 });
 
-describe('B10: season list from /api/seasons, built-in list offline', () => {
+describe('season list from /api/seasons, built-in list offline', () => {
   it('helpers: newest first, unique; fallback when empty; the selected year is always an option', () => {
     expect(seasonsFromResponse({ seasons: [2018, 2026, 2025, 2025] })).toEqual([2026, 2025, 2018]);
     expect(seasonsFromResponse({})).toEqual([...FALLBACK_SEASONS]);
@@ -105,7 +105,7 @@ describe('B10: season list from /api/seasons, built-in list offline', () => {
   });
 });
 
-describe('B10: no DRS from 2026 (seasonHasDrs)', () => {
+describe('no DRS from 2026 (seasonHasDrs)', () => {
   it('helper and the season of the session on screen', () => {
     expect(FIRST_SEASON_WITHOUT_DRS).toBe(2026);
     expect([2018, 2025, 2026, 2027, null, undefined].map(seasonHasDrs)).toEqual([true, true, false, false, true, true]);
@@ -116,7 +116,7 @@ describe('B10: no DRS from 2026 (seasonHasDrs)', () => {
   });
 
   it('TrackMap toggle and the DRS command follow the loaded season, not the pill', () => {
-    // Phase 9d G1: the DRS toggle sits in the Layers popover (closed in a
+    // the DRS toggle sits in the Layers popover (closed in a
     // server render; opened in __tests__/trackmap.toolbar.test.jsx, where a
     // 2026 session has no DRS toggle) and the map's key shows the DRS zone
     // in its place; either one follows the season

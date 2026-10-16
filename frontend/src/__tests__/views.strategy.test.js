@@ -350,7 +350,7 @@ describe('layoutStopLabels (D6 #3: no overlapping pills)', () => {
     expect(out.map((m) => `${m.Driver}${m.inLap}`)).toEqual(['AAA2', 'AAA3', 'AAA9', 'BBB3', 'BBB4']);
   });
 
-  it('with the row positions, pills of adjacent rows never overlap (tight rows; round 2)', () => {
+  it('with the row positions, pills of adjacent rows never overlap (tight rows)', () => {
     const markers = [
       { Driver: 'AAA', inLap: 44, label: `${FB.toFixed(1)}s*` },
       { Driver: 'BBB', inLap: 44, label: `${FB.toFixed(1)}s*` },
@@ -359,7 +359,7 @@ describe('layoutStopLabels (D6 #3: no overlapping pills)', () => {
       { Driver: 'AAA', inLap: 3, label: '24.1s' },
     ];
     const rows = (step) => (d) => ['AAA', 'BBB', 'CCC'].indexOf(d) * step + 20;
-    // rows 10.97 px apart (the verifier's 2025 R1 at 261 px), pills 11 px tall
+    // rows 10.97 px apart (2025 R1 at 261 px), pills 11 px tall
     const tight = layoutStopLabels(markers, x, { yOf: rows(10.97) });
     expect(tight.map((m) => m.showLabel)).toEqual([true, false, true, true, false]);
     // no two shown pills intersect

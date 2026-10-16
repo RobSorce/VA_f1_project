@@ -4,6 +4,7 @@ import { yearOptions } from '../../utils/seasons';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 import { CHART_HELP_LIST } from '../../utils/chartHelp';
 import { publicAsset } from '../../utils/publicAsset';
+import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeed';
 
 const SESSION_TYPES = [
   { value: 'R', label: 'Race' },
@@ -161,8 +162,8 @@ export default function SettingsTabContent() {
           <div className="settings-tab__section-body">
             <div className="settings-tab__row">
               <span className="settings-tab__label">Replay Speed</span>
-              <div className="settings-tab__pills">
-                {[0.5, 1, 2, 4].map((spd) => (
+              <div className="settings-tab__pills settings-tab__pills--wrap">
+                {PLAYBACK_SPEEDS.map((spd) => (
                   <button
                     key={spd}
                     className={`settings-tab__pill${playSpeed === spd ? ' settings-tab__pill--active' : ''}`}

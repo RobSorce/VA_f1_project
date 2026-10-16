@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useF1Store } from '../store/useF1Store';
 import { seasonHasDrs, sessionSeasonOf } from '../utils/seasons';
+import { stepPlaybackSpeed } from '../utils/playbackSpeed';
 
 /**
  * One lap step of the arrow keys on the store state. In lap mode (no frames)
@@ -152,8 +153,14 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // If cheatsheet is open, only Esc closes it
-      if (state.cheatsheetOpen) return;
+      // If cheatsheet is open, only Esc and ? (the key that opened it) close it
+      if (state.cheatsheetOpen) {
+        if (e.key === '?') {
+          e.preventDefault();
+          state.closeCheatsheet();
+        }
+        return;
+      }
 
       // If typing in any input, don't fire shortcuts
       if (isTypingTarget(document.activeElement)) return;
@@ -237,19 +244,12 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // > / < — increase / decrease playback speed
-      if (e.key === '>') {
+      // > / < — the next faster / slower speed of the timeline's speed pills
+      // (utils/playbackSpeed.js), from any current speed
+      if (e.key === '>' || e.key === '<') {
         e.preventDefault();
-        const speeds = [0.25, 0.5, 1, 2, 4, 8];
-        const idx = speeds.indexOf(state.playSpeed);
-        if (idx < speeds.length - 1) state.setPlaySpeed(speeds[idx + 1]);
-        return;
-      }
-      if (e.key === '<') {
-        e.preventDefault();
-        const speeds = [0.25, 0.5, 1, 2, 4, 8];
-        const idx = speeds.indexOf(state.playSpeed);
-        if (idx > 0) state.setPlaySpeed(speeds[idx - 1]);
+        const next = stepPlaybackSpeed(state.playSpeed, e.key === '>' ? 1 : -1);
+        if (next != null) state.setPlaySpeed(next);
         return;
       }
 

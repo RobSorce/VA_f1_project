@@ -3,10 +3,10 @@
  * evidence of S7 and C4. Writes docs/evidence/undercut_monza.txt and
  * prints the same text.
  *
- * Since lead decision D2 (phase45c) the sweep reads every row at the race
+ * The sweep now reads every row at the race
  * end, whatever the table length, so the "end of the table" / "read at the
  * flag" comparisons of sections 2 and 5 below now give the same lap; the
- * evidence of this round is scripts/s7_undercut_monza.mjs (sweep) and
+ * current evidence is scripts/s7_undercut_monza.mjs (sweep) and
  * scripts/c4_pit_in_k_monza.mjs ("pit in k laps"), in docs/evidence/.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):

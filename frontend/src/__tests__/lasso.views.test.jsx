@@ -1,4 +1,4 @@
-// P4: the lasso (utils/lasso.js), the interaction that triggers the
+// The lasso (utils/lasso.js), the interaction that triggers the
 // analytics of both scatter views, tested in the mounted components with
 // synthetic pointer events (helpers/miniDom.js gives SVG elements the browser's
 // getScreenCTM: the svg's viewport and every transform down to the element).

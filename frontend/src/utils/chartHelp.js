@@ -33,7 +33,7 @@ import { WHATIF_MARKS, BADGE_INTERVAL_PCT } from './simulationClient';
 import {
   PACE_WINDOW_LAPS, REF_WINDOW_LAPS, REF_MIN_SAMPLES, TRAFFIC_GAP_S, DEFAULT_PROBABILITY_SAMPLES,
 } from './circleOfDoom';
-import { LOW_DATA_FRACTION } from './views/degradationViews';
+import { LOW_DATA_FRACTION, LOW_DATA_MIN_LAPS } from './views/degradationViews';
 import { FORECAST_LAPS, FORECAST_EVALUATION as EVAL } from './forecast';
 import { FIRST_SEASON_WITHOUT_DRS } from './seasons';
 import { STATUS_GLYPHS, FONT_FLOOR_PX } from './colors';
@@ -68,7 +68,7 @@ const S3 = (v) => `${v.toFixed(3)} s`;
 
 /**
  * What selecting a lap range does (store setSelectedLapRange: the one range of
- * every view, V7 r2), as the views that read it draw it: words only, no
+ * every view), as the views that read it draw it: words only, no
  * digits, so the PCA help keeps its rule of no number of its own (D9).
  */
 export const LAP_RANGE_EFFECTS = 'the Lap Times sheet shows each driver\'s latest lap inside them, the Position Tracker brush '
@@ -96,6 +96,7 @@ export const CHART_HELP = {
       'S1 / S2 / S3 are drawn in reddish purple, yellow and sky blue (told apart under every colour-vision deficiency, CIEDE2000 >= 14.1, cvd_check script); DRS zones have white edges and the label DRS.',
       'Channel overlay (Speed / Throttle / Brake) recolours the track using the focus driver\'s telemetry on the most recent cached lap — auto-fetches if nothing is cached yet. Speed is drawn on the cividis scale (grey = slow, yellow = fast), throttle from grey to sky blue, brake from grey to orange; the low end stays visible on the dark map (no brake and the slowest corners included), and the legend shows the low, middle and high colour.',
       `Shift+S toggles sectors; Shift+D toggles DRS zones (seasons before ${FIRST_SEASON_WITHOUT_DRS}: there is no DRS from that season, so the zones and the toggle are hidden); R / Shift+R rotates the track.`,
+      'Telemetry of the focus driver and the selected drivers, bottom-left: a card each on a big map, else a table of the driver, the tyre (compound and laps on the set) and the speed, then the gear, brake, throttle and DRS as the room allows. "+3 cols" in its header counts the columns left out for room, "+2 more" on its last row the drivers past it; the Layers panel names both.',
     ],
     limitations: [
       'Telemetry channels only load for drivers whose car-data has been cached — some rookies or DNFs may be missing.',
@@ -257,7 +258,7 @@ export const CHART_HELP = {
       `Clean laps only: lap 1, pit in / out laps, laps not fully green and slow outliers (more than ${OUTLIER_K} robust sigmas above the stint's fit) are left out; a stint needs ${MIN_FIT_LAPS} clean laps.`,
       'Ranked by average clean lap; the Consistent / Inconsistent chip compares σ with the field\'s median σ. Deg = the mean fuel-corrected slope of the driver\'s fitted stints on that compound.',
       'Click the chevron to expand; click the header body to set focus driver.',
-      `Drivers who completed fewer laps than ${Math.round(LOW_DATA_FRACTION * 100)} % of the most laps completed in the field (at least 3) get a "LOW DATA" chip: their σ rests on a short race (a retirement), so it is not comparable.`,
+      `Drivers who completed fewer laps than ${LOW_DATA_FRACTION} × the most laps completed in the field, rounded down (at least ${LOW_DATA_MIN_LAPS}), get a "LOW DATA" chip: their σ rests on a short race (a retirement), so it is not comparable.`,
       FUEL_ASSUMPTION,
     ],
     limitations: [
@@ -325,7 +326,7 @@ export const CHART_HELP = {
       'Optimal pit-lap suggestion + predicted stints (no pit lap without the race distance).',
       `Monte Carlo panel (below): ${NUMBER(DEFAULT_NUM_SIMULATIONS)} race-to-flag runs (seeded: the same race state always gives the same result), run in a background worker. Each row shows the median finishing position (P label: half of the runs finish there or better; gold = P1-P3, i.e. a podium in at least half of the runs, the same statement as the gold "pod" figure), the places gained (▲, blue) or lost (▼, orange) from the current position to that one, and the podium probability; rows are listed by the position shown, then the current race position. Beside the table a D3 chart on one position axis: bars = share of the runs finishing at each position (every position with at least one run), the line under them = the P5–P95 range, filled diamond = the P label, hollow triangle = the current position, dashed rules after P3 and P10 = podium and points places; the legend names every mark. Rows that do not fit the panel are paged (◀ ▶), never scrolled. The Battles tab is a table of the listed pairs (share and badge ●● / ● / ○), the Risks tab a list with the severity glyph (!! high, ! medium, i low).`,
       'Every mark drawn from the runs (P label, its gold, the arrow, the row order, the battle badges, the battles listed, the risk rows) changes only on evidence beyond the Monte Carlo error, never on noise alone: a mark moves when the interval of the share behind it clears its threshold, otherwise it keeps its previous state. The marks drawn once per driver or per pair are judged with intervals that hold for the whole table at once (95 % together, not row by row). The battles listed are those surely among the most likely (fewer rows while pairs are too close to call), two badges (●●), one badge (●), then the others, each in race order.',
-      `Monte Carlo inputs, all from the race so far: pace = each driver's last ${PACE_REF_LAPS} clean laps; tyre wear by compound = ${DEGRADATION_RULE}; lap noise = the scatter of the laps around those per-stint fits, pooled over every stint fitted so far (no prior mixed in; few stints early in the race give a rough value, so the header shows n, the clean laps behind it; before the first fit, the cached races' value: dry ${PRIORS.lapNoise.dry.value} s, wet ${PRIORS.lapNoise.wet.value} s); stops = when sets of that compound were changed so far this race (sets still running count as still running), one stop forced in a dry race until two dry compounds are used, no optional stop with fewer than ${OPTIONAL_STOP_MIN_LAPS_LEFT} laps left; safety car = episodes so far per lap, pulled toward the average of the ${PRIORS.races} cached races (${PRIORS.safetyCar.episodesPerRace} episode per ${PRIORS.safetyCar.lapsPerRace} laps), shown as "prior" until one happens.`,
+      `Monte Carlo inputs, all from the race so far: pace = each driver's last ${PACE_REF_LAPS} clean laps; tyre wear by compound = ${DEGRADATION_RULE}; lap noise = the scatter of the laps around those per-stint fits, pooled over every stint fitted so far (no prior mixed in; few stints early in the race give a rough value, so the header shows n, the clean laps behind it; before the first fit, the cached races' value: dry ${PRIORS.lapNoise.dry.value} s, wet ${PRIORS.lapNoise.wet.value} s); stops = when sets of that compound were changed so far this race (sets still running count as still running), one stop forced in a dry race until two dry compounds are used (none in a sprint, which has no mandatory stop), no optional stop with fewer than ${OPTIONAL_STOP_MIN_LAPS_LEFT} laps left; safety car = episodes so far per lap, pulled toward the average of the ${PRIORS.races} cached races (${PRIORS.safetyCar.episodesPerRace} episode per ${PRIORS.safetyCar.lapsPerRace} laps), shown as "prior" until one happens.`,
       FUEL_ASSUMPTION,
     ],
     limitations: [
@@ -495,7 +496,7 @@ export const CHART_HELP = {
       '**Standings:** a D3 chart of the cumulative points by round and a D3 bar chart of the points so far at the loaded round (team colours; the bar of a teammate carries the teammate dash; the legend above the bars names the teams).',
       '**Prediction & AI:** the same chart extended with a projection to the season end, and the AI assistant beside it.',
       'Projection (backend, from round 3): the points so far plus the weighted mean of the last 5 rounds\' points (weights 1 to 5, the latest the heaviest) times the rounds left.',
-      'Lines in the team colour; the second driver of a team in a tint of it and dashed, a third driver (a reserve) in another tint and dash-dot; a driver of the loaded session keeps the style he has in the other views when he drives for the same team in the championship (a driver who changed team mid-season is coloured by his team at the latest round, and the tooltip names the change); the projection to season-end is dotted.',
+      'Lines in the team colour; the second driver of a team in a tint of it and dashed, a third driver (a reserve) in another tint and dash-dot; a driver of the loaded session keeps the style he has in the other views when he drives for the same team in the championship (a driver who changed team mid-season is coloured by his team at the latest round, and the tooltip of his Standings bar names the change); the projection to season-end is dotted.',
     ],
     limitations: [
       'The weighted mean is simple and does not model upgrades, DNFs, or regulation changes.',
@@ -589,7 +590,7 @@ export const CHART_HELP = {
       PIT_LOSS_METHOD,
       PIT_LOSS_FALLBACK,
       `A "traffic" mark on the rejoin means the projected crossing of the line at the end of the out-lap is less than ${TRAFFIC_GAP_S.toFixed(1)} s behind another car's crossing, on any lap (dirty air, DRS range); the tooltip gives the share of the draws flagged. It is computed with the rank, on the same projections, so it changes only when a lap, a pit stop or the track status changes.`,
-      'Click a car to focus it in the other views too (Track Map, Leaderboard, Timing Tower, Position Tracker, PCA panel). Hover a car to highlight it in the views that follow the highlight (Track Map, Leaderboard, Timing Tower, Lap Times, Strategy Timeline and others; the Position Tracker and the PCA views follow focus and selection only). With a focus set, hovering another car shows the time gap between the two. Centre: lap, track status, reference lap, the loss used and the focus car\'s projected place.',
+      'Click a car to focus it in the other views too (Track Map, Leaderboard, Timing Tower, Position Tracker, PCA panel). Hover a car to highlight it in the views that follow the highlight (Track Map, Leaderboard, Timing Tower, Lap Times, Strategy Timeline and others; the Position Tracker and the PCA panel follow focus and selection only, the PCA biplot the selection only). With a focus set, hovering another car shows the time gap between the two. Centre: lap, track status, reference lap, the loss used and the focus car\'s projected place.',
       'On lap 1, until a car crosses the line, its place comes from the last lap-1 timing point it has passed (end of sector 2), then from its grid slot; a car whose place the data leave open shows none.',
       `Pit in k laps: the stepper in the header (k = 0 to ${PIT_IN_LAPS_MAX}, also the [ and ] keys, with AltGr or Option where the keyboard layout needs it, not while typing) keeps the focus car out k more laps before it stops. The dashed diamond (ghost) marks its projected rejoin, its label gives the projected place, and the centre reads "pits in k: (place now) → (projected place) (±n vs now)": the n places better (+) or worse (−) than pitting now, counted at the end of that same out-lap (pitting now, the car would by then have k laps on the new set). k = 0 is the pit window above; k stops at the laps the car has left.`,
       `Pit in k laps projects every car from the pit window: each car's pace and line crossing as above, then lap by lap the ${LAP_MODEL.charAt(0).toLowerCase()}${LAP_MODEL.slice(1)}`,

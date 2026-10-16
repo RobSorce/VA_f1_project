@@ -11,7 +11,7 @@ import PitWallSectorPanel from '../ui/PitWallSectorPanel';
 // Below that the cards stay collapsed to their header lines in the sidebar,
 // so the Leaderboard keeps the whole field; "Details" opens them in full as a
 // card laid over the bottom of the sidebar (closed with "Less"), so opening
-// them never squeezes or clips the Leaderboard rows (V5 / V13 r2: the rows
+// them never squeezes or clips the Leaderboard rows (the rows
 // were clipped under the cards, with no scroll and no pager).
 const SIDEBAR_SHORT_VIEWPORT = '(max-height: 1199px)';
 

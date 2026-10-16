@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
+import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeed';
 
 export default function Footer() {
   const currentLap = useF1Store((s) => s.currentLap);
@@ -99,11 +100,9 @@ export default function Footer() {
             value={playSpeed}
             onChange={(e) => setPlaySpeed(Number(e.target.value))}
           >
-            <option value={0.5}>0.5x</option>
-            <option value={1}>1x</option>
-            <option value={2}>2x</option>
-            <option value={5}>5x</option>
-            <option value={10}>10x</option>
+            {PLAYBACK_SPEEDS.map((spd) => (
+              <option key={spd} value={spd}>{spd}x</option>
+            ))}
           </select>
         </div>
       </div>

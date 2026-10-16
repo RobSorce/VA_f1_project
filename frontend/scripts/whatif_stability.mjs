@@ -1,5 +1,5 @@
 /**
- * S4 done-when (lead decision D5) for the Strategy Simulator: the categorical
+ * For the Strategy Simulator: the categorical
  * marks its result draws from the what-if's Monte Carlo output must be stable
  * on a same-state recompute with a different seed. The what-if is the store's
  * (runSimulationJob 'compare', the job runSimulation sends), its marks the
@@ -17,7 +17,7 @@
  *  - the colour of the podium and of the points difference (green / red /
  *    muted: whatIfMarks podium / points; the checkpoint hid a 0 and coloured
  *    the sign of the rest);
- *  - for information (not a mark of D5, which is judged mark by mark as in
+ *  - for information (not a mark: the target is judged mark by mark as in
  *    scripts/mc_stability.mjs): whether any of these marks changed at all.
  * The stop-model baseline card shows the Race Prediction panel's P label of
  * the driver (whatIfMarks opts.stopModel / panelMode, as runSimulation passes

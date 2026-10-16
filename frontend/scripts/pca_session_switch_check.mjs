@@ -1,5 +1,5 @@
 /**
- * The cross-race PCA answers across a session switch (P3 / P6, round 3):
+ * The cross-race PCA answers across a session switch:
  * writes docs/evidence/pca_session_switch_check.txt and prints
  * the same text.
  *

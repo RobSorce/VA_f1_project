@@ -9,7 +9,7 @@
  * Every lap is computed as the store does (computeRaceSituation): the features at
  * the lap-mode clock of that lap (resolveSessionNow), computePCA chained on the
  * previous lap's result (its basis is the alignment reference). Section 2 uses
- * the sign-only alignment, the store's until the repair round; the store now
+ * the sign-only alignment, the store's until the switch to rotation; the store now
  * uses LIVE_PCA_ALIGN ('rotation', section 3's first mode; the drawn map is
  * checked in scripts/pca_repair_check.mjs).
  *

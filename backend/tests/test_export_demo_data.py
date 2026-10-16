@@ -1,4 +1,4 @@
-"""V12: the static demo data (scripts/export_demo_data.py -> frontend/public/data).
+"""The static demo data (scripts/export_demo_data.py -> frontend/public/data).
 
 - The committed files are the export of the current backend: a fresh export
   is byte-identical (gzip mtime 0), so they are up to date and a re-run adds

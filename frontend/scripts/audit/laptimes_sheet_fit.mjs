@@ -1,4 +1,4 @@
-// Repair 3 (V5 row "Lap Times timing sheet"): what the timing sheet body
+// Row "Lap Times timing sheet" of docs/SCROLL_JUSTIFICATIONS.md: what the timing sheet body
 // holds and the room its panes give it, at the four target viewports.
 // The sheet lists the whole field (LapTimeChart.jsx reads the session's
 // lap_times; utils/views/lapTimeChart.js lapTimingSheet: one row per driver;

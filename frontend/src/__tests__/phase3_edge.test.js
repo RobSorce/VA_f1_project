@@ -1,12 +1,12 @@
-// Phase 3 edge cases, store side (decisions R4, R7, R8):
-//  - P3a: a live -> replay switch starts a new load generation before anything
+// Edge cases, store side (decisions R4, R7, R8):
+//  - a live -> replay switch starts a new load generation before anything
 //    is awaited, so a live entry still in flight never lands nor reconnects
 //    the feed, and a live message delivered after the switch is dropped;
-//  - P3b: the lap-mode clock on the last lap is the leader's end of lap L-1
+//  - the lap-mode clock on the last lap is the leader's end of lap L-1
 //    (R4); Infinity only in live mode and the race-over state;
-//  - P3g: the Gemini request carries the session type, with no pit-loss
+//  - the Gemini request carries the session type, with no pit-loss
 //    context outside race sessions;
-//  - P3h: after a live -> replay switch the R7 gate follows the type of the
+//  - after a live -> replay switch the R7 gate follows the type of the
 //    session on screen (the live one until the replay lands), never the pill.
 // Synthetic fixtures run everywhere; blocks on cached sessions skip when the
 // cache is absent.
@@ -116,7 +116,7 @@ afterEach(() => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('P3a: a live -> replay switch starts a new load generation at once', () => {
+describe('a live -> replay switch starts a new load generation at once', () => {
   it('a live entry still waiting for its full session never lands on the replay nor reconnects the feed', async () => {
     const full = deferred();
     const stop = deferred();
@@ -241,7 +241,7 @@ describe('P3a: a live -> replay switch starts a new load generation at once', ()
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('P3b: lap-mode clock on the last lap (R4)', () => {
+describe('lap-mode clock on the last lap (R4)', () => {
   /** Lap mode (no frames) at lap `lap` of `session`. */
   function lapMode(session, lap) {
     const lt = session.lap_times;
@@ -282,7 +282,7 @@ describe('P3b: lap-mode clock on the last lap (R4)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('P3g: the Gemini request carries the session type (R7)', () => {
+describe('the Gemini request carries the session type (R7)', () => {
   const PROJECTION = {
     projections: [], battles: [], risks: [], computedAtNow: 0,
     raceParams: { pitLoss: { median: 22, source: 'fallback', n: 0 }, scRate: 0.02, lapNoise: 0.3 },
@@ -321,7 +321,7 @@ describe('P3g: the Gemini request carries the session type (R7)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('P3h: after a live -> replay switch the R7 gate follows the session on screen', () => {
+describe('after a live -> replay switch the R7 gate follows the session on screen', () => {
   const LIVE_Q = { session_type: 'Qualifying', session_name: 'Qualifying' };
 
   function goLive(info, data = REPLAY) {

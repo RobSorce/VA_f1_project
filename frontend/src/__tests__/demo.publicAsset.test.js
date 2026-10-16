@@ -1,4 +1,4 @@
-// V12 (verifier): the demo bundle requested /f1-logo.png and /team-logos/*
+// The demo bundle requested /f1-logo.png and /team-logos/*
 // from the origin root, which 404s on GitHub Pages (base /VA_f1_project/).
 // Every file of public/ is now referenced through publicAsset (the build's
 // base); this test keeps root-relative public paths out of the components.

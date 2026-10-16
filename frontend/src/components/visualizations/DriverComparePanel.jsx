@@ -81,7 +81,7 @@ function MetricsTable({ title, rows, driverA, driverB }) {
 // stint already ends at the driver's last completed lap). Drawn as the D3
 // stint strips of the other strategy views (utils/views/stintStripChart.js):
 // one row per driver on one lap axis, each stint in its FIA compound colour
-// with its letter and length, the lap in progress as a marker (V6 r2: this
+// with its letter and length, the lap in progress as a marker (this
 // section was a div bar chart of percentage widths)
 function StrategyComparison({ driverA, driverB, stintsA, stintsB, currentLap, maxLap }) {
   const boxRef = useRef(null);

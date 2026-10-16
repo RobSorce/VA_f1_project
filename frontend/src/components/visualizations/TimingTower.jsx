@@ -468,7 +468,8 @@ export default function TimingTower() {
         </div>
       </div>
 
-      {/* Flag status banner */}
+      {/* Flag status banner: static. It pulsed down to opacity 0.8
+          (flag-pulse), its RED FLAG label read 4.37:1 */}
       {flagBanner && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -477,7 +478,6 @@ export default function TimingTower() {
           textTransform: 'uppercase',
           background: flagBanner.bg, color: flagBanner.color,
           flexShrink: 0,
-          animation: 'flag-pulse 1.5s ease-in-out infinite',
         }}>
           {flagBanner.label}
         </div>

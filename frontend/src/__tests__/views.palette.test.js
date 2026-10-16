@@ -1,4 +1,4 @@
-// V1 / V2 / V4 / V13 (targets 2, 3, 5), the views of the colours lane, read
+// The views of the colours lane, read
 // as source: no semantic colour literal (the palette module is the single
 // source), no red / green pair, no literal font size under the floors, no CSS
 // function in an SVG presentation attribute (dropped by the browser), a
@@ -128,7 +128,7 @@ describe('team / compound badges choose their text by contrast (findings 2026-10
   });
 });
 
-describe('V3: every view that colours a driver by his team draws the teammate rule', () => {
+describe('every view that colours a driver by his team draws the teammate rule', () => {
   // driver colour through getDriverColor (team colour, teammate tint) or the
   // championship / team-legend helpers built on the same rule
   const TEAM_COLOURED = [
@@ -166,11 +166,11 @@ describe('V3: every view that colours a driver by his team draws the teammate ru
   });
 });
 
-// V2 / V4 r2: a CSS fill / stroke beats an SVG presentation attribute, so a
+// A CSS fill / stroke beats an SVG presentation attribute, so a
 // CSS rule on a class D3 colours decides the colour drawn: the Track Map
 // sectors were drawn in CSS colours unlike their legend, and the Position
 // Tracker's pit-window label in the "better" blue instead of the pit purple
-describe('V2 / V4: no CSS colour overrides the semantic colour D3 sets on these marks', () => {
+describe('no CSS colour overrides the semantic colour D3 sets on these marks', () => {
   const cssRules = async () => {
     const { parseCss } = await import('./helpers/layoutCss.js');
     return ['styles/dashboard.css', 'styles/visualizations.css', 'styles/components.css', 'styles/base.css']
@@ -193,11 +193,11 @@ describe('V2 / V4: no CSS colour overrides the semantic colour D3 sets on these 
   });
 });
 
-// V6 r2: the Driver Comparison drew the two tyre strategies as a div bar
+// The Driver Comparison drew the two tyre strategies as a div bar
 // chart of percentage widths; it now draws the D3 stint strips of the other
-// strategy views. V3 r2: the standings bars carry the teammate dash where it
+// strategy views. The standings bars carry the teammate dash where it
 // shows (a line inside the bar in its contrast text colour).
-describe('V6 / V3: the remaining div chart is D3, the standings dash reads on its bar', () => {
+describe('the remaining div chart is D3, the standings dash reads on its bar', () => {
   it('DriverComparePanel tyre strategy: drawStintStrips with a lap axis, no div segments', () => {
     const src = code('components/visualizations/DriverComparePanel.jsx');
     expect(src).toMatch(/drawStintStrips\(svgRef\.current, \{/);

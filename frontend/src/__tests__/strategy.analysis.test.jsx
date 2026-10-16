@@ -1,4 +1,4 @@
-// V6 / V1 / V5, Race Analysis (components/visualizations/StrategyAnalysis.jsx):
+// Race Analysis (components/visualizations/StrategyAnalysis.jsx):
 //  - the field's tyre mix is a D3 strip (utils/views/stintStripChart.js) with
 //    the compound letter and count on each segment and a cars axis;
 //  - "What makes this cluster different" is a D3 bar chart of the signed

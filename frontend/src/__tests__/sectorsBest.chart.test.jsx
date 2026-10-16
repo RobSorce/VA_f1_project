@@ -1,4 +1,4 @@
-// D5 (Phase 9c, F6): the Sectors panel's "Best" tab is a D3 SVG chart per
+// The Sectors panel's "Best" tab is a D3 SVG chart per
 // sector (components/visualizations/SectorsBestChart.jsx, view model
 // utils/views/sectorsBestChart.js): a band scale of the drivers in ranking
 // order, a linear scale of the gap to the session best with its axis, the
@@ -84,7 +84,7 @@ const columns = (host) => host.querySelectorAll('.sectors-panel__column');
 const chartOf = (col) => col.querySelector('svg.sectors-best-chart');
 const num = (el, a) => Number(el.getAttribute(a));
 
-describe('D5: the Best tab is a D3 chart of the gap to the session best, per sector', () => {
+describe('the Best tab is a D3 chart of the gap to the session best, per sector', () => {
   afterAll(async () => {
     if (view) await view.unmount();
     useF1Store.setState({ ...INITIAL });

@@ -188,7 +188,7 @@ describe('font floors for D3 and inline styles (V13 target 3)', () => {
 
   // A browser returns an unregistered custom property as declared (math not
   // evaluated): chartFontPx must evaluate it with the viewport, so layout code
-  // measures text at the size CSS draws it (V13 r2: it returned the floor)
+  // measures text at the size CSS draws it (it returned the floor)
   it('chartFontPx evaluates the declared token at the viewport, as CSS draws it', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');

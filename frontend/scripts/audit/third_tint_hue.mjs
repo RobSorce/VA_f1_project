@@ -1,4 +1,4 @@
-// Repair 3 (V3 r2 minor): a third-driver tint that keeps the team hue.
+// A third-driver tint that keeps the team hue.
 // The old rule searched mixes of 10-90 % toward white or black and picked the
 // farthest mark: near-white or near-black for most teams, so the third drivers
 // of different teams (e.g. Alpine #FFF3F8, Haas #F8F8F8, Williams #F0F9FF)

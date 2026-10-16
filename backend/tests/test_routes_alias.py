@@ -1,4 +1,4 @@
-"""V9: t-SNE leftovers in the API (Phase 9 cleanup).
+"""t-SNE leftovers in the API.
 
 The dashboard's one projection is the PCA. Every /api/tsne/... path is a
 former route name kept as an alias of its /api/pca/... route (same answer);

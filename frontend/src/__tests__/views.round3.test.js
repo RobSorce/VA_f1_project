@@ -1,15 +1,15 @@
-// Round 3 of the Phase 3 fixes (R6, R8 and the D2 / D4 verdicts), on the
+// Edge-case fixes (R6, R8), on the
 // cached sessions (skipped when absent):
-//  - D4 problem 1: a driver classified on distance who stopped before the
+//  - a driver classified on distance who stopped before the
 //    flag (2024 R3 RUS, 2024 R17 PER / SAI / STR, ...) is retired in every
 //    per-driver view once the final row has ended, never before, and leaves
 //    the running order; qualifying and practice never infer a retirement;
-//  - D4 problem 2: the TelemetryStrip reveal clip of a running lap follows the
+//  - the TelemetryStrip reveal clip of a running lap follows the
 //    lap's own samples recorded by now (revealPoint), not the car's position;
-//  - D4 problem 3: the qualifying replay views (Leaderboard, DriverMFDCard,
+//  - the qualifying replay views (Leaderboard, DriverMFDCard,
 //    FocusDriverWidget, LapTimeChart badges) show only laps completed by now,
 //    never the final classification;
-//  - D2 problem 3: track-status bands sit on the timeline's lap axis.
+//  - track-status bands sit on the timeline's lap axis.
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
@@ -101,7 +101,7 @@ function stopTime(row) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('D4 problem 1: classified drivers who stopped before the flag are retired (R6)', () => {
+describe('classified drivers who stopped before the flag are retired (R6)', () => {
   it.skipIf(!hasCachedSession(2024, 3))('2024 R3 RUS (crash on lap 57, classified 17th): retired from 8227.786, behind the cars still racing', () => {
     const s = loadCachedSession(2024, 3);
     const lt = s.lap_times;
@@ -258,7 +258,7 @@ describe.skipIf(!(fs.existsSync(PIA38) && fs.existsSync(PIA39)))('D4 problem 2: 
 
 // ─────────────────────────────────────────────────────────────────────────
 const HAVE_Q = hasCachedSession(2024, 8, 'Q') && hasCachedFrames(2024, 8, 'Q');
-describe.skipIf(!HAVE_Q)('D4 problem 3: the qualifying replay shows only laps completed by now (2024 R8 Q)', () => {
+describe.skipIf(!HAVE_Q)('the qualifying replay shows only laps completed by now (2024 R8 Q)', () => {
   const q = HAVE_Q ? loadCachedSession(2024, 8, 'Q') : { lap_times: [], race_results: [] };
   const segments = HAVE_Q ? loadCachedFrames(2024, 8, 'Q').segments : {};
   const offsets = HAVE_Q ? qualiSegmentOffsets(q.lap_times, segments) : {};
@@ -361,7 +361,7 @@ describe.skipIf(!HAVE_Q)('D4 problem 3: the qualifying replay shows only laps co
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('D2 problem 3: track-status bands on the timeline\'s lap axis', () => {
+describe('track-status bands on the timeline\'s lap axis', () => {
   it('synthetic: start lap to end lap, half a lap at least, a running band ends on the leader lap', () => {
     expect(trackStatusBandLaps({ startLap: 22, endLap: 23 })).toEqual([22, 23]);
     expect(trackStatusBandLaps({ startLap: 1, endLap: 1 })).toEqual([1, 1.5]);

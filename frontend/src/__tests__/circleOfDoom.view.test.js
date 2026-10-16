@@ -215,7 +215,13 @@ describe('registration and placement', () => {
     const reads = (file) => fs.readFileSync(path.join(SRC, 'components/visualizations', file), 'utf8').includes('highlightedDriver');
     for (const f of ['TrackMap.jsx', 'Leaderboard.jsx', 'TimingTower.jsx', 'LapTimeChart.jsx', 'StrategyTimeline.jsx']) expect(reads(f)).toBe(true);
     for (const f of ['PositionByLap.jsx', 'PCABiplot.jsx', 'PCAAnalysisPanel.jsx']) expect(reads(f)).toBe(false);
-    expect(help).toMatch(/the Position Tracker and the PCA views follow focus and selection only/);
+    // the PCA panel reads the focus, the biplot only the selection
+    const subscribes = (file, field) => new RegExp(`useF1Store\\(\\(?s\\)? => s\\.${field}\\)`)
+      .test(fs.readFileSync(path.join(SRC, 'components/visualizations', file), 'utf8'));
+    for (const f of ['PositionByLap.jsx', 'PCAAnalysisPanel.jsx']) expect(subscribes(f, 'focusDriver'), f).toBe(true);
+    expect(subscribes('PCABiplot.jsx', 'focusDriver')).toBe(false);
+    expect(subscribes('PCABiplot.jsx', 'selectedDrivers')).toBe(true);
+    expect(help).toMatch(/the Position Tracker and the PCA panel follow focus and selection only, the PCA biplot the selection only/);
     expect(help).toMatch(/No pit window before the car has crossed the line for the first time/);
     expect(help).toMatch(/while a car still on lap 1 has not reached the end of sector 2/);
   });

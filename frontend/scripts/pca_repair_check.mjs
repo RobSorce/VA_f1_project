@@ -1,5 +1,5 @@
 /**
- * Evidence of the PCA repair round (P2, P6, P10, P11): writes
+ * Evidence of the PCA fixes: writes
  * docs/evidence/pca_repair_check.txt and prints the same text.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):

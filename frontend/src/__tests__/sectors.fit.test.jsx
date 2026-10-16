@@ -1,4 +1,4 @@
-// Phase 9c F4 (D1): the Sectors panel shows every driver row: fitted to the
+// The Sectors panel shows every driver row: fitted to the
 // panel's height (26 px down to 18 px) or paged with a visible pager; the
 // ranked columns (Best, Top Speeds) fitted to its width or paged too.
 //
@@ -259,7 +259,7 @@ describe('CSS: the rows have no vertical padding and the bodies never scroll', (
   });
 
   it('the ranked columns share one header row (subgrid), so every body is as tall as the measured one', () => {
-    // verifier r1: each header wrapped on its own; a column whose header took
+    // each header wrapped on its own; a column whose header took
     // one more line than the first column's had a body 15-17.5 px shorter
     // than the fit, its last rank cut (Top Speeds at 2048 x 1100)
     const block = (dash.match(/@supports \(grid-template-rows: subgrid\) \{([\s\S]*?)\n\}/) || [])[1] || '';
@@ -273,8 +273,8 @@ describe('CSS: the rows have no vertical padding and the bodies never scroll', (
   });
 
   it('without subgrid every header keeps one line (an ellipsis on the title, its full text in a title), so the bodies stay equal', () => {
-    // verifier r2: the fallback brought back the per-column header heights of
-    // round 1 (P20 cut by about 7 px at 2048 x 1100) in a browser without subgrid
+    // the fallback brought back the per-column header heights of the first
+    // fix (P20 cut by about 7 px at 2048 x 1100) in a browser without subgrid
     const block = (dash.match(/@supports not \(grid-template-rows: subgrid\) \{([\s\S]*?)\n\}/) || [])[1] || '';
     expect(block).toMatch(/\.sectors-panel__col-header \{[^}]*flex-wrap: nowrap;/);
     expect(block).toMatch(/\.sectors-panel__col-title \{[^}]*min-width: 0;[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);

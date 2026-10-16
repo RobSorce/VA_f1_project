@@ -1,4 +1,4 @@
-// Phase 9d G1 (HIGH, Roberto's screen): the Pit Wall Track Map keeps most
+// The Pit Wall Track Map keeps most
 // of its panel at the four target viewports.
 //
 // The browser pass (docs/evidence/browser_audit_2026-10-16.md,
@@ -140,7 +140,7 @@ describe('the model: the Pit Wall Track Map at the four viewports (CSS as writte
     expect(m.headerRow.needed).toBeLessThanOrEqual(m.headerRow.available);
   });
 
-  it('before Phase 9d: the controls in one wrapped header row left the map 34 px of the 263 px panel at 1536 x 750', () => {
+  it('formerly: the controls in one wrapped header row left the map 34 px of the 263 px panel at 1536 x 750', () => {
     // the browser's numbers: .panel-controls 181 px tall, the map 354 x 34
     const m = rows.find((r) => r.vp.name === '1536x750').m;
     const oldMap = m.cell.height - 2 * 2 - (m.header.pad.top + 181 + m.header.pad.bottom + 1) - 2 * px(css, '--spacing-md', VIEWPORTS[0]);

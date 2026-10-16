@@ -1,4 +1,4 @@
-// Test helper (Phase 9c, D4 / D5 / D6): what the chart tests mount the D3
+// Test helper: what the chart tests mount the D3
 // views with, so they run without the git-ignored race cache:
 //  - installResizeObserverMock(): a ResizeObserver the test drives (notify an
 //    element of its new content box) and a requestAnimationFrame queue the

@@ -1,4 +1,4 @@
-// V8: the Session menu's confirmation before a session switch read
+// The Session menu's confirmation before a session switch read
 // selectedTSNEPoints, a field the store does not have, so a PCA lasso never
 // triggered it. It now reads the store through utils/sessionSwitchWarning.js
 // (selectedPCAPoints), and says what a load really keeps and clears: a real
@@ -75,7 +75,7 @@ beforeEach(async () => {
   await store().loadSession();
 });
 
-describe('V8: the session-switch confirmation reads the PCA lasso', () => {
+describe('the session-switch confirmation reads the PCA lasso', () => {
   it('a lasso alone triggers it and names the points (the store field is selectedPCAPoints)', () => {
     expect('selectedTSNEPoints' in store()).toBe(false);
     expect(Array.isArray(store().selectedPCAPoints)).toBe(true);
@@ -100,7 +100,7 @@ describe('V8: the session-switch confirmation reads the PCA lasso', () => {
   it('a real load keeps every "kept" item and clears every "cleared" one', async () => {
     useF1Store.setState(ANALYTICAL);
     const before = sessionSwitchSummary(store());
-    // D8: the lap ranges are cleared by a load, not kept
+    // the lap ranges are cleared by a load, not kept (decision D8)
     expect(before.kept).toHaveLength(3);
     expect(before.cleared).toHaveLength(7);
     expect(before.cleared).toContain('lap range 3–6');

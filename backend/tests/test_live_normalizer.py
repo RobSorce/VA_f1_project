@@ -330,7 +330,7 @@ def snapshot_connect(stints, laps_done, pit_stops, t=9000.0):
 
 
 def test_a_dry_race_connect_places_stints_by_the_cumulative_total_laps():
-    """D12, recorded 2025 R6 Miami BOR, connect on lap 32 (30 laps done):
+    """Recorded 2025 R6 Miami BOR, connect on lap 32 (30 laps done):
     MEDIUM TotalLaps 19, HARD TotalLaps 5. The cumulative rule gives the
     HARD from lap 1 + 19 = 20 (full-race live run and FastF1: 20); the
     set-in-use age anchor (30 + 1 - 5 = 26, the HARD's TotalLaps lag its
@@ -815,7 +815,7 @@ def test_unpinning_the_clock_runs_on_from_the_pinned_time():
 # ---------------------------------------------------------------- B3 (D11): the frames' lap
 
 def test_live_frames_carry_the_lap_in_progress():
-    """D11: the live frames' lap is the lap in progress (laps completed + 1,
+    """The live frames' lap is the lap in progress (laps completed + 1,
     capped at the race distance), as the replay frames; it was the laps
     completed, one lap behind (leader LEC on lap 13 showed L12). Lap rows
     keep LapNumber = NumberOfLaps."""

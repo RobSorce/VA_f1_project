@@ -154,7 +154,7 @@ export function chromeRows() {
 // pseudo-class) applied to the text rows they reach: the element itself
 // (`.bottom-tab-bar__tab--fixed` on `.bottom-tab-bar__tab`) or an ancestor
 // named in the row's surface stack (`.shortcut-hints--faded` on
-// `.shortcut-hint-key`). The verifier found both missed by the rows above.
+// `.shortcut-hint-key`). The rows above missed both.
 export function modifierRows(rows) {
   const names = new Map(SURFACES.map(([prefix, fn]) => [prefix, (fn.toString().match(/'\.[\w-]+'/g) || []).map((q) => q.slice(1, -1))]));
   const mods = [];

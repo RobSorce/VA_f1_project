@@ -1,4 +1,4 @@
-// V12, the demo build (npm run build:demo = vite build --mode demo, the
+// The demo build (npm run build:demo = vite build --mode demo, the
 // GitHub Pages site): demo mode is on from the start, nothing is ever asked
 // of /api (axios here throws if called), every answer comes from
 // frontend/public/data, and the demo build never leaves demo mode.
@@ -26,7 +26,7 @@ globalThis.fetch = vi.fn(async (url) => {
 
 const HAS_DATA = fs.existsSync(path.join(DATA, 'manifest.json'));
 
-describe.skipIf(!HAS_DATA)('V12: demo build', () => {
+describe.skipIf(!HAS_DATA)('demo build', () => {
   it('demo mode from the start; the race, the biplot and the lasso analysis without any /api request', async () => {
     const { DEMO_BUILD, useDemoMode, deactivateDemo, BACKEND_ONLY_TEXT } = await import('../utils/demoMode.js');
     const { setDemoDataRoot } = await import('../utils/demoData.js');

@@ -1,4 +1,4 @@
-// Phase 9c r2 (F3 / D3): the Lap Times timing sheet fits its pane. The
+// The Lap Times timing sheet fits its pane. The
 // header and the rows are one grid of px columns in a panel that clips
 // (.panel-content overflow hidden, the rows' body overflow-x hidden): at the
 // 775 px of the default widths the columns past the pane's right edge were

@@ -5,8 +5,8 @@
  * later, and which stint fit each new clock adds (its driver, the place the
  * driver crossed the line in, its residual sigma). The data for the decision
  * on the 0.3-0.6 s band: does it hold at sub-lap replay clocks or only at the
- * lap-mode clocks and at race level? (Decided: D1, phase45c; the done-when
- * check is scripts/s2_lap_noise.mjs.)
+ * lap-mode clocks and at race level? (The band is checked at the leader's
+ * laps 20, 30, 40 and at the race end by scripts/s2_lap_noise.mjs.)
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):
  *     npx vite-node scripts/lap_noise_subclock.mjs

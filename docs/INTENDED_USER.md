@@ -4,9 +4,9 @@
 
 **Role**: Race strategist on an F1 team's pit wall, responsible for real-time decisions about pit stop timing, tyre compound selection, and race pace management.
 
-**Background**: Engineering degree (typically mechanical or aerospace), 3-10 years of experience in motorsport data analysis. Fluent in F1 terminology (stint, compound, degradation, undercut, overcut, delta, DRS, safety car). Uses official F1 timing screens, team telemetry systems, and Pirelli tyre data daily.
+**Background**: Engineering degree (typically mechanical or aerospace), with experience in motorsport data analysis. Fluent in F1 terminology (stint, compound, degradation, undercut, overcut, delta, DRS, safety car). Uses official F1 timing screens, team telemetry systems, and Pirelli tyre data daily.
 
-**Working context**: During a race, the strategist monitors 20+ data streams simultaneously under time pressure. Decisions (pit now vs wait) must be made in under 30 seconds, often while radio communication is ongoing. Post-race, the strategist reviews data to evaluate strategy performance and prepare for the next event.
+**Working context**: During a race, the strategist monitors many data streams simultaneously under time pressure. Decisions (pit now vs wait) must be made quickly, often while radio communication is ongoing. Post-race, the strategist reviews data to evaluate strategy performance and prepare for the next event.
 
 ## Primary Use Cases
 
@@ -41,7 +41,7 @@
 **How the system supports this**:
 - Press `C` to turn compare mode on, then click the two drivers in the Leaderboard (a third click replaces the older of the two); `Shift+G`, or `8`, opens the Driver Compare panel. The panel also takes the two drivers from its own two driver menus, or from the first two selected drivers when it opens with none chosen.
 - The Driver Compare Panel shows head-to-head gap and lap-time charts, best sector times, top speeds, a race summary (average and fastest lap, consistency σ, pit stops, racing laps) and the two tyre strategies.
-- The Lap Delta Chart shows the cumulative time difference of the selected drivers against the base driver (the focus driver), with hatched shading for behind (orange, +) and ahead (blue, −).
+- The Lap Delta Chart shows the cumulative time difference of the selected drivers (the first five drivers when nobody is selected) against the base driver (`lapDeltaBaseDriver`, set with the focus, else the focus driver), with hatched shading for behind (orange, +) and ahead (blue, −).
 - The Race Pace Grid classifies each driver-lap against that driver's median clean lap at the replay clock: fast (more than 0.3 s under it, blue), normal, slow (at least 0.5 s over it, yellow) or very slow (at least 2 s over it, orange), with the session and personal bests in purple ◆ and green ●, and pit in / out laps in pink with P / O (`TIMING_BANDS` in `frontend/src/utils/colors.js`).
 
 (Corrected on 2026-10-15: the steps read "select two drivers in the Leaderboard and press `C`", but `C` only switches compare mode on, and the clicks that choose the drivers come after it; the panel was said to show tyre degradation slopes, which it does not.)
@@ -57,4 +57,4 @@ The system is designed for expert users who:
 
 (Corrected on 2026-10-15: the layout was described as a 1920x1080 no-scroll layout, and the shortcut count was given as 30+ without a source.)
 
-A casual F1 fan would find the interface overwhelming. That is by design: the pit wall strategist's working environment (F1 timing screens, team radio, 6+ monitors) is inherently information-dense, and our dashboard matches that cognitive load expectation.
+A casual F1 fan would find the interface overwhelming. That is by design: the pit wall strategist's working environment (F1 timing screens, team radio, several monitors) is inherently information-dense, and our dashboard matches that cognitive load expectation.

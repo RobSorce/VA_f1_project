@@ -1,4 +1,4 @@
-// Repair 3 (V6 r2): what each file of components/visualizations draws with,
+// What each file of components/visualizations draws with,
 // for the catalogue of docs/MASTER_LEDGER.md section 8. A view "draws with
 // D3" when it selects and draws SVG with d3 itself (d3.select) or calls a
 // utils/views helper that does (the D3 ports draw through such helpers);

@@ -1,4 +1,4 @@
-// D4 (store part): during a replay the store's analytics read only laps
+// Store part: during a replay the store's analytics read only laps
 // completed at sessionNow, the brushed lap range used for analytics never
 // goes past the last completed lap, and a pit counts only once it happened.
 // Data-dependent: skips when the cached Monza 2024 (R16) is absent.

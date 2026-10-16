@@ -21,7 +21,7 @@ import {
 import {
   trackMapControls, mapDrawPadding, MAP_LAYOUT_MIN_PX, TOOL_PX, TOOL_GAP_PX, TOOL_SEPARATOR_PX,
   mapPlan, fitTrack, rotateOutline, hudSlot, hudTable, hudTableWidth, boxOffsets, COMPASS, HUD_TABLE, CAR_LABEL,
-  carLabelOnLeft,
+  carLabelOnLeft, hudHiddenColumns, hudColumnsHint,
 } from '../../utils/views/trackMapLayout';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
@@ -279,8 +279,8 @@ export default function TrackMap({ compact = false }) {
   const resetTrackRotation = useF1Store((s) => s.resetTrackRotation);
   const setTrackRotationAbsolute = useF1Store((s) => s.setTrackRotationAbsolute);
 
-  // The map's furniture and the track fitted clear of it (G1 r3,
-  // utils/views/trackMapLayout.js mapPlan): the key row, the telemetry HUD's
+  // The map's furniture and the track fitted clear of it
+  // (utils/views/trackMapLayout.js mapPlan): the key row, the telemetry HUD's
   // slot, the compass rose. It follows the box, the outline as drawn (the
   // circuit and its rotation), the season and where the layers are; never
   // the selection, the focus driver, the channel overlay or the layer
@@ -522,7 +522,7 @@ export default function TrackMap({ compact = false }) {
     const padding = compact
       ? Math.min(30, Math.floor(Math.min(width, height) / 4))
       : mapDrawPadding(width, height);
-    // The largest track that no overlay hides (G1 r2 / r3): fitted clear of
+    // The largest track that no overlay hides: fitted clear of
     // the map's furniture (mapPlan: the key row, the HUD's slot, the compass
     // rose), which the selection does not change; the plain fit, centred, in
     // a compact map
@@ -628,7 +628,7 @@ export default function TrackMap({ compact = false }) {
 
     // ── Sectors ──
     // Drawn in SECTOR_COLORS at full opacity, the exact colours of the S1-S3
-    // legend and toggles (V4 r2: a CSS rule .sector-N { stroke } used to beat
+    // legend and toggles (a CSS rule .sector-N { stroke } used to beat
     // this presentation attribute, so the track was drawn in other colours,
     // 1.44-2.48:1 on the panel); every sector colour >= 3:1 on the panel
     const sectorLayer = g.select('.sector-layer');
@@ -846,7 +846,7 @@ export default function TrackMap({ compact = false }) {
     isInitialRenderRef.current = true;
     trailPositionsRef.current = {}; // Clear stale screen-space trails on redraw
     // box: the track is laid out again in the panel's new box (D4); plan /
-    // fitSig: with its furniture (never on a selection change, G1 r3)
+    // fitSig: with its furniture (never on a selection change)
   }, [circuitInfo, compact, trackRotationOffset, box.width, box.height, fitSig, outline, plan, planFor]);
 
   // Update sector visibility
@@ -1257,11 +1257,17 @@ export default function TrackMap({ compact = false }) {
 
     // Compute transition duration:
     // At 2.5 FPS, frameDt=0.4s. At 1x speed, transition = 400ms (matches tick interval).
-    // This makes cars move smoothly between consecutive frames.
+    // This makes cars move smoothly between consecutive frames. Only there
+    // (B3): the glide is a straight line, and across a seek (paused, or a jump
+    // of more than one frame) it flew the cars along the chord through the
+    // infield, so there they are set at the new frame at once. A live feed
+    // (no playback) glides 300 ms from one frame to the next
     const playSpeedNow = useF1Store.getState().playSpeed || 1;
-    const transitionDuration = isPlaying && useTransition
-      ? Math.max(16, (frameDt * 1000) / playSpeedNow)
-      : (useTransition ? 300 : 0);
+    const nextFrame = prevFrameIndexRef.current >= 0
+      && Math.abs(currentFrameIndex - prevFrameIndexRef.current) <= 1;
+    let transitionDuration = 0;
+    if (useTransition && nextFrame && isPlaying) transitionDuration = Math.max(16, (frameDt * 1000) / playSpeedNow);
+    else if (useTransition && nextFrame && isLiveMode) transitionDuration = 300;
 
     const cars = carsLayer.selectAll('.car-marker').data(driverEntries, (d) => d[0]);
 
@@ -1300,7 +1306,9 @@ export default function TrackMap({ compact = false }) {
           return `translate(${xScale(rp.x)}, ${yScale(rp.y)})`;
         });
     } else {
+      // a glide still running would end at the frame it was going to
       merged
+        .interrupt()
         .attr('transform', (d) => {
           const pos = d[1];
           if (pos.x == null || pos.y == null) return 'translate(-9999,-9999)';
@@ -1341,7 +1349,7 @@ export default function TrackMap({ compact = false }) {
 
     if (!compact) {
       // A car whose code label would cross the map's right edge, where the
-      // svg clips it, has it on the left of its dot (carLabelOnLeft, G1 r4)
+      // svg clips it, has it on the left of its dot (carLabelOnLeft)
       const mapW = gRef.current.__mapWidth || 0;
       const labelLeft = (d) => {
         const pos = d[1];
@@ -1518,7 +1526,7 @@ export default function TrackMap({ compact = false }) {
   const rampKeyItems = overlayDrawn ? channelLegend(channelMode) : [];
   const mapKeyItems = [...sectorKeyItems, ...drsKeyItems, ...rampKeyItems];
 
-  // The one-line key on the map's corner (popover layout; G1 r2): under a
+  // The one-line key on the map's corner (popover layout): under a
   // drawn overlay the ramp takes the place of S1-S3 (dimmed under it; the
   // full key stays in the Layers popover), so the line holds at 1366 x 768
   // (the speed / throttle / brake ramp and S1-S3 together needed 375-378 px
@@ -1538,7 +1546,7 @@ export default function TrackMap({ compact = false }) {
     if (over && keyDrop < cornerKeyAll.length - 1) setKeyFit({ sig: cornerKeySig, drop: keyDrop + 1 });
   }, [cornerKeySig, keyDrop, cornerKeyAll.length]);
 
-  // The HUD and the compass rose in the map's furniture (mapPlan, G1 r3): the
+  // The HUD and the compass rose in the map's furniture (mapPlan): the
   // focus and selected drivers fill the HUD's slot from its bottom
   // (hudTable), the compass sits at the plan's place; neither moves the track.
   // No plan yet (the circuit's outline not loaded, or a server render): the
@@ -1547,6 +1555,11 @@ export default function TrackMap({ compact = false }) {
     ? plan.hud
     : hudSlot(measured ? box : { width: 800, height: 500 }, { drs: seasonDrs });
   const hudPlan = hudTable(hudSlotNow, hudDataList.length);
+  // What the HUD table leaves out for room (B7): the columns (counted in its
+  // header, "+k cols") and the drivers past its rows (counted on its last
+  // row, "+k more"); the Layers popover names both
+  const hudHidden = hudPlan?.mode === 'table' ? hudHiddenColumns(hudPlan.columns, { drs: seasonDrs }) : [];
+  const hudMore = hudPlan?.mode === 'table' ? hudDataList.slice(hudPlan.shown).map((h) => h.driver) : [];
   const compassOffsets = plan && measured
     ? boxOffsets(plan, plan.compass.box)
     : { right: COMPASS.edge, bottom: COMPASS.edge };
@@ -1697,6 +1710,20 @@ export default function TrackMap({ compact = false }) {
     driverLegendItems.length > 0 && (
       <LayerGroup key="drivers" label="Drivers"><Legend items={driverLegendItems} shape="circle" /></LayerGroup>
     ),
+    // The telemetry HUD's columns and drivers left out for room (B7): the
+    // table counts them, these name them
+    (hudHidden.length > 0 || hudMore.length > 0) && (
+      <LayerGroup key="hud" label="HUD">
+        {hudHidden.length > 0 && (
+          <span className="track-map-layers__note">
+            {`${hudColumnsHint(hudHidden.length)} hidden: ${hudHidden.map((c) => c.label).join(', ')}`}
+          </span>
+        )}
+        {hudMore.length > 0 && (
+          <span className="track-map-layers__note">{`+${hudMore.length} more drivers: ${hudMore.join(', ')}`}</span>
+        )}
+      </LayerGroup>
+    ),
   ].filter(Boolean);
 
   if (compact) {
@@ -1837,7 +1864,8 @@ export default function TrackMap({ compact = false }) {
             border: `2px solid ${withAlpha(winnerColor, 0.53)}`,
             borderRadius: 8,
             boxShadow: `0 0 16px ${withAlpha(winnerColor, 0.2)}`,
-            animation: 'winner-banner-glow 2s ease-in-out infinite',
+            // static: pulsed down to opacity 0.9 (winner-banner-glow), the
+            // winner's name in his colour read 4.08:1 (LEC)
           }}>
             <span style={{
               width: 4,
@@ -1874,11 +1902,11 @@ export default function TrackMap({ compact = false }) {
           <LiveRaceControlOverlay />
         )}
 
-        {/* Telemetry HUD of the focus and selected drivers (G1 r2,
-            trackMapLayout.js hudLayout): a table in a map under
+        {/* Telemetry HUD of the focus and selected drivers
+            (trackMapLayout.js hudLayout): a table in a map under
             HUD_CARDS_MIN_H, one row per driver; a card per driver in a big one */}
         {hudPlan?.mode === 'table' && (
-          <TrackHudTable rows={hudDataList} plan={hudPlan} />
+          <TrackHudTable rows={hudDataList} plan={hudPlan} hidden={hudHidden} />
         )}
         {hudPlan?.mode === 'cards' && (
           <div className="track-telemetry-hud-container">
@@ -1952,16 +1980,23 @@ export default function TrackMap({ compact = false }) {
 }
 
 /*
- * The telemetry HUD as a table (G1 r2): one HUD_TABLE.rowPx row per driver
+ * The telemetry HUD as a table: one HUD_TABLE.rowPx row per driver
  * (the focus driver first), the columns of plan.columns at their fixed
  * widths, so the box is the one hudLayout gave the track fit; drivers past
- * the row cap are named on a last row. Drawn like the map (dark in both
+ * the row cap are counted on a last row ("+k more"), the columns left out
+ * (hidden) in the driver column's header ("+k cols"); the Layers popover
+ * names both (B7: the names cut the last row to an ellipsis, and nothing
+ * said that columns were left out). Drawn like the map (dark in both
  * themes), no pointer events: the map pans and zooms under it.
  */
-function TrackHudTable({ rows, plan }) {
+function TrackHudTable({ rows, plan, hidden = [] }) {
   const cols = plan.columns || [];
   const shown = rows.slice(0, plan.shown);
-  const rest = rows.slice(plan.shown).map((h) => h.driver);
+  const more = rows.length - shown.length;
+  const hint = hudColumnsHint(hidden.length);
+  const label = hidden.length
+    ? `Telemetry of the focus and selected drivers; left out for room: ${hidden.map((c) => c.title).join(', ')} (named in the map's layers)`
+    : 'Telemetry of the focus and selected drivers';
   const cell = (id, hud) => {
     switch (id) {
       case 'drv':
@@ -1990,7 +2025,7 @@ function TrackHudTable({ rows, plan }) {
       style={{ width: hudTableWidth(cols), height: plan.box.y1 - plan.box.y0 }}
       data-rows={plan.rows}
     >
-      <table className="track-hud__table" aria-label="Telemetry of the focus and selected drivers">
+      <table className="track-hud__table" aria-label={label}>
         <colgroup>
           {cols.map((c, i) => <col key={c.id} style={{ width: c.px + (i > 0 ? HUD_TABLE.gapPx : 0) }} />)}
         </colgroup>
@@ -1998,6 +2033,7 @@ function TrackHudTable({ rows, plan }) {
           <tr>
             {cols.map((c) => (
               <th key={c.id} scope="col" title={c.title} className={`track-hud__h track-hud__h--${c.id}`}>
+                {c.id === 'drv' && hint && <span className="track-hud__cols" aria-hidden="true">{hint}</span>}
                 {c.label || <span className="sr-only">{c.title}</span>}
               </th>
             ))}
@@ -2009,9 +2045,9 @@ function TrackHudTable({ rows, plan }) {
               {cols.map((c) => <td key={c.id} className={`track-hud__c track-hud__c--${c.id}`}>{cell(c.id, hud)}</td>)}
             </tr>
           ))}
-          {rest.length > 0 && (
+          {more > 0 && (
             <tr className="track-hud__row">
-              <td colSpan={cols.length} className="track-hud__more">{`+${rest.length} more: ${rest.join(', ')}`}</td>
+              <td colSpan={cols.length} className="track-hud__more">{`+${more} more`}</td>
             </tr>
           )}
         </tbody>

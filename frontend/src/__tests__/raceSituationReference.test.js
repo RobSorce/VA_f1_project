@@ -1,4 +1,4 @@
-// P10 (round 3): the Race Situation Map no longer jumps on backward
+// The Race Situation Map no longer jumps on backward
 // navigation. During a replay the store turns lap L's refit onto lap L - 1's
 // axes as a replay from the first lap draws them
 // (utils/raceSituationReference.js), not onto whatever was computed last

@@ -448,14 +448,6 @@
 }
 
 /* --------------------------------------------------------------------------
-   Flag Status Animations
-   -------------------------------------------------------------------------- */
-@keyframes flag-pulse {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
-}
-
-/* --------------------------------------------------------------------------
    Loading & Status
    -------------------------------------------------------------------------- */
 .loading-placeholder {
@@ -1076,9 +1068,11 @@
   animation: livePulse 1.5s ease-in-out infinite;
 }
 
+/* the glow pulses, the dot never fades: at opacity 0.6 the live dot read
+   1.93:1 on the panel, the Weather Bar's LIVE badge text 4.45:1 */
 @keyframes livePulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 4px color-mix(in srgb, var(--color-f1-red) 40%, transparent); }
-  50% { opacity: 0.6; box-shadow: 0 0 12px color-mix(in srgb, var(--color-f1-red) 80%, transparent); }
+  0%, 100% { box-shadow: 0 0 4px color-mix(in srgb, var(--color-f1-red) 40%, transparent); }
+  50% { box-shadow: 0 0 12px color-mix(in srgb, var(--color-f1-red) 80%, transparent); }
 }
 
 /* LIVE badge */
@@ -1216,14 +1210,10 @@
   border-top: 2px solid rgba(225, 6, 0, 0.4);
 }
 
+/* static: it pulsed down to opacity 0.7 (liveProgressPulse), its red end
+   read 2.02:1 on the track */
 .timeline-player--live .timeline-player__progress-fill--live {
   background: linear-gradient(90deg, #e10600 0%, #ff4444 100%);
-  animation: liveProgressPulse 2s ease-in-out infinite;
-}
-
-@keyframes liveProgressPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
 }
 
 .timeline-player__flag-dot {

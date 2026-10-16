@@ -1,4 +1,4 @@
-"""Lasso analysis during a replay (P3, round 4): the random baseline is
+"""Lasso analysis during a replay: the random baseline is
 stratified by row kind and its cache is keyed by the rows' content
 (data/processors/pca_compute.py).
 
@@ -6,7 +6,7 @@ stratified by row kind and its cache is keyed by the rows' content
    clock with whole-race rows of the finished races. The baseline drew its
    random selections from all rows, so a selection of rows of the race in
    progress was flagged "above random" in pit stops and stint lengths by the
-   mix alone (the r3 verifier: the 19 stars of 2024 R16 at lap 20 flagged
+   mix alone (the 19 stars of 2024 R16 at lap 20 were flagged in
    avg_stint_length, max_stint_length, pit_count). Now each random
    selection draws as many rows of each kind as the selection holds; the
    statistics block states the composition and the lap; a feature whose
@@ -14,9 +14,10 @@ stratified by row kind and its cache is keyed by the rows' content
    the compared rows mix the kinds.
 2. The baseline cache key was (matrix file, length; year, round, lap, number
    of rows of the race): rows change inside one leader lap, so a baseline of
-   another matrix could be served (the r3 verifier). Now the key holds a
+   another matrix could be served (2024 R21 inside leader lap 50). Now the
+   key holds a
    content hash of the rows, the selection size and its composition.
-3. (verifier r1) With rows of two kinds the family-wise threshold (95th
+3. With rows of two kinds the family-wise threshold (95th
    percentile of the largest |g| over all features) was set by the
    progress-dependent features, whose |g| is large in every same-mix draw:
    pace, sectors, consistency and grid could almost never be above random
@@ -24,7 +25,7 @@ stratified by row kind and its cache is keyed by the rows' content
    each feature has its own threshold, the same quantile level of its own
    random |g| for every feature (common_level_thresholds); post-race the rule
    is unchanged (scripts/pca_mixed_threshold.py).
-4. (verifier r1) A selection of finished rows only, during a replay, states
+4. A selection of finished rows only, during a replay, states
    the lap and that the other rows hold the race on screen; a finite clock
    at or after the race end gives the post-race answer.
 """
@@ -106,10 +107,10 @@ def test_stratified_draws_keep_the_composition():
 
 
 def test_all_stars_at_lap_20_are_no_longer_above_random():
-    """The r3 verifier's case: the 19 stars of 2024 R16 at lap 20."""
+    """Item 1 above: the 19 stars of 2024 R16 at lap 20."""
     now, df, ids, live, _ = replay(2024, 16, 20)
     assert len(live) == 19
-    # what the former baseline flagged (the verifier's answer)
+    # what the former baseline flagged
     assert former_flags(df, ids, live) >= {'avg_stint_length', 'max_stint_length', 'pit_count'}
     res = pc.analyze_selection(live, None, 2024, 16, now)
     fi = {f['feature']: f for f in res['feature_importance']}
@@ -228,7 +229,7 @@ def test_no_stale_baseline_after_one_matrix_value_changes(monkeypatch):
 
 
 def test_no_stale_baseline_inside_one_leader_lap():
-    """The r3 verifier's case: 2024 R21, two clocks inside leader lap 50."""
+    """Item 2 above: 2024 R21, two clocks inside leader lap 50."""
     payload = load_cached_session(2024, 21)
     ll = leader_lap_times(payload['lap_times'])
     t1, t2 = ll[50][1] + 0.5, ll[51][1] - 0.5
@@ -305,7 +306,7 @@ def test_post_race_threshold_rule_is_unchanged():
 
 
 def test_a_pace_difference_is_flagged_during_a_replay():
-    """The verifier's v_power case: 2024 R16 lap 20, pace of 5 random rows of
+    """Synthetic power: 2024 R16 lap 20, pace of 5 random rows of
     the race on screen shifted by 2 matrix SDs. With one threshold for all
     features (set by the stint lengths) it was flagged in 23.3% of 60 such
     selections, now in 96.7% (docs/evidence/pca_mixed_threshold.txt);
@@ -330,7 +331,7 @@ def test_a_pace_difference_is_flagged_during_a_replay():
 
 
 def test_a_real_lasso_is_flagged_during_a_replay():
-    """The verifier's example: 2025 R1 lap 20, the 5 rows of the race on
+    """A real lasso: 2025 R1 lap 20, the 5 rows of the race on
     screen lowest in sector 1 (g -2.17): the former single threshold 3.878
     was set by the progress-dependent features."""
     now, df, ids, live, _ = replay(2025, 1, 20)
@@ -347,7 +348,7 @@ def test_a_real_lasso_is_flagged_during_a_replay():
 # ── 4. the composition text and the race end ──
 
 def test_finished_only_selection_states_the_lap_and_the_rest():
-    """The verifier's case: 5 rows of finished races during the replay of
+    """A selection of 5 rows of finished races during the replay of
     2024 R12 at lap 15."""
     now, df, _, live, finished = replay(2024, 12, 15)
     res = pc.analyze_selection(finished[10:15], None, 2024, 12, now)
@@ -358,7 +359,7 @@ def test_finished_only_selection_states_the_lap_and_the_rest():
 
 
 def test_a_clock_after_the_race_end_is_post_race():
-    """The verifier's case: 2024 R12, a finite clock 600 s after the
+    """2024 R12, a finite clock 600 s after the
     leader's last lap (an API caller; the store sends no clock once the race
     has ended) gave rows of kind 'session_now' at lap 52 and another answer
     than post-race. Now the same answer as post-race."""

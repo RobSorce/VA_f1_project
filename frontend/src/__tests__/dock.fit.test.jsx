@@ -1,4 +1,4 @@
-// Phase 9c F2 (D2): the dock's capacity counts everything on the bar and
+// The dock's capacity counts everything on the bar and
 // follows the labels' real widths, so no button is cut at the four target
 // viewports.
 //
@@ -274,7 +274,7 @@ describe.skipIf(!haveFont)('the dock at the four viewports, with the real CSS wi
     });
   }
 
-  it('1536x750: the measure of the code before Phase 9c (once, fallback font, no divider margin, no border) shows all 10 and the Formula1 row is wider than the bar', () => {
+  it('1536x750: the former measure (once, fallback font, no divider margin, no border) shows all 10 and the Formula1 row is wider than the bar', () => {
     const vp = VIEWPORTS.find((x) => x.name === '1536x750');
     env.vp = vp;
     const c = dockCss(vp);
@@ -318,13 +318,13 @@ describe.skipIf(!haveFont)('the dock at the four viewports, with the real CSS wi
   });
 });
 
-// Phase 9d G4: the browser audit (docs/evidence/browser_audit_2026-10-16.md,
+// The browser audit (docs/evidence/browser_audit_2026-10-16.md,
 // "Re-check after Phase 9c") saw the first and last buttons cut for about
 // 2 s after a window resize: the bar measured again only after a re-render.
 // Now a ResizeObserver on the bar and on its container, the window resize and
 // the page shown again render every item and measure at once (flushSync), so
 // the row already fits when the callback returns, before the browser paints.
-describe.skipIf(!haveFont)('G4: the bar measures again as soon as its room changes, before the paint', () => {
+describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, before the paint', () => {
   const at = (name) => VIEWPORTS.find((x) => x.name === name);
   const moveTo = (vp) => { env.vp = vp; dom.window.innerWidth = vp.W; };
 

@@ -26,8 +26,8 @@
  *    order, and the risk rows never change on Monte Carlo noise alone: only on
  *    evidence beyond the sampling error, or on new data. Marks drawn once per
  *    driver or per pair use intervals simultaneous over the table (familyZ).
- *    Measured by scripts/mc_stability.mjs (lead decision D5:
- *    docs/evidence/mc_stability.txt);
+ *    Measured by scripts/mc_stability.mjs
+ *    (docs/evidence/mc_stability.txt);
  *  - the same rule for the Strategy Simulator's what-if (pairedDifferences,
  *    pairedSign, whatIfVerdict, whatIfMarks): the verdict and the colours of
  *    the differences from the run-by-run differences of the two runs beyond

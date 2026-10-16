@@ -1,4 +1,4 @@
-// V13: the layout lane's components render with a real session (cached Monza
+// The layout lane's components render with a real session (cached Monza
 // 2024): the Pit Wall shell with its focus-card toggle, the session bar's
 // track-status chip with its label and lifted text colour, the docked layout's
 // class-based panes, the timeline's live bar label, the dock and the weather
@@ -132,7 +132,7 @@ describe('no hex literal for a semantic colour in the layout views', () => {
   }
 });
 
-// V5 / V13 r2: in the Analyse sidebar the Leaderboard rows were clipped under
+// In the Analyse sidebar the Leaderboard rows were clipped under
 // the focus cards (an inline height of 20 rows in an overflow-hidden wrapper,
 // no scroll, no pager). The rows now fit or page (fitRows / pageOf) and the
 // cards stay collapsed below 1200 px of window height, "Details" laying them

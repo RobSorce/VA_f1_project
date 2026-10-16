@@ -1,6 +1,6 @@
 // utils/undercut.js on cached races (skipped without the cache): the Monza
-// 2024 undercut sweep (rows differ by pit lap; every row read at the race end,
-// lead decision D2; where the best lap falls with this race's estimates at the
+// 2024 undercut sweep (rows differ by pit lap; every row read at the race end;
+// where the best lap falls with this race's estimates at the
 // time and with the whole race's) and the "pit in k laps" tables (k = 0..10,
 // focus LEC and PIA), k = 0 equal to the pit window for every focus over Monza
 // and China, k capped by the laps left. frontend/scripts/s7_undercut_monza.mjs
@@ -128,7 +128,7 @@ describe.skipIf(!haveMonza)('Monza 2024: the undercut sweep (S7)', () => {
     }
   });
 
-  it('D4: a chosen stop of the rival is dropped once in its past or after it has changed tyres', () => {
+  it('a chosen stop of the rival is dropped once in its past or after it has changed tyres', () => {
     const s10 = inputs(monza, endOf(monza, 'LEC', 10) + 0.001);
     const chosen = undercutSweep('LEC', 'PIA', s10.st, s10.pitLoss, s10.rp, { rivalStopLap: 16 });
     expect(chosen.rivalStop).toMatchObject({ inLap: 16, source: 'chosen' });
@@ -187,7 +187,7 @@ describe.skipIf(!haveMonza)('Monza 2024: pit in k laps (C4)', () => {
   });
 });
 
-describe.skipIf(!hasCachedSession(2024, 22))('2024 R22: pit-lane visits and "pit in k laps" (D3, R2 / R3)', () => {
+describe.skipIf(!hasCachedSession(2024, 22))('2024 R22: pit-lane visits and "pit in k laps" (R2 / R3)', () => {
   it('t = 4518.3 s: OCO past its exit with no tyre change keeps its set; ZHO and LAW, still in the pit lane, get a new set', () => {
     const s22 = loadCachedSession(2024, 22);
     const now = 4518.3;

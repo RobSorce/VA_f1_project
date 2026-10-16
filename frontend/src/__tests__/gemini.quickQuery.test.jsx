@@ -1,4 +1,4 @@
-// P3g, second request site: the Pit Wall "AI Strategist" box
+// The Gemini session type, second request site: the Pit Wall "AI Strategist" box
 // (components/ui/GeminiQuickQuery.jsx, rendered for every session type by
 // PitWallHome and PitWallLayout) posts to the same /gemini/strategy endpoint as
 // the store's sendGeminiQuery. Its body must carry the type of the session on
@@ -71,7 +71,7 @@ async function clickQuickQueries(state) {
   return bodies.slice();
 }
 
-describe('P3g: the AI Strategist quick queries carry the session type (R7)', () => {
+describe('the AI Strategist quick queries carry the session type (R7)', () => {
   for (const [label, state, type] of [
     ['qualifying replay (2024 R8 Q)', { loadedSessionType: 'Q', sessionType: 'Q', isQualifyingReplay: true }, 'Q'],
     ['practice (FP2)', { year: 2026, round: 1, loadedSessionType: 'FP2', sessionType: 'FP2' }, 'FP2'],

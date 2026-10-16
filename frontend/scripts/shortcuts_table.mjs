@@ -364,20 +364,24 @@ export function shortcutsReport() {
       cond('Ctrl+↓', k('ArrowDown', { ctrlKey: true }), { overlayTiles: {} }, null, 'the active window is not tiled'),
       cond('Ctrl+K', k('k', { ctrlKey: true }), { commandPaletteOpen: true }, null, 'the command palette is open'),
       cond('any other key', k('s'), { commandPaletteOpen: true }, null, 'the command palette is open (the palette handles the keys)'),
+      cond('?', k('?'), { cheatsheetOpen: true }, null, 'the cheatsheet is open'),
       cond('Ctrl+K', k('k', { ctrlKey: true }), { cheatsheetOpen: true }, null, 'the cheatsheet is open'),
-      cond('any key but Esc and the Ctrl/Cmd combinations', k('s'), { cheatsheetOpen: true }, null, 'the cheatsheet is open'),
+      cond('any key but Esc, ? and the Ctrl/Cmd combinations', k('s'), { cheatsheetOpen: true }, null, 'the cheatsheet is open'),
       cond('Esc', k('Escape'), {}, input, 'a text field has the focus and a window is open'),
       cond('any key but Esc and the Ctrl/Cmd combinations', k('s'), {}, input, 'a text field has the focus (input, textarea, select, editable)'),
       cond('Alt + any key but Ctrl/Cmd+Alt+D', k('s', { altKey: true }), {}, null, 'Alt is held'),
     ];
-    // the playback speeds: '>' from the slowest until it stops
+    // the playback speeds: '<' from 1x until it stops (the slowest), then
+    // '>' from there until it stops; and both keys from 3x, a speed off the list
+    const speedAfter = (key, sp) => h.probe(k(key), { playSpeed: sp }).calls.find((c) => c.name === 'setPlaySpeed')?.args[0] ?? null;
+    let slowest = 1;
+    for (let i = 0, sp = speedAfter('<', 1); sp != null && i < 20; i += 1, sp = speedAfter('<', sp)) slowest = sp;
     const ladder = [];
-    for (let sp = 0.25, i = 0; sp != null && i < 20; i += 1) {
+    for (let sp = slowest, i = 0; sp != null && i < 20; i += 1) {
       ladder.push(sp);
-      const r = h.probe(k('>'), { playSpeed: sp });
-      const next = r.calls.find((c) => c.name === 'setPlaySpeed');
-      sp = next ? next.args[0] : null;
+      sp = speedAfter('>', sp);
     }
+    const offList = { from: 3, faster: speedAfter('>', 3), slower: speedAfter('<', 3) };
 
     // 3. keys handled by a view, not by the global handler
     const step = (mods, state = {}, el = null) => pitInLapsKeyStep({ key: ']', ...mods, getModifierState: () => false }, state, el);
@@ -437,7 +441,7 @@ export function shortcutsReport() {
         same,
       });
     }
-    return { rows, conditions, ladder, local, cheatsheet, unlisted, palette };
+    return { rows, conditions, ladder, offList, local, cheatsheet, unlisted, palette };
   } finally {
     h.restore();
   }
@@ -460,7 +464,9 @@ export function renderMarkdown(rep = shortcutsReport()) {
   L.push('|-----|------|--------|');
   for (const c of rep.conditions) L.push(`| ${code(c.name)} | ${c.when} | ${c.effect} |`);
   L.push('');
-  L.push(`Playback speeds (\`<\` and \`>\` step through them, no wrap): ${rep.ladder.map((x) => `${x}x`).join(', ')}.`);
+  const sx = (v) => (v == null ? 'nothing' : `${v}x`);
+  const off = rep.offList;
+  L.push(`Playback speeds (\`<\` and \`>\` step through them, no wrap): ${rep.ladder.map(sx).join(', ')}. From ${sx(off.from)}, a speed not in the list, \`>\` goes to ${sx(off.faster)} and \`<\` to ${sx(off.slower)}.`);
   L.push('');
   L.push('### Keys handled by a view');
   L.push('');

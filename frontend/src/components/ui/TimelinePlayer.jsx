@@ -7,8 +7,7 @@ import {
   chartFontPx, contrastText, getDriverColor, markColor, withAlpha,
 } from '../../utils/colors';
 import { useChartBox } from '../../utils/views/chartBox';
-
-const SPEED_OPTIONS = [0.5, 1, 2, 5, 10, 20, 50];
+import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeed';
 
 // Track-status events of the timeline: FIA colour (utils/colors.js) and the
 // letter drawn in the marker and in the legend, so the colour is never the
@@ -935,7 +934,7 @@ export default function TimelinePlayer() {
               </div>
             )}
             <div className="timeline-player__speed-pills">
-              {SPEED_OPTIONS.map((speed) => (
+              {PLAYBACK_SPEEDS.map((speed) => (
                 <button
                   key={speed}
                   className={`timeline-player__speed-pill ${playSpeed === speed ? 'active' : ''}`}

@@ -1,4 +1,4 @@
-// S4 / S5 / S6 in the store: one writer of raceProjection, a seeded projection
+// The Monte Carlo jobs in the store: one writer of raceProjection, a seeded projection
 // (same state -> same result) of 1,000 runs with badge states, and a what-if
 // whose plan runs from the lap in progress against a baseline on the same
 // random numbers (identical plan -> every difference exactly 0).
@@ -74,7 +74,7 @@ beforeEach(() => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('S5: one writer of raceProjection', () => {
+describe('one writer of raceProjection', () => {
   const files = [];
   const walk = (dir) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -107,7 +107,7 @@ describe('S5: one writer of raceProjection', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe.skipIf(!haveMonza)('S4 in the store: seeded projection, 1,000 runs, badges (Monza 2024)', () => {
+describe.skipIf(!haveMonza)('the store: seeded projection, 1,000 runs, badges (Monza 2024)', () => {
   it('the race situation runs it; repeated requests with the same state are not run again', () => {
     monzaAt(30);
     const p = store().raceProjection;
@@ -184,7 +184,7 @@ describe.skipIf(!haveMonza)('S4 in the store: seeded projection, 1,000 runs, bad
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe.skipIf(!haveMonza)('S6 what-if in the store (Monza 2024, lap 12, LEC)', () => {
+describe.skipIf(!haveMonza)('what-if in the store (Monza 2024, lap 12, LEC)', () => {
   const run = (plan, baseline = null) => {
     useF1Store.setState({ simulatorStrategy: { driver: 'LEC', stints: plan }, simulatorBaseline: baseline });
     store().runSimulation();

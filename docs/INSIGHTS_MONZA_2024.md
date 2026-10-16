@@ -90,8 +90,9 @@ the conclusion that the tool "independently corroborates" them.)
 
 1. Start the dashboard, load **2024 → Italian GP**.
 2. Open **Lap Times** (`1`), brush laps 17–53.
-3. Open **Tyre Degradation** (`2`) → per-stint slopes appear; focus driver
-   switches via the Leaderboard.
+3. Open **Tyre Degradation** from the "+" view picker of a docked pane (it
+   has no number key: `2` opens Tyres, Tyre Health and Pace Retention) →
+   per-stint slopes appear; focus driver switches via the Leaderboard.
 4. Or directly: `curl -X POST http://localhost:8000/api/predict/degradation
    -H 'Content-Type: application/json' -d '{"year":2024,"round":16,
    "drivers":["LEC","NOR","PIA"],"lap_start":17,"lap_end":53}'`
@@ -134,7 +135,8 @@ values below are of the earlier definition.)
   ran behind Sainz.)
 - The ranking was population-σ (not sample-σ). (Note, 2026-10-15: the panel
   now shows the consistency σ of the per-stint fits, see the note above, and
-  marks a driver with fewer than 75 % of the most laps completed as LOW DATA:
+  marks a driver with fewer laps than floor(0.75 × the most laps completed),
+  at least 3, as LOW DATA:
   `LOW_DATA_FRACTION` in `frontend/src/utils/views/degradationViews.js`.)
 
 ### Reproduction

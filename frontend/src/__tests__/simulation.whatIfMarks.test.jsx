@@ -1,4 +1,4 @@
-// S4 (lead decision D5), Strategy Simulator: the marks its result draws from
+// Strategy Simulator: the marks its result draws from
 // the what-if's Monte Carlo output (the verdict PLACES GAINED / LOST / NO
 // CLEAR CHANGE with its arrow and colour, the cards' P labels, the colours of
 // the podium / points differences, the saved comparison row) change only on

@@ -1,5 +1,5 @@
 /**
- * S2 done-when (lead decision D1), Monza 2024 (2024 R16): the degradation and
+ * Monza 2024 (2024 R16): the degradation and
  * the lap noise the Monte Carlo engine uses (utils/raceSimulation.js
  * extractRaceParams, the same object the store's projection and the Race
  * Prediction panel read), at every lap-mode clock (the leader starts lap L,
@@ -8,9 +8,9 @@
  *    tyre age, the race's fits long enough combined with the prior, else the
  *    prior), with the fits kept as diagnostics (all fits, negative ones);
  *  - lap noise = the pooled residual sigma of the per-stint fits at the clock
- *    (lapNoiseFromFits, D1: no floor, no prior mixed in) with its n (clean
+ *    (lapNoiseFromFits: no floor, no prior mixed in) with its n (clean
  *    laps, stints, degrees of freedom), as the panel shows it.
- * D1: the 0.3-0.6 s band is checked at the leader's laps 20, 30, 40 and at
+ * The 0.3-0.6 s band is checked at the leader's laps 20, 30, 40 and at
  * the race end; the earlier clocks are listed with their n.
  *
  * Run from frontend/ (vite-node resolves the extensionless imports of src/):

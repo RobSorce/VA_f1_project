@@ -1,4 +1,4 @@
-// Phase 9d G5: in the static demo (npm run build:demo, no backend) the start
+// In the static demo (npm run build:demo, no backend) the start
 // screen offered CONNECT LIVE and START MOCK LIVE, which need the local
 // backend (live timing; the mock replay streams a cached race through it).
 // In demo mode both are disabled and say "Requires the local backend", from
@@ -78,7 +78,7 @@ const click = (el) => act(async () => {
   el.dispatchEvent({ type: 'click', bubbles: true, cancelable: true, _stop: false, preventDefault() {}, stopPropagation() { this._stop = true; } });
 });
 
-describe('G5: the start screen in the static demo', () => {
+describe('the start screen in the static demo', () => {
   it('demo mode: CONNECT LIVE and START MOCK LIVE are disabled and say "Requires the local backend"', async () => {
     useDemoMode.setState({ active: true, source: 'build', reason: null });
     const v = await mount();

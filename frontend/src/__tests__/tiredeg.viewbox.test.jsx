@@ -1,4 +1,4 @@
-// Phase 9c r2 (F5 / D4): Tyre Degradation draws at the size of the svg on
+// Tyre Degradation draws at the size of the svg on
 // screen. The chart's svg shares .deg-manager (a flex column) with the fit
 // note and, with a projected pit window, the pit-window row. It used to
 // measure .deg-manager, so its viewBox was taller than the svg drawn and

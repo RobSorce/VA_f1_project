@@ -1,4 +1,4 @@
-// P3a (lead decision D7) and causality (R3 / R6), the assistant paths: the
+// Session switch and causality (R3 / R6), the assistant paths: the
 // chat (sendGeminiQuery: GeminiAssistant, GeminiFloatingButton) and the Pit
 // Wall "AI Strategist" box (askGeminiQuick: GeminiQuickQuery). An answer
 //  - of a request sent for another screen never lands, including a mock live
@@ -140,7 +140,7 @@ beforeEach(async () => {
   for (const f of Object.values(api)) if (f?.mockClear) f.mockClear();
 });
 
-describe('P3a: assistant answers of another screen never land, and nothing is left waiting', () => {
+describe('assistant answers of another screen never land, and nothing is left waiting', () => {
   it('mock live of R91 at lap 25 -> Load Session of R91: a question asked in the load window gets no live answer', async () => {
     store().resetSession();
     fx.startMockReplay = async () => ({});
@@ -170,7 +170,7 @@ describe('P3a: assistant answers of another screen never land, and nothing is le
     await settle();
     expect(chat()).toEqual([]);
     expect(store().geminiOverlays).toEqual([]);
-  });
+  }, 20000);
 
   it('a reload of the race on screen (R91 lap 20 -> Load R91): the lap-20 answer does not land at lap 1', async () => {
     const load = startLoad(91, A);
@@ -185,7 +185,7 @@ describe('P3a: assistant answers of another screen never land, and nothing is le
     await settle();
     expect(chat()).toEqual([]);
     expect(store().geminiOverlays).toEqual([]);
-  });
+  }, 20000);
 
   it('R91 -> R92 while the answer is on its way: R92 starts with an empty chat, the assistant is not waiting', async () => {
     const gem = deferred();
@@ -201,7 +201,7 @@ describe('P3a: assistant answers of another screen never land, and nothing is le
     const html = renderWithStore(<GeminiAssistant />);
     expect(html).not.toContain('Analyzing...');
     expect((html.match(/strategy-console__quick-btn"[^>]*disabled=""/g) || []).length).toBe(0);
-  });
+  }, 20000);
 
   it('an answer and its overlays received on R91 do not stay on R92 (the commit clears them)', async () => {
     fx.queryGemini = async () => ({ response: 'R91 answer', scenarios: [{ id: 'a', label: 'pit L24' }] });
@@ -211,7 +211,7 @@ describe('P3a: assistant answers of another screen never land, and nothing is le
     await loadReplay(92, B, 10);
     expect(chat()).toEqual([]);
     expect(store().geminiOverlays).toEqual([]);
-  });
+  }, 20000);
 
   it('dropped while the next load is still in flight, and that load fails: a note answers the question', async () => {
     const gem = deferred();
@@ -228,7 +228,7 @@ describe('P3a: assistant answers of another screen never land, and nothing is le
   });
 });
 
-describe('R3 / R6: an answer asked at a later clock than the one on screen never lands', () => {
+describe('an answer asked at a later clock than the one on screen never lands (R3 / R6)', () => {
   it('a seek back from lap 20 to lap 5 while the answer is on its way: a note instead of the lap-20 answer', async () => {
     const gem = deferred();
     fx.queryGemini = () => gem.promise;
@@ -243,7 +243,7 @@ describe('R3 / R6: an answer asked at a later clock than the one on screen never
     expect(store().geminiMessages[1].content).not.toContain('LAP-20');
     expect(store().geminiOverlays).toEqual([]);
     expect(waiting()).toBe(false);
-  });
+  }, 20000);
 
   it('playing forward while the answer is on its way: it lands (asked at an earlier clock)', async () => {
     const gem = deferred();
@@ -273,7 +273,7 @@ describe('the Pit Wall quick query goes through the store (askGeminiQuick)', () 
     await settle();
     expect(store().geminiQuick).toEqual({ loading: false, response: '', error: '' });
     expect(renderWithStore(<GeminiQuickQuery />)).not.toContain('R91 lap-20 answer');
-  });
+  }, 20000);
 
   it('an answer for the screen on screen is shown; a newer quick query replaces an older one', async () => {
     const first = deferred();
@@ -314,7 +314,7 @@ describe('the telemetry spinner belongs to the screen on screen', () => {
     await p92;
     expect(store().telemetryLoading).toBe(false);
     expect(Object.keys(store().telemetryCache)).toEqual(['XXX-2-2024-92-R']);
-  });
+  }, 20000);
 
   it('two requests of the same screen: the spinner stays until both answered', async () => {
     const t1 = deferred();

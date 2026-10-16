@@ -1,9 +1,9 @@
-// Phase 6, what the views show of the lap-time forecast (L4, L5).
-//  - L4: the backend removed driver_predictions[driver].predicted_position_change
+// What the views show of the lap-time forecast.
+//  - the backend removed driver_predictions[driver].predicted_position_change
 //    and positions (a 5-lap pace forecast says nothing about overtakes): no
 //    view reads them; the Leaderboard footer shows no pit probability when
 //    the response has none (it showed "0%") and names the pit method.
-//  - L5: the help text quotes the numbers of
+//  - the help text quotes the numbers of
 //    docs/evidence/evaluate_forecast.txt (parsed here, every
 //    number compared) and names the script, never a file path, never "~0.4 s MAE dry / 2.5 s wet" nor "HEURISTIC
 //    2-3x worse"; the panel names the served method (method_label) and says
@@ -100,7 +100,7 @@ beforeAll(() => {
   });
 });
 
-describe('L4: no view reads a field the backend removed', () => {
+describe('no view reads a field the backend removed', () => {
   it('grep: predicted_position_change, driver_predictions and the response\'s positions are read nowhere', () => {
     const hits = [];
     for (const f of sourceFiles(SRC)) {
@@ -134,7 +134,7 @@ describe('L4: no view reads a field the backend removed', () => {
   });
 });
 
-describe('L5: accuracy claims are the evaluation\'s numbers', () => {
+describe('accuracy claims are the evaluation\'s numbers', () => {
   /** The numbers of evaluate_forecast.txt the help quotes, parsed from the file. */
   function parseEvaluation() {
     const t = fs.readFileSync(EVAL_FILE, 'utf8').replace(/\r\n/g, '\n');

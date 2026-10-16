@@ -1,4 +1,4 @@
-// Repair 3 (V4 r2 minor): the legend rows of every view whose legend is
+// The legend rows of every view whose legend is
 // built by a helper of utils/views (the rows each view's Legend / drawLegend
 // draws), printed label by label with the swatch shape, glyph and dash, for
 // the per-view list of docs/COLOR_ENCODING.md ("Legend rows per view").

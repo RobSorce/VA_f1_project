@@ -1,4 +1,4 @@
-// B9 (D16), the HTTP side: every analytics / prediction call of
+// Session type, the HTTP side: every analytics / prediction call of
 // utils/apiClient.js names the session type: a session_type query parameter
 // for GET, a body field for POST, 'R' when the caller names none; the
 // degradation body also carries session_now (D6), null when not given.
@@ -16,7 +16,7 @@ vi.mock('axios', () => {
 
 const api = await import('../utils/apiClient.js');
 
-describe('B9: session_type on every analytics / prediction request', () => {
+describe('session_type on every analytics / prediction request', () => {
   it('GET analytics: the type as a query parameter, R by default', async () => {
     calls.length = 0;
     await api.getSectors(2024, 8, 'Q');

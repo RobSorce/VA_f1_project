@@ -1,4 +1,5 @@
-"""Phase 6 verifier follow-ups (L2b).
+"""Lap-time forecast: the training guard, the selection on the validation
+races, the live race distance.
 
 1. model/train.py refuses to train (TrainingDataError, nothing written) when
    lstm_meta.json is missing or stale, instead of training on every window

@@ -1,10 +1,10 @@
-// V13 target (1): the dashboard is a fixed-viewport layout at the four target
+// The dashboard is a fixed-viewport layout at the four target
 // sizes (1536x750, 1366x768, 1920x1080, 2048x1100): the page never scrolls,
 // the chrome rows leave the panels their room, the Pit Wall cannot grow a row
 // to its content, every pane of every window preset has a box, and floating
 // overlays fit between the weather bar and the dock. Static model from the
-// CSS and the layout components (helpers/layoutModel.js); the lead's browser
-// pass checks the views inside.
+// CSS and the layout components (helpers/layoutModel.js); a browser pass
+// checks the views inside.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -73,7 +73,7 @@ describe('chrome rows and the app body at each target viewport', () => {
     expect(decl('.utility-overlay-container', 'inset')).toBe('var(--overlay-inset-top) 20px var(--overlay-inset-bottom) 20px');
   });
 
-  // V13 r2: the hover-expanded event strip pushed the body up by 104 px, so
+  // The hover-expanded event strip pushed the body up by 104 px, so
   // every view re-laid out while the user scrubbed; it now opens over the body
   it('the expanded timeline opens over the body: the body keeps its height', () => {
     const rules = dashRules.filter((r) => !r.media);
@@ -86,7 +86,7 @@ describe('chrome rows and the app body at each target viewport', () => {
   });
 });
 
-// V13 r2: the assistant button (fixed, bottom 76 px) covered 12-24 px of the
+// The assistant button (fixed, bottom 76 px) covered 12-24 px of the
 // timeline row and the end of its status text. It now sits in the dock row,
 // in the gutter the dock pill leaves free on its right.
 describe('the assistant button stays in the dock row, clear of the dock pill', () => {

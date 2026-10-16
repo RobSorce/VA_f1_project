@@ -1,4 +1,4 @@
-// S4 / lead decision D5: every categorical mark derived from the Monte Carlo
+// Every categorical mark derived from the Monte Carlo
 // output is stable on a same-state recompute with a different seed. The full
 // measurement (30 races x 3 clocks x 10 seeds, every mark <= 5 %) is
 // scripts/mc_stability.mjs (docs/evidence/mc_stability.txt); this

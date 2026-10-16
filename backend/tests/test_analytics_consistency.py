@@ -174,7 +174,7 @@ def test_endpoint_sigma_equals_frontend_consistency_sigma(tmp_path):
 
 
 def test_one_true_median():
-    """D10: the median of the consistency flag is the true median (the mean
+    """The median of the consistency flag is the true median (the mean
     of the two middle sigmas for an even count), degradation.median, the one
     definition. 2024 R10 has 20 sigmas: MAG (0.4180, the upper middle one)
     is above the median 0.4066, not consistent; the upper median the cards
@@ -211,7 +211,7 @@ fs.writeFileSync(process.env.DEG_OUTPUT, JSON.stringify(out));
 
 @pytest.mark.skipif(not (NODE and VITE_NODE.exists()), reason='node / frontend node_modules not installed')
 def test_endpoint_equals_the_consistency_cards(tmp_path):
-    """G5 done-when: the /consistency payload and the frontend Consistency
+    """The /consistency payload and the frontend Consistency
     cards (consistencyView) agree per driver on sigma and is_consistent, and
     on the derived fields (sample_size, avg_lap / fastest / slowest to the
     ms the backend rounds to, insufficient_data, laps_completed, the compound

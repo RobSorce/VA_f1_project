@@ -50,8 +50,9 @@ const TRACK_STATUS_META = {
 function classifyCategory(msg) {
   // Best-effort categorisation when the live feed gives us something
   // unfamiliar. Penalty / investigation lines come through Category="Other"
-  // with the keyword in the message body.
-  if (msg.category && CATEGORY_META[msg.category]) return msg.category;
+  // with the keyword in the message body, so "Other" is kept only after the
+  // keyword rules below.
+  if (msg.category && msg.category !== 'Other' && CATEGORY_META[msg.category]) return msg.category;
   const txt = (msg.message || '').toLowerCase();
   if (txt.includes('penalty') || txt.includes('drive through') || txt.includes('stop and go')) {
     return 'Penalty';

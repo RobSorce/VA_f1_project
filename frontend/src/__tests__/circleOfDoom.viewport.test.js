@@ -218,7 +218,7 @@ describe('the Pit Wall slot', () => {
     expect(layout).toContain("gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) 280px'");
     const base = fs.readFileSync(path.join(SRC, 'styles/base.css'), 'utf8');
     expect(base).toContain('font-size: clamp(13px, calc(6.4px + 0.5vw), 16px);');
-    // the slot sizes measured in the browser (verifier, 2026-10-13), within 1.5 px
+    // the slot sizes measured in the browser (2026-10-13), within 1.5 px
     for (const [[vw, vh], [w, h]] of [[[1920, 1080], [545, 306]], [[1680, 1050], [427, 299]],
       [[1440, 900], [310, 250]], [[1536, 864], [357, 236]]]) {
       const slot = pitWallSlot(vw, vh);

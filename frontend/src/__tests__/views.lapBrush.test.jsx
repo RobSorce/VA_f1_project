@@ -1,4 +1,4 @@
-// V7: Position by Lap <-> Timing Sheet through brushLapRange, both ways, in
+// Position by Lap <-> Timing Sheet through brushLapRange, both ways, in
 // the mounted Timing Sheet (components/visualizations/LapTimeChart.jsx):
 //  - a drag on its lap-range bar writes the shared brushed range
 //    (brushLapRange, which Position by Lap draws and brushes) and the selected
@@ -79,7 +79,7 @@ const selection = () => host.querySelector('.lap-range-brush__selection');
 // x of a lap on the bar (lapToX: (lap - 1) / (maxLap - 1) * width)
 const xOf = (lap, width) => ((lap - 1) / (LAPS - 1)) * width;
 
-describe('V7: the Timing Sheet lap-range bar and brushLapRange', () => {
+describe('the Timing Sheet lap-range bar and brushLapRange', () => {
   it('a drag writes brushLapRange and selectedLapRange; the bar shows it', async () => {
     const el = bar();
     expect(el, 'lap-range bar').toBeTruthy();

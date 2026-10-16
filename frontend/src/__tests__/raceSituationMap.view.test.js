@@ -1,7 +1,7 @@
 // View model of the Race Situation Map (utils/views/raceSituationMap.js):
-// P13 (the drawn state advances only on new lap data: a hover re-render never
+// the drawn state advances only on new lap data (a hover re-render never
 // moves the points; trails hold the drawn positions), and the crosshair /
-// arrows / axis titles drawn from the refitted PCA (P10, P11). Each dot is
+// arrows / axis titles drawn from the refitted PCA. Each dot is
 // drawn at its score, so on every lap of every cached race the dots drawn sit
 // at the crosshair + sum of z x arrow and their mean is the crosshair. The
 // component draws exactly these values (RaceSituationMap.jsx: advanceDisplay

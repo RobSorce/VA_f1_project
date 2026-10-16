@@ -1,4 +1,4 @@
-// V6 / V5 / V1, Cross-Race Analysis (components/visualizations/PCAAnalysisPanel.jsx):
+// Cross-Race Analysis (components/visualizations/PCAAnalysisPanel.jsx):
 //  - the forest plot is drawn by D3 (utils/views/pcaForestChart.js): one strip
 //    per feature on a shared g axis drawn by d3-axis above the rows, with a D3
 //    legend naming the marks;

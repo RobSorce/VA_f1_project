@@ -1,4 +1,4 @@
-// V12, the model-only views in the static demo (utils/demoMode.js): with no
+// The model-only views in the static demo (utils/demoMode.js): with no
 // backend the views say "Requires the local backend" where a model answer
 // would be, instead of an empty panel or a spinner:
 //  - Race Prediction: a Forecast tab with the note (the LSTM forecast);

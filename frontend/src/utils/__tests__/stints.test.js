@@ -279,7 +279,7 @@ describe('deriveStints visibility (R3, synthetic)', () => {
 });
 
 // Live mode: the rows are the laps received so far and sessionNow is Infinity
-// (resolveSessionNow), yet the race goes on after them (D1 round 2, R3).
+// (resolveSessionNow), yet the race goes on after them (R3).
 describe('live mode: the stint a driver is racing on stays ongoing until the flag (R3)', () => {
   /** Live-style rows (no session clock, no pit times) of laps 1..upTo. */
   const live = (rows, upTo) => rows

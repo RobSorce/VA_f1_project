@@ -1,5 +1,5 @@
-// F8 / D7 (Phase 9c repair): the views the verifier of round 1 found still
-// drawing focus + context by opacity now mix the colour toward the panel
+// Focus + context (docs/COLOR_ENCODING.md, decision D7): the views that still
+// drew focus + context by opacity now mix the colour toward the panel
 // (utils/colors.js contextColor / contextText): context text >= 3:1, context
 // marks >= 2:1 on the panel, nothing of a context item drawn at an opacity.
 //
@@ -172,7 +172,7 @@ describe('mounted with a focus and a selection: context drawn by colour, never b
         expect(effectiveOpacity(t), t.textContent).toBe(1);
         expect(contrastRatio(t.getAttribute('fill'), PANEL), t.textContent).toBeGreaterThanOrEqual(CONTEXT_FLOOR.text);
         // the labels are drawn above the brush: >= 3:1 inside a brushed range
-        // too (verifier r2: 2.79-2.84:1 there when computed on the panel alone)
+        // too (2.79-2.84:1 there when computed on the panel alone)
         expect(contrastRatio(t.getAttribute('fill'), brushTintOver(PANEL)), `${t.textContent} on the brush tint`).toBeGreaterThanOrEqual(CONTEXT_FLOOR.text);
       }
       const badges = svg.querySelectorAll('.pos-compound-badge');
@@ -232,7 +232,7 @@ describe('mounted with a focus and a selection: context drawn by colour, never b
     }
   });
 
-  it('Race Situation map: context dots, tyre badges, letters and codes opaque, at the floors (verifier r2: 1.16-2.81:1 by opacity)', async () => {
+  it('Race Situation map: context dots, tyre badges, letters and codes opaque, at the floors (1.16-2.81:1 by opacity before)', async () => {
     const view = await mount(RaceSituationMap);
     try {
       // the labels fade in on entering (600 ms): let the transition end
@@ -293,7 +293,7 @@ describe('CSS: no context team bar is faded by opacity', () => {
     expect(cons).toMatch(/isContext \? contextColor\(markColor\(color\), SURFACES\.panel\) : markColor\(color\)/);
   });
 
-  // Phase 9c repair r2 (verifier r2, F8): CSS that won over what the views draw
+  // CSS that won over what the views draw
   const viz = fs.readFileSync(path.join(SRC, 'styles/visualizations.css'), 'utf8');
   const rulesOf = (css, re) => [...css.matchAll(/\n([^{}\n]+)\{([^}]*)\}/g)].filter((m) => re.test(m[1]));
   it('Telemetry trace lines: no CSS opacity (it beat the drawn opacity 1 of a context trace: 1.32-1.42:1)', () => {

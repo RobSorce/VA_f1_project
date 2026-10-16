@@ -122,6 +122,20 @@ export function isRaceSession(sessionType) {
   return RACE_SESSION_TYPES.has(String(sessionType).trim().toUpperCase());
 }
 
+/**
+ * True when a dry race obliges each driver to use two dry compounds, i.e.
+ * to stop at least once: a race ('R'; a missing sessionType counts as a
+ * race, as in isRaceSession). Not a sprint ('S'): a sprint has no mandatory
+ * stop and no compound obligation (pit loss still applies to a stop made).
+ *
+ * @param {string} [sessionType]
+ * @returns {boolean}
+ */
+export function hasMandatoryStop(sessionType) {
+  if (sessionType == null || sessionType === '') return true;
+  return String(sessionType).trim().toUpperCase() === 'R';
+}
+
 /** The estimate outside race sessions: no numbers, source 'not-applicable'. */
 function notApplicableEstimate() {
   return {

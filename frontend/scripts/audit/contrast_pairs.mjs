@@ -200,7 +200,7 @@ for (const [sel, kf, fgDecl, bg, need, what] of animated) {
   add(`${what}, ${kf} at its lowest opacity ${lo}`, H.over(col(fgDecl), bg, lo), bg, need, `${sel} animation ${kf}`);
 }
 
-// Repair 3: the battle glyph ⚔ no longer pulses and the battle row has a
+// The battle glyph ⚔ no longer pulses and the battle row has a
 // neutral tint (orange keeps one meaning in the tower): the glyph at full
 // opacity on that tint, as text
 must(!(decl('.tower-row__battle-badge', 'animation') || '').includes('battle-pulse'), '.tower-row__battle-badge pulses again');

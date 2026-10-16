@@ -22,7 +22,7 @@ const tyreBadgeR = () => Math.max(6, Math.ceil(chartFontPx('label') * 0.65));
 const driverMark = (abbr) => markColor(getDriverColor(abbr), SURFACES.panel);
 // Focus + context (D7): a driver outside the selection is drawn in colours
 // mixed toward the panel, never at an opacity: his dot and tyre badge >= 2:1,
-// his code >= 3:1 (opacity 0.3 / 0.25 read 1.16-2.81:1, verifier r2)
+// his code >= 3:1 (opacity 0.3 / 0.25 read 1.16-2.81:1)
 const contextDot = (abbr) => contextColor(driverMark(abbr), SURFACES.panel);
 const contextBadge = (compound) => contextColor(tyreColor(compound), SURFACES.panel);
 const CONTEXT_LABEL = contextText(TEXT_COLORS.primary, SURFACES.panel);

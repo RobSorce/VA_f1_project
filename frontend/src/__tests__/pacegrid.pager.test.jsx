@@ -1,4 +1,4 @@
-// D1 / D3 (Phase 9c, F3 repair): the Race Pace Grid fits its laps to the
+// The Race Pace Grid fits its laps to the
 // measured grid, and the lap pager's arrival no longer changes that grid.
 //
 // The browser pass (2026-10-16, Pit Wall at 1536 x 750) found the grid's div

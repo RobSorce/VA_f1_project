@@ -1,4 +1,4 @@
-// S4 badges: RacePredictionPanel's podium (>= 50 %) and battle (>= 30 % /
+// Badges: RacePredictionPanel's podium (>= 50 %) and battle (>= 30 % /
 // >= 60 %) badges change only when the Wilson interval of the share of the
 // simulations clears the threshold (utils/simulationClient.js badgeOn), and
 // the battles listed change only when a pair's interval clears the cut of the

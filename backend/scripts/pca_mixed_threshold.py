@@ -7,14 +7,14 @@ from the laps completed at the clock, with whole-race rows of the finished
 races, and its random baseline draws the selection's mix of the two kinds
 (stratified). In those random selections the progress-dependent features
 (pit stops, stint lengths, tyre degradation) reach far larger |g| than the
-others, by the mix alone. The round-4 rule held every feature to the 95th
-percentile of the largest |g| over all features: that maximum was theirs, and
-pace, sectors, consistency and grid could almost never pass it (verifier r1;
-section 1 below repeats its design). The shipped rule, with rows
+others, by the mix alone. The one-threshold rule (round4 below) held every
+feature to the 95th percentile of the largest |g| over all features: that
+maximum was theirs, and pace, sectors, consistency and grid could almost never
+pass it (section 1 below measures it). The shipped rule, with rows
 of two kinds, holds each feature to its own threshold: the same quantile
 level of its own random |g| for every feature, chosen so that 5% of the random
 selections pass the threshold of some feature (pca_compute
-.common_level_thresholds). Rows of one kind (post-race) keep the round-4 rule.
+.common_level_thresholds). Rows of one kind (post-race) keep the round4 rule.
 
 Run from backend/:
     python -m scripts.pca_mixed_threshold [--out REPORT.txt]
@@ -24,16 +24,16 @@ Rules compared (flag = |g| above the threshold beyond rounding, pca_compute._abo
   round4   stratified baseline, max over the 12 features (one threshold)
   shipped  pca_compute.feature_differences (rows of two kinds: per feature)
   np8      stratified baseline, max over the 8 features that are not
-           progress-dependent (the verifier's alternative; it can never flag
+           progress-dependent (an alternative rule; it can never flag
            a progress-dependent feature)
 
-1. Power, synthetic (the verifier's v_power design): pace_delta_pct of 5
+1. Power, synthetic: pace_delta_pct of 5
    random rows of the race on screen shifted by delta matrix SDs (copy of the
    matrix), 60 selections per clock and delta (seed 3).
-2. Power, real lassos (the verifier's v_power_real design): the 5 rows of the
+2. Power, real lassos: the 5 rows of the
    race on screen lowest, and highest, in each feature that is not
    progress-dependent, at 6 clocks: is the selected feature flagged?
-3. Calibration on random selections (true difference 0), the verifier's
+3. Calibration on random selections (true difference 0), at the
    clocks (2024 R3, 2024 R12, 2025 R6, 2025 R16 at about 20/45/75% of the
    leader's laps): L = 2-8 rows of the race on screen, M = 1-5 of it + 1-5 of
    finished races, F = 2-8 of finished races (the rest holds the live rows);

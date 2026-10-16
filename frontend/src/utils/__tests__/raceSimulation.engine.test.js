@@ -73,7 +73,7 @@ const FEATURES = {
 const maxLapOf = (lt) => Math.max(...lt.map((x) => x.LapNumber));
 
 // ══════════════════════════════════════════════════════════
-describe('S1 fresh-tyre delta: paired within driver + stint, fuel-corrected, laps <= 2 and non-green out', () => {
+describe('fresh-tyre delta: paired within driver + stint, fuel-corrected, laps <= 2 and non-green out', () => {
   it('measures the first flying lap on a new set against its stint line (-0.3 s built in)', () => {
     const est = freshDeltaEstimate(race());
     expect(est.source).toBe('race');
@@ -106,7 +106,7 @@ describe('S1 fresh-tyre delta: paired within driver + stint, fuel-corrected, lap
   });
 });
 
-describe('S2 degradation and lap noise: the shared definition (utils/degradation.js)', () => {
+describe('degradation and lap noise: the shared definition (utils/degradation.js)', () => {
   it('tyreDeg: every fit kept and counted (allFits = compoundDegradation(stintFits)); the estimate combines the fits long enough with the prior', () => {
     const rows = race({ edit: (r) => { if (r.Driver === 'CCC' && r.Stint === 2) r.LapTimeSeconds -= 0.1 * r.TyreLife; } });
     const p = extractRaceParams(rows, [], [], 30, { sessionNow: Infinity });
@@ -213,7 +213,7 @@ describe('S2 degradation and lap noise: the shared definition (utils/degradation
   });
 });
 
-describe('S3 stint life: survival with censoring, DNF final stints dropped, stops capped by laps left', () => {
+describe('stint life: survival with censoring, DNF final stints dropped, stops capped by laps left', () => {
   it('Kaplan-Meier on a textbook case (events 2, 3; censored 3, 5)', () => {
     const km = kaplanMeier([
       { life: 2, kind: 'event' }, { life: 3, kind: 'event' }, { life: 3, kind: 'censored' },
@@ -274,7 +274,7 @@ describe('S3 stint life: survival with censoring, DNF final stints dropped, stop
   });
 });
 
-describe('S8 safety car: episodes started by sessionNow, labelled prior', () => {
+describe('safety car: episodes started by sessionNow, labelled prior', () => {
   const rows = race({ n: 14 });
   const ts = [
     { status: '1', start_time: 900, end_time: 1350, message: 'AllClear' },
@@ -315,7 +315,7 @@ describe('S8 safety car: episodes started by sessionNow, labelled prior', () => 
   });
 });
 
-describe('S9 lap model: wear counted once, trend resets at a stop', () => {
+describe('lap model: wear counted once, trend resets at a stop', () => {
   it('projectedLapTime: deg 0 and trend 0 give a flat pace', () => {
     const laps = [];
     for (let age = 3; age <= 40; age++) {
@@ -373,7 +373,7 @@ describe('S9 lap model: wear counted once, trend resets at a stop', () => {
   });
 });
 
-describe('S8 in the simulation: an SC in progress at now', () => {
+describe('safety car in the simulation: an SC in progress at now', () => {
   const ongoing = (startLap) => flatParams({
     estimates: {
       safetyCar: {
@@ -397,7 +397,7 @@ describe('S8 in the simulation: an SC in progress at now', () => {
   });
 });
 
-describe('S10 identifyRisks: high risks first', () => {
+describe('identifyRisks: high risks first', () => {
   it('a high risk listed after five medium ones is kept and comes first', () => {
     const projections = [];
     const features = {};
@@ -416,7 +416,7 @@ describe('S10 identifyRisks: high risks first', () => {
   });
 });
 
-describe('S4 engine: seeded, deterministic, worker-safe', () => {
+describe('engine: seeded, deterministic, worker-safe', () => {
   const rows = race();
   const features = extractRaceSituationFeatures({ lapTimes: rows, currentLap: 12, dnfMap: {} }).driverFeatures;
   const args = { driverFeatures: features, currentLap: 12, maxLap: 30, lapTimes: rows, trackStatus: [] };
@@ -443,7 +443,7 @@ describe('S4 engine: seeded, deterministic, worker-safe', () => {
   });
 });
 
-describe('S6 engine: plans, sampled pit loss, common random numbers', () => {
+describe('engine: plans, sampled pit loss, common random numbers', () => {
   it('every planned stop is made in every sim and charged a sampled pit loss', () => {
     const common = { driverFeatures: FEATURES, currentLap: 10, maxLap: 30, raceParams: flatParams(), seed: 8, numSimulations: 1000 };
     const one = runSimulations({ ...common, plans: { A: [{ lap: 20, compound: 'HARD' }] } }).sims;
@@ -466,7 +466,7 @@ describe('S6 engine: plans, sampled pit loss, common random numbers', () => {
 });
 
 // ══════════════════════════════════════════════════════════
-describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-when checks', () => {
+describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): checks on a real race', () => {
   const s = hasCachedSession(2024, 16) ? loadCachedSession(2024, 16) : null;
   const lapTimes = s?.lap_times || [];
   const maxLap = s ? maxLapOf(lapTimes) : 0;
@@ -480,7 +480,7 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-whe
     };
   };
 
-  it('S1: freshDelta <= 0 and |freshDelta| < 1 s (race over), from the race', () => {
+  it('freshDelta <= 0 and |freshDelta| < 1 s (race over), from the race', () => {
     const p = extractRaceParams(lapTimes, [], s.track_status, maxLap, { sessionNow: Infinity });
     expect(p.freshDelta).toBeLessThanOrEqual(0);
     expect(Math.abs(p.freshDelta)).toBeLessThan(1);
@@ -488,7 +488,7 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-whe
     expect(p.freshDelta).toBeCloseTo(-0.029, 3);
   });
 
-  it('S2: at every lap-mode projection clock (the leader starts lap 5 .. the last but one) MEDIUM and HARD degradation > 0 after fuel correction; lap noise 0.3-0.6 s at the leader\'s laps 20, 30, 40 and the race end (D1)', () => {
+  it('at every lap-mode projection clock (the leader starts lap 5 .. the last but one) MEDIUM and HARD degradation > 0 after fuel correction; lap noise 0.3-0.6 s at the leader\'s laps 20, 30, 40 and the race end', () => {
     let clocks = 0;
     let raceClocks = 0;
     const noise = {};
@@ -545,7 +545,7 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-whe
     }
   });
 
-  it('S3: lap 12, every driver\'s median remaining stops <= 2; the dry-race stop is always made', () => {
+  it('lap 12, every driver\'s median remaining stops <= 2; the dry-race stop is always made', () => {
     const { res } = project(12);
     for (const p of res.projections) expect(p.pitStopsRemaining.median).toBeLessThanOrEqual(2);
     const now = resolveSessionNow({ currentLap: 12, lapTimes });
@@ -560,7 +560,7 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-whe
     }
   });
 
-  it('S3: lap 39, one-stoppers who have made their only stop project ~0 remaining stops', () => {
+  it('lap 39, one-stoppers who have made their only stop project ~0 remaining stops', () => {
     const { res } = project(39);
     const now = resolveSessionNow({ currentLap: 39, lapTimes });
     const total = {};
@@ -575,7 +575,7 @@ describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16, cached): done-whe
     }
   });
 
-  it('S6: identical plan -> every difference exactly 0; different plans differ', () => {
+  it('identical plan -> every difference exactly 0; different plans differ', () => {
     const f = extractRaceSituationFeatures({ lapTimes, currentLap: 12, dnfMap: {} });
     const base = {
       driverFeatures: f.driverFeatures, currentLap: 12, maxLap, lapTimes, trackStatus: s.track_status,

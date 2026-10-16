@@ -438,7 +438,7 @@ describe('undercutSweep: the Undercut Calculator', () => {
     expect(undercutSweep('FOC', 'FOC', st, PIT_LOSS, params()).reason).toBe('no-rival');
   });
 
-  it('D2: ONE fixed horizon, the race end, whatever the table length or the rival\'s stop', () => {
+  it('ONE fixed horizon, the race end, whatever the table length or the rival\'s stop', () => {
     const rp = params({ dM: 0.06, dH: 0.06, fresh: -0.3 });
     const full = undercutSweep('FOC', 'AHD', st, PIT_LOSS, rp);
     expect(full.horizon).toEqual({ lap: LAPS, source: 'race-end' });
@@ -469,7 +469,7 @@ describe('undercutSweep: the Undercut Calculator', () => {
     expect(full.best.inLap).toBe(balance);
   });
 
-  it('D2 feasibility: a stint longer than the P90 stint length is charged an extra stop (focus and rival alike)', () => {
+  it('feasibility: a stint longer than the P90 stint length is charged an extra stop (focus and rival alike)', () => {
     expect(STINT_FEASIBLE_QUANTILE).toBe(0.9);
     // MEDIUM sets changed at age 9 (60 %) or 10 (40 %): P90 = 10
     const survival = Array.from({ length: 21 }, (_, t) => (t < 9 ? 1 : t === 9 ? 0.4 : 0));
@@ -508,7 +508,7 @@ describe('undercutSweep: the Undercut Calculator', () => {
     expect(r7.gap).toBeCloseTo(-6, 9);
   });
 
-  it('D4: a chosen rival stop made before a tyre change of the rival is no longer a choice', () => {
+  it('a chosen rival stop made before a tyre change of the rival is no longer a choice', () => {
     const rp = params({ dM: 0.05, dH: 0.03, fresh: -0.2 });
     // chosen while AHD had one stint: still valid while it has one
     const kept = undercutSweep('FOC', 'AHD', st, PIT_LOSS, rp, { rivalStopLap: 14, rivalStopStints: 1 });
@@ -539,7 +539,7 @@ describe('undercutSweep: the Undercut Calculator', () => {
       .toMatchObject({ expiredChoice: 11, expiredReason: 'past' });
   });
 
-  it('D3 / R3: in the pit lane after the in-lap\'s line crossing, read causally (no later row)', () => {
+  it('in the pit lane after the in-lap\'s line crossing, read causally (no later row, R3)', () => {
     // AHD: in-lap 6 (pit entry 5 s before the line), pit exit 20 s into lap 7, a tyre change
     const change = RACE.map((r) => {
       if (r.Driver !== 'AHD') return r;

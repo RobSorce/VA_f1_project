@@ -81,7 +81,7 @@ EXTREME_P = [0.0, 5e-324, 1e-300, 1e-17, 1e-16, 1.1e-16, 2e-16, 1e-12,
 
 
 def test_extreme_probabilities_never_raise():
-    """D10 / G3: p tiny (log(1 - p) == 0.0 for p < ~1.1e-16 divided by zero),
+    """p tiny (log(1 - p) == 0.0 for p < ~1.1e-16 divided by zero),
     p a denormal (k overflows a float), p 1 - 1e-17 (rounds to 1) and the
     exact edges 0 and 1: a lap count or inf, never an exception, and the
     mapping stays non-increasing on a grid that mixes them with the dense one."""

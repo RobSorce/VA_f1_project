@@ -35,13 +35,17 @@ const FLAG_BANNER = Object.fromEntries(
 const BATTLE_LEVEL_COLORS = [TEXT_COLORS.secondary, STATUS_COLORS.slower, DIVERGING.worse];
 const BATTLE_LEVEL_NAMES = ['grey', 'yellow', 'orange'];
 
+/* ── Position-change flash: the row's CSS animations (visualizations.css
+   .tower-row--gained / --lost); its end drops the flash ─────────────── */
+const FLASH_ANIMATIONS = new Set(['position-gained-flash', 'position-lost-flash']);
+
 /* ── Legend of the tower (V4): every mark it draws ─────────────────── */
 const TOWER_LEGEND = [
   { label: 'vs grid', color: DIVERGING.better, glyph: '▲', shape: 'glyph', title: 'Places gained since the start' },
   { label: 'lost', color: DIVERGING.worse, glyph: '▼', shape: 'glyph', title: 'Places lost since the start' },
   ...['SOFT', 'MEDIUM', 'HARD'].map((c) => ({ label: '', color: TYRE_COLORS[c], glyph: TYRE_LABELS[c], shape: 'badge', title: `${c} tyre` })),
   { label: 'pit', color: STATUS_COLORS.pit, glyph: STATUS_GLYPHS.pit, shape: 'glyph', title: 'In the pit lane' },
-  // the overtake badge's three levels, each with its threshold (V4 r2: the
+  // the overtake badge's three levels, each with its threshold (the
   // levels were explained only in the badge's tooltip)
   ...BATTLE_LEVEL_COLORS.map((color, i) => ({
     label: i === 0 ? `<${BATTLE_BADGE_PCT[0]}%` : `≥${BATTLE_BADGE_PCT[i - 1]}%`,
@@ -55,7 +59,7 @@ const TOWER_LEGEND = [
 // The rows fit the room the sidebar leaves them (chartBox.fitRows): 28 px
 // while the field fits, down to 18 px (the Timing Tower's minimum, same data
 // type); when even 18 px rows do not fit (the focus cards opened in full on a
-// short window) they are paged, with a pager line, never clipped (V5 / V13 r2)
+// short window) they are paged, with a pager line, never clipped
 //
 // Phase 9c (D1): the browser pass found P16-P20 below a 440 px body, the rows
 // still standing at the 28 px spacing of the first render (19 x 28 + 22 =
@@ -127,8 +131,6 @@ export default function Leaderboard({ collapsed }) {
   const towerWrapRef = useRef(null);
   const previousPositionsRef = useRef({});
   const previousLapRef = useRef(null);
-  const rowRefsMap = useRef({});
-  const animatingRowsRef = useRef(new Set());
   const clearChangesTimerRef = useRef(null);
   const towerBox = useBoxSize(towerWrapRef);
   const [rowPage, setRowPage] = useState(0);
@@ -316,6 +318,10 @@ export default function Leaderboard({ collapsed }) {
 
   /* ── Position change computation ──────────────────────────────────── */
   const [displayedChanges, setDisplayedChanges] = useState({});
+  // Rows flashing for a change ({ abbr: 'gained' | 'lost' }): set with the
+  // change, dropped when the row's flash animation ends (endFlash) or when
+  // the change is no longer displayed
+  const [flashing, setFlashing] = useState({});
 
   const positionChanges = useMemo(() => {
     const changes = {};
@@ -343,8 +349,10 @@ export default function Leaderboard({ collapsed }) {
         // Clear any pending timer from a previous lap change, then start a new one
         if (clearChangesTimerRef.current) clearTimeout(clearChangesTimerRef.current);
         setDisplayedChanges(positionChanges);
+        setFlashing(positionChanges);
         clearChangesTimerRef.current = setTimeout(() => {
           setDisplayedChanges({});
+          setFlashing({});
           clearChangesTimerRef.current = null;
         }, 1500);
       }
@@ -387,50 +395,21 @@ export default function Leaderboard({ collapsed }) {
   }, [legendOpen]);
 
   /* ── Position-change highlight flash (CSS transition handles the slide) */
-  useEffect(() => {
-    if (!standings.length) return;
-
-    // First: clean ALL stale animation classes from every row.
-    // This prevents classes from persisting when fast playback skips cleanup.
-    for (const abbr of Object.keys(rowRefsMap.current)) {
-      const el = rowRefsMap.current[abbr];
-      if (el) {
-        el.classList.remove('tower-row--animating', 'tower-row--gained', 'tower-row--lost');
-      }
-    }
-    animatingRowsRef.current.clear();
-
-    const activeListeners = [];
-
-    standings.forEach((d) => {
-      const rowEl = rowRefsMap.current[d.abbr];
-      if (!rowEl) return;
-
-      const change = displayedChanges[d.abbr];
-      if (change) {
-        const cls = change === 'gained' ? 'tower-row--gained' : 'tower-row--lost';
-        animatingRowsRef.current.add(d.abbr);
-        rowEl.classList.add('tower-row--animating', cls);
-
-        // Use animationend for reliable cleanup instead of setTimeout
-        const handler = () => {
-          animatingRowsRef.current.delete(d.abbr);
-          rowEl.classList.remove('tower-row--animating', cls);
-          rowEl.removeEventListener('animationend', handler);
-        };
-        rowEl.addEventListener('animationend', handler);
-        activeListeners.push({ el: rowEl, handler, abbr: d.abbr, cls });
-      }
+  // One flash per change: the flash classes are in the row's className while
+  // the driver is in `flashing` (set with the change), and the row's own
+  // flash animation ending drops him. An effect that put the classes on the
+  // element with every new standings array (every replay frame) added them
+  // again after the 1.2 s animation had ended, restarting the flash until
+  // the change was cleared at 1.5 s.
+  const endFlash = useCallback((abbr, e) => {
+    if (e.target !== e.currentTarget || !FLASH_ANIMATIONS.has(e.animationName)) return;
+    setFlashing((f) => {
+      if (!f[abbr]) return f;
+      const next = { ...f };
+      delete next[abbr];
+      return next;
     });
-
-    return () => {
-      activeListeners.forEach(({ el, handler, abbr, cls }) => {
-        el.removeEventListener('animationend', handler);
-        el.classList.remove('tower-row--animating', cls);
-        animatingRowsRef.current.delete(abbr);
-      });
-    };
-  }, [standings, displayedChanges]);
+  }, []);
 
   /* ── Column mode toggle ───────────────────────────────────────────── */
   const cycleColumnMode = cycleLeaderboardColumn;
@@ -614,8 +593,8 @@ export default function Leaderboard({ collapsed }) {
             <span className="tower-broadcast-header__lap-label">QUALIFYING</span>
           </div>
         ) : (
-          <div className="tower-broadcast-header__lap">
-            <span className="tower-broadcast-header__lap-label">LAP</span>
+          <div className="tower-broadcast-header__lap" title={`Lap ${currentLap} of ${totalRaceLaps || maxLap}`}>
+            <span className="tower-broadcast-header__lap-label tower-broadcast-header__lap-label--lap">LAP</span>
             <span className="tower-broadcast-header__lap-current">{currentLap}</span>
             <span className="tower-broadcast-header__lap-total">/{totalRaceLaps || maxLap}</span>
           </div>
@@ -667,14 +646,17 @@ export default function Leaderboard({ collapsed }) {
       {header}
       {modeBar}
 
-      {/* Winner banner */}
+      {/* Winner banner: static, the name lifted to 4.5:1 on the tinted ends
+          of the gradient (tintedChip). It pulsed down to opacity 0.9
+          (winner-banner-glow), the name lifted on the chart surface only:
+          3.73:1 at the tinted end (Aston Martin), 4.28:1 there without the pulse */}
       {raceFinished && winner && (() => {
         const winnerInfo = driverInfoMap[winner.abbr] || {};
+        const chip = tintedChip(winner.color, 0.15);
         return (
           <div className="tower-flag-banner" style={{
-            background: `linear-gradient(90deg, ${withAlpha(winner.color, 0.15)}, transparent, ${withAlpha(winner.color, 0.15)})`,
+            background: `linear-gradient(90deg, ${chip.background}, transparent, ${chip.background})`,
             borderBottom: `1px solid ${withAlpha(winner.color, 0.33)}`,
-            animation: 'winner-banner-glow 2s ease-in-out infinite',
           }}>
             <span className="tower-flag-banner__label" style={{ color: TEXT_COLORS.primary, letterSpacing: '0.2em' }}>
               CHEQUERED FLAG
@@ -682,7 +664,7 @@ export default function Leaderboard({ collapsed }) {
             <span style={{
               fontWeight: 900,
               fontSize: '12px',
-              color: textColor(winner.color),
+              color: chip.color,
               fontFamily: "'Formula1', 'Titillium Web', sans-serif",
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -765,6 +747,8 @@ export default function Leaderboard({ collapsed }) {
             d.isRetired && 'tower-row--retired',
             d.isPitting && 'tower-row--pitting',
             inBattle && 'tower-row--battle',
+            flashing[d.abbr] && 'tower-row--animating',
+            flashing[d.abbr] && `tower-row--${flashing[d.abbr]}`,
           ]
             .filter(Boolean)
             .join(' ');
@@ -772,8 +756,8 @@ export default function Leaderboard({ collapsed }) {
           return (
             <div
               key={d.abbr}
-              ref={(el) => { rowRefsMap.current[d.abbr] = el; }}
               className={rowClasses}
+              onAnimationEnd={(e) => endFlash(d.abbr, e)}
               style={{
                 position: 'absolute',
                 top: 0,

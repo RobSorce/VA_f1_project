@@ -1,4 +1,4 @@
-// D4 (Phase 9c): the one hook every D3 view sizes itself with
+// The one hook every D3 view sizes itself with
 // (utils/views/chartBox.js useChartBox) and its helpers:
 //  - measures the box the chart's svg fills (its parent's content box) when
 //    the svg appears, then follows every resize through a ResizeObserver,

@@ -1,6 +1,6 @@
-// Phase 9d G1, round 2: the Pit Wall Track Map is visible under its overlays.
+// The Pit Wall Track Map is visible under its overlays.
 //
-// The verifier measured on the real Monza 2024 outline (public/data/2024_16_R)
+// Measured before on the real Monza 2024 outline (public/data/2024_16_R)
 // in the four Pit Wall cells: each focus or selected driver added a
 // telemetry HUD card (148 px wide, 168 px tall, glass at 0.42 alpha with a
 // 64 px blur) on the map's bottom-left corner; one card hid 51 % of the
@@ -17,7 +17,7 @@
 // corner key shows the ramp in place of S1-S3 under a drawn overlay; the
 // toolbar buttons take their colours from the theme's CSS.
 //
-// Round 3: fitted around the HUD as drawn, the track was laid out again at
+// Then, fitted around the HUD as drawn, the track was laid out again at
 // every change of the selection (Monza at 1536 x 750: a second HUD driver
 // shrank it to 0.84x and moved the cars 16-21 px, Shanghai 104 px; the focus
 // driver and two selected left a 134 x 67 px track). Now (mapPlan) the track
@@ -26,7 +26,7 @@
 // the compass's place chosen for the map and the outline, the compass kept
 // clear of the car code labels.
 //
-// Round 4: the svg clips at the map's edge, and a code label right of a car
+// Also, the svg clips at the map's edge, and a code label right of a car
 // at the track's rightmost point (28 px from the edge at 1536 x 750) lost
 // about 6 px; such a car now has its label on the left (carLabelOnLeft).
 //
@@ -269,12 +269,11 @@ describe('the furniture of the four Pit Wall maps (trackMapLayout.js mapPlan): t
         expect(plan.key).toEqual({
           x0: L.MAP_KEY.edge, y0: L.MAP_KEY.edge, x1: map.width - L.MAP_KEY.edge, y1: L.MAP_KEY.edge + L.MAP_KEY.height,
         });
-        // the HUD slot: a table, the driver, the speed and the throttle at least,
+        // the HUD slot: a table, the driver, the tyre and the speed at least,
         // the focus driver and two selected drivers on rows of their own
         const slot = plan.hud;
         expect(slot.mode).toBe('table');
-        expect(slot.columns.slice(0, 2).map((c) => c.id)).toEqual(['drv', 'speed']);
-        expect(slot.columns.map((c) => c.id)).toContain('thr');
+        expect(slot.columns.slice(0, 3).map((c) => c.id)).toEqual(['drv', 'tyre', 'speed']);
         expect(slot.rows).toBeGreaterThanOrEqual(3);
         expect(slot.box.y1 - slot.box.y0).toBeLessThanOrEqual(map.height * L.HUD_MAX_SHARE);
         expect(slot.box.x1).toBeLessThanOrEqual(map.width - L.HUD_EDGE_PX);
@@ -312,7 +311,7 @@ describe('the furniture of the four Pit Wall maps (trackMapLayout.js mapPlan): t
   it('the compass places: bottom-right (raised above a HUD that reaches under it), top-right / top-left under the key row, above the HUD on the left', () => {
     const map = { width: 282, height: 211 };
     const key = L.mapKeyBox(map);
-    const wide = L.hudSlot(map); // every column that fits: 258 px, under the bottom-right corner
+    const wide = L.hudSlot(map); // every column that fits: 252 px, under the bottom-right corner
     expect(wide.box.x1 + L.HUD_GAP_PX).toBeGreaterThan(map.width - L.COMPASS.edge - L.COMPASS.size);
     const right = map.width - L.COMPASS.edge - L.COMPASS.size;
     expect(L.compassAt(map, 'br', { key, hud: wide.box })).toEqual({
@@ -348,11 +347,11 @@ describe('the furniture of the four Pit Wall maps (trackMapLayout.js mapPlan): t
     expect(table.box.y0).toBeGreaterThanOrEqual(slot.box.y0);
     expect(table.box.x1).toBeLessThanOrEqual(slot.box.x1);
     expect(table.shown + table.more).toBe(12);
-    expect(L.hudTableColumns(250).map((c) => c.id)).toEqual(['drv', 'speed', 'gear', 'thr', 'brk', 'tyre']);
-    expect(L.hudTableColumns(200).map((c) => c.id)).toEqual(['drv', 'speed', 'thr', 'brk', 'tyre']);
+    expect(L.hudTableColumns(250).map((c) => c.id)).toEqual(['drv', 'tyre', 'speed', 'gear', 'brk', 'thr']);
+    expect(L.hudTableColumns(200).map((c) => c.id)).toEqual(['drv', 'tyre', 'speed', 'gear', 'brk']);
     expect(L.hudTableColumns(1000, { drs: false }).map((c) => c.id)).not.toContain('drs');
     expect(L.hudColumnSets(L.HUD_TABLE.columns).map((s) => s.map((c) => c.id).join(' '))).toEqual([
-      'drv speed gear thr brk drs tyre', 'drv speed gear thr brk tyre', 'drv speed thr brk tyre', 'drv speed thr brk', 'drv speed thr',
+      'drv tyre speed gear brk thr drs', 'drv tyre speed gear brk thr', 'drv tyre speed gear brk', 'drv tyre speed gear', 'drv tyre speed',
     ]);
   });
 
@@ -390,7 +389,7 @@ describe('the furniture of the four Pit Wall maps (trackMapLayout.js mapPlan): t
       console.log(`${name} corner key, ${state}: ${w.toFixed(1)} of ${room} px`);
       expect(w).toBeLessThanOrEqual(room);
     }
-    // before: the ramp after S1-S3 needed 375-378 px (the verifier's numbers)
+    // before: the ramp after S1-S3 needed 375-378 px
     const before = keyLineWidth([...KEY_SECTORS, ...KEY_STATES.speed.slice(0, 3)], vp);
     if (name === '1366x768' || name === '1536x750') expect(before).toBeGreaterThan(room);
   });
@@ -478,7 +477,7 @@ describe('fitTrack: the three real outlines in the four Pit Wall maps, clear of 
           // a car anywhere on the outline, its code label on the side
           // carLabelOnLeft gives: inside the map (the svg clips at its edge; on
           // the right only, a car at the rightmost point lost about 6 px of it
-          // at 1536 x 750, G1 r4) and off the key, the HUD and the compass
+          // at 1536 x 750) and off the key, the HUD and the compass
           const sided = at.map(([x, y]) => (L.carLabelOnLeft(x, map.width) ? labelBoxLeft(x, y) : labelBox(x, y)));
           const flipped = at.filter(([x]) => L.carLabelOnLeft(x, map.width)).length;
           expect(sided.filter((b) => b.x0 < 0 || b.x1 > map.width + 1e-6)).toHaveLength(0);
@@ -706,7 +705,7 @@ describe('the mounted Track Map on Monza 2024 in its Pit Wall cell: no overlay h
             expect(table.querySelectorAll('tbody tr')).toHaveLength(plan.rows);
             expect(table.querySelectorAll('thead th')).toHaveLength(mapPlan.hud.columns.length);
             expect(text(table.querySelector('tbody tr td'))).toBe('NOR');
-            if (plan.more) expect(text(table.querySelector('.track-hud__more'))).toMatch(new RegExp(`^\\+${plan.more} more: `));
+            if (plan.more) expect(text(table.querySelector('.track-hud__more'))).toBe(`+${plan.more} more`);
           }
           // the overlays as drawn, pairwise apart, and the outline off them;
           // the compass where the plan puts it
@@ -778,7 +777,7 @@ describe('the mounted Track Map on Monza 2024 in its Pit Wall cell: no overlay h
     }
   });
 
-  // G1 r4: the svg clips at the map's edge; a code label right of a car at
+  // The svg clips at the map's edge; a code label right of a car at
   // the track's rightmost point (28 px from the edge at 1536 x 750) lost
   // about 6 px of its 41 px reach
   it('1536x750: a car at the track\'s rightmost point has its code label left of the dot, a car elsewhere right of it', async () => {
@@ -816,7 +815,7 @@ describe('the mounted Track Map on Monza 2024 in its Pit Wall cell: no overlay h
     }
   });
 
-  // r4: with no plan (no outline yet) the HUD was not drawn at all
+  // with no plan (no outline yet) the HUD was not drawn at all
   it('no outline yet (the circuit still loading): the focus driver\'s HUD still reads, in the slot of the box', async () => {
     const { m, map } = MAPS.find((r) => r.vp.name === '1536x750');
     monzaState({ focus: 'NOR' });
@@ -834,7 +833,7 @@ describe('the mounted Track Map on Monza 2024 in its Pit Wall cell: no overlay h
   });
 });
 
-// Round 3, the verifier's scenario: a click on a car (or its Leaderboard
+// A click on a car (or its Leaderboard
 // row) changed the HUD's rows, the track was fitted again and every car
 // moved under the pointer (Monza at 1536 x 750: 16-33 px a driver;
 // Shanghai 104 px). Now the track is fitted around the HUD's slot: the

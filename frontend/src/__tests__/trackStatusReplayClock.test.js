@@ -1,4 +1,4 @@
-// D2: track status and weather are on the SESSION clock (FastF1 SessionTime),
+// Track status and weather are on the SESSION clock (FastF1 SessionTime),
 // replay frames on the replay clock (frame.t starts at 0). The store must
 // compare them through sessionTimeOffset: session time = frame.t + offset.
 // Data-dependent: skips when the cached 2024 R5 (China, VSC + SC) is absent.

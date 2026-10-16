@@ -1,11 +1,11 @@
-// Phase 3 edge cases, view side (decisions R5, R6):
-//  - P3c: TimelinePlayer flag bands use one axis, the lap axis;
-//  - P3d: a classified driver who stopped before the flag is shown retired
+// Edge cases, view side (decisions R5, R6):
+//  - TimelinePlayer flag bands use one axis, the lap axis;
+//  - a classified driver who stopped before the flag is shown retired
 //    by the Leaderboard from his stop (driverStateAt at the clock), never
 //    before and never from the final classification;
-//  - P3e: TelemetryStrip: a running lap's trace holds only the samples
+//  - TelemetryStrip: a running lap's trace holds only the samples
 //    recorded by now, the focus trace included (not a clip over the whole lap);
-//  - P3f: qualifying replay Leaderboard ordered by the best lap completed at
+//  - qualifying replay Leaderboard ordered by the best lap completed at
 //    the clock, never by the final results.
 // Blocks on cached sessions skip when the cache is absent.
 import { describe, it, expect, vi } from 'vitest';
@@ -69,7 +69,7 @@ function leaderboardRow(html, abbr) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('P3c: TimelinePlayer flag bands on one axis (the lap axis)', () => {
+describe('TimelinePlayer flag bands on one axis (the lap axis)', () => {
   it('the band x comes from the period\'s leader laps (trackStatusBandLaps), never a replay-time fraction', () => {
     const src = source('components/ui/TimelinePlayer.jsx');
     const band = src.slice(src.indexOf('const bandX'), src.indexOf('const g = svg.append'));
@@ -109,7 +109,7 @@ describe('P3c: TimelinePlayer flag bands on one axis (the lap axis)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('P3d: classified drivers who stopped before the flag are retired in the Leaderboard from their stop', () => {
+describe('classified drivers who stopped before the flag are retired in the Leaderboard from their stop', () => {
   /** The store in replay at session time `now` on these frames. */
   function replayAt(session, frames, now) {
     const lt = session.lap_times;
@@ -177,7 +177,7 @@ describe('P3d: classified drivers who stopped before the flag are retired in the
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('P3d live: a car still racing is never shown retired (feed rows, live now = Infinity)', () => {
+describe('live: a car still racing is never shown retired (feed rows, live now = Infinity)', () => {
   // The live feed delivers each completed lap row as it ends (session Time,
   // Position: backend/live/data_normalizer.py _complete_lap): after k
   // deliveries the store holds the k rows that ended first.
@@ -227,7 +227,7 @@ describe('P3d live: a car still racing is never shown retired (feed rows, live n
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-describe('P3e: a running lap\'s telemetry trace holds only the samples recorded by now', () => {
+describe('a running lap\'s telemetry trace holds only the samples recorded by now', () => {
   /** Synthetic lap: 100 samples, 1 s apart from session time 500, 10 m apart. */
   const LAP = Array.from({ length: 100 }, (_, i) => ({
     SessionTime: 500 + i, Time: i, Distance: i * 10, Speed: 200 + i,
@@ -292,7 +292,7 @@ describe('P3e: a running lap\'s telemetry trace holds only the samples recorded 
 
 // ─────────────────────────────────────────────────────────────────────────
 const HAVE_Q = hasCachedSession(2024, 8, 'Q') && hasCachedFrames(2024, 8, 'Q');
-describe.skipIf(!HAVE_Q)('P3f: qualifying replay Leaderboard ordered by the best lap completed at the clock (2024 R8 Q)', () => {
+describe.skipIf(!HAVE_Q)('qualifying replay Leaderboard ordered by the best lap completed at the clock (2024 R8 Q)', () => {
   const q = HAVE_Q ? loadCachedSession(2024, 8, 'Q') : { lap_times: [], race_results: [] };
   const segments = HAVE_Q ? loadCachedFrames(2024, 8, 'Q').segments : {};
   const offsets = HAVE_Q ? qualiSegmentOffsets(q.lap_times, segments) : {};

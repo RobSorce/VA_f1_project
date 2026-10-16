@@ -71,8 +71,8 @@ Compare to dry races from the same season:
   narrow σ. **The tool currently does not enforce a minimum-lap
   filter**, which is a documentable flaw exposed by this race.
   (Correction, 2026-10-15: the Consistency panel now marks a driver with
-  fewer than 75 % of the most laps completed in the field as LOW DATA and
-  says his σ is not comparable: `LOW_DATA_FRACTION` in
+  fewer laps than floor(0.75 × the most laps completed in the field), at
+  least 3, as LOW DATA and says his σ is not comparable: `LOW_DATA_FRACTION` in
   `frontend/src/utils/views/degradationViews.js`, `ConsistencyPanel.jsx`.)
 
 ### Recommendation

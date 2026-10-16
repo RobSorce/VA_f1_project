@@ -1,4 +1,4 @@
-// V5 / V1, Race Control (components/visualizations/RaceControlPanel.jsx):
+// Race Control (components/visualizations/RaceControlPanel.jsx):
 //  - no scroll: the feed, the DNF list and the team radios show the rows that
 //    fit and page through the rest (newest first); the old panel had three
 //    overflow-y: auto areas;
@@ -123,6 +123,41 @@ describe('the feed is paged, never scrolled', () => {
     const view = await mount(720, 600);
     expect(view.rows()).toHaveLength(5);
     expect(view.host.querySelector('.rc-pager')).toBeNull();
+    await view.unmount();
+  });
+});
+
+// The feed sends penalty and stewards lines with Category "Other" and the
+// keyword in the text, but the panel kept a known category before reading
+// the text, so those lines never reached Penalty / Stewards
+describe('"Other" messages are classified from their text', () => {
+  it('a penalty and a stewards line in "Other" get their category, chip and glyph; a plain "Other" line stays Other', async () => {
+    useF1Store.setState({
+      ...INITIAL, isLiveMode: true, sessionData: { lap_times: [] }, trackStatus: [],
+      raceControlMessages: [
+        { timestamp: T0, message: 'FIA STEWARDS: 5 SECOND TIME PENALTY FOR CAR 1 (VER) - CAUSING A COLLISION', category: 'Other' },
+        { timestamp: T0 + 30, message: 'FIA STEWARDS: TURN 4 INCIDENT INVOLVING CARS 16 (LEC) AND 55 (SAI) UNDER INVESTIGATION', category: 'Other' },
+        { timestamp: T0 + 60, message: 'CAR 44 (HAM) TIME 1:32.123 DELETED - TRACK LIMITS AT TURN 4', category: 'Other' },
+        { timestamp: T0 + 90, message: 'DRS ENABLED', category: 'Drs' },
+      ],
+    });
+    const view = await mount(720, 600);
+    const chip = (label) => [...view.host.querySelectorAll('button[aria-pressed]')].find((b) => text(b).replace(/\s*\d+$/, '').endsWith(label));
+    for (const [label, glyph] of [['Penalty', 'P'], ['Stewards', '⚖'], ['Other', '·'], ['DRS', 'D']]) {
+      const b = chip(label);
+      expect(b, label).toBeTruthy();
+      expect(text(b), label).toBe(`${glyph}${label}1`);
+    }
+    const glyphOf = (needle) => {
+      const row = view.rows().find((r) => text(r).includes(needle));
+      return row.querySelector('span[title]').getAttribute('title');
+    };
+    expect(glyphOf('TIME PENALTY')).toBe('Penalty');
+    expect(glyphOf('UNDER INVESTIGATION')).toBe('Stewards');
+    expect(glyphOf('TRACK LIMITS')).toBe('Other');
+    // the Penalty filter shows the penalty line only
+    await view.click(chip('Penalty'));
+    expect(view.rows().map((r) => text(r))).toEqual([expect.stringContaining('TIME PENALTY')]);
     await view.unmount();
   });
 });

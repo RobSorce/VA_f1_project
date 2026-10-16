@@ -1,5 +1,5 @@
 """
-S4 / lead decision D5, the assistant's strategy cards: how often a card's
+The assistant's strategy cards: how often a card's
 finishing position ('Finish P{n}', GeminiAssistant.jsx renders
 scenario.projected_position) changes when the same race state is recomputed
 with another Monte Carlo seed.

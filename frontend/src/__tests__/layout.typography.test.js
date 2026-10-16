@@ -1,4 +1,4 @@
-// V13 target (3): type floors. Data labels, axis ticks and table text >= 11 px,
+// Type floors. Data labels, axis ticks and table text >= 11 px,
 // any other text >= 10 px, at every target viewport. The floors are two CSS
 // tokens (styles/tokens.css: --font-size-data, --font-size-label, clamp() on
 // the viewport height); utils/colors.js CHART_FONT hands them to D3 and inline

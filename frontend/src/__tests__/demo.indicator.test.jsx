@@ -1,4 +1,4 @@
-// V12: the static demo is never silent. A run-time demo (the backend did not
+// The static demo is never silent. A run-time demo (the backend did not
 // answer) raises a toast that says the static demo answers and what needs the
 // backend, dismissed when the backend answers again; the weather bar shows a
 // DEMO chip whenever the demo answers (a demo build or a run-time demo).
@@ -33,7 +33,7 @@ const { useF1Store, DEMO_FALLBACK_TOAST_ID } = await import('../store/useF1Store
 const { activateDemo, deactivateDemo, useDemoMode, DEMO_NOTE } = await import('../utils/demoMode.js');
 const { default: WeatherBar } = await import('../components/ui/WeatherBar.jsx');
 
-describe('V12: the user learns that the static demo answers', () => {
+describe('the user learns that the static demo answers', () => {
   it('a run-time demo raises one toast naming the demo and the backend-only features; it goes when the backend answers', () => {
     expect(useDemoMode.getState().active).toBe(false);
     activateDemo('Network Error; GET /api/health did not answer');

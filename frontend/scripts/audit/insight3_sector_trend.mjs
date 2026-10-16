@@ -1,4 +1,4 @@
-// Repair 3 (V7 r2, docs/INSIGHTS.md Insight 3): what a long Hard stint shows
+// docs/INSIGHTS.md Insight 3: what a long Hard stint shows
 // sector by sector, in the demo data of Monza 2024 (frontend/public/data/
 // 2024_16_R/session.json.gz, the backend's cached session). For every stint
 // on HARD of more than 15 laps: the laps without a pit in / out, then the

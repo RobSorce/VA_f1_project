@@ -1,4 +1,4 @@
-// V5: every scrollable area of the frontend (overflow auto / scroll / overlay
+// Every scrollable area of the frontend (overflow auto / scroll / overlay
 // in the CSS or in an inline style) has its justification row, with the
 // design constraint, in docs/SCROLL_JUSTIFICATIONS.md; the doc no longer
 // claims zoom / pan that the code does not have; the dashboard's own chrome

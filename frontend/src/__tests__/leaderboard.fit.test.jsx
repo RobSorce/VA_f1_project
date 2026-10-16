@@ -1,4 +1,4 @@
-// Phase 9c F1 (D1): the Analyse sidebar's race tower shows every driver row
+// The Analyse sidebar's race tower shows every driver row
 // at the four target viewports.
 //
 // The browser pass (docs/evidence/browser_audit_2026-10-16.md)
@@ -271,7 +271,7 @@ describe.skipIf(!haveFonts)('static fit: 20 rows >= 18 px in every state at the 
     expect(lb).toMatch(/const ROW_MIN = 18;/);
     expect(lb).toMatch(/const ROW_MAX = 28;/);
     expect(lb).toMatch(/LEGEND_POPOVER_VIEWPORT = '\(max-height: 899px\)'/);
-    expect(vis).toMatch(/\.tower-broadcast-header \{[^}]*padding: 6px 26px 6px 12px;/);
+    expect(vis).toMatch(/\.tower-broadcast-header \{[^}]*padding: 6px 12px;/);
     expect(vis).toMatch(/\.tower-col-header \{[^}]*padding: 3px 8px;/);
     expect(vis).toMatch(/\.tower-flag-banner \{[^}]*padding: 3px 8px;/);
     expect(vis).toMatch(/\.tower-row \{[^}]*padding: 0 6px;/);

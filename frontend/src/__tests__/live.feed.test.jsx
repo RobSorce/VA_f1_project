@@ -1,14 +1,14 @@
-// Live feed in the store and the race-control views (decisions D8, D13, D14):
-//  - B6: a 'resync' (the backend dropped this client's backlog and closes
+// Live feed in the store and the race-control views:
+//  - a 'resync' (the backend dropped this client's backlog and closes
 //    the socket) and every session_init (each connect) rebuild the session
 //    from the backend's snapshot; a snapshot asked before a newer rebuild is
 //    dropped; a finished session's full FastF1 rows are kept;
-//  - B4: 'strategy_correction' {Driver, stints} replaces that driver's
+//  - 'strategy_correction' {Driver, stints} replaces that driver's
 //    stints, 'strategy_update' stays append-only;
-//  - B5: live track_status start_time is on the session clock: the change
+//  - live track_status start_time is on the session clock: the change
 //    closes the previous period at its start, and the race-control lists
 //    show the wall clock of received_at, never start_time read as an epoch;
-//  - P3d (D8): while the race runs no retirement is inferred from the feed's
+//  - while the race runs no retirement is inferred from the feed's
 //    rows; once the session is over its classification is explicit data.
 // Synthetic feeds, mocked API and socket.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -105,7 +105,7 @@ async function goLive() {
   return fx.feed;
 }
 
-describe('B6 (D14): the store rebuilds from the snapshot on resync and on every session_init', () => {
+describe('the store rebuilds from the snapshot on resync and on every session_init', () => {
   it('a reconnect\'s session_init replaces the rows, lap counters and retirements', async () => {
     const feed = await goLive();
     expect(store().sessionData.lap_times.length).toBe(30);
@@ -171,7 +171,7 @@ describe('B6 (D14): the store rebuilds from the snapshot on resync and on every 
   });
 });
 
-describe('B4 (D14): strategy_correction replaces the driver\'s stints', () => {
+describe('strategy_correction replaces the driver\'s stints', () => {
   it('in place of the driver\'s first entry; other drivers and strategy_update untouched', async () => {
     const feed = await goLive();
     const s = (d, n, c, start) => ({ Driver: d, StintNumber: n, Compound: c, StartLap: start });
@@ -195,7 +195,7 @@ describe('B4 (D14): strategy_correction replaces the driver\'s stints', () => {
   });
 });
 
-describe('B5 (D13): live track status on the session clock, wall clock from received_at', () => {
+describe('live track status on the session clock, wall clock from received_at', () => {
   // 2024 R21: the red flag at session 7159.333 s, received 16:37:21.777 UTC
   const RED = { status: '5', start_time: 7159.333, end_time: null, message: '', start_lap: 32, received_at: 1730047041.777 };
   const wall = (s) => new Date(s * 1000).toLocaleTimeString();
@@ -233,7 +233,7 @@ describe('B5 (D13): live track status on the session clock, wall clock from rece
   });
 });
 
-describe('P3d live (D8): no retirement inferred while the race runs', () => {
+describe('live: no retirement inferred while the race runs', () => {
   it('the feed\'s rows so far: nobody retired; a retirement the feed reports is', async () => {
     const feed = await goLive();
     // CCC is a lap down on the feed's latest lap: read as a final result the

@@ -1,8 +1,8 @@
 // Parity with the backend on every cached session (races, qualifying,
 // practice): the JS ports must give the SAME output as the Python processors.
-//  - R1: deriveStints (stints.js) at sessionNow = Infinity
+//  - deriveStints (stints.js) at sessionNow = Infinity (R1)
 //        vs build_tyre_strategy (backend/data/processors/stints.py)
-//  - R5: mapTrackStatusToLaps (raceTime.js)
+//  - mapTrackStatusToLaps (raceTime.js, R5)
 //        vs map_track_status_to_laps (backend/data/processors/stints.py)
 // The Python side is executed here (backend venv), nothing is hard-coded.
 // Skips when the venv or the git-ignored cache is absent.

@@ -252,7 +252,7 @@ def run_js(script, req, tmp_path):
 
 @pytest.mark.skipif(not (NODE and VITE_NODE.exists()), reason='node / frontend node_modules not installed')
 def test_endpoint_matches_frontend_stint_fits_on_monza(api_main, tmp_path):
-    """Done-when of G1: for every driver, every stint of the brushed range
+    """For every driver, every stint of the brushed range
     and three clocks, the endpoint's fit = stintFits of degradation.js
     (slopes to 1e-6; every other number too, the names compared through
     FIT_KEYS)."""
@@ -323,7 +323,7 @@ fs.writeFileSync(process.env.DEG_OUTPUT, JSON.stringify(out));
 
 @pytest.mark.skipif(not (NODE and VITE_NODE.exists()), reason='node / frontend node_modules not installed')
 def test_endpoint_matches_the_chart_at_replay_clocks(api_main, tmp_path, monkeypatch):
-    """G1 done-when with the D6 clock contract: the Tyre Degradation chart
+    """On the replay clock: the Tyre Degradation chart
     (tyreDegradationView at the replay clock) and POST /degradation with
     session_now = that clock agree on every Monza stint to 1e-6 (slope,
     intercept, raw slope, residual sigma; n exactly) at the end of leader
@@ -416,7 +416,7 @@ def test_slow_load_does_not_block_the_event_loop(api_main, monkeypatch):
 
 
 def test_warm_cache_brush_latency(api_main):
-    """Done-when of G2: a brush with a warm cache answers in < 200 ms."""
+    """A brush with a warm cache answers in < 200 ms."""
     from api.routers.predictions import predict_degradation
 
     laps = load_cached_session(2024, 16)['lap_times']

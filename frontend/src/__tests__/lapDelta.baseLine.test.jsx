@@ -1,12 +1,12 @@
-// D6 (Phase 9c, F7): the base driver's zero line of the Lap Delta chart has a
+// The base driver's zero line of the Lap Delta chart has a
 // style no other encoding of the chart uses, a label on the chart naming it
 // ("base: NOR") and a legend row drawn like it.
 //
-// Before Phase 9c it was dashed 6,3: the teammate dash (colors.js
-// TEAMMATE_DASHES[1]), so with a teammate on the chart (PIA for NOR) the
-// zero line and the teammate's line had the same pattern. The first Phase 9c
-// round made it one solid 2 px grey line: a Haas driver's line is one solid
-// 2 px grey line too (#B6BABD, CIEDE2000 8.1 from it, verifier r1). It is now
+// It was dashed 6,3: the teammate dash (colors.js TEAMMATE_DASHES[1]), so
+// with a teammate on the chart (PIA for NOR) the zero line and the
+// teammate's line had the same pattern. A first fix made it one solid 2 px
+// grey line: a Haas driver's line is one solid 2 px grey line too (#B6BABD,
+// CIEDE2000 8.1 from it). It is now
 // a double line (two rails), a pattern no driver line has whatever its colour.
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import { installMiniDom } from './helpers/miniDom.js';
@@ -98,7 +98,7 @@ function zeroLine(svg) {
     && !l.closest('.grid') && l.style.display !== 'none' && !l.closest('.axis') && !l.closest('.tick'));
 }
 
-describe('D6: the Lap Delta base line', () => {
+describe('the Lap Delta base line', () => {
   afterAll(async () => {
     if (view) await view.unmount();
     useF1Store.setState({ ...INITIAL });

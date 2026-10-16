@@ -1,4 +1,4 @@
-// F12 / D11, a driver who changed team mid-season (the 2025 demo data:
+// A driver who changed team mid-season (the 2025 demo data:
 // Lawson Red Bull Racing → Racing Bulls, Tsunoda the other way, after R2).
 // The session views colour a driver by his team in the session on screen;
 // the Championship colours him by his team at the latest round (the entry's

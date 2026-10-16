@@ -1,4 +1,4 @@
-// Repair r2 (F3): what the timing sheet's cells need at the data size, to set
+// What the timing sheet's cells need at the data size, to set
 // the column floors of the fit (utils/views/lapTimeChart.js). Real Formula1
 // widths (driver names, header labels); JetBrains Mono at 0.6 em a character.
 //   node frontend/scripts/audit/timing_floors.mjs
