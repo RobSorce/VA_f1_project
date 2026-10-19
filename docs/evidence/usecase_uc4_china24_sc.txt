@@ -1,0 +1,359 @@
+UC4, China 2024 (2024 R5 Chinese Grand Prix, static demo): pit calls under the VSC and the Safety Car
+Circle of Doom analytics as the view calls them, at clocks reachable in the UI; truth from the lap rows after each clock.
+
+1. Data and clocks
+  1a. Inputs (static demo files, frontend/public/data/2024_5_R/)
+     session.json.gz: 1032 lap rows, 20 drivers, 56 laps; sessionTimeOffset 3318.169 s
+     frames.json.gz: 7673 frames, frame.t 0 to 6137.6 s, step 0.8 s (demo_frame_step 2: every 2nd backend frame)
+     teams: VER Red Bull Racing, NOR McLaren, PER Red Bull Racing, LEC Ferrari, SAI Ferrari, ALO Aston Martin, RUS Mercedes, PIA McLaren
+     tyre changes before the VSC: VER in-lap 13; NOR none; PER in-lap 13; LEC none; SAI in-lap 17
+  1b. Track-status periods (session seconds; leader lap at the start = the timeline band's start lap)
+     status 2 Yellow       0.000 - 223.861  (not drawn: green, or ended by the race start)
+     status 1 AllClear     223.861 - 5361.060  (not drawn: green, or ended by the race start)
+     status 2 Yellow       5361.060 - 5457.310  timeline YELLOW_FLAG laps 21-22
+     status 6 VSCDeployed  5457.310 - 5702.945  timeline VSC laps 22-23
+     status 4 SCDeployed   5702.945 - 6166.489  timeline SAFETY_CAR laps 23-26
+     status 1 AllClear     6166.489 - 6248.986  (not drawn: green, or ended by the race start)
+     status 2 Yellow       6248.986 - 6283.584  timeline YELLOW_FLAG laps 27-27
+     status 4 SCDeployed   6283.584 - 6869.620  timeline SAFETY_CAR laps 27-31
+     status 1 AllClear     6869.620 - end  (not drawn: green, or ended by the race start)
+     VSC 5457.310-5702.945 s (245.6 s); SC 5702.945-6166.489 s (463.5 s)
+  1c. Lap seeks (→ / ← keys, Ctrl+K "Jump to Lap", a click on the timeline's lap axis): the frame lapFrameMap[L]
+     lap 21: demo frame 2547, clock 5355.769 s, "33:57 elapsed" (0.059 s after the leader VER crossed the end of lap 20 at 5355.710); track status there: Track Clear
+     lap 22: demo frame 2673, clock 5456.569 s, "35:38 elapsed" (0.369 s after the leader VER crossed the end of lap 21 at 5456.200); track status there: Yellow Flag
+     lap 23: demo frame 2841, clock 5590.969 s, "37:52 elapsed" (0.473 s after the leader VER crossed the end of lap 22 at 5590.496); track status there: VSC
+     lap 24: demo frame 3013, clock 5728.569 s, "40:10 elapsed" (0.135 s after the leader VER crossed the end of lap 23 at 5728.434); track status there: Safety Car
+     lap 25: demo frame 3221, clock 5894.969 s, "42:56 elapsed" (0.226 s after the leader VER crossed the end of lap 24 at 5894.743); track status there: Safety Car
+     lap 26: demo frame 3403, clock 6040.569 s, "45:22 elapsed" (0.776 s after the leader VER crossed the end of lap 25 at 6039.793); track status there: Safety Car
+  1d. Timeline markers drawn at the lap-24 clock (5728.569 s; only the periods started by then) and the frame a click on each seeks to
+     YELLOW_FLAG laps 21-22, start 5361.060 s -> demo frame 2554, clock 5361.369 s, "34:03 elapsed" (0.309 s after the start); status there Yellow Flag
+     VSC         laps 22-23, start 5457.310 s -> demo frame 2674, clock 5457.369 s, "35:39 elapsed" (0.059 s after the start); status there VSC
+     SAFETY_CAR  laps 23-24 (running), start 5702.945 s -> demo frame 2981, clock 5702.969 s, "39:44 elapsed" (0.024 s after the start); status there Safety Car
+     the click on "V" lands on the first demo frame of the VSC: true; on "SC", the first frame of the SC: true
+
+2. NOR (P2, MEDIUM tyres) under the VSC
+  -- a. click on the "V" marker (first frame of the VSC), focus NOR
+     clock 5457.369 s (demo frame 2674, timeline "35:39 elapsed"); centre: LAP 22/56 | VSC | ref lap 1:42.11 (median of last 5 green laps) | pit loss 23.1 s (18 stops)
+     ring: 0 cars drawn just before the timing line (current lap longer than the reference lap): none; NOR is not one of them
+     centre: NOR pits now: P2 → P5 | note: green-flag pit loss and pace
+     rejoin label: P4 46% · P5 48% · P10 6% | traffic 0.36 s behind ALO
+     focus tooltip:
+       Pit now: P2 → P5
+       Rejoin positions: P4 45.7% · P5 48.5% · P10 5.8%
+       Draws: 1000, bootstrap of 18 stops
+       Pit loss: 23.1 s (p10–p90 21.6–24.7 s, 18 stops)
+       Traffic at the rejoin: 0.36 s behind ALO (< 1.0 s)
+       Traffic probability: 21%
+       Gain the place: LEC, PER
+       Within reach: VER
+       Lapped traffic: none
+       Track: neutralised: green-flag figures
+     projection of the end of lap 22 (not displayed; focus pace 101.994 s/lap, recent; reference lap 102.114 s; pit loss median 23.14 s):
+       NOR    predicted 5585.7 (last line L20 5358.6, lap 102.167, status 1); actual 5600.8 (actual - predicted +15.1 s)
+       ahead  PER 5569.6 projected (last line L20 5368.9, lap 100.522, status 12); actual 5609.7; gap to NOR projected −16.1 s, actual +8.9 s
+       ahead  LEC 5570.0 projected (last line L20 5366.0, lap 102.041, status 12); actual 5628.2; gap to NOR projected −15.7 s, actual +27.4 s
+       ahead  ALO 5585.3 projected (last line L20 5382.8, lap 101.640, status 12); actual 5627.6; gap to NOR projected −0.4 s, actual +26.8 s
+       behind RUS 5588.2 projected (last line L20 5385.4, lap 102.067, status 12); actual 5630.9; gap to NOR projected +2.5 s, actual +30.1 s
+       behind PIA 5592.8 projected (last line L20 5387.5, lap 100.478, status 12); actual 5635.4; gap to NOR projected +7.1 s, actual +34.6 s
+     NOR is 4.775 s from his own line (end of lap 21 at 5462.144 s): this window is a stop at the end of lap 21.
+  -- b. → to lap 22 (the frame before the VSC), focus NOR
+     clock 5456.569 s (demo frame 2673, timeline "35:38 elapsed"); centre: LAP 22/56 | Yellow Flag | ref lap 1:42.11 (median of last 5 green laps) | pit loss 23.1 s (18 stops)
+     ring: 0 cars drawn just before the timing line (current lap longer than the reference lap): none; NOR is not one of them
+     centre: NOR pits now: P2 → P5
+     rejoin label: P4 46% · P5 48% · P10 6% | traffic 0.36 s behind ALO
+     focus tooltip:
+       Pit now: P2 → P5
+       Rejoin positions: P4 45.7% · P5 48.5% · P10 5.8%
+       Draws: 1000, bootstrap of 18 stops
+       Pit loss: 23.1 s (p10–p90 21.6–24.7 s, 18 stops)
+       Traffic at the rejoin: 0.36 s behind ALO (< 1.0 s)
+       Traffic probability: 21%
+       Gain the place: LEC, PER
+       Within reach: VER
+       Lapped traffic: none
+  -- c. NOR readouts frame by frame, from the first VSC frame to his pit entry (5599.005 s): 178 frames of 0.8 s (static demo frames)
+     5457.4-5461.4 (35:39-35:43 elapsed)    6 frames (4.8 s, 3%)  NOR pits now: P2 → P5 | label P4 46% · P5 48% · P10 6% | traffic 0.36 s behind ALO | VSC, note "green-flag pit loss and pace"
+        changed by: NOR ends L21 (lap 103.6 s) at 5462.1
+     5462.2-5475.8 (35:44-35:57 elapsed)   18 frames (14.4 s, 10%)  NOR pits now: P2 → P5 | label P5 51% · P6 43% · P10 6% | VSC, note "green-flag pit loss and pace"
+        changed by: PER ends L21 (lap 107.1 s) at 5476.1; LEC pit entry at 5476.4
+     5476.6-5493.4 (35:58-36:15 elapsed)   22 frames (17.6 s, 12%)  NOR pits now: P2 → P4 | label P4 51% · P5 43% · P10 6% | VSC, note "green-flag pit loss and pace"
+        changed by: ALO ends L21 (lap 110.9 s) at 5493.7
+     5494.2-5497.4 (36:16-36:19 elapsed)    5 frames (4.0 s, 3%)  NOR pits now: P2 → P3 | label P3 51% · P4 43% · P10 6% | VSC, note "green-flag pit loss and pace"
+        changed by: RUS ends L21 (lap 112.1 s) at 5497.5
+     5498.2-5507.8 (36:20-36:29 elapsed)   13 frames (10.4 s, 7%)  NOR pits now: P2 → P3 | label P3 94% · P10 6% | VSC, note "green-flag pit loss and pace"
+        changed by: SAI ends L21 (lap 115.8 s) at 5508.0
+     5508.6-5508.6 (36:30-36:30 elapsed)    1 frames (0.8 s, 1%)  NOR pits now: P2 → P3 | label P3 94% · P9 6% | VSC, note "green-flag pit loss and pace"
+        changed by: STR pit entry at 5509.1
+     5509.4-5515.0 (36:31-36:36 elapsed)    8 frames (6.4 s, 4%)  NOR pits now: P2 → P3 | label P3 94% · P8 6% | VSC, note "green-flag pit loss and pace"
+        changed by: HUL ends L21 (lap 117.6 s) at 5515.1
+     5515.8-5590.2 (36:37-37:52 elapsed)   94 frames (75.2 s, 53%)  NOR pits now: P2 → P3 | label P3 94% · P7 6% | VSC, note "green-flag pit loss and pace"
+        changed by: VER ends L22 (lap 134.3 s) at 5590.5
+     5591.0-5599.0 (37:52-38:00 elapsed)   11 frames (8.8 s, 6%)  NOR pits now: P2 → P2 | label P2 79% · P3 15% · P7 6% | VSC, note "green-flag pit loss and pace"
+     (frames before NOR's lap-21 line, 5457.369-5462.144 s: 6 frames, 4.8 s)
+     (frames of NOR's lap 22 before his pit entry, 5462.144-5599.005 s: 172 frames, 137.6 s)
+     NOR's lap 22, from his lap-21 line (5462.144 s) to his pit entry (the same place and modal entry merged):
+       5462.2-5475.8 (35:44-35:57 elapsed)   18 frames (14.4 s, 10%)  P2 → P5, P5 51%
+       5476.6-5493.4 (35:58-36:15 elapsed)   22 frames (17.6 s, 13%)  P2 → P4, P4 51%
+       5494.2-5497.4 (36:16-36:19 elapsed)    5 frames (4.0 s, 3%)  P2 → P3, P3 51%
+       5498.2-5590.2 (36:20-37:52 elapsed)  116 frames (92.8 s, 67%)  P2 → P3, P3 94%
+       5591.0-5599.0 (37:52-38:00 elapsed)   11 frames (8.8 s, 6%)  P2 → P2, P2 79%
+  -- d. → to lap 23, focus NOR (the last readout before his pit entry)
+     clock 5590.969 s (demo frame 2841, timeline "37:52 elapsed"); centre: LAP 23/56 | VSC | ref lap 1:42.15 (median of last 5 green laps) | pit loss 23.1 s (18 stops)
+     ring: 3 cars drawn just before the timing line (current lap longer than the reference lap): NOR, PER, LEC; NOR is one of them
+     centre: NOR pits now: P2 → P2 | note: green-flag pit loss and pace
+     rejoin label: P2 79% · P3 15% · P7 6%
+     focus tooltip:
+       Pit now: P2 → P2
+       Rejoin positions: P2 79.0% · P3 15.2% · P7 5.8%
+       Draws: 1000, bootstrap of 18 stops
+       Pit loss: 23.1 s (p10–p90 21.6–24.7 s, 18 stops)
+       Traffic at the rejoin: no: PER 12.6 s ahead
+       Traffic probability: 15%
+       Gain the place: PER
+       Within reach: VER
+       Lapped traffic: none
+       Track: neutralised: green-flag figures
+     projection of the end of lap 23 (not displayed; focus pace 101.994 s/lap, recent; reference lap 102.151 s; pit loss median 23.14 s):
+       NOR    predicted 5689.3 (last line L21 5462.1, lap 103.566, status 126); actual 5749.5 (actual - predicted +60.2 s)
+       ahead  PER 5676.7 projected (last line L21 5476.1, lap 107.126, status 26); actual 5747.2; gap to NOR projected −12.6 s, actual −2.2 s
+       behind VER 5690.6 projected (last line L22 5590.5, lap 134.296, status 26); actual 5728.4; gap to NOR projected +1.3 s, actual −21.0 s
+       behind LEC 5695.1 projected (+13.2 s stop in progress) (last line L21 5478.0, lap 111.969, status 26); actual 5761.1; gap to NOR projected +5.8 s, actual +11.7 s
+  -- e. first frame of the "P3 94%" readout (reached by play / pause or a drag), focus NOR
+     clock 5498.169 s (demo frame 2725, timeline "36:20 elapsed"); centre: LAP 22/56 | VSC | ref lap 1:42.11 (median of last 5 green laps) | pit loss 23.1 s (18 stops)
+     ring: 3 cars drawn just before the timing line (current lap longer than the reference lap): PIA, STR, SAI; NOR is not one of them
+     centre: NOR pits now: P2 → P3 | note: green-flag pit loss and pace
+     rejoin label: P3 94% · P10 6%
+     focus tooltip:
+       Pit now: P2 → P3
+       Rejoin positions: P3 94.2% · P10 5.8%
+       Draws: 1000, bootstrap of 18 stops
+       Pit loss: 23.1 s (p10–p90 21.6–24.7 s, 18 stops)
+       Traffic at the rejoin: no: PER 12.6 s ahead
+       Traffic probability: 0%
+       Gain the place: PER
+       Within reach: VER
+       Lapped traffic: none
+       Track: neutralised: green-flag figures
+     projection of the end of lap 23 (not displayed; focus pace 101.994 s/lap, recent; reference lap 102.114 s; pit loss median 23.14 s):
+       NOR    predicted 5689.3 (last line L21 5462.1, lap 103.566, status 126); actual 5749.5 (actual - predicted +60.2 s)
+       ahead  VER 5656.3 projected (last line L21 5456.2, lap 100.490, status 12); actual 5728.4; gap to NOR projected −32.9 s, actual −21.0 s
+       ahead  PER 5676.7 projected (last line L21 5476.1, lap 107.126, status 26); actual 5747.2; gap to NOR projected −12.6 s, actual −2.2 s
+       behind LEC 5695.1 projected (+13.2 s stop in progress) (last line L21 5478.0, lap 111.969, status 26); actual 5761.1; gap to NOR projected +5.8 s, actual +11.7 s
+       behind PIA 5695.4 projected (last line L20 5387.5, lap 100.478, status 12); actual 5767.8; gap to NOR projected +6.2 s, actual +18.3 s
+
+3. VER (P1, HARD tyres) under the VSC and at the SC
+  -- a. → to lap 23, focus VER (VER has just completed his lap 22 under the VSC)
+     clock 5590.969 s (demo frame 2841, timeline "37:52 elapsed"); centre: LAP 23/56 | VSC | ref lap 1:42.15 (median of last 5 green laps) | pit loss 23.1 s (18 stops)
+     ring: 3 cars drawn just before the timing line (current lap longer than the reference lap): NOR, PER, LEC; VER is not one of them
+     centre: VER pits now: P1 → P7 | note: green-flag pit loss and pace
+     rejoin label: P7 94% · P12 6%
+     focus tooltip:
+       Pit now: P1 → P7
+       Rejoin positions: P7 94.2% · P12 5.8%
+       Draws: 1000, bootstrap of 18 stops
+       Pit loss: 23.1 s (p10–p90 21.6–24.7 s, 18 stops)
+       Traffic at the rejoin: no: PIA 5.8 s ahead
+       Traffic probability: 0%
+       Gain the place: NOR, PER
+       Within reach: none
+       Lapped traffic: none
+       Track: neutralised: green-flag figures
+     projection of the end of lap 24 (not displayed; focus pace 100.070 s/lap, recent; reference lap 102.151 s; pit loss median 23.14 s):
+       VER    predicted 5813.8 (last line L22 5590.5, lap 134.296, status 26); actual 5894.7 (actual - predicted +81.0 s)
+       ahead  ALO 5797.5 projected (last line L21 5493.7, lap 110.904, status 26); actual 5913.3; gap to VER projected −16.3 s, actual +18.6 s
+       ahead  RUS 5801.7 projected (last line L21 5497.5, lap 112.130, status 26); actual 5917.9; gap to VER projected −12.1 s, actual +23.1 s
+       ahead  PIA 5808.0 projected (last line L21 5500.0, lap 112.541, status 26); actual 5905.3; gap to VER projected −5.8 s, actual +10.6 s
+       behind SAI 5816.1 projected (last line L21 5508.0, lap 115.808, status 26); actual 5909.3; gap to VER projected +2.3 s, actual +14.6 s
+       behind STR 5822.2 projected (+6.0 s stop in progress) (last line L21 5510.8, lap 118.981, status 26); actual 5927.1; gap to VER projected +8.5 s, actual +32.4 s
+  -- b. VER readouts frame by frame, from the first VSC frame to his pit entry (5726.720 s): 337 frames of 0.8 s (static demo frames)
+     5457.4-5475.8 (35:39-35:57 elapsed)   24 frames (19.2 s, 7%)  VER pits now: P1 → P4 | label P4 94% · P7 6% | VSC, note "green-flag pit loss and pace"
+        changed by: PER ends L21 (lap 107.1 s) at 5476.1; LEC pit entry at 5476.4
+     5476.6-5497.4 (35:58-36:19 elapsed)   27 frames (21.6 s, 8%)  VER pits now: P1 → P3 | label P3 94% · P7 6% | VSC, note "green-flag pit loss and pace"
+        changed by: RUS ends L21 (lap 112.1 s) at 5497.5
+     5498.2-5499.8 (36:20-36:21 elapsed)    3 frames (2.4 s, 1%)  VER pits now: P1 → P3 | label P3 94% · P6 6% | VSC, note "green-flag pit loss and pace"
+        changed by: PIA ends L21 (lap 112.5 s) at 5500.0
+     5500.6-5590.2 (36:22-37:52 elapsed)  113 frames (90.4 s, 34%)  VER pits now: P1 → P3 | label P3 94% · P5 6% | VSC, note "green-flag pit loss and pace"
+        changed by: VER ends L22 (lap 134.3 s) at 5590.5
+     5591.0-5627.0 (37:52-38:28 elapsed)   46 frames (36.8 s, 14%)  VER pits now: P1 → P7 | label P7 94% · P12 6% | VSC, note "green-flag pit loss and pace"
+        changed by: ALO ends L22 (lap 133.9 s) at 5627.6
+     5627.8-5627.8 (38:29-38:29 elapsed)    1 frames (0.8 s, 0%)  VER pits now: P1 → P6 | label P6 94% · P12 6% | VSC, note "green-flag pit loss and pace"
+        changed by: LEC ends L22 (lap n/a s) at 5628.2
+     5628.6-5630.2 (38:30-38:32 elapsed)    3 frames (2.4 s, 1%)  VER pits now: P1 → P5 | label P5 94% · P11 6% | VSC, note "green-flag pit loss and pace"
+        changed by: RUS ends L22 (lap 133.4 s) at 5630.9
+     5631.0-5635.0 (38:32-38:36 elapsed)    6 frames (4.8 s, 2%)  VER pits now: P1 → P4 | label P4 94% · P10 6% | VSC, note "green-flag pit loss and pace"
+        changed by: PIA ends L22 (lap 135.4 s) at 5635.4
+     5635.8-5642.2 (38:37-38:44 elapsed)    9 frames (7.2 s, 3%)  VER pits now: P1 → P3 | label P3 94% · P9 6% | VSC, note "green-flag pit loss and pace"
+        changed by: SAI ends L22 (lap 134.8 s) at 5642.8
+     5643.0-5647.8 (38:44-38:49 elapsed)    7 frames (5.6 s, 2%)  VER pits now: P1 → P3 | label P3 94% · P8 6% | VSC, note "green-flag pit loss and pace"
+        changed by: HUL ends L22 (lap 132.7 s) at 5647.8
+     5648.6-5654.2 (38:50-38:56 elapsed)    8 frames (6.4 s, 2%)  VER pits now: P1 → P3 | label P3 94% · P7 6% | VSC, note "green-flag pit loss and pace"
+        changed by: OCO ends L22 (lap 135.2 s) at 5654.3
+     5655.0-5658.2 (38:56-39:00 elapsed)    5 frames (4.0 s, 1%)  VER pits now: P1 → P3 | label P3 94% · P6 6% | VSC, note "green-flag pit loss and pace"
+        changed by: RIC ends L22 (lap 134.1 s) at 5658.4
+     5659.0-5661.4 (39:00-39:03 elapsed)    4 frames (3.2 s, 1%)  VER pits now: P1 → P3 | label P3 94% · P5 6% | VSC, note "green-flag pit loss and pace"
+        changed by: STR ends L22 (lap n/a s) at 5661.7
+     5662.2-5702.2 (39:04-39:44 elapsed)   51 frames (40.8 s, 15%)  VER pits now: P1 → P3 | label P3 94% · P4 6% | VSC, note "green-flag pit loss and pace"
+        changed by: status 4 SCDeployed at 5702.9
+     5703.0-5726.2 (39:44-40:08 elapsed)   30 frames (24.0 s, 9%)  VER pits now: P1 → P3 | label P3 94% · P4 6% | Safety Car, note "green-flag pit loss and pace"
+     (frames from VER's lap-22 line to the SC, 5590.496-5702.945 s: 140 frames, 112.0 s)
+     (frames under the SC before his pit entry, 5702.945-5726.720 s: 30 frames, 24.0 s)
+     VER from his lap-22 line (5590.496 s) to his pit entry (the same place and modal entry merged):
+       5591.0-5627.0 (37:52-38:28 elapsed)   46 frames (36.8 s, 27%)  P1 → P7, P7 94%
+       5627.8-5627.8 (38:29-38:29 elapsed)    1 frames (0.8 s, 1%)  P1 → P6, P6 94%
+       5628.6-5630.2 (38:30-38:32 elapsed)    3 frames (2.4 s, 2%)  P1 → P5, P5 94%
+       5631.0-5635.0 (38:32-38:36 elapsed)    6 frames (4.8 s, 4%)  P1 → P4, P4 94%
+       5635.8-5726.2 (38:37-40:08 elapsed)  114 frames (91.2 s, 67%)  P1 → P3, P3 94%
+  -- c. click on the "SC" marker (first frame of the SC), focus VER
+     clock 5702.969 s (demo frame 2981, timeline "39:44 elapsed"); centre: LAP 23/56 | Safety Car | ref lap 1:42.15 (median of last 5 green laps) | pit loss 23.1 s (18 stops)
+     ring: 2 cars drawn just before the timing line (current lap longer than the reference lap): VER, NOR; VER is one of them
+     centre: VER pits now: P1 → P3 | note: green-flag pit loss and pace
+     rejoin label: P3 94% · P4 6%
+     focus tooltip:
+       Pit now: P1 → P3
+       Rejoin positions: P3 94.2% · P4 5.8%
+       Draws: 1000, bootstrap of 18 stops
+       Pit loss: 23.1 s (p10–p90 21.6–24.7 s, 18 stops)
+       Traffic at the rejoin: no: PER 3.4 s ahead
+       Traffic probability: 0%
+       Gain the place: NOR, PER
+       Within reach: none
+       Lapped traffic: none
+       Track: neutralised: green-flag figures
+     projection of the end of lap 24 (not displayed; focus pace 100.070 s/lap, recent; reference lap 102.151 s; pit loss median 23.14 s):
+       VER    predicted 5813.8 (last line L22 5590.5, lap 134.296, status 26); actual 5894.7 (actual - predicted +81.0 s)
+       ahead  NOR 5804.8 projected (last line L22 5600.8, lap 138.646, status 6); actual 5896.0; gap to VER projected −9.0 s, actual +1.3 s
+       ahead  PER 5810.4 projected (last line L22 5609.7, lap 133.674, status 6); actual 5899.8; gap to VER projected −3.4 s, actual +5.0 s
+       behind ALO 5830.1 projected (last line L22 5627.6, lap 133.864, status 6); actual 5913.3; gap to VER projected +16.3 s, actual +18.6 s
+       behind LEC 5832.2 projected (last line L22 5628.2, lap n/a, status 6); actual 5898.0; gap to VER projected +18.4 s, actual +3.2 s
+
+4. SAI (P8, HARD tyres fitted at the stop on his in-lap 17) at the SC
+  -- a. click on the "SC" marker (first frame of the SC), focus SAI
+     clock 5702.969 s (demo frame 2981, timeline "39:44 elapsed"); centre: LAP 23/56 | Safety Car | ref lap 1:42.15 (median of last 5 green laps) | pit loss 23.1 s (18 stops)
+     ring: 2 cars drawn just before the timing line (current lap longer than the reference lap): VER, NOR; SAI is not one of them
+     centre: SAI pits now: P8 → P14 | note: green-flag pit loss and pace
+     rejoin label: P13 28% · P14 66% · P19 6% | traffic 0.97 s behind ALB
+     focus tooltip:
+       Pit now: P8 → P14
+       Rejoin positions: P13 28.2% · P14 66.0% · P19 5.8%
+       Draws: 1000, bootstrap of 18 stops
+       Pit loss: 23.1 s (p10–p90 21.6–24.7 s, 18 stops)
+       Traffic at the rejoin: 0.97 s behind ALB (< 1.0 s)
+       Traffic probability: 29%
+       Gain the place: HUL, OCO, RIC, TSU, STR, ALB
+       Within reach: PIA, RUS, LEC, ALO
+       Lapped traffic: none
+       Track: neutralised: green-flag figures
+     the same at the → lap-24 clock (5728.569 s): SAI pits now: P8 → P14 | label P13 28% · P14 66% · P19 6% | traffic 0.97 s behind ALB | Safety Car, note "green-flag pit loss and pace" | Gain the place: HUL, OCO, RIC, TSU, STR, ALB | Within reach: PIA, RUS, LEC, ALO
+     projection of the end of lap 24 (not displayed; focus pace 102.693 s/lap, recent; reference lap 102.151 s; pit loss median 23.14 s):
+       SAI    predicted 5871.3 (last line L22 5642.8, lap 134.775, status 6); actual 5909.3 (actual - predicted +38.0 s)
+       ahead  STR 5865.3 projected (last line L22 5661.7, lap n/a, status 6); actual 5927.1; gap to SAI projected −6.0 s, actual +17.8 s
+       ahead  TSU 5865.6 projected (last line L22 5660.5, lap 133.790, status 6); actual 5947.7; gap to SAI projected −5.7 s, actual +38.3 s
+       ahead  ALB 5870.4 projected (last line L22 5664.4, lap 133.878, status 6); actual 5950.7; gap to SAI projected −1.0 s, actual +41.4 s
+       behind SAR 5873.8 projected (last line L22 5669.2, lap 133.694, status 6); actual 5938.5; gap to SAI projected +2.5 s, actual +29.2 s
+       behind ZHO 5874.5 projected (last line L22 5668.5, lap 133.883, status 6); actual 5958.6; gap to SAI projected +3.2 s, actual +49.2 s
+  -- b. SAI readouts frame by frame, from the first SC frame to his lap-23 line (5775.917 s): 92 frames of 0.8 s (static demo frames)
+     5703.0-5767.0 (39:44-40:48 elapsed)   81 frames (64.8 s, 88%)  SAI pits now: P8 → P14 | label P13 28% · P14 66% · P19 6% | traffic 0.97 s behind ALB | Safety Car, note "green-flag pit loss and pace" | Gain the place: HUL, OCO, RIC, TSU, STR, ALB | Within reach: PIA, RUS, LEC, ALO
+        changed by: RUS pit entry at 5767.3; PIA ends L23 (lap 132.4 s) at 5767.8
+     5767.8-5768.6 (40:49-40:50 elapsed)    2 frames (1.6 s, 2%)  SAI pits now: P8 → P14 | label P12 28% · P13 7% · P14 59% · P19 6% | traffic 0.92 s behind PIA | Safety Car, note "green-flag pit loss and pace" | Gain the place: HUL, OCO, RIC, TSU, STR, ALB | Within reach: PIA, RUS, LEC, ALO
+        changed by: RUS ends L23 (lap 138.1 s) at 5769.0
+     5769.4-5775.8 (40:51-40:57 elapsed)    9 frames (7.2 s, 10%)  SAI pits now: P8 → P14 | label P11 28% · P12 7% · P14 59% · P19 6% | traffic 0.92 s behind RUS | Safety Car, note "green-flag pit loss and pace" | Gain the place: HUL, OCO, RIC, TSU, STR, ALB | Within reach: PIA, RUS, LEC, ALO
+  -- c. SAI's tooltip lists at the first SC frame against what happened (lap rows after the clock); gap and margin are not displayed: gap = the list's threshold gap (- = ahead of SAI), margin = pit loss - |gap|
+     Within reach   PIA: gap -7.4 s, margin 15.7 s; stopped under this SC: yes, in-lap 24 (pit entry 5903.7 s); at the lap-25 line behind SAI; classified 8
+     Within reach   RUS: gap -11.9 s, margin 11.3 s; stopped under this SC: yes, in-lap 23 (pit entry 5767.3 s); at the lap-25 line behind SAI; classified 6
+     Within reach   LEC: gap -14.6 s, margin 8.6 s; stopped under this SC: no; stopped under the VSC, in-lap 21 (pit entry 5476.4 s); at the lap-25 line ahead of SAI; classified 4
+     Within reach   ALO: gap -15.2 s, margin 7.9 s; stopped under this SC: yes, in-lap 23 (pit entry 5763.1 s); at the lap-25 line behind SAI; classified 7
+     Gain the place HUL: gap 5.0 s, margin 18.1 s; stopped under this SC: yes, in-lap 23 (pit entry 5783.8 s); at the lap-25 line behind SAI; classified 10
+     Gain the place OCO: gap 11.5 s, margin 11.7 s; stopped under this SC: yes, in-lap 23 (pit entry 5790.2 s); at the lap-25 line behind SAI; classified 11
+     Gain the place RIC: gap 15.6 s, margin 7.6 s; stopped under this SC: no; at the lap-25 line behind SAI; classified R
+     Gain the place TSU: gap 17.7 s, margin 5.4 s; stopped under this SC: yes, in-lap 23 (pit entry 5796.5 s); at the lap-25 line behind SAI; classified R
+     Gain the place STR: gap 18.9 s, margin 4.3 s; stopped under this SC: no; stopped under the VSC, in-lap 21 (pit entry 5509.1 s); at the lap-25 line behind SAI; classified 15
+     Gain the place ALB: gap 21.5 s, margin 1.6 s; stopped under this SC: yes, in-lap 23 (pit entry 5799.2 s); at the lap-25 line behind SAI; classified 12
+     not listed     PER: 33.1 s ahead of SAI at the lap-22 line (more than the pit loss); stopped under this SC: yes, in-lap 23; at the lap-25 line ahead of SAI; classified 3
+     Within reach: 4 cars; 3 stopped under this SC, 3 of those were behind SAI at the lap-25 line
+     SAI place: P8 at the lap-23 line, P6 at lap 24, P5 at lap 25; classified 5; SAI made no stop between the VSC and the end of this SC: true
+
+5. What happened (lap rows; place = rank of the line crossing among the cars that completed that lap)
+  5a. Lap rows
+     NOR L21 line 5462.144  lap 103.566  MEDIUM/21  status 126  place P2  car ahead at the line VER (its L21) 5.944 s
+     NOR L22 line 5600.790  lap 138.646  MEDIUM/22  status 6    PIT IN 5599.005  place P2  car ahead at the line VER (its L22) 10.294 s
+     NOR L23 line 5749.467  lap 148.677  HARD/1  status 64   PIT OUT 5621.231  place P3  car ahead at the line PER (its L23) 2.242 s
+     NOR L24 line 5896.042  lap 146.575  HARD/2  status 4    place P2  car ahead at the line VER (its L24) 1.299 s
+     NOR L25 line 6041.147  lap 145.105  HARD/3  status 4    place P2  car ahead at the line VER (its L25) 1.354 s
+     VER L21 line 5456.200  lap 100.490  HARD/8  status 12   place P1  car ahead at the line MAG (its L20) 35.410 s
+     VER L22 line 5590.496  lap 134.296  HARD/9  status 26   place P1  car ahead at the line MAG (its L21) 45.863 s
+     VER L23 line 5728.434  lap 137.938  HARD/10  status 64   PIT IN 5726.720  place P1  car ahead at the line MAG (its L22) 48.416 s
+     VER L24 line 5894.743  lap n/a      HARD/1  status 4    PIT OUT 5748.943  place P1  car ahead at the line GAS (its L23) 78.883 s
+     VER L25 line 6039.793  lap 145.050  HARD/2  status 4    place P1  car ahead at the line GAS (its L24) 74.035 s
+     PER L21 line 5476.059  lap 107.126  HARD/8  status 26   place P3  car ahead at the line NOR (its L21) 13.915 s
+     PER L22 line 5609.733  lap 133.674  HARD/9  status 6    place P3  car ahead at the line NOR (its L22) 8.943 s
+     PER L23 line 5747.225  lap 137.492  HARD/10  status 64   PIT IN 5745.550  place P2  car ahead at the line VER (its L23) 18.791 s
+     PER L24 line 5899.753  lap n/a      HARD/1  status 4    PIT OUT 5767.929  place P4  car ahead at the line LEC (its L24) 1.762 s
+     PER L25 line 6044.109  lap 144.356  HARD/2  status 4    place P4  car ahead at the line LEC (its L25) 0.909 s
+     LEC L21 line 5477.997  lap 111.969  MEDIUM/21  status 26   PIT IN 5476.365  place P4  car ahead at the line PER (its L21) 1.938 s
+     LEC L22 line 5628.238  lap n/a      HARD/1  status 6    PIT OUT 5498.575  place P5  car ahead at the line ALO (its L22) 0.632 s
+     LEC L23 line 5761.149  lap 132.911  HARD/2  status 64   place P4  car ahead at the line NOR (its L23) 11.682 s
+     LEC L24 line 5897.991  lap 136.842  HARD/3  status 4    place P3  car ahead at the line NOR (its L24) 1.949 s
+     LEC L25 line 6043.200  lap 145.209  HARD/4  status 4    place P3  car ahead at the line NOR (its L25) 2.053 s
+     SAI L21 line 5508.034  lap 115.808  HARD/4  status 26   place P8  car ahead at the line PIA (its L21) 7.997 s
+     SAI L22 line 5642.809  lap 134.775  HARD/5  status 6    place P8  car ahead at the line PIA (its L22) 7.420 s
+     SAI L23 line 5775.917  lap 133.108  HARD/6  status 64   place P8  car ahead at the line RUS (its L23) 6.906 s
+     SAI L24 line 5909.326  lap 133.409  HARD/7  status 4    place P6  car ahead at the line PIA (its L24) 3.986 s
+     SAI L25 line 6045.785  lap 136.459  HARD/8  status 4    place P5  car ahead at the line PER (its L25) 1.676 s
+     SAI L26 line 6199.653  lap n/a      HARD/9  status 41   place P5  car ahead at the line PER (its L26) 0.308 s
+     ALO L22 line 5627.606  lap 133.864  HARD/11  status 6    place P4  car ahead at the line PER (its L22) 17.873 s
+     ALO L23 line 5764.759  lap 137.153  HARD/12  status 64   PIT IN 5763.147  place P5  car ahead at the line LEC (its L23) 3.610 s
+     ALO L24 line 5913.301  lap 148.542  SOFT/1  status 4    PIT OUT 5785.770  place P7  car ahead at the line SAI (its L24) 3.975 s
+     ALO L25 line 6048.502  lap 135.201  SOFT/2  status 4    place P6  car ahead at the line SAI (its L25) 2.717 s
+     RUS L22 line 5630.937  lap 133.433  MEDIUM/11  status 6    place P6  car ahead at the line LEC (its L22) 2.699 s
+     RUS L23 line 5769.011  lap 138.074  MEDIUM/12  status 64   PIT IN 5767.336  place P7  car ahead at the line PIA (its L23) 1.246 s
+     RUS L24 line 5917.883  lap 148.872  HARD/1  status 4    PIT OUT 5789.986  place P8  car ahead at the line ALO (its L24) 4.582 s
+     RUS L25 line 6049.239  lap 131.356  HARD/2  status 4    place P7  car ahead at the line ALO (its L25) 0.737 s
+     PIA L22 line 5635.389  lap 135.352  MEDIUM/7  status 6    place P7  car ahead at the line RUS (its L22) 4.452 s
+     PIA L23 line 5767.765  lap 132.376  MEDIUM/8  status 64   place P6  car ahead at the line ALO (its L23) 3.006 s
+     PIA L24 line 5905.340  lap 137.575  MEDIUM/9  status 4    PIT IN 5903.695  place P5  car ahead at the line PER (its L24) 5.587 s
+     PIA L25 line 6050.412  lap 145.072  HARD/1  status 4    PIT OUT 5925.872  place P8  car ahead at the line RUS (its L25) 1.173 s
+  5b. Pit entries under the VSC and under the first SC
+     under the VSC (4): LEC in-lap 21 5476.4; STR in-lap 21 5509.1; HAM in-lap 21 5525.3; NOR in-lap 22 5599.0
+     under the SC (12): VER in-lap 23 5726.7; PER in-lap 23 5745.6; ALO in-lap 23 5763.1; RUS in-lap 23 5767.3; HUL in-lap 23 5783.8; OCO in-lap 23 5790.2; TSU in-lap 23 5796.5; ALB in-lap 23 5799.2; ZHO in-lap 23 5804.4; GAS in-lap 23 5814.2; PIA in-lap 24 5903.7; SAR in-lap 24 5936.8
+  5c. Order at the line
+     lap 21: VER NOR PER LEC ALO RUS PIA SAI
+     lap 22: VER NOR PER ALO LEC RUS PIA SAI
+     lap 23: VER PER NOR LEC ALO PIA RUS SAI
+     lap 24: VER NOR LEC PER PIA SAI ALO RUS
+     lap 25: VER NOR LEC PER SAI ALO RUS PIA
+     classified: VER 1, NOR 2, PER 3, LEC 4, SAI 5, ALO 7, RUS 6, PIA 8
+  5d. Readouts against the place at the end of the projected lap
+     NOR, first VSC frame ("V" marker): shown P5 at the end of lap 22 (a stop at the end of lap 21); no comparison: that stop was not made
+     NOR, → lap 23 (last readout before his stop): shown P2 at the end of lap 23 (a stop at the end of lap 22: his stop); actual P3 at that line, probability the view gave it 15.2%
+     NOR, the "P3 94%" readout: shown P3 at the end of lap 23 (a stop at the end of lap 22: his stop); actual P3 at that line, probability the view gave it 94.2%
+     VER, → lap 23: shown P7 at the end of lap 24 (a stop at the end of lap 23: his stop); actual P1 at that line, probability the view gave it 0.0%
+     VER, first SC frame ("SC" marker): shown P3 at the end of lap 24 (a stop at the end of lap 23: his stop); actual P1 at that line, probability the view gave it 0.0%
+     SAI, first SC frame ("SC" marker): shown P14 at the end of lap 24 (a stop at the end of lap 23); no comparison: that stop was not made
+
+6. The pit-loss estimate and the stop labels
+  6a. At the first VSC frame: median 23.14 s, p10 21.57, p90 24.67, n 18 (race); in-laps 8-17, all green-flag stops:
+     HUL@L8 24.1, TSU@L8 22.6, ZHO@L8 24.5, ALB@L9 23.7, BOT@L9 23.8, HAM@L9 21.4, OCO@L9 23.8, STR@L9 22.8, ALO@L11 25.1, GAS@L11 40.5, RUS@L11 22.5, SAR@L12 22.2, PER@L13 21.9, VER@L13 24.5, RIC@L14 21.6, PIA@L16 21.7, MAG@L17 23.5, SAI@L17 21.4
+     samples above 30 s: 1 of 18 (5.6%): GAS@L11 40.5 s
+     at the first SC frame: median 23.14 s, n 18; at the → lap-26 clock: n 18
+  6b. Strategy Timeline stop labels at the → lap-26 clock (6040.569 s), stops with in-lap 21-24 (≈ = the race median, the stop is not measured):
+     ALB@L23 "≈23.1s" (estimate), ALO@L23 "≈23.1s" (estimate), GAS@L23 "≈23.1s" (estimate), HAM@L21 "≈23.1s" (estimate), HUL@L23 "≈23.1s" (estimate), LEC@L21 "≈23.1s" (estimate), NOR@L22 "≈23.1s" (estimate), OCO@L23 "≈23.1s" (estimate), PER@L23 "≈23.1s" (estimate), PIA@L24 "≈23.1s" (estimate), RUS@L23 "≈23.1s" (estimate), SAR@L24 "≈23.1s" (estimate), STR@L21 "≈23.1s" (estimate), TSU@L23 "≈23.1s" (estimate), VER@L23 "≈23.1s" (estimate), ZHO@L23 "≈23.1s" (estimate)
+
+7. Check on the backend frames (0.4 s apart), local cache only
+  demo vs backend session: 1032 / 1032 lap rows, 0 differ on the fields the analytics read; track status identical: true; backend frames 15345, step 0.4 s
+     NOR's lap 22 to his pit entry, backend frames (the same place and modal entry merged):
+       5462.2-5476.2 (35:44-35:58 elapsed)   36 frames (14.4 s, 10%)  P2 → P5, P5 51%
+       5476.6-5493.4 (35:58-36:15 elapsed)   43 frames (17.2 s, 13%)  P2 → P4, P4 51%
+       5493.8-5497.4 (36:15-36:19 elapsed)   10 frames (4.0 s, 3%)  P2 → P3, P3 51%
+       5497.8-5590.2 (36:19-37:52 elapsed)  232 frames (92.8 s, 68%)  P2 → P3, P3 94%
+       5590.6-5599.0 (37:52-38:00 elapsed)   22 frames (8.8 s, 6%)  P2 → P2, P2 79%
+     VER from his lap-22 line to his pit entry, backend frames (the same place and modal entry merged):
+       5590.6-5627.4 (37:52-38:29 elapsed)   93 frames (37.2 s, 27%)  P1 → P7, P7 94%
+       5627.8-5628.2 (38:29-38:30 elapsed)    2 frames (0.8 s, 1%)  P1 → P6, P6 94%
+       5628.6-5630.6 (38:30-38:32 elapsed)    6 frames (2.4 s, 2%)  P1 → P5, P5 94%
+       5631.0-5635.4 (38:32-38:37 elapsed)   12 frames (4.8 s, 4%)  P1 → P4, P4 94%
+       5635.8-5726.6 (38:37-40:08 elapsed)  228 frames (91.2 s, 67%)  P1 → P3, P3 94%
+     SAI from the first SC frame to his lap-23 line, backend frames (the same place and modal entry merged):
+       5703.0-5767.4 (39:44-40:49 elapsed)  162 frames (64.8 s, 89%)  P8 → P14, P14 66%
+       5767.8-5775.8 (40:49-40:57 elapsed)   21 frames (8.4 s, 11%)  P8 → P14, P14 59%
+     first backend frame of the VSC 5457.369 s: NOR pits now: P2 → P5 | label P4 46% · P5 48% · P10 6% | traffic 0.36 s behind ALO | VSC, note "green-flag pit loss and pace"
+     first backend frame of the SC 5702.969 s: VER pits now: P1 → P3 | label P3 94% · P4 6% | Safety Car, note "green-flag pit loss and pace"

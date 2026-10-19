@@ -1,0 +1,212 @@
+Use case UC2: Monza 2024 (2024 R16), data analyst, post-race debrief of the strategy split
+Script: frontend/scripts/usecases/uc2_monza24_analyst.mjs (backend half: backend/scripts/usecase_monza24_analyst.py)
+Data: the static demo's files (frontend/public/data: Italian Grand Prix 2024 R16, 1008 lap rows, 5703 replay frames = every 2nd of 11406), the store in demo mode.
+Race: 53 laps, 20 drivers, safety-car periods 0, VSC periods 0, wet-tyre laps 0 (manifest); the classification has 20 rows.
+
+== 1. Reaching the post-race state (the clock of every number in sections 2-5) ==
+after the load: frame index 0 of 5703 (replay t 0.00 s), lap on screen 1, session clock 3350.494 s; pcaRequestOf: raceClock 'running', params {"year":2024,"round":16,"session_now":3350.494}, key '2024-16-lap1'
+frames: 5703, frameDt 0.80 s, max_time 4562.29 s; maxLap 53
+End key (setCurrentLap(maxLap)): frame index 5498 of 5703 (replay t 4398.40 s), lap on screen 53, session clock 7748.894 s; pcaRequestOf: raceClock 'running', params {"year":2024,"round":16,"session_now":7748.894}, key '2024-16-lap53'
+  biplot at that clock: 534 points, stars as_of 'session_now' at lap 52 (19 rows of the race), axes fitted without the race: "Race Pace vs Field & Sector 2 vs Field" 43.9% / "Avg Stint Length & Pit Stops" 20.2%
+  'This race' at that clock: 19 stars; one-stoppers so far 9, y +0.69 to +1.42; two or more so far 10, y -2.46 to -1.26
+  lasso A at that clock: "Few stops, Slow pace", 4 of 12 above random (rule per_feature): Pit Stops g −1.00 (progress-dependent); Best Lap vs Field g +0.87; Last 5-Lap Pace vs Field g +0.78; Sector 1 vs Field g +0.43; selection: 9 rows of the race on screen at lap 52; baseline drawn with the same mix
+  lasso B at that clock: "Short stints, Fast pace", 4 of 12 above random (rule per_feature): Longest Stint g −1.14 (progress-dependent); Avg Stint Length g −1.11 (progress-dependent); Last 5-Lap Pace vs Field g −0.88; Best Lap vs Field g −0.77; selection: 10 rows of the race on screen at lap 52; baseline drawn with the same mix
+frame before the last: frame index 5701 of 5703 (replay t 4560.80 s), lap on screen 53, session clock 7911.294 s; pcaRequestOf: raceClock 'running', params {"year":2024,"round":16,"session_now":7911.294}, key '2024-16-lap53'
+  replay t + frameDt = 4561.60 s <= max_time 4562.29 s: the clock is finite, the race is still running
+skip-to-end button (skipToEnd -> showRaceOver): frame index 5702 of 5703 (replay t 4561.60 s), lap on screen 53, session clock Infinity; pcaRequestOf: raceClock 'ended', params null (post-race artefact), key '2024-16-ended'
+  replay t + frameDt = 4562.40 s > max_time 4562.29 s: session clock Infinity, raceClock 'ended'
+  in the demo the post-race readout holds on the last frame only: 1 of 5703 frames (the last 0.80 s of replay)
+  local app (backend frames, processed_cache): 11406 frames, frameDt 0.40 s, max_time 4562.29 s; session clock at the last frame Infinity, at the one before 7912.094 s: the post-race state is again the last frame only
+
+== 2. The post-race biplot (Analytics (PCA) > PCA Biplot, the race at its end) ==
+request: GET /api/pca/embeddings with no clock -> 534 points of 30 races; current_race absent (post-race artefact)
+axis titles drawn: "PC1: Race Pace vs Field & Sector 2 vs Field (44%)", "PC2: Avg Stint Length & Pit Stops (20%)" (explained variance 44.1% / 20.3%, not drawn with decimals)
+loadings (pc1, pc2; PCABiplot.jsx draws an arrow for the first 8, largest first): Avg Stint Length -0.059, +0.602 | Pit Stops +0.054, -0.562 | Longest Stint +0.023, +0.519 | Race Pace vs Field +0.424, -0.013 | Sector 2 vs Field +0.394, +0.003 | Sector 3 vs Field +0.391, -0.026 | Sector 1 vs Field +0.382, -0.036 | Best Lap vs Field +0.335, +0.177 | Last 5-Lap Pace vs Field +0.343, +0.120 (no arrow) | Grid Position +0.346, -0.037 (no arrow) | Lap-Time Scatter +0.096, -0.054 (no arrow) | Tyre Degradation +0.013, -0.024 (no arrow)
+filter buttons: All races 534 | 2024 season 431 | This race 19
+crosshair through the origin (PCABiplot.jsx, axes on): a vertical and a horizontal dashed line; the text "avg" is drawn at the top of the vertical one
+the 19 stars ('This race'; 1 classified row(s) without a star: TSU Retired, 0 stops):
+  P1  LEC Ferrari            Finish colour: Podium (P1–P3)    stops 1  MEDIUM-HARD            in-laps [15]  x -2.35 y +1.12 (above the crosshair's horizontal dashed line y = 0)
+  P2  PIA McLaren            Finish colour: Podium (P1–P3)    stops 2  MEDIUM-HARD-HARD       in-laps [16,38]  x -4.16 y -1.72 (below the crosshair's horizontal dashed line y = 0)
+  P3  NOR McLaren            Finish colour: Podium (P1–P3)    stops 2  MEDIUM-HARD-HARD       in-laps [14,32]  x -4.52 y -1.84 (below the crosshair's horizontal dashed line y = 0)
+  P4  SAI Ferrari            Finish colour: Points (P4–P10)   stops 1  MEDIUM-HARD            in-laps [19]  x -1.70 y +0.91 (above the crosshair's horizontal dashed line y = 0)
+  P5  HAM Mercedes           Finish colour: Points (P4–P10)   stops 2  MEDIUM-HARD-HARD       in-laps [15,37]  x -3.46 y -1.83 (below the crosshair's horizontal dashed line y = 0)
+  P6  VER Red Bull Racing    Finish colour: Points (P4–P10)   stops 2  HARD-HARD-MEDIUM       in-laps [22,41]  x -2.51 y -1.76 (below the crosshair's horizontal dashed line y = 0)
+  P7  RUS Mercedes           Finish colour: Points (P4–P10)   stops 2  MEDIUM-HARD-HARD       in-laps [11,33]  x -3.19 y -1.72 (below the crosshair's horizontal dashed line y = 0)
+  P8  PER Red Bull Racing    Finish colour: Points (P4–P10)   stops 2  HARD-HARD-MEDIUM       in-laps [23,35]  x -0.88 y -1.36 (below the crosshair's horizontal dashed line y = 0)
+  P9  ALB Williams           Finish colour: Points (P4–P10)   stops 1  MEDIUM-HARD            in-laps [17]  x +0.94 y +1.12 (above the crosshair's horizontal dashed line y = 0)
+  P10 MAG Haas F1 Team       Finish colour: Points (P4–P10)   stops 1  MEDIUM-HARD            in-laps [14]  x +0.42 y +1.10 (above the crosshair's horizontal dashed line y = 0)
+  P11 ALO Aston Martin       Finish colour: No points (P11+)  stops 2  MEDIUM-HARD-HARD       in-laps [12,35]  x -0.20 y -1.42 (below the crosshair's horizontal dashed line y = 0)
+  P12 COL Williams           Finish colour: No points (P11+)  stops 1  MEDIUM-HARD            in-laps [16]  x +2.04 y +1.06 (above the crosshair's horizontal dashed line y = 0)
+  P13 RIC RB                 Finish colour: No points (P11+)  stops 1  MEDIUM-HARD            in-laps [11]  x +1.69 y +1.52 (above the crosshair's horizontal dashed line y = 0)
+  P14 OCO Alpine             Finish colour: No points (P11+)  stops 1  HARD-MEDIUM            in-laps [31]  x +3.21 y +0.92 (above the crosshair's horizontal dashed line y = 0)
+  P15 GAS Alpine             Finish colour: No points (P11+)  stops 2  MEDIUM-HARD-HARD       in-laps [10,30]  x +1.73 y -1.40 (below the crosshair's horizontal dashed line y = 0)
+  P16 BOT Kick Sauber        Finish colour: No points (P11+)  stops 1  HARD-MEDIUM            in-laps [33]  x +3.10 y +0.73 (above the crosshair's horizontal dashed line y = 0)
+  P17 HUL Haas F1 Team       Finish colour: No points (P11+)  stops 2  MEDIUM-HARD-HARD       in-laps [5,32]  x +0.43 y -1.14 (below the crosshair's horizontal dashed line y = 0)
+  P18 ZHO Kick Sauber        Finish colour: No points (P11+)  stops 1  MEDIUM-HARD            in-laps [15]  x +4.98 y +1.48 (above the crosshair's horizontal dashed line y = 0)
+  P19 STR Aston Martin       Finish colour: No points (P11+)  stops 3  HARD-HARD-MEDIUM-SOFT  in-laps [19,36,50]  x +1.04 y -3.12 (below the crosshair's horizontal dashed line y = 0)
+group A, one-stoppers: 9 stars, y +0.73 to +1.52; group B, two-or-more-stoppers: 10 stars, y -3.12 to -1.14; gap on PC2 1.87; stars of A above y = 0: 9 of 9, of B below: 10 of 10
+podium stars (Finish colour 'Podium'): LEC P1 in group A, PIA P2 in group B, NOR P3 in group B
+lasso feasibility (a lasso around a group's convex hull; utils/lasso.js pointInPolygon on the points drawn): 'This race': other stars inside A [], inside B []; 'All races': other points inside A 82, inside B 51
+
+== 3. Lassos on the post-race biplot, filter 'This race' (Shift+drag; a lasso replaces the selection) ==
+-- Lasso A: the 9 one-stoppers (stars above the crosshair's horizontal line): ALB, BOT, COL, LEC, MAG, OCO, RIC, SAI, ZHO
+  Summary: label "Mixed cluster"
+    text: Selection of 9 race entries, compared with the other 525 (descriptive differences, not a test). No feature differs more than in random selections of the same size (95th percentile of the largest |g|: 1.03). Most common strategy: MEDIUM -> HARD (1-stop, 78% of the selection).
+    banner: DESCRIPTIVE DIFFERENCES, NOT A TEST | N = 9 selected vs 525 other rows · 0 of 12 features above random | selection: 9 rows of finished races; baseline drawn from the same rows
+    compound chips: MEDIUM 9 stints · avg 16L | HARD 9 stints · avg 36L
+  Patterns (2): 7× (78%) most common 1-stop MEDIUM 17L > HARD 36L | 2× (22%) 1-stop HARD 33L > MEDIUM 19L
+  Differences (rows by |g|, numbered in the tab's order; tick g, bar = interval, shaded = random |g|, dashed = threshold; Method: "Above random: |g| > 1.028"):
+     1. Pit Stops                               g −1.00 [−1.66, −0.34]  random |g| 0.27  | tooltip: selection mean 1.00, other rows 1.70  (width 1.32, excludes 0)
+     2. Best Lap vs Field                       g +0.78 [+0.12, +1.44]  random |g| 0.26  | tooltip: selection mean 0.77%, other rows −0.03%  (width 1.32, excludes 0)
+     3. Sector 3 vs Field                       g +0.68 [+0.02, +1.34]  random |g| 0.27  | tooltip: selection mean 0.50%, other rows −0.11%  (width 1.32, excludes 0)
+     4. Last 5-Lap Pace vs Field                g +0.66 [−0.01, +1.31]  random |g| 0.27  | tooltip: selection mean 0.75%, other rows 0.10%  (width 1.32)
+     5. Race Pace vs Field                      g +0.51 [−0.15, +1.17]  random |g| 0.26  | tooltip: selection mean 0.30%, other rows −0.12%  (width 1.32)
+     6. Sector 1 vs Field                       g +0.47 [−0.19, +1.13]  random |g| 0.26  | tooltip: selection mean 0.38%, other rows −0.05%  (width 1.32)
+     7. Grid Position                           g +0.47 [−0.19, +1.13]  random |g| 0.27  | tooltip: selection mean 12.78, other rows 10.08  (width 1.32)
+     8. Sector 2 vs Field                       g +0.46 [−0.20, +1.12]  random |g| 0.26  | tooltip: selection mean 0.32%, other rows −0.09%  (width 1.32)
+     9. Avg Stint Length                        g +0.42 [−0.24, +1.07]  random |g| 0.28  | tooltip: selection mean 26.33 laps, other rows 23.70 laps  (width 1.32)
+    10. Longest Stint                           g +0.28 [−0.38, +0.94]  random |g| 0.27  | tooltip: selection mean 36.33 laps, other rows 33.45 laps  (width 1.32)
+    11. Lap-Time Scatter                        g −0.27 [−0.93, +0.39]  random |g| 0.26  | tooltip: selection mean 0.45%, other rows 0.57%  (width 1.32)
+    12. Tyre Degradation                        g +0.07 [−0.58, +0.73]  random |g| 0.27  | tooltip: selection mean 0.02 s/lap, other rows 0.01 s/lap  (width 1.32)
+  Details, Common Pit Windows: L11–L19 7 stops in this window (most) | L31–L33 2 stops in this window
+
+-- Lasso B: the 10 two-or-more-stoppers (stars below the crosshair's horizontal line): ALO, GAS, HAM, HUL, NOR, PER, PIA, RUS, STR, VER
+  Summary: label "Short stints, Fast pace"
+    text: Selection of 10 race entries, compared with the other 524 (descriptive differences, not a test). Beyond what random selections of the same size show: shorter stints (11 laps). Much faster relative to their race's field (best lap vs field, 1.01%). Most common strategy: MEDIUM -> HARD -> HARD (2-stop, 70% of the selection).
+    banner: DESCRIPTIVE DIFFERENCES, NOT A TEST | N = 10 selected vs 524 other rows · 3 of 12 features above random | selection: 10 rows of finished races; baseline drawn from the same rows
+    compound chips: SOFT 1 stints · avg 2L | MEDIUM 10 stints · avg 13L | HARD 20 stints · avg 20L
+  Patterns (3): 7× (70%) most common 2-stop MEDIUM 12L > HARD 23L > HARD 18L | 2× (20%) 2-stop HARD 23L > HARD 12L > MEDIUM 18L | 1× (10%) 3-stop HARD 19L > HARD 17L > MEDIUM 14L > SOFT 2L
+  Differences (rows by |g|, numbered in the tab's order; tick g, bar = interval, shaded = random |g|, dashed = threshold; Method: "Above random: |g| > 0.956"):
+     1. Longest Stint             above random  g −1.10 [−1.73, −0.47]  random |g| 0.26  | tooltip: selection mean 22.30 laps, other rows 33.71 laps  (width 1.26, excludes 0)
+     2. Avg Stint Length          above random  g −1.08 [−1.71, −0.45]  random |g| 0.26  | tooltip: selection mean 17.13 laps, other rows 23.88 laps  (width 1.26, excludes 0)
+     3. Best Lap vs Field         above random  g −0.99 [−1.62, −0.37]  random |g| 0.25  | tooltip: selection mean −1.01%, other rows 0.00%  (width 1.26, excludes 0)
+     4. Last 5-Lap Pace vs Field                g −0.80 [−1.43, −0.17]  random |g| 0.26  | tooltip: selection mean −0.67%, other rows 0.12%  (width 1.25, excludes 0)
+     5. Sector 2 vs Field                       g −0.69 [−1.31, −0.06]  random |g| 0.25  | tooltip: selection mean −0.67%, other rows −0.07%  (width 1.25, excludes 0)
+     6. Sector 3 vs Field                       g −0.68 [−1.31, −0.06]  random |g| 0.25  | tooltip: selection mean −0.71%, other rows −0.09%  (width 1.25, excludes 0)
+     7. Race Pace vs Field                      g −0.68 [−1.30, −0.05]  random |g| 0.25  | tooltip: selection mean −0.67%, other rows −0.10%  (width 1.25, excludes 0)
+     8. Pit Stops                               g +0.60 [−0.02, +1.23]  random |g| 0.25  | tooltip: selection mean 2.10, other rows 1.68  (width 1.25)
+     9. Grid Position                           g −0.39 [−1.02, +0.23]  random |g| 0.25  | tooltip: selection mean 7.90, other rows 10.17  (width 1.25)
+    10. Sector 1 vs Field                       g −0.23 [−0.85, +0.40]  random |g| 0.25  | tooltip: selection mean −0.25%, other rows −0.04%  (width 1.25)
+    11. Lap-Time Scatter                        g −0.22 [−0.84, +0.41]  random |g| 0.25  | tooltip: selection mean 0.47%, other rows 0.57%  (width 1.25)
+    12. Tyre Degradation                        g +0.02 [−0.60, +0.65]  random |g| 0.26  | tooltip: selection mean 0.01 s/lap, other rows 0.01 s/lap  (width 1.25)
+  Details, Common Pit Windows: L5–L23 10 stops in this window (most) | L30–L41 10 stops in this window | L50–L50 1 stops in this window
+
+-- Lasso C: all 19 stars
+  Summary: label "Mixed cluster"
+    text: Selection of 19 race entries, compared with the other 515 (descriptive differences, not a test). No feature differs more than in random selections of the same size (95th percentile of the largest |g|: 0.69). Most common strategy: MEDIUM -> HARD (1-stop, 37% of the selection).
+    banner: DESCRIPTIVE DIFFERENCES, NOT A TEST | N = 19 selected vs 515 other rows · 0 of 12 features above random | selection: 19 rows of finished races; baseline drawn from the same rows
+    compound chips: SOFT 1 stints · avg 2L | MEDIUM 19 stints · avg 14L | HARD 29 stints · avg 25L
+  Patterns (5): 7× (37%) most common 1-stop MEDIUM 17L > HARD 36L | 7× (37%) 2-stop MEDIUM 12L > HARD 23L > HARD 18L | 2× (11%) 1-stop HARD 33L > MEDIUM 19L | 2× (11%) 2-stop HARD 23L > HARD 12L > MEDIUM 18L | 1× (5%) 3-stop HARD 19L > HARD 17L > MEDIUM 14L > SOFT 2L
+  Differences (rows by |g|, numbered in the tab's order; tick g, bar = interval, shaded = random |g|, dashed = threshold; Method: "Above random: |g| > 0.693"):
+     1. Longest Stint                           g −0.45 [−0.91, +0.01]  random |g| 0.19  | tooltip: selection mean 28.95 laps, other rows 33.66 laps
+     2. Avg Stint Length                        g −0.37 [−0.83, +0.09]  random |g| 0.19  | tooltip: selection mean 21.49 laps, other rows 23.83 laps
+     3. Lap-Time Scatter                        g −0.25 [−0.70, +0.21]  random |g| 0.19  | tooltip: selection mean 0.46%, other rows 0.57%
+     4. Pit Stops                               g −0.16 [−0.61, +0.30]  random |g| 0.18  | tooltip: selection mean 1.58, other rows 1.69
+
+== 4. Click selections (a click toggles one star; "Clear N selected" empties the selection) ==
+-- click LEC: one row
+  Summary: label "Mixed cluster"
+    text: Selection of 1 race entries, compared with the other 533 (descriptive differences, not a test). No feature differs more than in random selections of the same size (95th percentile of the largest |g|: 4.04). Most common strategy: MEDIUM -> HARD (1-stop, 100% of the selection).
+    banner: DESCRIPTIVE DIFFERENCES, NOT A TEST | N = 1 selected vs 533 other rows · 0 of 12 features above random | selection: 1 row of finished races; baseline drawn from the same rows
+    compound chips: MEDIUM 1 stints · avg 15L | HARD 1 stints · avg 38L
+  Differences (rows by |g|, numbered in the tab's order; tick g, bar = interval, shaded = random |g|, dashed = threshold; Method: "Above random: |g| > 4.041"):
+     1. Sector 2 vs Field                       g −1.71 [no interval: 1 selected row]  random |g| 0.80  | tooltip: selection mean −1.58%, other rows −0.08%
+     2. Race Pace vs Field                      g −1.21 [no interval: 1 selected row]  random |g| 0.79  | tooltip: selection mean −1.12%, other rows −0.11%
+     3. Grid Position                           g −1.06 [no interval: 1 selected row]  random |g| 0.89  | tooltip: selection mean 4.00, other rows 10.13
+     4. Sector 3 vs Field                       g −1.00 [no interval: 1 selected row]  random |g| 0.74  | tooltip: selection mean −1.01%, other rows −0.10%
+     5. Pit Stops                               g −0.98 [no interval: 1 selected row]  random |g| 0.86  | tooltip: selection mean 1.00, other rows 1.69
+-- click SAI as well: LEC + SAI
+  Summary: label "Mixed cluster"
+    text: Selection of 2 race entries, compared with the other 532 (descriptive differences, not a test). No feature differs more than in random selections of the same size (95th percentile of the largest |g|: 2.51). Most common strategy: MEDIUM -> HARD (1-stop, 100% of the selection).
+    banner: DESCRIPTIVE DIFFERENCES, NOT A TEST | N = 2 selected vs 532 other rows · 0 of 12 features above random | selection: 2 rows of finished races; baseline drawn from the same rows
+    compound chips: MEDIUM 2 stints · avg 17L | HARD 2 stints · avg 36L
+  Differences (rows by |g|, numbered in the tab's order; tick g, bar = interval, shaded = random |g|, dashed = threshold; Method: "Above random: |g| > 2.514"):
+     1. Sector 2 vs Field                       g −1.38 [−2.77, +0.01]  random |g| 0.56  | tooltip: selection mean −1.29%, other rows −0.08%  (width 2.78)
+     2. Race Pace vs Field                      g −1.05 [−2.44, +0.34]  random |g| 0.56  | tooltip: selection mean −0.99%, other rows −0.11%  (width 2.78)
+     3. Sector 3 vs Field                       g −0.99 [−2.38, +0.40]  random |g| 0.55  | tooltip: selection mean −1.00%, other rows −0.10%  (width 2.78)
+     4. Pit Stops                               g −0.98 [−2.37, +0.41]  random |g| 0.60  | tooltip: selection mean 1.00, other rows 1.69  (width 2.78)
+     5. Grid Position                           g −0.98 [−2.37, +0.41]  random |g| 0.58  | tooltip: selection mean 4.50, other rows 10.14  (width 2.78)
+     6. Avg Stint Length                        g +0.44 [−0.95, +1.82]  random |g| 0.60  | tooltip: selection mean 26.50 laps, other rows 23.74 laps  (width 2.78)
+     7. Lap-Time Scatter                        g −0.43 [−1.82, +0.96]  random |g| 0.51  | tooltip: selection mean 0.38%, other rows 0.57%  (width 2.78)
+     8. Sector 1 vs Field                       g −0.35 [−1.74, +1.04]  random |g| 0.55  | tooltip: selection mean −0.37%, other rows −0.04%  (width 2.78)
+     9. Longest Stint                           g +0.24 [−1.15, +1.63]  random |g| 0.56  | tooltip: selection mean 36.00 laps, other rows 33.49 laps  (width 2.78)
+    10. Tyre Degradation                        g +0.23 [−1.16, +1.61]  random |g| 0.49  | tooltip: selection mean 0.03 s/lap, other rows 0.01 s/lap  (width 2.78)
+    11. Last 5-Lap Pace vs Field                g −0.21 [−1.60, +1.18]  random |g| 0.55  | tooltip: selection mean −0.10%, other rows 0.11%  (width 2.78)
+    12. Best Lap vs Field                       g +0.01 [−1.38, +1.40]  random |g| 0.56  | tooltip: selection mean −0.00%, other rows −0.01%  (width 2.78)
+  Details, Common Pit Windows: L15–L19 2 stops in this window (most)
+  interval widths: 2.78 to 2.78; intervals excluding 0: 0
+-- Clear, then click PIA and NOR: PIA + NOR
+  Summary: label "Mixed cluster"
+    text: Selection of 2 race entries, compared with the other 532 (descriptive differences, not a test). No feature differs more than in random selections of the same size (95th percentile of the largest |g|: 2.51). Most common strategy: MEDIUM -> HARD -> HARD (2-stop, 100% of the selection).
+    banner: DESCRIPTIVE DIFFERENCES, NOT A TEST | N = 2 selected vs 532 other rows · 0 of 12 features above random | selection: 2 rows of finished races; baseline drawn from the same rows
+    compound chips: MEDIUM 2 stints · avg 15L | HARD 4 stints · avg 19L
+  Differences (rows by |g|, numbered in the tab's order; tick g, bar = interval, shaded = random |g|, dashed = threshold; Method: "Above random: |g| > 2.514"):
+     1. Sector 2 vs Field                       g −2.16 [−3.56, −0.77]  random |g| 0.56  | tooltip: selection mean −1.96%, other rows −0.08%  (width 2.79, excludes 0)
+     2. Sector 3 vs Field                       g −2.11 [−3.50, −0.71]  random |g| 0.55  | tooltip: selection mean −1.99%, other rows −0.10%  (width 2.79, excludes 0)
+     3. Race Pace vs Field                      g −1.84 [−3.23, −0.45]  random |g| 0.56  | tooltip: selection mean −1.63%, other rows −0.11%  (width 2.79, excludes 0)
+     4. Best Lap vs Field                       g −1.80 [−3.19, −0.41]  random |g| 0.56  | tooltip: selection mean −1.85%, other rows −0.01%  (width 2.79, excludes 0)
+     5. Last 5-Lap Pace vs Field                g −1.68 [−3.08, −0.29]  random |g| 0.55  | tooltip: selection mean −1.55%, other rows 0.11%  (width 2.79, excludes 0)
+     6. Grid Position                           g −1.50 [−2.89, −0.11]  random |g| 0.58  | tooltip: selection mean 1.50, other rows 10.16  (width 2.78, excludes 0)
+     7. Longest Stint                           g −1.16 [−2.55, +0.23]  random |g| 0.56  | tooltip: selection mean 21.50 laps, other rows 33.54 laps  (width 2.78)
+     8. Avg Stint Length                        g −0.97 [−2.36, +0.42]  random |g| 0.60  | tooltip: selection mean 17.67 laps, other rows 23.77 laps  (width 2.78)
+     9. Sector 1 vs Field                       g −0.63 [−2.02, +0.76]  random |g| 0.55  | tooltip: selection mean −0.63%, other rows −0.04%  (width 2.78)
+    10. Pit Stops                               g +0.45 [−0.94, +1.84]  random |g| 0.60  | tooltip: selection mean 2.00, other rows 1.68  (width 2.78)
+    11. Lap-Time Scatter                        g −0.29 [−1.68, +1.10]  random |g| 0.51  | tooltip: selection mean 0.44%, other rows 0.57%  (width 2.78)
+    12. Tyre Degradation                        g −0.18 [−1.57, +1.21]  random |g| 0.49  | tooltip: selection mean −0.01 s/lap, other rows 0.01 s/lap  (width 2.78)
+  Details, Common Pit Windows: L14–L16 2 stops in this window (most) | L32–L32 1 stops in this window | L38–L38 1 stops in this window
+  intervals excluding 0: 6 (Sector 2 vs Field, Sector 3 vs Field, Race Pace vs Field, Best Lap vs Field, Last 5-Lap Pace vs Field, Grid Position); above random: 0; largest |g| 2.16 against the threshold 2.514
+
+== 5. The local backend gives the same answers (backend/scripts/usecase_monza24_analyst.py) ==
+groups: one-stoppers by the lap rows' tyre changes (utils/stints.js pitStops) = matrix pit_count 1: true; two or more = pit_count >= 2: true
+biplot: demo 534 points, backend 534; not in the backend 0; max |demo - backend| over x, y 0.00e+0; labels equal true; explained variance equal true
+  A        N 9: max |demo - backend| over the feature rows 0.00e+0; flags differing 0; fields differing none
+  B        N 10: max |demo - backend| over the feature rows 0.00e+0; flags differing 0; fields differing none
+  C        N 19: max |demo - backend| over the feature rows 0.00e+0; flags differing 0; fields differing none
+  LEC      N 1: max |demo - backend| over the feature rows 0.00e+0; flags differing 0; fields differing none
+  LEC+SAI  N 2: max |demo - backend| over the feature rows 0.00e+0; flags differing 0; fields differing none
+  PIA+NOR  N 2: max |demo - backend| over the feature rows 0.00e+0; flags differing 0; fields differing none
+
+== 6. Restricted archives: NOT what the dashboard shows (it fits the axes on, and compares with, all 30 cached races) ==
+Axes refitted on the archive (pca_compute.fit_pca, signs matched to the served loadings); panel statistics
+with pca_compute.feature_differences on the archive rows; label with _generate_cluster_label.
+races of the dashboard's archive run after Monza 2024 (not in the first archive below): 2024 R17, 2024 R18, 2024 R19, 2024 R20, 2024 R21, 2024 R22, 2024 R23, 2024 R24, 2025 R1, 2025 R6, 2025 R8, 2025 R16, 2025 R21, 2025 R24 (14 of 30)
+-- end of Monza 2024: 2024 R1-R16: 293 rows of 16 races
+  axes "Race Pace vs Field & Sector 2 vs Field" 46.0% / "Avg Stint Length & Longest Stint" 21.8%
+  PC2: one-stoppers y +0.93 to +1.77, two-or-more-stoppers y -2.64 to -0.81, gap 1.74; other stars inside the hull ('This race'): A [], B []; other rows inside ('All races'): A 21, B 29
+  A        N 9: "Few stops", 1 of 12 above random (threshold 0.991): Pit Stops g -1.26 [-1.93, -0.59]; top |g|: Pit Stops -1.26, Best Lap vs Field +0.80, Sector 3 vs Field +0.71
+  B        N 10: "Fast pace", 1 of 12 above random (threshold 0.916): Best Lap vs Field g -1.02 [-1.66, -0.38]; top |g|: Best Lap vs Field -1.02, Longest Stint -0.86, Avg Stint Length -0.83
+  C        N 19: "Mixed cluster", 0 of 12 above random (threshold 0.667); top |g|: Pit Stops -0.41, Longest Stint -0.28, Lap-Time Scatter -0.28
+  LEC      N 1: "Mixed cluster", 0 of 12 above random (threshold 3.764); top |g|: Sector 2 vs Field -1.57, Pit Stops -1.20, Race Pace vs Field -1.16
+  LEC+SAI  N 2: "Mixed cluster", 0 of 12 above random (threshold 2.290); top |g|: Sector 2 vs Field -1.27, Pit Stops -1.21, Sector 3 vs Field -1.01; intervals excluding 0 but not above random: 0
+  PIA+NOR  N 2: "Mixed cluster", 0 of 12 above random (threshold 2.290); top |g|: Sector 3 vs Field -2.17, Sector 2 vs Field -2.01, Best Lap vs Field -1.82; intervals excluding 0 but not above random: 6 (Sector 3 vs Field -2.17 [-3.57, -0.77]; Sector 2 vs Field -2.01 [-3.41, -0.61]; Best Lap vs Field -1.82 [-3.22, -0.42]; Race Pace vs Field -1.77 [-3.17, -0.37]; Last 5-Lap Pace vs Field -1.63 [-3.02, -0.23]; Grid Position -1.53 [-2.93, -0.14])
+-- before Monza 2025: 2024 R1-R24, 2025 R1, R6, R8: 479 rows of 27 races
+  axes "Race Pace vs Field & Sector 2 vs Field" 44.7% / "Avg Stint Length & Pit Stops" 20.2%
+  PC2: one-stoppers y +0.82 to +1.59, two-or-more-stoppers y -2.96 to -1.07, gap 1.89; other stars inside the hull ('This race'): A [], B []; other rows inside ('All races'): A 71, B 46
+  A        N 9: "Few stops", 1 of 12 above random (threshold 1.025): Pit Stops g -1.03 [-1.70, -0.37]; top |g|: Pit Stops -1.03, Best Lap vs Field +0.76, Sector 3 vs Field +0.66
+  B        N 10: "Short stints, Fast pace", 3 of 12 above random (threshold 0.962): Longest Stint g -1.06 [-1.69, -0.43]; Avg Stint Length g -1.01 [-1.64, -0.39]; Best Lap vs Field g -0.97 [-1.60, -0.34]; top |g|: Longest Stint -1.06, Avg Stint Length -1.01, Best Lap vs Field -0.97
+  C        N 19: "Mixed cluster", 0 of 12 above random (threshold 0.670); top |g|: Longest Stint -0.42, Avg Stint Length -0.33, Lap-Time Scatter -0.28
+  LEC      N 1: "Mixed cluster", 0 of 12 above random (threshold 4.059); top |g|: Sector 2 vs Field -1.66, Race Pace vs Field -1.18, Grid Position -1.06
+  LEC+SAI  N 2: "Mixed cluster", 0 of 12 above random (threshold 2.405); top |g|: Sector 2 vs Field -1.33, Race Pace vs Field -1.02, Pit Stops -1.01; intervals excluding 0 but not above random: 0
+  PIA+NOR  N 2: "Mixed cluster", 0 of 12 above random (threshold 2.405); top |g|: Sector 2 vs Field -2.10, Sector 3 vs Field -2.09, Race Pace vs Field -1.78; intervals excluding 0 but not above random: 6 (Sector 2 vs Field -2.10 [-3.49, -0.70]; Sector 3 vs Field -2.09 [-3.48, -0.69]; Race Pace vs Field -1.78 [-3.18, -0.39]; Best Lap vs Field -1.75 [-3.15, -0.36]; Last 5-Lap Pace vs Field -1.65 [-3.05, -0.26]; Grid Position -1.50 [-2.89, -0.11])
+-- full archive, as the dashboard (check): 534 rows of 30 races
+  axes "Race Pace vs Field & Sector 2 vs Field" 44.1% / "Avg Stint Length & Pit Stops" 20.3%
+  PC2: one-stoppers y +0.73 to +1.52, two-or-more-stoppers y -3.12 to -1.14, gap 1.87; other stars inside the hull ('This race'): A [], B []; other rows inside ('All races'): A 82, B 51
+  A        N 9: "Mixed cluster", 0 of 12 above random (threshold 1.028); top |g|: Pit Stops -1.00, Best Lap vs Field +0.78, Sector 3 vs Field +0.68
+  B        N 10: "Short stints, Fast pace", 3 of 12 above random (threshold 0.956): Longest Stint g -1.10 [-1.73, -0.47]; Avg Stint Length g -1.08 [-1.71, -0.45]; Best Lap vs Field g -0.99 [-1.62, -0.37]; top |g|: Longest Stint -1.10, Avg Stint Length -1.08, Best Lap vs Field -0.99
+  C        N 19: "Mixed cluster", 0 of 12 above random (threshold 0.693); top |g|: Longest Stint -0.45, Avg Stint Length -0.37, Lap-Time Scatter -0.25
+  LEC      N 1: "Mixed cluster", 0 of 12 above random (threshold 4.041); top |g|: Sector 2 vs Field -1.71, Race Pace vs Field -1.21, Grid Position -1.06
+  LEC+SAI  N 2: "Mixed cluster", 0 of 12 above random (threshold 2.514); top |g|: Sector 2 vs Field -1.38, Race Pace vs Field -1.05, Sector 3 vs Field -0.99; intervals excluding 0 but not above random: 0
+  PIA+NOR  N 2: "Mixed cluster", 0 of 12 above random (threshold 2.514); top |g|: Sector 2 vs Field -2.16, Sector 3 vs Field -2.11, Race Pace vs Field -1.84; intervals excluding 0 but not above random: 6 (Sector 2 vs Field -2.16 [-3.56, -0.77]; Sector 3 vs Field -2.11 [-3.50, -0.71]; Race Pace vs Field -1.84 [-3.23, -0.45]; Best Lap vs Field -1.80 [-3.19, -0.41]; Last 5-Lap Pace vs Field -1.68 [-3.08, -0.29]; Grid Position -1.50 [-2.89, -0.11])
+
+== 7. Outcome: the race from its lap rows (sessionData.lap_times, race_results) ==
+  P1 LEC Ferrari          stops 1 MEDIUM L1-L15, HARD L16-L53; behind the winner at the flag 0.000 s (race_results Time winner); best lap 83.226 s on L33 (HARD, tyre life 18), rank 10 of 20
+  P2 PIA McLaren          stops 2 MEDIUM L1-L16, HARD L17-L38, HARD L39-L53; behind the winner at the flag 2.664 s (race_results Time +2.664 s); best lap 81.943 s on L53 (HARD, tyre life 15), rank 4 of 20
+  P3 NOR McLaren          stops 2 MEDIUM L1-L14, HARD L15-L32, HARD L33-L53; behind the winner at the flag 6.153 s (race_results Time +6.153 s); best lap 81.432 s on L53 (HARD, tyre life 21), rank 1 of 20
+  P4 SAI Ferrari          stops 1 MEDIUM L1-L19, HARD L20-L53; behind the winner at the flag 15.621 s (race_results Time +15.621 s); best lap 83.219 s on L53 (HARD, tyre life 34), rank 9 of 20
+  P5 HAM Mercedes         stops 2 MEDIUM L1-L15, HARD L16-L37, HARD L38-L53; behind the winner at the flag 22.820 s (race_results Time +22.820 s); best lap 81.512 s on L53 (HARD, tyre life 16), rank 2 of 20
+  P6 VER Red Bull Racing  stops 2 HARD L1-L22, HARD L23-L41, MEDIUM L42-L53; behind the winner at the flag 37.932 s (race_results Time +37.932 s); best lap 81.745 s on L43 (MEDIUM, tyre life 2), rank 3 of 20
+  P7 RUS Mercedes         stops 2 MEDIUM L1-L11, HARD L12-L33, HARD L34-L53; behind the winner at the flag 39.715 s (race_results Time +39.715 s); best lap 82.036 s on L49 (HARD, tyre life 16), rank 5 of 20
+  P8 PER Red Bull Racing  stops 2 HARD L1-L23, HARD L24-L35, MEDIUM L36-L53; behind the winner at the flag 54.148 s (race_results Time +54.148 s); best lap 82.971 s on L47 (MEDIUM, tyre life 12), rank 8 of 20
+  five fastest laps of the race: NOR 81.432 s L53 (2 stops), HAM 81.512 s L53 (2 stops), VER 81.745 s L43 (2 stops), PIA 81.943 s L53 (2 stops), RUS 82.036 s L49 (2 stops)
+
+Requests: /api calls 0; demo data files read: 2024_16_R/analytics.json.gz, 2024_16_R/frames.json.gz, 2024_16_R/session.json.gz, manifest.json, pca/embeddings.json.gz, pca/fit_without_2024_16.json.gz, pca/matrix.json.gz, pca/strategies.json.gz

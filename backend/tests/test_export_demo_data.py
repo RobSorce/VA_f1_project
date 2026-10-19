@@ -68,6 +68,11 @@ def test_budget_and_manifest():
     by = {(r['year'], r['round']): r for r in m['races']}
     assert by[(2024, 5)]['safety_car_periods'] > 0
     assert by[(2025, 1)]['wet_tyre_laps'] > 0 and by[(2025, 1)]['rain_samples'] > 0
+    # the races of two use cases (Monza 2025, Imola 2024): no SC, no VSC, dry tyres
+    for key in ((2025, 16), (2024, 7)):
+        assert by[key]['why'].startswith('use case: '), key
+        assert by[key]['safety_car_periods'] == 0 and by[key]['virtual_safety_car_periods'] == 0, key
+        assert by[key]['wet_tyre_laps'] == 0, key
     assert m['frame_step'] == ed.FRAME_STEP
     print(f"demo data: {total} bytes = {total / 1e6:.2f} MB of {ed.BUDGET_BYTES / 1e6:.0f} MB")
 

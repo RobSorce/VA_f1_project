@@ -5,6 +5,7 @@ This folder holds the outputs of the measurement scripts that the documentation,
 How to run the scripts:
 
 - `frontend/scripts/*.mjs`: from `frontend/`, `npx vite-node scripts/<name>.mjs` (they import `src/` modules). Most read the cached race sessions in `backend/data/processed_cache` (git-ignored, filled by `backend/scripts/bulk_download.py`). Each writes its file here; `cod_backtest`, `cvd_check` and `shortcuts_table` take `--out FILE` to write it elsewhere.
+- `frontend/scripts/usecases/*.mjs`: from `frontend/`, `npx vite-node scripts/usecases/<name>.mjs` (`--out FILE` writes elsewhere). Each writes `usecase_<name>.txt` here; the table "Use cases" below says which of them need the race cache.
 - `frontend/scripts/audit/*.mjs`: static layout, type and colour checks that read the CSS and the components as written. From the repository root, `node frontend/scripts/audit/<name>.mjs`; the ones marked *vite-node* run from `frontend/` as `npx vite-node scripts/audit/<name>.mjs`. Each prints its report and writes the same text here (`--out FILE` writes it elsewhere).
 - `backend/scripts/*.py`: from `backend/`, `python -m scripts.<name> --out ../docs/evidence/<file>` (backend virtual environment).
 - Test outputs: the three tests listed below write their summary here only when run with `WRITE_EVIDENCE=1`, e.g. from `frontend/`: `WRITE_EVIDENCE=1 npx vitest run src/__tests__/degradation.endpointClock.test.js`.
@@ -97,7 +98,17 @@ How to run the scripts:
 | `range_scenarios.txt` | `frontend/scripts/audit/range_scenarios.mjs` (vite-node) | `docs/COORDINATION_GRAPH.md` |
 | `shortcuts_table.txt` | `frontend/scripts/shortcuts_table.mjs` (vite-node; `--write` also rewrites the generated block of `docs/SHORTCUTS.md`) | `docs/SHORTCUTS.md`, `frontend/src/__tests__/shortcuts.doc.test.js` |
 | `insight3_sector_trend.txt` | `frontend/scripts/audit/insight3_sector_trend.mjs` | `docs/INSIGHTS.md` |
-| `export_demo_data_report.txt` | `backend/scripts/export_demo_data.py --report FILE` (it also rewrites `frontend/public/data`, byte-identical when nothing changed) | `README.md`, `docs/INTENDED_USER.md` |
+| `export_demo_data_report.txt` | `backend/scripts/export_demo_data.py --report FILE` (it also rewrites `frontend/public/data`, byte-identical when nothing changed) | `README.md`, `docs/INTENDED_USER.md`, `frontend/src/__tests__/docs.factcheck.test.js` |
+
+## Use cases
+
+| File | Written by | Cited by (the file or its script) |
+|---|---|---|
+| `usecase_uc1_monza24_strategy.txt` | `frontend/scripts/usecases/uc1_monza24_strategy.mjs` (reads the demo files; compares them with the race cache when present) | `docs/USE_CASES.md` (UC1, and the prior's provenance in UC3) |
+| `usecase_uc2_monza24_analyst.txt` | `frontend/scripts/usecases/uc2_monza24_analyst.mjs`, which runs `backend/scripts/usecase_monza24_analyst.py` with the backend virtual environment (needs the race cache) | `docs/USE_CASES.md` (UC2) |
+| `usecase_uc3_monza25_cod.txt` | `frontend/scripts/usecases/uc3_monza25_cod.mjs` (needs the race cache) | `docs/USE_CASES.md` (UC3) |
+| `usecase_uc4_china24_sc.txt` | `frontend/scripts/usecases/uc4_china24_sc.mjs` (reads the demo files; its section 7 needs the race cache and is skipped without it) | `docs/USE_CASES.md` (UC4) |
+| `usecase_uc5_imola24_undercut.txt` | `frontend/scripts/usecases/uc5_imola24_undercut.mjs` (needs the race cache) | `docs/USE_CASES.md` (UC5) |
 
 ## Browser audits (no script)
 

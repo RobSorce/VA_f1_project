@@ -4,7 +4,7 @@ Interactive visual analytics platform for Formula 1 race strategy analysis.
 
 **Visual Analytics Course — Sapienza Università di Roma (DIAG)**
 
-**Static demo (GitHub Pages, no backend, three races): https://robsorce.github.io/VA_f1_project/**
+**Static demo (GitHub Pages, no backend, five races): https://robsorce.github.io/VA_f1_project/**
 
 ## Intended User
 
@@ -56,7 +56,7 @@ Interactive visual analytics platform for Formula 1 race strategy analysis.
 - **Caches:** the first load of a session downloads it through FastF1 (slow, needs internet) and keeps it in two git-ignored caches: `data/cache` at the repository root (FastF1's own cache, set in `backend/data/extractors/fastf1_extractor.py`) and `backend/data/processed_cache` (the processed JSON, so later loads are instant). A fresh clone has neither. `backend/scripts/bulk_download.py` downloads the race session of every round of the seasons asked into the processed cache (`python -m scripts.bulk_download --years 2024` from `backend/`).
 - **Known issue (checked 2026-10-16):** the Formula 1 live-timing archive that FastF1 downloads from (`livetiming.formula1.com/static/...`) answers HTTP 401 to its data files, so a session that is not cached yet cannot be loaded until that changes; sessions already in the two caches, and the static demo, are not affected. The same day the legacy SignalR endpoint that CONNECT LIVE uses (`backend/live/signalr_client.py`, `/signalr/negotiate`) also answered 401, so live mode cannot connect either; the mock replay still works.
 - **The races behind the analyses:** the numbers in `docs/` were computed on a local cache of 30 races: every race of 2024 (rounds 1-24) and the 2025 rounds 1, 6, 8, 16, 21 and 24. The list is the train / validation / test split printed by `backend/scripts/evaluate_forecast.py` (`docs/evidence/evaluate_forecast.txt`); `backend/scripts/pca_rebuild.py` counts the same 30 races (`docs/evidence/pca_rebuild.txt`).
-- **Shipped with the repository:** the cross-race PCA built from those 30 races (`backend/data/processed/pca_feature_matrix.csv` and `pca_embeddings.json`, 534 (driver, race) rows, `docs/evidence/pca_rebuild.txt`), the trained forecast model and its method selection (`backend/model/saved/`), and the static demo data of three races (`frontend/public/data`, below).
+- **Shipped with the repository:** the cross-race PCA built from those 30 races (`backend/data/processed/pca_feature_matrix.csv` and `pca_embeddings.json`, 534 (driver, race) rows, `docs/evidence/pca_rebuild.txt`), the trained forecast model and its method selection (`backend/model/saved/`), and the static demo data of five races (`frontend/public/data`, below).
 
 ## Setup
 
@@ -103,7 +103,7 @@ Open `http://localhost:5173`. The dev server proxies `/api` (the live WebSocket 
 Other scripts (from `frontend/`): `npm test` (Vitest), `npm run build` (production build in `dist/`), `npm run build:demo` and `npm run check:demo` (the GitHub Pages build and its check without a backend).
 
 ### Static demo (GitHub Pages, no backend)
-https://robsorce.github.io/VA_f1_project/ is the demo build (`npm run build:demo`, `.github/workflows/deploy.yml`, which deploys on a push to `main` or `v4`): the API is answered from `frontend/public/data`, written by `backend/scripts/export_demo_data.py` for three races (2024 R16 Monza, 2024 R5 China with its safety cars, 2025 R1 Australia in the wet; 5.54 MB, `docs/evidence/export_demo_data_report.txt`). A normal build whose backend does not answer switches to the same demo. Either way the weather bar shows a DEMO chip, and a switch at run time raises a toast; the LSTM forecast, Gemini, telemetry, live timing and the other races say "Requires the local backend".
+https://robsorce.github.io/VA_f1_project/ is the demo build (`npm run build:demo`, `.github/workflows/deploy.yml`, which deploys on a push to `main` or `v4`): the API is answered from `frontend/public/data`, written by `backend/scripts/export_demo_data.py` for five races (2024 R16 Monza, 2024 R5 China with its safety cars, 2025 R1 Australia in the wet, 2025 R16 Monza for a use case on boxing now or waiting for a gap in traffic, 2024 R7 Imola for one on an undercut or a cover; 8.89 MB, `docs/evidence/export_demo_data_report.txt`). A normal build whose backend does not answer switches to the same demo. Either way the weather bar shows a DEMO chip, and a switch at run time raises a toast; the LSTM forecast, Gemini, telemetry, live timing and the other races say "Requires the local backend".
 
 ### Environment variables (optional)
 The variables the code reads are listed, with what each one does, in [.env.example](.env.example):
@@ -149,6 +149,7 @@ Every link goes through the Zustand store; [docs/COORDINATION_GRAPH.md](docs/COO
 - [docs/RELATED_WORK.md](docs/RELATED_WORK.md) — Related systems and academic work, and credits
 - [docs/INSIGHTS.md](docs/INSIGHTS.md) — Analytical insights discovered through the system
 - [docs/INTENDED_USER.md](docs/INTENDED_USER.md) — Intended user persona and use cases
+- [docs/USE_CASES.md](docs/USE_CASES.md) — Five use cases (strategist, race engineer, data analyst) on cached races, repeatable in the static demo
 - [docs/PCA_METHODOLOGY.md](docs/PCA_METHODOLOGY.md) — PCA methodology and justification
 - [docs/DEGRADATION_METHODOLOGY.md](docs/DEGRADATION_METHODOLOGY.md) — Tyre degradation computation
 - [docs/COORDINATION_GRAPH.md](docs/COORDINATION_GRAPH.md) — View coordination graph

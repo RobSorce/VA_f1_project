@@ -31,6 +31,21 @@ describe('README', () => {
     expect(read('README.md')).not.toMatch(/Ours adds/);
     expect(read('docs/RELATED_WORK.md')).not.toMatch(/Ours differs in four ways/);
   });
+
+  it('the static demo: its races and its size as the export report prints them', () => {
+    const report = read('docs/evidence/export_demo_data_report.txt');
+    const races = [...report.matchAll(/^(\d{4}) R(\d+) /gm)].map((m) => `${m[1]} R${m[2]}`);
+    const mb = report.match(/^total \d+ bytes = ([\d.]+) MB/m)[1];
+    const count = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][races.length];
+    const readme = read('README.md').replace(/\s+/g, ' ');
+    expect(readme).toContain(`(GitHub Pages, no backend, ${count} races)`);
+    expect(readme).toContain(`the static demo data of ${count} races`);
+    const listed = readme.match(/`backend\/scripts\/export_demo_data\.py` for (\w+) races \(([^;]*); ([\d.]+) MB, `docs\/evidence\/export_demo_data_report\.txt`\)/);
+    expect(listed[1]).toBe(count);
+    expect([...listed[2].matchAll(/\b(\d{4}) R(\d+)\b/g)].map((m) => `${m[1]} R${m[2]}`)).toEqual(races);
+    expect(listed[3]).toBe(mb);
+    expect(read('docs/INTENDED_USER.md')).toContain(`The static demo carries ${count} races`);
+  });
 });
 
 describe('the pit-loss evidence: which row is the dashboard estimator', () => {

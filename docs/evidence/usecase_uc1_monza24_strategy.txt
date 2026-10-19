@@ -1,0 +1,278 @@
+UC1 Monza 2024 R16: hold LEC's one-stop or make a second stop (laps 33-36), McLaren's second stops as the counterpart
+Static demo: https://robsorce.github.io/VA_f1_project/ (race "Italian Grand Prix" 2024). Script: frontend/scripts/usecases/uc1_monza24_strategy.mjs
+Clock of every dashboard number: the demo frame a lap seek lands on (lapFrameMap[L]), replay paused there (section A).
+
+A. DATA AND CLOCKS
+A1. Demo payload: 1008 lap rows, 53 laps, 1 non-finishers in the results (TSU), track-status events 1 (status 1 "AllClear" from 792.8 s): no SC, VSC or red flag.
+    Replay frames: demo 5703 (dt 0.800 s), full app 11406 (dt 0.400 s); sessionTimeOffset 3350.494 s.
+    Demo payload vs local cache: lap_times identical, track_status identical, race_results identical, tyre_strategy differs (50 vs 40 rows: the backend rebuilds it from the lap rows when it serves the session, backend/api/main.py _rebuild_tyre_strategy, and the demo holds that answer; no number below reads it, the stints come from the lap rows, utils/stints.js).
+
+A2. Lap-seek clocks (the right-arrow key, a lap click on the expanded timeline or Ctrl+K "Jump to Lap" all land here):
+    L   demo frame  session t   lap-mode t  demo-lap(s)  full frame  full-lap(s)  causalKey(demo) = lap mode / full; features = lap mode / full; seed
+    31        3192  5904.094  5904.012        0.082        6384        0.082  now|559|18|17|1|0 = lap = full; features = lap = full; seed 556412318
+    32        3296  5987.294  5987.233        0.061        6592        0.061  now|578|19|18|1|0 = lap = full; features = lap = full; seed 540082487
+    33        3401  6071.294  6070.713        0.581        6801        0.181  now|596|20|19|1|0 = lap = full; features = lap = full; seed 1845615407
+    34        3505  6154.494  6153.861        0.633        7009        0.233  now|615|22|20|1|0 = lap = full; features = lap = full; seed 3025738467
+    35        3609  6237.694  6237.317        0.377        7218        0.377  now|633|24|22|1|0 = lap = full; features = lap = full; seed 477933359
+    36        3713  6320.894  6320.726        0.168        7426        0.168  now|651|24|23|1|0 = lap = full; features = lap = full; seed 4135440501
+    37        3818  6404.894  6404.472        0.422        7635        0.022  now|670|26|25|1|0 = lap = full; features = lap = full; seed 3869351937
+    38        3923  6488.894  6488.163        0.731        7845        0.331  now|688|27|25|1|0 = lap = full; features = lap = full; seed 1054432569
+    Equal causalKey and features give the same seed and the same Monte Carlo runs: the numbers below hold in the full app and the demo alike.
+
+A3. How long the lap-seek readout holds when the replay plays on (demo frames): the first frame with another causalKey
+    (a lap completed or a pit entry / exit by any car: Race Prediction re-asks its projection while open; the Tyre Degradation
+    chart, the Strategy Timeline and the stop labels change with it). LEC's next lap completion is listed for the LEC readouts.
+    L33: readout holds 0.8 s (1 demo frames) of the 83.2 s leader lap (1.0 %); LEC has completed 31 laps, his lap 32 ends 5.0 s after the clock.
+    L34: readout holds 2.4 s (3 demo frames) of the 83.2 s leader lap (2.9 %); LEC has completed 32 laps, his lap 33 ends 5.0 s after the clock.
+    L35: readout holds 3.2 s (4 demo frames) of the 83.2 s leader lap (3.8 %); LEC has completed 33 laps, his lap 34 ends 5.2 s after the clock.
+    L36: readout holds 4.8 s (6 demo frames) of the 84.0 s leader lap (5.7 %); LEC has completed 34 laps, his lap 35 ends 5.7 s after the clock.
+    L37: readout holds 5.6 s (7 demo frames) of the 84.0 s leader lap (6.7 %); LEC has completed 35 laps, his lap 36 ends 5.4 s after the clock.
+    L38: readout holds 2.4 s (3 demo frames) of the 88.0 s leader lap (2.7 %); LEC has completed 36 laps, his lap 37 ends 5.0 s after the clock.
+
+B. RACE STATE AT THE CLOCKS (what the dashboard knows: features of the Race Prediction "now" column, stints and stops of the Strategy Timeline)
+B1. currentLap 33: PIA P1 gap 0.0 s HARD age 16 stint 2 (laps done 32) | LEC P3 gap 5.7 s HARD age 16 stint 2 (laps done 31) | SAI P4 gap 17.3 s HARD age 12 stint 2 (laps done 31) | HAM P5 gap 18.7 s HARD age 16 stint 2 (laps done 31) | NOR P2 gap 4.9 s HARD age 17 stint 2 (laps done 31)
+B1. currentLap 34: PIA P1 gap 0.0 s HARD age 17 stint 2 (laps done 33) | LEC P2 gap 5.5 s HARD age 17 stint 2 (laps done 32) | SAI P4 gap 17.2 s HARD age 13 stint 2 (laps done 32) | HAM P5 gap 18.6 s HARD age 17 stint 2 (laps done 32) | NOR P3 gap 8.8 s HARD age 1 stint 3 (laps done 32)
+B1. currentLap 35: PIA P1 gap 0.0 s HARD age 18 stint 2 (laps done 34) | LEC P2 gap 5.6 s HARD age 18 stint 2 (laps done 33) | SAI P3 gap 17.5 s HARD age 14 stint 2 (laps done 33) | HAM P4 gap 18.8 s HARD age 18 stint 2 (laps done 33) | NOR P6 gap 29.8 s HARD age 1 stint 3 (laps done 33)
+B1. currentLap 36: PIA P1 gap 0.0 s HARD age 19 stint 2 (laps done 35) | LEC P2 gap 5.6 s HARD age 19 stint 2 (laps done 34) | SAI P3 gap 17.3 s HARD age 15 stint 2 (laps done 34) | HAM P4 gap 18.9 s HARD age 19 stint 2 (laps done 34) | NOR P6 gap 29.1 s HARD age 2 stint 3 (laps done 34)
+B2. NOR in-lap 32: pit entry at session 6075.813 s, i.e. 4.5 s after the currentLap 33 clock and 78.7 s before the currentLap 34 clock; pit exit (out-lap 33 PitOutTime) 6100.677 s.
+B3. Stops in progress at the clock (pit entry visible, out-lap not completed): features from the in-lap row against the out-lap's end
+    currentLap 33: OCO in-lap 31 (pit exit passed): features P12 gap 53.3 s; after the out-lap P16 gap 74.5 s | GAS in-lap 30 (pit exit passed): features P17 gap 62.1 s; after the out-lap P19 gap 84.7 s
+    currentLap 34: NOR in-lap 32 (pit exit passed): features P3 gap 8.8 s; after the out-lap P6 gap 29.8 s | HUL in-lap 32 (pit exit not yet): features P17 gap 75.1 s; after the out-lap P19 gap 108.5 s
+    currentLap 35: RUS in-lap 33 (pit exit passed): features P8 gap 37.9 s; after the out-lap P12 gap 59.3 s | BOT in-lap 33 (pit exit not yet): features P15 gap 71.0 s; after the out-lap P18 gap 93.0 s | HUL in-lap 32 (pit exit passed): features P17 gap 75.1 s; after the out-lap P19 gap 108.5 s
+    currentLap 36: BOT in-lap 33 (pit exit passed): features P15 gap 71.0 s; after the out-lap P18 gap 93.0 s
+    currentLap 37: PER in-lap 35 (pit exit passed): features P7 gap 37.5 s; after the out-lap P9 gap 57.9 s | ALO in-lap 35 (pit exit passed): features P9 gap 54.6 s; after the out-lap P14 gap 75.0 s
+    currentLap 38: STR in-lap 36 (pit exit not yet): features P13 gap 72.0 s; after the out-lap P17 gap 92.1 s
+B4. Strategy Timeline (stints = bars, stops = diamonds with their pit-loss label) for LEC, PIA, NOR, SAI:
+    currentLap 35: LEC: M L1-L15 H L16-L33(ongoing); stops in-lap 15 "26.9s" (measured) | PIA: M L1-L16 H L17-L34(ongoing); stops in-lap 16 "26.1s" (measured) | NOR: M L1-L14 H L15-L32 H L33-L33(ongoing); stops in-lap 14 "24.7s" (measured), in-lap 32 "22.9s" (measured) | SAI: M L1-L19 H L20-L33(ongoing); stops in-lap 19 "25.8s" (measured)
+    currentLap 36: LEC: M L1-L15 H L16-L34(ongoing); stops in-lap 15 "27.1s" (measured) | PIA: M L1-L16 H L17-L35(ongoing); stops in-lap 16 "26.2s" (measured) | NOR: M L1-L14 H L15-L32 H L33-L34(ongoing); stops in-lap 14 "24.9s" (measured), in-lap 32 "23.2s" (measured) | SAI: M L1-L19 H L20-L34(ongoing); stops in-lap 19 "25.8s" (measured)
+
+C. TYRE DEGRADATION (driver = the focus; lap range = the click on the driver's ongoing hard bar of the Strategy Timeline,
+   [LapStart, LapStart + StintLength - 1]; banner = the brushed fit, NEXT PIT WINDOW = its undercut_window)
+C1. currentLap 33 LEC, range L16-L31 (chart restricted to it: yes, only the hard stint drawn): chart S2 H: -0.042 s/lap fuel-corr., raw -0.072, 14 laps (slope s.e. 0.009, not drawn)
+    banner: BRUSHED LAPS L16 - L31 · fitted L16 - L31 · raw -72 ms/lap · fuel-corr.* -42 ms/lap; no NEXT PIT WINDOW (reason, not displayed: Fitted degradation -0.0421 s/lap (fuel-corrected) is not positive: no tyre loss to pit for, no pit lap projected.)
+C1. currentLap 34 LEC, range L16-L32 (chart restricted to it: yes, only the hard stint drawn): chart S2 H: -0.037 s/lap fuel-corr., raw -0.067, 15 laps (slope s.e. 0.008, not drawn)
+    banner: BRUSHED LAPS L16 - L32 · fitted L16 - L32 · raw -67 ms/lap · fuel-corr.* -37 ms/lap; no NEXT PIT WINDOW (reason, not displayed: Fitted degradation -0.0368 s/lap (fuel-corrected) is not positive: no tyre loss to pit for, no pit lap projected.)
+C1. currentLap 35 LEC, range L16-L33 (chart restricted to it: yes, only the hard stint drawn): chart S2 H: -0.033 s/lap fuel-corr., raw -0.063, 16 laps (slope s.e. 0.007, not drawn)
+    banner: BRUSHED LAPS L16 - L33 · fitted L16 - L33 · raw -63 ms/lap · fuel-corr.* -33 ms/lap; no NEXT PIT WINDOW (reason, not displayed: Fitted degradation -0.0331 s/lap (fuel-corrected) is not positive: no tyre loss to pit for, no pit lap projected.)
+C1. currentLap 36 LEC, range L16-L34 (chart restricted to it: yes, only the hard stint drawn): chart S2 H: -0.026 s/lap fuel-corr., raw -0.056, 17 laps (slope s.e. 0.007, not drawn)
+    banner: BRUSHED LAPS L16 - L34 · fitted L16 - L34 · raw -56 ms/lap · fuel-corr.* -26 ms/lap; no NEXT PIT WINDOW (reason, not displayed: Fitted degradation -0.0256 s/lap (fuel-corrected) is not positive: no tyre loss to pit for, no pit lap projected.)
+C2. currentLap 35 PIA (focus PIA), click on stint latest, range L17-L34: chart S2 H: -0.034 s/lap fuel-corr., raw -0.064, 17 laps (slope s.e. 0.015, not drawn); banner: BRUSHED LAPS L17 - L34 · fitted L17 - L34 · raw -64 ms/lap · fuel-corr.* -34 ms/lap; no NEXT PIT WINDOW (reason, not displayed: Fitted degradation -0.0341 s/lap (fuel-corrected) is not positive: no tyre loss to pit for, no pit lap projected.)
+C2. currentLap 35 NOR (focus NOR), click on stint 2, range L15-L32: chart S2 H: -0.035 s/lap fuel-corr., raw -0.065, 14 laps (slope s.e. 0.011, not drawn); banner: BRUSHED LAPS L15 - L32 · fitted L15 - L32 · raw -65 ms/lap · fuel-corr.* -35 ms/lap; no NEXT PIT WINDOW (reason, not displayed: Fitted degradation -0.0350 s/lap (fuel-corrected) is not positive: no tyre loss to pit for, no pit lap projected.)
+C2. currentLap 36 PIA (focus PIA), click on stint latest, range L17-L35: chart S2 H: -0.025 s/lap fuel-corr., raw -0.055, 18 laps (slope s.e. 0.015, not drawn); banner: BRUSHED LAPS L17 - L35 · fitted L17 - L35 · raw -55 ms/lap · fuel-corr.* -25 ms/lap; no NEXT PIT WINDOW (reason, not displayed: Fitted degradation -0.0251 s/lap (fuel-corrected) is not positive: no tyre loss to pit for, no pit lap projected.)
+C2. currentLap 36 NOR (focus NOR), click on stint 2, range L15-L32: chart S2 H: -0.035 s/lap fuel-corr., raw -0.065, 14 laps (slope s.e. 0.011, not drawn); banner: BRUSHED LAPS L15 - L32 · fitted L15 - L32 · raw -65 ms/lap · fuel-corr.* -35 ms/lap; no NEXT PIT WINDOW (reason, not displayed: Fitted degradation -0.0350 s/lap (fuel-corrected) is not positive: no tyre loss to pit for, no pit lap projected.)
+    Fuel correction: a constant 0.030 s/lap added to every raw slope (an assumption, the chart's footnote).
+
+D. LAP MODEL INPUTS (Race Prediction header; the Circle of Doom "pit in k laps" tooltip; the degradation is not shown elsewhere)
+D1. currentLap 33 header: "Pit loss: 26.0s median, race (P10-P90 24.7-34.1s, n=17)" "Lap noise: ±0.41s race (n=510 laps)" "SC rate: 1.1%/lap prior" seed 1845615407
+    lap model HARD: +0.010 s/lap (race: 14 fits of >= 15 clean laps, 5 negative, plain median +0.018), combined with the cached races' mean +0.0174 (prior over 30 races, 28 with HARD fits, this race (2024 R16) included); sampling sd 0.055
+    lap model MEDIUM: +0.021 s/lap (race: 6 fits of >= 13 clean laps, 3 negative, plain median +0.010), combined with the cached races' mean +0.0282 (prior over 30 races, 27 with MEDIUM fits, this race (2024 R16) included); sampling sd 0.082
+    fresh-tyre delta 0.000 s (race, 11 stints, raw median +0.084, clamped to 0), on the first flying laps of a new set only
+    SC rate 1.08 %/lap = (1 x 1 + 0) / (60.6 x 1 + 32): the prior (PRIORS.safetyCar: 1 SC/VSC episode per 60.6 leader laps over the PRIORS.races = 30 cached races, this race (2024 R16) included) with weight 1 race, and this race's 0 episodes over its 32 leader laps completed; labelled "prior" while the race has no episode
+D1. currentLap 34 header: "Pit loss: 26.1s median, race (P10-P90 24.7-33.8s, n=19)" "Lap noise: ±0.39s race (n=530 laps)" "SC rate: 1.1%/lap prior" seed 3025738467
+    lap model HARD: +0.013 s/lap (race: 16 fits of >= 15 clean laps, 6 negative, plain median +0.024), combined with the cached races' mean +0.0174 (prior over 30 races, 28 with HARD fits, this race (2024 R16) included); sampling sd 0.055
+    lap model MEDIUM: +0.021 s/lap (race: 6 fits of >= 13 clean laps, 3 negative, plain median +0.010), combined with the cached races' mean +0.0282 (prior over 30 races, 27 with MEDIUM fits, this race (2024 R16) included); sampling sd 0.082
+    fresh-tyre delta 0.000 s (race, 12 stints, raw median +0.076, clamped to 0), on the first flying laps of a new set only
+    SC rate 1.07 %/lap = (1 x 1 + 0) / (60.6 x 1 + 33): the prior (PRIORS.safetyCar: 1 SC/VSC episode per 60.6 leader laps over the PRIORS.races = 30 cached races, this race (2024 R16) included) with weight 1 race, and this race's 0 episodes over its 33 leader laps completed; labelled "prior" while the race has no episode
+D1. currentLap 35 header: "Pit loss: 26.2s median, race (P10-P90 24.4-33.8s, n=20)" "Lap noise: ±0.39s race (n=549 laps)" "SC rate: 1.1%/lap prior" seed 477933359
+    lap model HARD: +0.014 s/lap (race: 16 fits of >= 15 clean laps, 6 negative, plain median +0.026), combined with the cached races' mean +0.0174 (prior over 30 races, 28 with HARD fits, this race (2024 R16) included); sampling sd 0.055
+    lap model MEDIUM: +0.021 s/lap (race: 6 fits of >= 13 clean laps, 3 negative, plain median +0.010), combined with the cached races' mean +0.0282 (prior over 30 races, 27 with MEDIUM fits, this race (2024 R16) included); sampling sd 0.082
+    fresh-tyre delta 0.000 s (race, 12 stints, raw median +0.076, clamped to 0), on the first flying laps of a new set only
+    SC rate 1.06 %/lap = (1 x 1 + 0) / (60.6 x 1 + 34): the prior (PRIORS.safetyCar: 1 SC/VSC episode per 60.6 leader laps over the PRIORS.races = 30 cached races, this race (2024 R16) included) with weight 1 race, and this race's 0 episodes over its 34 leader laps completed; labelled "prior" while the race has no episode
+D1. currentLap 36 header: "Pit loss: 26.3s median, race (P10-P90 23.8-35.1s, n=22)" "Lap noise: ±0.39s race (n=563 laps)" "SC rate: 1.0%/lap prior" seed 4135440501
+    lap model HARD: +0.017 s/lap (race: 17 fits of >= 15 clean laps, 6 negative, plain median +0.025), combined with the cached races' mean +0.0174 (prior over 30 races, 28 with HARD fits, this race (2024 R16) included); sampling sd 0.055
+    lap model MEDIUM: +0.021 s/lap (race: 6 fits of >= 13 clean laps, 3 negative, plain median +0.010), combined with the cached races' mean +0.0282 (prior over 30 races, 27 with MEDIUM fits, this race (2024 R16) included); sampling sd 0.082
+    fresh-tyre delta 0.000 s (race, 13 stints, raw median +0.109, clamped to 0), on the first flying laps of a new set only
+    SC rate 1.05 %/lap = (1 x 1 + 0) / (60.6 x 1 + 35): the prior (PRIORS.safetyCar: 1 SC/VSC episode per 60.6 leader laps over the PRIORS.races = 30 cached races, this race (2024 R16) included) with weight 1 race, and this race's 0 episodes over its 35 leader laps completed; labelled "prior" while the race has no episode
+    The cached races of the priors: docs/evidence/mc_benchmark.txt "Cached races: 30 (2024 R1, 2024 R2, 2024 R3, 2024 R4, 2024 R5, 2024 R6, 2024 R7, 2024 R8, 2024 R9, 2024 R10, 2024 R11, 2024 R12, 2024 R13, 2024 R14, 2024 R15, 2024 R16, 2024 R17, 2024 R18, 2024 R19, 2024 R20, 2024 R21, 2024 R22, 2024 R23, 2024 R24, 2025 R1, 2025 R6, 2025 R8, 2025 R16, 2025 R21, 2025 R24)"
+D2. currentLap 35 Circle of Doom, LEC the focus, hover his car: "Pit now P2 -> P6" "Rejoin positions P5 9.7% · P6 70.8% · P7 19.5%" "Gain the place SAI, HAM, VER, NOR" "Within reach PIA"
+    k = 1 (key ]): "Pit in 1: in-lap L35, rejoin P6 at the end of L36" "Lap model HARD +0.014 s/lap (16 stints) → HARD +0.014 s/lap (16 stints)" "Fresh-tyre delta 0.000 s on the first flying lap (12 stints)"
+D2. currentLap 36 Circle of Doom, LEC the focus, hover his car: "Pit now P2 -> P6" "Rejoin positions P5 7.8% · P6 70.1% · P7 22.1%" "Gain the place SAI, HAM, VER, NOR" "Within reach PIA"
+    k = 1 (key ]): "Pit in 1: in-lap L36, rejoin P6 at the end of L37" "Lap model HARD +0.017 s/lap (17 stints) → HARD +0.017 s/lap (17 stints)" "Fresh-tyre delta 0.000 s on the first flying lap (13 stints)"
+
+E. RACE PREDICTION, Projections tab (P label = median position, held within the Monte Carlo error: it depends on the path)
+E1. Rows with no previous state (Home, then Ctrl+K "Jump to Lap" L). The shares, ranges and expected positions are the same
+    on every path (the seed depends on the clock only); the P label, its +/- cell and the gold marks are held within the
+    Monte Carlo error and can differ by path (E2).
+    currentLap 33 (1000 runs, seed 1845615407): LEC P2 (gold) ▲1 now P3 74% pod (gold), P5-P95 P1-P5, expected 2.6, P1 bar 19.6 % | PIA P1 (gold) • now P1 91% pod (gold), P5-P95 P1-P4, expected 1.7, P1 bar 60.6 % | SAI P4 • now P4 46% pod, P5-P95 P1-P6, expected 3.7, P1 bar 5.5 % | HAM P4 ▲1 now P5 43% pod, P5-P95 P1-P6, expected 3.7, P1 bar 5.6 % | NOR P4 ▼2 now P2 43% pod, P5-P95 P1-P6, expected 3.8, P1 bar 8.4 %
+    currentLap 34 (1000 runs, seed 3025738467): LEC P3 (gold) ▼1 now P2 70% pod (gold), P5-P95 P1-P5, expected 2.8, P1 bar 22.4 % | PIA P1 (gold) • now P1 87% pod (gold), P5-P95 P1-P5, expected 1.9, P1 bar 53.1 % | SAI P4 • now P4 46% pod, P5-P95 P1-P5, expected 3.6, P1 bar 7 % | HAM P4 ▲1 now P5 41% pod, P5-P95 P1-P6, expected 3.8, P1 bar 7.7 % | NOR P3 (gold) • now P3 54% pod (gold), P5-P95 P1-P5, expected 3.3, P1 bar 9.7 %
+    currentLap 35 (1000 runs, seed 477933359): LEC P2 (gold) • now P2 82% pod (gold), P5-P95 P1-P4, expected 2.4, P1 bar 26.2 % | PIA P1 (gold) • now P1 94% pod (gold), P5-P95 P1-P4, expected 1.7, P1 bar 57.6 % | SAI P3 (gold) • now P3 61% pod (gold), P5-P95 P1-P5, expected 3.2, P1 bar 8.4 % | HAM P3 (gold) ▲1 now P4 53% pod (gold), P5-P95 P1-P5, expected 3.4, P1 bar 7.1 % | NOR P5 ▲1 now P6 8% pod, P5-P95 P3-P7, expected 5, P1 bar 0.7 %
+    currentLap 36 (1000 runs, seed 4135440501): LEC P2 (gold) • now P2 88% pod (gold), P5-P95 P1-P4, expected 2.1, P1 bar 31.5 % | PIA P1 (gold) • now P1 94% pod (gold), P5-P95 P1-P4, expected 1.7, P1 bar 55.9 % | SAI P4 ▼1 now P3 50% pod, P5-P95 P1-P5, expected 3.5, P1 bar 6.6 % | HAM P4 • now P4 35% pod, P5-P95 P2-P5, expected 3.9, P1 bar 3.4 % | NOR P4 ▲2 now P6 34% pod, P5-P95 P2-P5, expected 3.9, P1 bar 2.6 %
+    currentLap 37 (1000 runs, seed 3869351937): LEC P2 (gold) • now P2 88% pod (gold), P5-P95 P1-P4, expected 2.1, P1 bar 34.4 % | PIA P1 (gold) • now P1 91% pod (gold), P5-P95 P1-P4, expected 1.8, P1 bar 51.4 % | SAI P3 (gold) • now P3 53% pod (gold), P5-P95 P1-P5, expected 3.5, P1 bar 7.2 % | HAM P4 • now P4 36% pod, P5-P95 P2-P6, expected 3.9, P1 bar 3.8 % | NOR P4 ▲2 now P6 26% pod, P5-P95 P2-P6, expected 4.2, P1 bar 2.5 %
+    currentLap 38 (1000 runs, seed 1054432569): LEC P2 (gold) • now P2 85% pod (gold), P5-P95 P1-P5, expected 2.3, P1 bar 28.9 % | PIA P1 (gold) • now P1 93% pod (gold), P5-P95 P1-P4, expected 1.7, P1 bar 56.3 % | SAI P3 (gold) • now P3 64% pod (gold), P5-P95 P1-P5, expected 3.1, P1 bar 10 % | HAM P4 • now P4 32% pod, P5-P95 P2-P5, expected 3.9, P1 bar 2.7 % | NOR P4 ▲2 now P6 25% pod, P5-P95 P2-P5, expected 4.1, P1 bar 1.9 %
+E2. P labels by path, LEC / PIA / SAI / HAM / NOR (* = podium share in gold):
+    L33: no previous state P2*/P1*/P4/P4/P4; jump to 33 then arrows P2*/P1*/P4/P4/P4; same with the stale run shown P2*/P1*/P4/P4/P4; played from lap 5 P3*/P1*/P4/P4/P4
+    L34: no previous state P3*/P1*/P4/P4/P3*; jump to 33 then arrows P2*/P1*/P4/P4/P4; same with the stale run shown P2*/P1*/P4/P4/P4; played from lap 5 P3*/P1*/P4/P4/P4
+    L35: no previous state P2*/P1*/P3*/P3*/P5; jump to 33 then arrows P2*/P1*/P3*/P4/P5; same with the stale run shown P2*/P1*/P3*/P4/P5; jump to 35 then arrows P2*/P1*/P3*/P3*/P5; played from lap 5 P2*/P1*/P3*/P4/P5
+    L36: no previous state P2*/P1*/P4/P4/P4; jump to 33 then arrows P2*/P1*/P3*/P4/P4; same with the stale run shown P2*/P1*/P3*/P4/P4; jump to 35 then arrows P2*/P1*/P3*/P4/P4; played from lap 5 P2*/P1*/P3*/P4/P4
+    L37: no previous state P2*/P1*/P3*/P4/P4; jump to 33 then arrows P2*/P1*/P3*/P4/P4; same with the stale run shown P2*/P1*/P3*/P4/P4; jump to 35 then arrows P2*/P1*/P3*/P4/P4; played from lap 5 P2*/P1*/P3*/P4/P4
+    L38: no previous state P2*/P1*/P3*/P4/P4; jump to 33 then arrows P2*/P1*/P3*/P4/P4; same with the stale run shown P2*/P1*/P3*/P4/P4; jump to 35 then arrows P2*/P1*/P3*/P4/P4; played from lap 5 P2*/P1*/P3*/P4/P4
+    (arrows: each right-arrow press waited for, so every lap's projection is computed and held; stale run: right after the
+    arrow key the open panel asks for the new lap with the previous lap's features, and when that run returns within the
+    120 ms before the race situation is recomputed it is shown and its labels are the ones held next; played from lap 5:
+    the store's once-per-lap recompute at each lap's first frame, panel closed.)
+
+F. STRATEGY SIMULATOR, LEC (focus LEC; Copy Actual -> Run -> Save for Compare; Compare tab "vs" on it; Plan tab: + Pit Stop,
+   S2 length, S3 compound and length -> Run). Plan stops from the lap in progress on; the saved plan is the baseline.
+F0. Plan tab after Copy Actual (M15-H38) and "+ Pit Stop": M15-H38-M5, "Custom Strategy (2 stops)", "Strategy covers 58 laps (+5 vs race length 53)" until S2 is shortened; S3 starts at L54.
+    at currentLap 35, S2 20L and S3 HARD 18L (S3 from L36): "From L35: in-lap 35 → HARD · 1 earlier stop = race history"
+    at currentLap 36, S2 21L and S3 HARD 17L (S3 from L37): "From L36: in-lap 36 → HARD · 1 earlier stop = race history"
+F1. currentLap 33: Copy Actual = M15-H38 (seed 1845615407)
+  Copy Actual vs model stops (first Run): verdict • 0.0 ±0.00 NO CLEAR CHANGE  Podium: 0%  Points: 0%  (1000 runs each, interval z=2.58)
+  second stop in-lap 33, HARD: plan M15-H18-H20 (stops in-lap 15 HARD, in-lap 33 HARD) vs saved M15-H38
+    card "Custom Strategy" M15-H18-H20  P5  avg P4.5  range P1-P7  29% podium  100% points
+    card "Baseline: M15-H38"                  P2  avg P2.6  range P1-P5  74% podium  100% points
+    verdict ▼ -1.8 ±0.22 PLACES LOST  Podium: -44%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 5.4 %, P1-P2 16.3 %, P1-P3 29.3 % | baseline P1 19.6 %, P1-P2 53.9 %, P1-P3 73.7 %
+  second stop in-lap 35, HARD: plan M15-H20-H18 (stops in-lap 15 HARD, in-lap 35 HARD) vs saved M15-H38
+    card "Custom Strategy" M15-H20-H18  P5  avg P4.5  range P2-P7  26% podium  100% points
+    card "Baseline: M15-H38"                  P2  avg P2.6  range P1-P5  74% podium  100% points
+    verdict ▼ -1.8 ±0.20 PLACES LOST  Podium: -48%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 3.5 %, P1-P2 13.5 %, P1-P3 25.9 % | baseline P1 19.6 %, P1-P2 53.9 %, P1-P3 73.7 %
+  second stop in-lap 33, MEDIUM: plan M15-H18-M20 (stops in-lap 15 HARD, in-lap 33 MEDIUM) vs saved M15-H38
+    card "Custom Strategy" M15-H18-M20  P5  avg P4.7  range P1-P9  28% podium  98% points
+    card "Baseline: M15-H38"                  P2  avg P2.6  range P1-P5  74% podium  100% points
+    verdict ▼ -2.1 ±0.24 PLACES LOST  Podium: -46%  Points: -2%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 6.8 %, P1-P2 16.9 %, P1-P3 27.6 % | baseline P1 19.6 %, P1-P2 53.9 %, P1-P3 73.7 %
+F1. currentLap 34: Copy Actual = M15-H38 (seed 3025738467)
+  Copy Actual vs model stops (first Run): verdict ▲ +0.1 ±0.07 PLACES GAINED  Podium: +3%  Points: 0%  (1000 runs each, interval z=2.58)
+  second stop in-lap 34, HARD: plan M15-H19-H19 (stops in-lap 15 HARD, in-lap 34 HARD) vs saved M15-H38
+    card "Custom Strategy" M15-H19-H19  P5  avg P4.5  range P1-P8  30% podium  100% points
+    card "Baseline: M15-H38"                  P2  avg P2.6  range P1-P5  73% podium  100% points
+    verdict ▼ -1.9 ±0.23 PLACES LOST  Podium: -43%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 6.8 %, P1-P2 17.7 %, P1-P3 29.5 % | baseline P1 24.6 %, P1-P2 52 %, P1-P3 72.6 %
+  second stop in-lap 36, HARD: plan M15-H21-H17 (stops in-lap 15 HARD, in-lap 36 HARD) vs saved M15-H38
+    card "Custom Strategy" M15-H21-H17  P5  avg P4.5  range P1-P7  26% podium  100% points
+    card "Baseline: M15-H38"                  P2  avg P2.6  range P1-P5  73% podium  100% points
+    verdict ▼ -1.9 ±0.21 PLACES LOST  Podium: -47%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 5.1 %, P1-P2 14 %, P1-P3 25.8 % | baseline P1 24.6 %, P1-P2 52 %, P1-P3 72.6 %
+  second stop in-lap 34, MEDIUM: plan M15-H19-M19 (stops in-lap 15 HARD, in-lap 34 MEDIUM) vs saved M15-H38
+    card "Custom Strategy" M15-H19-M19  P5  avg P4.7  range P1-P9  30% podium  98% points
+    card "Baseline: M15-H38"                  P2  avg P2.6  range P1-P5  73% podium  100% points
+    verdict ▼ -2.1 ±0.25 PLACES LOST  Podium: -43%  Points: -2%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 8.4 %, P1-P2 18.5 %, P1-P3 29.8 % | baseline P1 24.6 %, P1-P2 52 %, P1-P3 72.6 %
+F1. currentLap 35: Copy Actual = M15-H38 (seed 477933359)
+  Copy Actual vs model stops (first Run): verdict • 0.0 ±0.00 NO CLEAR CHANGE  Podium: 0%  Points: 0%  (1000 runs each, interval z=2.58)
+  second stop in-lap 35, HARD: plan M15-H20-H18 (stops in-lap 15 HARD, in-lap 35 HARD) vs saved M15-H38
+    card "Custom Strategy" M15-H20-H18  P4  avg P4.0  range P1-P7  39% podium  100% points
+    card "Baseline: M15-H38"                  P2  avg P2.4  range P1-P4  82% podium  100% points
+    verdict ▼ -1.7 ±0.21 PLACES LOST  Podium: -43%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 8.1 %, P1-P2 23.3 %, P1-P3 39.3 % | baseline P1 26.2 %, P1-P2 60 %, P1-P3 82.4 %
+  second stop in-lap 37, HARD: plan M15-H22-H16 (stops in-lap 15 HARD, in-lap 37 HARD) vs saved M15-H38
+    card "Custom Strategy" M15-H22-H16  P4  avg P4.1  range P1-P7  36% podium  100% points
+    card "Baseline: M15-H38"                  P2  avg P2.4  range P1-P4  82% podium  100% points
+    verdict ▼ -1.7 ±0.20 PLACES LOST  Podium: -46%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 5.8 %, P1-P2 18.9 %, P1-P3 36.3 % | baseline P1 26.2 %, P1-P2 60 %, P1-P3 82.4 %
+  second stop in-lap 35, MEDIUM: plan M15-H20-M18 (stops in-lap 15 HARD, in-lap 35 MEDIUM) vs saved M15-H38
+    card "Custom Strategy" M15-H20-M18  P4  avg P4.2  range P1-P7  38% podium  99% points
+    card "Baseline: M15-H38"                  P2  avg P2.4  range P1-P4  82% podium  100% points
+    verdict ▼ -1.8 ±0.23 PLACES LOST  Podium: -45%  Points: -1%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 10.2 %, P1-P2 24.3 %, P1-P3 37.7 % | baseline P1 26.2 %, P1-P2 60 %, P1-P3 82.4 %
+F1. currentLap 36: Copy Actual = M15-H38 (seed 4135440501)
+  Copy Actual vs model stops (first Run): verdict • 0.0 ±0.00 NO CLEAR CHANGE  Podium: 0%  Points: 0%  (1000 runs each, interval z=2.58)
+  second stop in-lap 36, HARD: plan M15-H21-H17 (stops in-lap 15 HARD, in-lap 36 HARD) vs saved M15-H38
+    card "Custom Strategy" M15-H21-H17  P4  avg P3.8  range P1-P6  41% podium  100% points
+    card "Baseline: M15-H38"                  P2  avg P2.1  range P1-P4  88% podium  100% points
+    verdict ▼ -1.7 ±0.20 PLACES LOST  Podium: -47%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 12.4 %, P1-P2 28.4 %, P1-P3 41 % | baseline P1 31.5 %, P1-P2 71 %, P1-P3 87.6 %
+  second stop in-lap 38, HARD: plan M15-H23-H15 (stops in-lap 15 HARD, in-lap 38 HARD) vs saved M15-H38
+    card "Custom Strategy" M15-H23-H15  P4  avg P3.9  range P1-P6  39% podium  99% points
+    card "Baseline: M15-H38"                  P2  avg P2.1  range P1-P4  88% podium  100% points
+    verdict ▼ -1.8 ±0.20 PLACES LOST  Podium: -48%  Points: -1%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 8.4 %, P1-P2 25.3 %, P1-P3 39.2 % | baseline P1 31.5 %, P1-P2 71 %, P1-P3 87.6 %
+  second stop in-lap 36, MEDIUM: plan M15-H21-M17 (stops in-lap 15 HARD, in-lap 36 MEDIUM) vs saved M15-H38
+    card "Custom Strategy" M15-H21-M17  P4  avg P3.9  range P1-P8  41% podium  100% points
+    card "Baseline: M15-H38"                  P2  avg P2.1  range P1-P4  88% podium  100% points
+    verdict ▼ -1.8 ±0.22 PLACES LOST  Podium: -47%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 13.9 %, P1-P2 29.1 %, P1-P3 41 % | baseline P1 31.5 %, P1-P2 71 %, P1-P3 87.6 %
+F2. Right-arrow from 35 to 36 with the in-lap 35 plan still set: the store re-runs it at the new clock (stop at in-lap 35 < currentLap 36 is dropped by the engine):
+    card "Custom Strategy" M15-H20-H18  P2  avg P2.1  range P1-P4  88% podium  100% points
+    card "Baseline: M15-H38"                  P2  avg P2.1  range P1-P4  88% podium  100% points
+    verdict • 0.0 ±0.00 NO CLEAR CHANGE  Podium: 0%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 31.5 %, P1-P2 71 %, P1-P3 87.6 % | baseline P1 31.5 %, P1-P2 71 %, P1-P3 87.6 %
+F3. currentLap 35 at the full app's lap-seek frame (session 6237.694 s): seed same, result identical to the demo frame's.
+F3. currentLap 36 at the full app's lap-seek frame (session 6320.894 s): seed same, result identical to the demo frame's.
+
+G. COUNTERPART: THE SAME SIMULATOR ON McLAREN'S SECOND STOPS (focus PIA / NOR; Copy Actual saved, the actual two-stop as the plan)
+G1. currentLap 36 PIA: plan M16-H22-H15 (stop in-lap 38 HARD, the actual) vs saved Copy Actual M16-H37
+    card "Custom Strategy" M16-H22-H15  P4  avg P3.5  range P1-P5  47% podium  100% points
+    card "Baseline: M16-H37"                  P1  avg P1.7  range P1-P4  94% podium  100% points
+    verdict ▼ -1.8 ±0.18 PLACES LOST  Podium: -47%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 16.9 %, P1-P2 32.7 %, P1-P3 46.8 % | baseline P1 55.9 %, P1-P2 82.8 %, P1-P3 94.1 %
+G1. currentLap 37 PIA: plan M16-H22-H15 (stop in-lap 38 HARD, the actual) vs saved Copy Actual M16-H37
+    card "Custom Strategy" M16-H22-H15  P4  avg P4.1  range P1-P7  40% podium  99% points
+    card "Baseline: M16-H37"                  P1  avg P1.8  range P1-P4  91% podium  100% points
+    verdict ▼ -2.3 ±0.22 PLACES LOST  Podium: -52%  Points: -1%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 12.4 %, P1-P2 26.9 %, P1-P3 39.6 % | baseline P1 51.4 %, P1-P2 79.5 %, P1-P3 91.4 %
+G1. currentLap 38 PIA: plan M16-H22-H15 (stop in-lap 38 HARD, the actual) vs saved Copy Actual M16-H37
+    card "Custom Strategy" M16-H22-H15  P4  avg P3.8  range P1-P7  39% podium  100% points
+    card "Baseline: M16-H37"                  P1  avg P1.7  range P1-P4  93% podium  100% points
+    verdict ▼ -2.1 ±0.20 PLACES LOST  Podium: -54%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 16.9 %, P1-P2 27.5 %, P1-P3 39.3 % | baseline P1 56.3 %, P1-P2 81.8 %, P1-P3 93 %
+G2. currentLap 31 NOR: plan M14-H18-H21 (stop in-lap 32 HARD, the actual) vs saved Copy Actual M14-H39
+    card "Custom Strategy" M14-H18-H21  P3  avg P3.6  range P1-P7  52% podium  100% points
+    card "Baseline: M14-H39"                  P2  avg P2.4  range P1-P5  80% podium  100% points
+    verdict ▼ -1.2 ±0.22 PLACES LOST  Podium: -28%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 13 %, P1-P2 30.8 %, P1-P3 51.6 % | baseline P1 31.2 %, P1-P2 58.1 %, P1-P3 79.9 %
+G2. currentLap 32 NOR: plan M14-H18-H21 (stop in-lap 32 HARD, the actual) vs saved Copy Actual M14-H39
+    card "Custom Strategy" M14-H18-H21  P4  avg P4.0  range P1-P8  44% podium  100% points
+    card "Baseline: M14-H39"                  P2  avg P2.6  range P1-P5  77% podium  100% points
+    verdict ▼ -1.4 ±0.24 PLACES LOST  Podium: -33%  Points: 0%  (1000 runs each, interval z=2.58)
+    bars (share of runs): plan P1 13.1 %, P1-P2 28 %, P1-P3 43.9 % | baseline P1 24.4 %, P1-P2 53.2 %, P1-P3 77.1 %
+
+H. FRESH-HARD GAIN: THE LAP MODEL AGAINST WHAT WAS MEASURED AFTERWARDS (not displayed by any view; hindsight)
+   Lap model (raceSimulation.js projectedLapTime): against a car that keeps an older set of the same compound, a new set gains
+   deg x (age gap) per lap, deg = the lap model's rate at the decision clock (section D), plus the fresh-tyre delta once.
+   Measured: (target - chaser) on laps both ran clean (degradation.js isCleanLap) after the stop (from the chaser's in-lap + 2)
+   minus the same difference over the last 5 such laps before it (difference in differences: the base pace gap cancels).
+H1. NOR (new HARD at the end of lap 32) vs LEC (older HARD), clock currentLap 32: lap model HARD +0.024 s/lap (10 fits), fresh-tyre delta 0.000 s; ages on lap 34: NOR 2, LEC 19 (gap 17 laps)
+    modelled gain +0.408 s/lap; measured: before (last 5 clean pairs) -0.162 s/lap, after (20 clean pairs from L34) +0.900 s/lap -> gain +1.062 s/lap; modelled / measured 0.38
+H1. PIA (new HARD at the end of lap 38) vs LEC (older HARD), clock currentLap 38: lap model HARD +0.016 s/lap (18 fits), fresh-tyre delta 0.000 s; ages on lap 40: PIA 2, LEC 25 (gap 23 laps)
+    modelled gain +0.361 s/lap; measured: before (last 5 clean pairs) +0.030 s/lap, after (14 clean pairs from L40) +1.134 s/lap -> gain +1.104 s/lap; modelled / measured 0.33
+H2. Rough time balance of a second LEC stop (hindsight arithmetic, not a dashboard readout): new hards from the in-lap + 2 to the flag,
+    the gain per lap against LEC's own set (lap model: deg x age gap; measured: the range of H1, whose age gaps bracket LEC's),
+    against the header pit loss at the clock (in-lap + out-lap minus twice the green median, so the stop's whole cost).
+    in-lap 35 (clock 35): 17 laps on new hards from L37, LEC's set would be 22 laps old on L37 (gap 20); modelled gain +0.014 x 20 x 17 = 4.8 s; at the measured 1.06-1.10 s/lap: 18.1-18.8 s; pit loss 26.2 s; balance -21.4 s (model), -8.1 to -7.4 s (measured gain)
+    in-lap 36 (clock 36): 16 laps on new hards from L38, LEC's set would be 23 laps old on L38 (gap 21); modelled gain +0.017 x 21 x 16 = 5.8 s; at the measured 1.06-1.10 s/lap: 17.0-17.7 s; pit loss 26.3 s; balance -20.5 s (model), -9.3 to -8.6 s (measured gain)
+
+I. A RUN LATER IN THE LAP (paused mid-lap, or Run while playing): the race situation stays the lap's first frame's, the job takes
+   the frame's clock and seed (store simulationJob). The second-stop what-if (in-lap L, HARD, vs saved M15-H38):
+   Every demo frame of the lap at which the knowledge state (causalKey) changes, from the lap-seek frame (+0.0 s) on: the
+   job's clock and seed change only there, so a Run at any other frame repeats the result of the last clock listed before it.
+I1. currentLap 35 (leader lap 83.2 s): 18 clocks; places -1.7 to -2.1 (-2.1 at +28.8 s, +48.0 s, +80.8 s); podium -43% to -52%; cards P4-P4 vs P2-P2
+    +0.0 s -1.7 ±0.21 pod -43% P4/P2 | +3.2 s -1.9 ±0.21 pod -49% P4/P2 | +5.6 s -1.8 ±0.22 pod -44% P4/P2 | +8.0 s -1.8 ±0.22 pod -47% P4/P2 | +17.6 s -2.0 ±0.21 pod -52% P4/P2 | +19.2 s -1.9 ±0.22 pod -48% P4/P2 | +24.8 s -1.9 ±0.21 pod -49% P4/P2 | +27.2 s -1.8 ±0.21 pod -45% P4/P2 | +28.8 s -2.1 ±0.24 pod -49% P4/P2 | +32.8 s -2.0 ±0.23 pod -49% P4/P2 | +48.0 s -2.1 ±0.22 pod -50% P4/P2 | +53.6 s -1.8 ±0.23 pod -45% P4/P2 | +55.2 s -1.8 ±0.22 pod -44% P4/P2 | +59.2 s -1.9 ±0.22 pod -48% P4/P2 | +64.0 s -2.0 ±0.22 pod -48% P4/P2 | +64.8 s -2.0 ±0.22 pod -49% P4/P2 | +77.6 s -1.9 ±0.22 pod -47% P4/P2 | +80.8 s -2.1 ±0.23 pod -51% P4/P2
+I1. currentLap 36 (leader lap 84.0 s): 23 clocks; places -1.7 to -2.3 (-2.3 at +79.2 s, +83.2 s); podium -46% to -57%; cards P4-P5 vs P2-P2
+    +0.0 s -1.7 ±0.20 pod -47% P4/P2 | +4.8 s -1.7 ±0.20 pod -46% P4/P2 | +6.4 s -1.7 ±0.23 pod -47% P4/P2 | +9.6 s -1.7 ±0.21 pod -47% P4/P2 | +17.6 s -1.9 ±0.21 pod -52% P5/P2 | +19.2 s -2.0 ±0.21 pod -56% P5/P2 | +25.6 s -1.9 ±0.21 pod -54% P5/P2 | +27.2 s -1.9 ±0.21 pod -50% P5/P2 | +28.8 s -1.9 ±0.20 pod -54% P5/P2 | +34.4 s -1.9 ±0.21 pod -52% P4/P2 | +37.6 s -1.9 ±0.21 pod -51% P5/P2 | +51.2 s -2.0 ±0.21 pod -52% P5/P2 | +54.4 s -1.8 ±0.22 pod -49% P4/P2 | +55.2 s -2.0 ±0.20 pod -57% P5/P2 | +56.8 s -1.7 ±0.22 pod -47% P4/P2 | +58.4 s -2.1 ±0.23 pod -50% P5/P2 | +59.2 s -2.2 ±0.23 pod -52% P5/P2 | +61.6 s -2.2 ±0.23 pod -51% P5/P2 | +65.6 s -2.1 ±0.24 pod -50% P5/P2 | +66.4 s -2.2 ±0.23 pod -53% P5/P2 | +75.2 s -2.2 ±0.24 pod -50% P5/P2 | +79.2 s -2.3 ±0.24 pod -52% P5/P2 | +83.2 s -2.3 ±0.24 pod -52% P5/P2
+
+J. OUTCOME (lap rows and results after the clocks; never an input above)
+J1. P1 LEC M L1-15 > H L16-53  race time 4480.727 s
+J1. P2 PIA M L1-16 > H L17-38 > H L39-53  +2.664 s to the winner
+J1. P3 NOR M L1-14 > H L15-32 > H L33-53  +6.153 s to the winner
+J1. P4 SAI M L1-19 > H L20-53  +15.621 s to the winner
+J1. P5 HAM M L1-15 > H L16-37 > H L38-53  +22.820 s to the winner
+J1. P6 VER H L1-22 > H L23-41 > M L42-53  +37.932 s to the winner
+J2. Order and gap to the leader (s) at the end of each lap; P = in-lap, O = out-lap:
+    L32 LEC P2   5.5  83.274 | PIA P1   0.0  83.480 | NOR P3   8.8P 87.414 | SAI P4  17.2  83.354 | HAM P5  18.6  83.328
+    L33 LEC P2   5.6  83.226 | PIA P1   0.0  83.148 | NOR P6  29.8O 104.073 | SAI P3  17.5  83.412 | HAM P4  18.8  83.397
+    L34 LEC P2   5.6  83.430 | PIA P1   0.0  83.456 | NOR P6  29.1  82.837 | SAI P3  17.3  83.285 | HAM P4  18.9  83.531
+    L35 LEC P2   5.9  83.681 | PIA P1   0.0  83.409 | NOR P6  28.9  83.137 | SAI P3  17.2  83.334 | HAM P4  18.8  83.378
+    L36 LEC P2   5.8  83.714 | PIA P1   0.0  83.746 | NOR P6  28.2  83.114 | SAI P3  16.7  83.270 | HAM P4  18.7  83.601
+    L37 LEC P2   5.7  83.550 | PIA P1   0.0  83.691 | NOR P6  27.7  83.178 | SAI P3  16.3  83.290 | HAM P4  23.4P 88.349
+    L38 LEC P2   1.2  83.624 | PIA P1   0.0P 88.125 | NOR P5  22.7  83.133 | SAI P3  11.8  83.551 | HAM P6  37.7O 102.426
+    L39 LEC P1   0.0  83.718 | PIA P3  18.5O 103.438 | NOR P5  20.9  83.061 | SAI P2  10.7  83.809 | HAM P6  35.7  82.968
+    L40 LEC P1   0.0  83.690 | PIA P3  17.1  82.264 | NOR P5  21.4  84.162 | SAI P2  10.8  83.803 | HAM P6  35.1  83.012
+    L41 LEC P1   0.0  83.611 | PIA P3  15.6  82.066 | NOR P4  20.0  82.234 | SAI P2  10.5  83.337 | HAM P6  34.4  82.927
+    L42 LEC P1   0.0  83.670 | PIA P3  14.2  82.331 | NOR P4  19.0  82.678 | SAI P2  10.7  83.838 | HAM P5  33.2  82.520
+    L43 LEC P1   0.0  83.867 | PIA P3  12.5  82.092 | NOR P4  17.4  82.250 | SAI P2  10.6  83.793 | HAM P5  31.7  82.396
+    L44 LEC P1   0.0  83.430 | PIA P3  11.7  82.628 | NOR P4  16.4  82.403 | SAI P2  11.1  83.931 | HAM P5  30.5  82.136
+    L45 LEC P1   0.0  83.731 | PIA P2  11.6  83.675 | NOR P4  15.0  82.398 | SAI P3  12.5  85.113 | HAM P5  28.9  82.176
+    L46 LEC P1   0.0  83.597 | PIA P2  10.5  82.537 | NOR P4  13.5  82.041 | SAI P3  12.9  84.001 | HAM P5  27.6  82.307
+    L47 LEC P1   0.0  83.676 | PIA P2   9.1  82.253 | NOR P4  13.6  83.852 | SAI P3  13.3  84.090 | HAM P5  26.4  82.471
+    L48 LEC P1   0.0  83.518 | PIA P2   8.3  82.725 | NOR P3  11.9  81.824 | SAI P4  14.7  84.939 | HAM P5  25.7  82.794
+    L49 LEC P1   0.0  83.467 | PIA P2   7.8  82.945 | NOR P3  10.9  82.436 | SAI P4  15.2  83.921 | HAM P5  24.7  82.446
+    L50 LEC P1   0.0  83.461 | PIA P2   6.9  82.586 | NOR P3  10.7  83.266 | SAI P4  15.5  83.769 | HAM P5  23.4  82.243
+    L51 LEC P1   0.0  83.555 | PIA P2   5.8  82.424 | NOR P3   9.4  82.269 | SAI P4  15.7  83.754 | HAM P5  22.6  82.737
+    L52 LEC P1   0.0  83.750 | PIA P2   4.0  81.948 | NOR P3   8.0  82.302 | SAI P4  15.7  83.722 | HAM P5  24.6  85.703
+    L53 LEC P1   0.0  83.268 | PIA P2   2.7  81.943 | NOR P3   6.2  81.432 | SAI P4  15.6  83.219 | HAM P5  22.8  81.512
+J3. LEC P1 at the end of laps 39-53 (15 laps); PIA's in-lap 38 pit entry 6572.401 s.
+J4. PIA's gap to LEC: 18.5 s at the end of lap 39, 2.664 s at the flag; PIA faster than LEC by 1.134 s/lap on average over the 14 laps 40-53 both ran clean.
+J5. Stop counts of the top six (tyre changes): LEC 1, PIA 2, NOR 2, SAI 1, HAM 2, VER 2.

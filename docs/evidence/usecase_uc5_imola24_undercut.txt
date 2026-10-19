@@ -1,0 +1,421 @@
+UC5, Imola 2024 (2024 R7), the strategist's undercut fight PIA vs SAI. Report of frontend/scripts/usecases/uc5_imola24_undercut.mjs
+
+A. Race, replay frames, events, reachable clocks
+  race: Emilia Romagna Grand Prix, 63 laps (lap table 63, frames total_laps 63); retired per the results: ALB
+  backend frames: 13013, frame dt 0.4 s; demo frames: 6507, frame dt 0.8 s (frontend/public/data/2024_7_R (the demo's own files); lap_times identical to the backend cache: true; track_status identical: true)
+  session-time offset (first LapStartTime): 3336.608 s; sessionNow = frame.t + offset
+  track-status events (status@session s): 1@895, 2@1518, 1@1521, 2@1525, 1@1528, 2@1563, 1@1566
+  lap rows with SC / VSC / red status (any driver): none
+  PIA L22: ends 5136.355 s, MEDIUM age 22, P5
+  PIA L23: ends 5222.575 s, pit entry 5218.283 s, MEDIUM age 23, P4
+  PIA L24: ends 5325.839 s, pit exit 5248.004 s, HARD age 2, P8
+  SAI L22: ends 5135.453 s, MEDIUM age 22, P4
+  SAI L23: ends 5217.265 s, MEDIUM age 23, P3
+  SAI L24: ends 5299.038 s, MEDIUM age 24, P3
+  SAI L27: ends 5548.444 s, pit entry 5544.118 s, MEDIUM age 27, P1
+  SAI L28: ends 5652.572 s, pit exit 5574.582 s, HARD age 1, P6
+  PIA L28: ends 5647.707 s, HARD age 6, P4
+  leader's crossing of L22 (lap table): 5122.827 s; lap seek "lap 23" -> backend frame #4466 at 5123.01 s, demo frame #2233 at 5123.01 s
+  leader's crossing of L23 (lap table): 5204.815 s; lap seek "lap 24" -> backend frame #4671 at 5205.01 s, demo frame #2336 at 5205.41 s
+  leader's crossing of L24 (lap table): 5291.027 s; lap seek "lap 25" -> backend frame #4887 at 5291.41 s, demo frame #2444 at 5291.81 s
+  leader's crossing of L28 (lap table): 5636.763 s; lap seek "lap 29" -> backend frame #5751 at 5637.01 s, demo frame #2876 at 5637.41 s
+  leader's crossing of L29 (lap table): 5717.378 s; lap seek "lap 30" -> backend frame #5952 at 5717.41 s, demo frame #2976 at 5717.41 s
+  timeline "Skip to end" button (store showRaceOver: the last frame): backend #13012 sessionNow Infinity, demo #6506 sessionNow Infinity (Infinity = the race-over clock)
+  End key (hooks/useKeyboardShortcuts.js: setCurrentLap(maxLap), a lap seek): backend frame #12612 at 8381.41 s, demo frame #6306 at 8381.41 s (the leader starts lap 63; not the race-over clock)
+
+B. D1, PIA's pit wall: "box at the end of L23 (the lap in progress)?". Decision window: PIA's crossing of L22 5136.355 s to its pit entry 5218.283 s (81.9 s)
+
+B.1 Lap seek "lap 24" (→ until the lap counter reads 24, a click on lap 24 of the expanded timeline, or Ctrl+K "Jump to Lap" > "Lap 24")
+  [backend] lap seek "lap 24": frame #4671, sessionNow 5205.01 s, replay lap 24; PIA laps completed 22 (P5), SAI laps completed 22 (P4); SAI's gap tag on the ring −0.9 s (exact −0.90 s; − = ahead of PIA)
+   Circle of Doom, PIA in focus:
+     centre: "PIA pits now: P5 → P8"; centre pit-loss line "pit loss 27.7 s (7 stops)"
+     tooltip Pit now: P5 → P8 (target lap: end of L24)
+     tooltip Rejoin positions: P8 100.0%
+     tooltip Draws: 1000, bootstrap of 7 stops
+     tooltip Pit loss: 27.7 s (p10–p90 26.6–28.5 s, 7 stops)
+     tooltip Traffic at the rejoin: no: STR 1.9 s ahead
+     tooltip Traffic probability: 16%
+     tooltip Gain the place: HAM, PER, STR [HAM gap +4.78 s, margin +22.88 s; PER gap +19.88 s, margin +7.77 s; STR gap +24.15 s, margin +3.51 s] (gaps and margins not displayed)
+     tooltip Within reach: SAI, LEC, NOR, VER [SAI gap −0.90 s, margin +26.75 s; LEC gap −5.30 s, margin +22.35 s; NOR gap −6.99 s, margin +20.66 s; VER gap −13.53 s, margin +14.13 s] (gaps and margins not displayed)
+     tooltip Lapped traffic: none
+     track flag at the clock: 1 (green)
+     gap tags of the other cars on the ring (to the focus; − = ahead): VER −13.5, NOR −2.7, LEC −5.3, SAI −0.9, HAM +4.8, PER +19.9, STR +24.1
+   pit in k laps, "rivals" off ([ / ] or the header stepper):
+     stepper k = 0..10; rivals stop off; tooltip Lap model: MEDIUM +0.071 s/lap (10 stints) → HARD +0.035 s/lap (3 stints); Fresh-tyre delta: −0.281 s on the first flying lap (5 stints)
+        k  centre line                         tooltip: in-lap, rejoin             pitting now instead (same lap)         other cars
+        0  PIA pits now: P5 → P8                in-lap L23, rejoin P8 at the end of L24 —                                      no stops
+        1  PIA pits in 1: P5 → P8 (−1 vs now)   in-lap L24, rejoin P8 at the end of L25 P7 (−1 vs now; waiting costs 1.9 s)    no stops
+        2  PIA pits in 2: P5 → P8 (−1 vs now)   in-lap L25, rejoin P8 at the end of L26 P7 (−1 vs now; waiting costs 3.7 s)    no stops
+        3  PIA pits in 3: P5 → P7 (= now)       in-lap L26, rejoin P7 at the end of L27 P7 (= now; waiting costs 5.4 s)        no stops
+        4  PIA pits in 4: P5 → P7 (= now)       in-lap L27, rejoin P7 at the end of L28 P7 (= now; waiting costs 7.2 s)        no stops
+        5  PIA pits in 5: P5 → P7 (−1 vs now)   in-lap L28, rejoin P7 at the end of L29 P6 (−1 vs now; waiting costs 9.1 s)    no stops
+        6  PIA pits in 6: P5 → P7 (−1 vs now)   in-lap L29, rejoin P7 at the end of L30 P6 (−1 vs now; waiting costs 11.0 s)   no stops
+        7  PIA pits in 7: P5 → P7 (−1 vs now)   in-lap L30, rejoin P7 at the end of L31 P6 (−1 vs now; waiting costs 12.9 s)   no stops
+        8  PIA pits in 8: P5 → P7 (−1 vs now)   in-lap L31, rejoin P7 at the end of L32 P6 (−1 vs now; waiting costs 14.9 s)   no stops
+        9  PIA pits in 9: P5 → P7 (−1 vs now)   in-lap L32, rejoin P7 at the end of L33 P6 (−1 vs now; waiting costs 16.8 s)   no stops
+       10  PIA pits in 10: P5 → P7 (−1 vs now)  in-lap L33, rejoin P7 at the end of L34 P6 (−1 vs now; waiting costs 18.9 s)   no stops
+   pit in k laps, "rivals" ON (the toggle in the header):
+     stepper k = 0..10; rivals stop ON; tooltip Lap model: MEDIUM +0.071 s/lap (10 stints) → HARD +0.035 s/lap (3 stints); Fresh-tyre delta: −0.281 s on the first flying lap (5 stints)
+        k  centre line                         tooltip: in-lap, rejoin             pitting now instead (same lap)         other cars
+        0  PIA pits now: P5 → P8                in-lap L23, rejoin P8 at the end of L24 —                                      stop when due (none by then)
+        1  PIA pits in 1: P5 → P8 (−1 vs now)   in-lap L24, rejoin P8 at the end of L25 P7 (−1 vs now; waiting costs 1.9 s)    stop when due (none by then)
+        2  PIA pits in 2: P5 → P8 (−1 vs now)   in-lap L25, rejoin P8 at the end of L26 P7 (−1 vs now; waiting costs 3.7 s)    stop when due (none by then)
+        3  PIA pits in 3: P5 → P7 (= now)       in-lap L26, rejoin P7 at the end of L27 P7 (= now; waiting costs 5.4 s)        stop when due (none by then)
+        4  PIA pits in 4: P5 → P7 (= now)       in-lap L27, rejoin P7 at the end of L28 P7 (= now; waiting costs 7.2 s)        stop when due (none by then)
+        5  PIA pits in 5: P5 → P7 (−1 vs now)   in-lap L28, rejoin P7 at the end of L29 P6 (−1 vs now; waiting costs 9.1 s)    stop when due (none by then)
+        6  PIA pits in 6: P5 → P7 (−1 vs now)   in-lap L29, rejoin P7 at the end of L30 P6 (−1 vs now; waiting costs 11.0 s)   stop when due (none by then)
+        7  PIA pits in 7: P5 → P7 (−1 vs now)   in-lap L30, rejoin P7 at the end of L31 P6 (−1 vs now; waiting costs 12.9 s)   stop when due (none by then)
+        8  PIA pits in 8: P5 → P7 (−1 vs now)   in-lap L31, rejoin P7 at the end of L32 P6 (−1 vs now; waiting costs 14.9 s)   stop when due: STR
+        9  PIA pits in 9: P5 → P5 (−3 vs now)   in-lap L32, rejoin P5 at the end of L33 P2 (−3 vs now; waiting costs 16.8 s)   stop when due: VER, LEC, SAI, HAM, STR, OCO, MAG
+       10  PIA pits in 10: P5 → P6 (−3 vs now)  in-lap L33, rejoin P6 at the end of L34 P3 (−3 vs now; waiting costs 18.9 s)   stop when due: VER, LEC, SAI, HAM, STR, OCO, MAG
+   focus card, Rivals rows (store updateRivalContext at this clock, store clock 5205.01 s): P3 NOR -2.7s ↔ (stable) H 2L | P4 SAI -0.9s ↔ (stable) M 23L | P6 HAM +4.8s ↔ (stable) M 23L | P7 PER +19.9s ↔ (stable) H 23L
+  [demo] lap seek "lap 24": frame #2336, sessionNow 5205.41 s, replay lap 24; PIA laps completed 22 (P5), SAI laps completed 22 (P4); SAI's gap tag on the ring −0.9 s (exact −0.90 s; − = ahead of PIA)
+   every readout below identical to the backend clock above
+  the lap seek "lap 24" lands 13.3 s (backend) / 12.9 s (demo) before PIA's pit entry, 68.7 s after PIA's L22 crossing
+
+B.2 Pause at the first frame after PIA crosses the line at the end of L22 (frame-precise: play and pause, or drag the timeline)
+  [backend] first frame after PIA's L22 crossing: frame #4500, sessionNow 5136.61 s, replay lap 23; PIA laps completed 22 (P5), SAI laps completed 22 (P4); SAI's gap tag on the ring −0.9 s (exact −0.90 s; − = ahead of PIA)
+   Circle of Doom, PIA in focus:
+     centre: "PIA pits now: P5 → P8"; centre pit-loss line "pit loss 27.5 s (6 stops)"
+     tooltip Pit now: P5 → P8 (target lap: end of L24)
+     tooltip Rejoin positions: P8 100.0%
+     tooltip Draws: 1000, bootstrap of 6 stops
+     tooltip Pit loss: 27.5 s (p10–p90 26.5–28.4 s, 6 stops)
+     tooltip Traffic at the rejoin: no: STR 1.5 s ahead
+     tooltip Traffic probability: 31%
+     tooltip Gain the place: HAM, PER, STR [HAM gap +4.80 s, margin +22.72 s; PER gap +19.88 s, margin +7.64 s; STR gap +23.32 s, margin +4.20 s] (gaps and margins not displayed)
+     tooltip Within reach: SAI, LEC, NOR, VER [SAI gap −0.90 s, margin +26.62 s; LEC gap −5.30 s, margin +22.21 s; NOR gap −6.99 s, margin +20.52 s; VER gap −13.53 s, margin +13.99 s] (gaps and margins not displayed)
+     tooltip Lapped traffic: none
+     track flag at the clock: 1 (green)
+     gap tags of the other cars on the ring (to the focus; − = ahead): VER −13.5, NOR −2.7, LEC −5.3, SAI −0.9, HAM +4.8, PER +19.9, STR +23.3
+   pit in k laps, "rivals" off ([ / ] or the header stepper):
+     stepper k = 0..10; rivals stop off; tooltip Lap model: MEDIUM +0.071 s/lap (10 stints) → HARD +0.035 s/lap (3 stints); Fresh-tyre delta: −0.145 s on the first flying lap (4 stints)
+        k  centre line                         tooltip: in-lap, rejoin             pitting now instead (same lap)         other cars
+        0  PIA pits now: P5 → P8                in-lap L23, rejoin P8 at the end of L24 —                                      no stops
+        1  PIA pits in 1: P5 → P8 (−1 vs now)   in-lap L24, rejoin P8 at the end of L25 P7 (−1 vs now; waiting costs 1.8 s)    no stops
+        2  PIA pits in 2: P5 → P7 (= now)       in-lap L25, rejoin P7 at the end of L26 P7 (= now; waiting costs 3.5 s)        no stops
+        3  PIA pits in 3: P5 → P8 (−1 vs now)   in-lap L26, rejoin P8 at the end of L27 P7 (−1 vs now; waiting costs 5.3 s)    no stops
+        4  PIA pits in 4: P5 → P8 (−2 vs now)   in-lap L27, rejoin P8 at the end of L28 P6 (−2 vs now; waiting costs 7.1 s)    no stops
+        5  PIA pits in 5: P5 → P8 (−2 vs now)   in-lap L28, rejoin P8 at the end of L29 P6 (−2 vs now; waiting costs 9.0 s)    no stops
+        6  PIA pits in 6: P5 → P8 (−2 vs now)   in-lap L29, rejoin P8 at the end of L30 P6 (−2 vs now; waiting costs 10.9 s)   no stops
+        7  PIA pits in 7: P5 → P8 (−2 vs now)   in-lap L30, rejoin P8 at the end of L31 P6 (−2 vs now; waiting costs 12.8 s)   no stops
+        8  PIA pits in 8: P5 → P8 (−2 vs now)   in-lap L31, rejoin P8 at the end of L32 P6 (−2 vs now; waiting costs 14.8 s)   no stops
+        9  PIA pits in 9: P5 → P8 (−2 vs now)   in-lap L32, rejoin P8 at the end of L33 P6 (−2 vs now; waiting costs 16.8 s)   no stops
+       10  PIA pits in 10: P5 → P8 (−2 vs now)  in-lap L33, rejoin P8 at the end of L34 P6 (−2 vs now; waiting costs 18.8 s)   no stops
+   pit in k laps, "rivals" ON (the toggle in the header):
+     stepper k = 0..10; rivals stop ON; tooltip Lap model: MEDIUM +0.071 s/lap (10 stints) → HARD +0.035 s/lap (3 stints); Fresh-tyre delta: −0.145 s on the first flying lap (4 stints)
+        k  centre line                         tooltip: in-lap, rejoin             pitting now instead (same lap)         other cars
+        0  PIA pits now: P5 → P8                in-lap L23, rejoin P8 at the end of L24 —                                      stop when due (none by then)
+        1  PIA pits in 1: P5 → P8 (−1 vs now)   in-lap L24, rejoin P8 at the end of L25 P7 (−1 vs now; waiting costs 1.8 s)    stop when due (none by then)
+        2  PIA pits in 2: P5 → P7 (= now)       in-lap L25, rejoin P7 at the end of L26 P7 (= now; waiting costs 3.5 s)        stop when due (none by then)
+        3  PIA pits in 3: P5 → P8 (−1 vs now)   in-lap L26, rejoin P8 at the end of L27 P7 (−1 vs now; waiting costs 5.3 s)    stop when due (none by then)
+        4  PIA pits in 4: P5 → P8 (−2 vs now)   in-lap L27, rejoin P8 at the end of L28 P6 (−2 vs now; waiting costs 7.1 s)    stop when due (none by then)
+        5  PIA pits in 5: P5 → P8 (−2 vs now)   in-lap L28, rejoin P8 at the end of L29 P6 (−2 vs now; waiting costs 9.0 s)    stop when due (none by then)
+        6  PIA pits in 6: P5 → P8 (−2 vs now)   in-lap L29, rejoin P8 at the end of L30 P6 (−2 vs now; waiting costs 10.9 s)   stop when due (none by then)
+        7  PIA pits in 7: P5 → P8 (−2 vs now)   in-lap L30, rejoin P8 at the end of L31 P6 (−2 vs now; waiting costs 12.8 s)   stop when due: STR
+        8  PIA pits in 8: P5 → P6 (−3 vs now)   in-lap L31, rejoin P6 at the end of L32 P3 (−3 vs now; waiting costs 14.8 s)   stop when due: VER, LEC, SAI, HAM, STR, OCO, MAG
+        9  PIA pits in 9: P5 → P7 (−4 vs now)   in-lap L32, rejoin P7 at the end of L33 P3 (−4 vs now; waiting costs 16.8 s)   stop when due: VER, LEC, SAI, HAM, STR, OCO, MAG
+       10  PIA pits in 10: P5 → P7 (−4 vs now)  in-lap L33, rejoin P7 at the end of L34 P3 (−4 vs now; waiting costs 18.8 s)   stop when due: VER, LEC, SAI, HAM, STR, OCO, MAG
+   focus card, Rivals rows (store updateRivalContext at this clock, store clock 5136.61 s): P3 NOR -2.7s ↓ (opening) M 22L | P4 SAI -0.9s ↔ (stable) M 23L | P6 HAM +4.7s ↔ (stable) M 22L | P7 RUS +7.8s ↔ (stable) H 1L
+  [demo] first frame after PIA's L22 crossing: frame #2250, sessionNow 5136.61 s, replay lap 23; PIA laps completed 22 (P5), SAI laps completed 22 (P4); SAI's gap tag on the ring −0.9 s (exact −0.90 s; − = ahead of PIA)
+   every readout below identical to the backend clock above
+
+B.3 How long each readout holds over the D1 window (share of the frames a reader can pause on)
+  [backend] Circle of Doom, PIA in focus: window 5136.35..5218.28 s (81.9 s); frames 5136.61..5218.21 s, 205 frames of 0.4 s, 19 causal states
+    Pit now: "P5 → P8" 100.0% (5136.61–5218.61 s, 82.0 s)
+    Rejoin positions: "P8 100.0%" 100.0% (5136.61–5218.61 s, 82.0 s)
+    Pit loss: "27.5 s (p10–p90 26.5–28.4 s, 6 stops)" 37.6% (5136.61–5167.41 s, 30.8 s); "27.6 s (p10–p90 26.6–28.6 s, 7 stops)" 19.5% (5167.41–5183.41 s, 16.0 s); "27.7 s (p10–p90 26.6–28.6 s, 7 stops)" 2.4% (5183.41–5185.41 s, 2.0 s); "27.7 s (p10–p90 26.6–28.5 s, 7 stops)" 40.5% (5185.41–5218.61 s, 33.2 s)
+    Traffic at the rejoin: "no: STR 1.5 s ahead" 29.3% (5136.61–5160.61 s, 24.0 s); "no: STR 1.7 s ahead" 8.3% (5160.61–5167.41 s, 6.8 s); "no: STR 1.8 s ahead" 19.5% (5167.41–5183.41 s, 16.0 s); "no: STR 1.9 s ahead" 42.9% (5183.41–5218.61 s, 35.2 s)
+    Traffic probability: "31%" 29.3% (5136.61–5160.61 s, 24.0 s); "16%" 70.7% (5160.61–5218.61 s, 58.0 s)
+    Gain the place: "HAM, PER, STR" 100.0% (5136.61–5218.61 s, 82.0 s)
+    Within reach: "SAI, LEC, NOR, VER" 100.0% (5136.61–5218.61 s, 82.0 s)
+    pit in 1: "rejoin P8 at the end of L25; pitting now instead P7 (−1 vs now; waiting costs 1.8 s)" 49.8% (5136.61–5177.41 s, 40.8 s); "rejoin P8 at the end of L25; pitting now instead P7 (−1 vs now; waiting costs 1.9 s)" 50.2% (5177.41–5218.61 s, 41.2 s)
+    pit in 2: "rejoin P7 at the end of L26; pitting now instead P7 (= now; waiting costs 3.5 s)" 37.6% (5136.61–5167.41 s, 30.8 s); "rejoin P8 at the end of L26; pitting now instead P7 (−1 vs now; waiting costs 3.5 s)" 12.2% (5167.41–5177.41 s, 10.0 s); "rejoin P8 at the end of L26; pitting now instead P7 (−1 vs now; waiting costs 3.6 s)" 35.1% (5177.41–5205.01 s, 27.6 s; 5217.41–5218.61 s, 1.2 s); "rejoin P8 at the end of L26; pitting now instead P7 (−1 vs now; waiting costs 3.7 s)" 15.1% (5205.01–5217.41 s, 12.4 s)
+    pit in 3: "rejoin P8 at the end of L27; pitting now instead P7 (−1 vs now; waiting costs 5.3 s)" 37.6% (5136.61–5167.41 s, 30.8 s); "rejoin P7 at the end of L27; pitting now instead P7 (= now; waiting costs 5.3 s)" 12.2% (5167.41–5177.41 s, 10.0 s); "rejoin P7 at the end of L27; pitting now instead P7 (= now; waiting costs 5.4 s)" 50.2% (5177.41–5218.61 s, 41.2 s)
+    pit in 4: "rejoin P8 at the end of L28; pitting now instead P6 (−2 vs now; waiting costs 7.1 s)" 24.4% (5136.61–5156.61 s, 20.0 s); "rejoin P8 at the end of L28; pitting now instead P7 (−1 vs now; waiting costs 7.1 s)" 13.2% (5156.61–5167.41 s, 10.8 s); "rejoin P7 at the end of L28; pitting now instead P7 (= now; waiting costs 7.1 s)" 12.2% (5167.41–5177.41 s, 10.0 s); "rejoin P7 at the end of L28; pitting now instead P7 (= now; waiting costs 7.2 s)" 50.2% (5177.41–5218.61 s, 41.2 s)
+    pit in 8 (rivals on): "rejoin P6 at the end of L32; pitting now instead P3 (−3 vs now; waiting costs 14.8 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 5.9% (5136.61–5141.41 s, 4.8 s); "rejoin P6 at the end of L32; pitting now instead P3 (−3 vs now; waiting costs 14.7 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 23.4% (5141.41–5160.61 s, 19.2 s); "rejoin P8 at the end of L32; pitting now instead P6 (−2 vs now; waiting costs 14.7 s); stopping by then: STR, OCO, MAG" 8.3% (5160.61–5167.41 s, 6.8 s); "rejoin P7 at the end of L32; pitting now instead P6 (−1 vs now; waiting costs 14.7 s); stopping by then: STR, MAG" 2.4% (5167.41–5169.41 s, 2.0 s); "rejoin P7 at the end of L32; pitting now instead P6 (−1 vs now; waiting costs 14.6 s); stopping by then: STR" 9.8% (5169.41–5177.41 s, 8.0 s); "rejoin P7 at the end of L32; pitting now instead P6 (−1 vs now; waiting costs 14.8 s); stopping by then: STR" 35.1% (5177.41–5205.01 s, 27.6 s; 5217.41–5218.61 s, 1.2 s); "rejoin P7 at the end of L32; pitting now instead P6 (−1 vs now; waiting costs 14.9 s); stopping by then: STR" 15.1% (5205.01–5217.41 s, 12.4 s)
+    pit in 9 (rivals on): "rejoin P7 at the end of L33; pitting now instead P3 (−4 vs now; waiting costs 16.8 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 5.9% (5136.61–5141.41 s, 4.8 s); "rejoin P7 at the end of L33; pitting now instead P3 (−4 vs now; waiting costs 16.7 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 23.4% (5141.41–5160.61 s, 19.2 s); "rejoin P6 at the end of L33; pitting now instead P3 (−3 vs now; waiting costs 16.7 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 8.3% (5160.61–5167.41 s, 6.8 s); "rejoin P5 at the end of L33; pitting now instead P3 (−2 vs now; waiting costs 16.7 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 2.4% (5167.41–5169.41 s, 2.0 s); "rejoin P5 at the end of L33; pitting now instead P3 (−2 vs now; waiting costs 16.6 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 9.8% (5169.41–5177.41 s, 8.0 s); "rejoin P5 at the end of L33; pitting now instead P3 (−2 vs now; waiting costs 16.8 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 33.7% (5177.41–5205.01 s, 27.6 s); "rejoin P5 at the end of L33; pitting now instead P2 (−3 vs now; waiting costs 16.8 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 11.2% (5205.01–5213.01 s, 8.0 s; 5217.41–5218.61 s, 1.2 s); "rejoin P5 at the end of L33; pitting now instead P2 (−3 vs now; waiting costs 16.9 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 5.4% (5213.01–5217.41 s, 4.4 s)
+  [demo] Circle of Doom, PIA in focus: window 5136.35..5218.28 s (81.9 s); frames 5136.61..5218.21 s, 103 frames of 0.8 s, 19 causal states
+    Pit now: "P5 → P8" 100.0% (5136.61–5219.01 s, 82.4 s)
+    Rejoin positions: "P8 100.0%" 100.0% (5136.61–5219.01 s, 82.4 s)
+    Pit loss: "27.5 s (p10–p90 26.5–28.4 s, 6 stops)" 37.9% (5136.61–5167.81 s, 31.2 s); "27.6 s (p10–p90 26.6–28.6 s, 7 stops)" 19.4% (5167.81–5183.81 s, 16.0 s); "27.7 s (p10–p90 26.6–28.6 s, 7 stops)" 1.9% (5183.81–5185.41 s, 1.6 s); "27.7 s (p10–p90 26.6–28.5 s, 7 stops)" 40.8% (5185.41–5219.01 s, 33.6 s)
+    Traffic at the rejoin: "no: STR 1.5 s ahead" 29.1% (5136.61–5160.61 s, 24.0 s); "no: STR 1.7 s ahead" 8.7% (5160.61–5167.81 s, 7.2 s); "no: STR 1.8 s ahead" 19.4% (5167.81–5183.81 s, 16.0 s); "no: STR 1.9 s ahead" 42.7% (5183.81–5219.01 s, 35.2 s)
+    Traffic probability: "31%" 29.1% (5136.61–5160.61 s, 24.0 s); "16%" 70.9% (5160.61–5219.01 s, 58.4 s)
+    Gain the place: "HAM, PER, STR" 100.0% (5136.61–5219.01 s, 82.4 s)
+    Within reach: "SAI, LEC, NOR, VER" 100.0% (5136.61–5219.01 s, 82.4 s)
+    pit in 1: "rejoin P8 at the end of L25; pitting now instead P7 (−1 vs now; waiting costs 1.8 s)" 49.5% (5136.61–5177.41 s, 40.8 s); "rejoin P8 at the end of L25; pitting now instead P7 (−1 vs now; waiting costs 1.9 s)" 50.5% (5177.41–5219.01 s, 41.6 s)
+    pit in 2: "rejoin P7 at the end of L26; pitting now instead P7 (= now; waiting costs 3.5 s)" 37.9% (5136.61–5167.81 s, 31.2 s); "rejoin P8 at the end of L26; pitting now instead P7 (−1 vs now; waiting costs 3.5 s)" 11.7% (5167.81–5177.41 s, 9.6 s); "rejoin P8 at the end of L26; pitting now instead P7 (−1 vs now; waiting costs 3.6 s)" 35.9% (5177.41–5205.41 s, 28.0 s; 5217.41–5219.01 s, 1.6 s); "rejoin P8 at the end of L26; pitting now instead P7 (−1 vs now; waiting costs 3.7 s)" 14.6% (5205.41–5217.41 s, 12.0 s)
+    pit in 3: "rejoin P8 at the end of L27; pitting now instead P7 (−1 vs now; waiting costs 5.3 s)" 37.9% (5136.61–5167.81 s, 31.2 s); "rejoin P7 at the end of L27; pitting now instead P7 (= now; waiting costs 5.3 s)" 11.7% (5167.81–5177.41 s, 9.6 s); "rejoin P7 at the end of L27; pitting now instead P7 (= now; waiting costs 5.4 s)" 50.5% (5177.41–5219.01 s, 41.6 s)
+    pit in 4: "rejoin P8 at the end of L28; pitting now instead P6 (−2 vs now; waiting costs 7.1 s)" 24.3% (5136.61–5156.61 s, 20.0 s); "rejoin P8 at the end of L28; pitting now instead P7 (−1 vs now; waiting costs 7.1 s)" 13.6% (5156.61–5167.81 s, 11.2 s); "rejoin P7 at the end of L28; pitting now instead P7 (= now; waiting costs 7.1 s)" 11.7% (5167.81–5177.41 s, 9.6 s); "rejoin P7 at the end of L28; pitting now instead P7 (= now; waiting costs 7.2 s)" 50.5% (5177.41–5219.01 s, 41.6 s)
+    pit in 8 (rivals on): "rejoin P6 at the end of L32; pitting now instead P3 (−3 vs now; waiting costs 14.8 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 5.8% (5136.61–5141.41 s, 4.8 s); "rejoin P6 at the end of L32; pitting now instead P3 (−3 vs now; waiting costs 14.7 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 23.3% (5141.41–5160.61 s, 19.2 s); "rejoin P8 at the end of L32; pitting now instead P6 (−2 vs now; waiting costs 14.7 s); stopping by then: STR, OCO, MAG" 8.7% (5160.61–5167.81 s, 7.2 s); "rejoin P7 at the end of L32; pitting now instead P6 (−1 vs now; waiting costs 14.7 s); stopping by then: STR, MAG" 1.9% (5167.81–5169.41 s, 1.6 s); "rejoin P7 at the end of L32; pitting now instead P6 (−1 vs now; waiting costs 14.6 s); stopping by then: STR" 9.7% (5169.41–5177.41 s, 8.0 s); "rejoin P7 at the end of L32; pitting now instead P6 (−1 vs now; waiting costs 14.8 s); stopping by then: STR" 35.9% (5177.41–5205.41 s, 28.0 s; 5217.41–5219.01 s, 1.6 s); "rejoin P7 at the end of L32; pitting now instead P6 (−1 vs now; waiting costs 14.9 s); stopping by then: STR" 14.6% (5205.41–5217.41 s, 12.0 s)
+    pit in 9 (rivals on): "rejoin P7 at the end of L33; pitting now instead P3 (−4 vs now; waiting costs 16.8 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 5.8% (5136.61–5141.41 s, 4.8 s); "rejoin P7 at the end of L33; pitting now instead P3 (−4 vs now; waiting costs 16.7 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 23.3% (5141.41–5160.61 s, 19.2 s); "rejoin P6 at the end of L33; pitting now instead P3 (−3 vs now; waiting costs 16.7 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 8.7% (5160.61–5167.81 s, 7.2 s); "rejoin P5 at the end of L33; pitting now instead P3 (−2 vs now; waiting costs 16.7 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 1.9% (5167.81–5169.41 s, 1.6 s); "rejoin P5 at the end of L33; pitting now instead P3 (−2 vs now; waiting costs 16.6 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 9.7% (5169.41–5177.41 s, 8.0 s); "rejoin P5 at the end of L33; pitting now instead P3 (−2 vs now; waiting costs 16.8 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 34.0% (5177.41–5205.41 s, 28.0 s); "rejoin P5 at the end of L33; pitting now instead P2 (−3 vs now; waiting costs 16.8 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 11.7% (5205.41–5213.41 s, 8.0 s; 5217.41–5219.01 s, 1.6 s); "rejoin P5 at the end of L33; pitting now instead P2 (−3 vs now; waiting costs 16.9 s); stopping by then: VER, LEC, SAI, HAM, STR, OCO, MAG" 4.9% (5213.41–5217.41 s, 4.0 s)
+
+C. D2, SAI's pit wall: "PIA has boxed: cover at the end of L24 or stay out?". Window: PIA's pit entry 5218.283 s (SAI crossed L23 at 5217.265 s) to SAI's crossing of L24 5299.038 s (80.8 s); SAI's pit entries in this race come 4.3 s before its line crossing (L27)
+
+C.1 Pause at the first frame after PIA enters the pit lane (play on from the lap seek "lap 24", pause when PIA is on the pit-lane arc)
+  [backend] first frame after PIA's pit entry: frame #4705, sessionNow 5218.61 s, replay lap 24; SAI laps completed 23 (P3), PIA laps completed 22 (P5, in the pit lane); PIA's gap tag on the ring +0.9 s (exact +0.90 s; − = ahead of SAI)
+   Circle of Doom, SAI in focus:
+     centre: "SAI pits now: P3 → P7"; centre pit-loss line "pit loss 27.7 s (7 stops)"
+     tooltip Pit now: P3 → P7 (target lap: end of L25)
+     tooltip Rejoin positions: P6 28.2% · P7 44.6% · P8 27.2%
+     tooltip Draws: 1000, bootstrap of 7 stops
+     tooltip Pit loss: 27.7 s (p10–p90 26.6–28.5 s, 7 stops)
+     tooltip Traffic at the rejoin: 0.33 s behind STR (< 1.0 s)
+     tooltip Traffic probability: 72%
+     tooltip Gain the place: HAM, PER, NOR, STR [HAM gap +5.68 s, margin +21.98 s; PER gap +20.78 s, margin +6.87 s; NOR gap +21.56 s, margin +6.09 s; STR gap +25.05 s, margin +2.61 s] (gaps and margins not displayed)
+     tooltip Within reach: LEC, VER [LEC gap −4.27 s, margin +23.38 s; VER gap −12.45 s, margin +15.21 s] (gaps and margins not displayed)
+     tooltip Lapped traffic: none
+     track flag at the clock: 1 (green)
+     (not displayed) PIA in the rank of SAI's rejoin: crossing of L25 5409.62 s (projected: true, stage in-lap, pending loss 27.7 s, pace 81.869 s/lap from recent) against SAI's predicted 5408.93 s: SAI ahead by 0.68 s at the end of L25
+     gap tags of the other cars on the ring (to SAI; − = ahead): VER −12.5, NOR −1.8, LEC −4.3, PIA +0.9, HAM +5.7, PER +20.8, STR +25.0
+   pit in k laps, "rivals" off ([ / ] or the header stepper):
+     stepper k = 0..10; rivals stop off; tooltip Lap model: MEDIUM +0.071 s/lap (10 stints) → HARD +0.035 s/lap (3 stints); Fresh-tyre delta: −0.281 s on the first flying lap (5 stints)
+        k  centre line                         tooltip: in-lap, rejoin             pitting now instead (same lap)         other cars
+        0  SAI pits now: P3 → P7                in-lap L24, rejoin P7 at the end of L25 —                                      no stops
+        1  SAI pits in 1: P3 → P7 (−1 vs now)   in-lap L25, rejoin P7 at the end of L26 P6 (−1 vs now; waiting costs 2.0 s)    no stops
+        2  SAI pits in 2: P3 → P7 (−1 vs now)   in-lap L26, rejoin P7 at the end of L27 P6 (−1 vs now; waiting costs 3.8 s)    no stops
+        3  SAI pits in 3: P3 → P7 (−1 vs now)   in-lap L27, rejoin P7 at the end of L28 P6 (−1 vs now; waiting costs 5.6 s)    no stops
+        4  SAI pits in 4: P3 → P7 (−2 vs now)   in-lap L28, rejoin P7 at the end of L29 P5 (−2 vs now; waiting costs 7.5 s)    no stops
+        5  SAI pits in 5: P3 → P7 (−2 vs now)   in-lap L29, rejoin P7 at the end of L30 P5 (−2 vs now; waiting costs 9.4 s)    no stops
+        6  SAI pits in 6: P3 → P7 (−2 vs now)   in-lap L30, rejoin P7 at the end of L31 P5 (−2 vs now; waiting costs 11.3 s)   no stops
+        7  SAI pits in 7: P3 → P7 (−2 vs now)   in-lap L31, rejoin P7 at the end of L32 P5 (−2 vs now; waiting costs 13.3 s)   no stops
+        8  SAI pits in 8: P3 → P7 (−2 vs now)   in-lap L32, rejoin P7 at the end of L33 P5 (−2 vs now; waiting costs 15.3 s)   no stops
+        9  SAI pits in 9: P3 → P7 (−2 vs now)   in-lap L33, rejoin P7 at the end of L34 P5 (−2 vs now; waiting costs 17.4 s)   no stops
+       10  SAI pits in 10: P3 → P7 (−1 vs now)  in-lap L34, rejoin P7 at the end of L35 P6 (−1 vs now; waiting costs 19.5 s)   no stops
+   pit in k laps, "rivals" ON (the toggle in the header):
+     stepper k = 0..10; rivals stop ON; tooltip Lap model: MEDIUM +0.071 s/lap (10 stints) → HARD +0.035 s/lap (3 stints); Fresh-tyre delta: −0.281 s on the first flying lap (5 stints)
+        k  centre line                         tooltip: in-lap, rejoin             pitting now instead (same lap)         other cars
+        0  SAI pits now: P3 → P7                in-lap L24, rejoin P7 at the end of L25 —                                      stop when due (none by then)
+        1  SAI pits in 1: P3 → P7 (−1 vs now)   in-lap L25, rejoin P7 at the end of L26 P6 (−1 vs now; waiting costs 2.0 s)    stop when due (none by then)
+        2  SAI pits in 2: P3 → P7 (−1 vs now)   in-lap L26, rejoin P7 at the end of L27 P6 (−1 vs now; waiting costs 3.8 s)    stop when due (none by then)
+        3  SAI pits in 3: P3 → P7 (−1 vs now)   in-lap L27, rejoin P7 at the end of L28 P6 (−1 vs now; waiting costs 5.6 s)    stop when due (none by then)
+        4  SAI pits in 4: P3 → P7 (−2 vs now)   in-lap L28, rejoin P7 at the end of L29 P5 (−2 vs now; waiting costs 7.5 s)    stop when due (none by then)
+        5  SAI pits in 5: P3 → P7 (−2 vs now)   in-lap L29, rejoin P7 at the end of L30 P5 (−2 vs now; waiting costs 9.4 s)    stop when due (none by then)
+        6  SAI pits in 6: P3 → P7 (−2 vs now)   in-lap L30, rejoin P7 at the end of L31 P5 (−2 vs now; waiting costs 11.3 s)   stop when due (none by then)
+        7  SAI pits in 7: P3 → P7 (−2 vs now)   in-lap L31, rejoin P7 at the end of L32 P5 (−2 vs now; waiting costs 13.3 s)   stop when due: STR
+        8  SAI pits in 8: P3 → P6 (−3 vs now)   in-lap L32, rejoin P6 at the end of L33 P3 (−3 vs now; waiting costs 15.3 s)   stop when due: VER, LEC, HAM, STR, OCO, MAG
+        9  SAI pits in 9: P3 → P6 (−3 vs now)   in-lap L33, rejoin P6 at the end of L34 P3 (−3 vs now; waiting costs 17.4 s)   stop when due: VER, LEC, HAM, STR, OCO, MAG
+       10  SAI pits in 10: P3 → P6 (−2 vs now)  in-lap L34, rejoin P6 at the end of L35 P4 (−2 vs now; waiting costs 19.5 s)   stop when due: VER, LEC, HAM, STR, OCO, MAG
+   focus card, Rivals rows (store updateRivalContext at this clock, store clock 5218.61 s): P1 VER -12.4s ↔ (stable) M 24L | P2 LEC -4.3s ↔ (stable) M 24L | P3 NOR -1.6s ↔ (stable) H 2L | P5 PIA +1.1s ↔ (stable) M 23L
+  [demo] first frame after PIA's pit entry: frame #2353, sessionNow 5219.01 s, replay lap 24; SAI laps completed 23 (P3), PIA laps completed 22 (P5, in the pit lane); PIA's gap tag on the ring +0.9 s (exact +0.90 s; − = ahead of SAI)
+   every readout below identical to the backend clock above
+
+C.2 Lap seek "lap 25" (the leader starts L25; SAI is then a few seconds from its own pit entry)
+  [backend] lap seek "lap 25": frame #4887, sessionNow 5291.41 s, replay lap 25; SAI laps completed 23 (P3), PIA laps completed 23 (P4); PIA's gap tag on the ring +5.3 s (exact +5.31 s; − = ahead of SAI)
+   Circle of Doom, SAI in focus:
+     centre: "SAI pits now: P3 → P7"; centre pit-loss line "pit loss 27.8 s (8 stops)"
+     tooltip Pit now: P3 → P7 (target lap: end of L25)
+     tooltip Rejoin positions: P6 25.9% · P7 50.7% · P8 23.4%
+     tooltip Draws: 1000, bootstrap of 8 stops
+     tooltip Pit loss: 27.8 s (p10–p90 26.6–28.5 s, 8 stops)
+     tooltip Traffic at the rejoin: 0.77 s behind STR (< 1.0 s)
+     tooltip Traffic probability: 62%
+     tooltip Gain the place: HAM, PER, NOR, STR [HAM gap +5.43 s, margin +22.35 s; PER gap +20.94 s, margin +6.84 s; NOR gap +21.10 s, margin +6.67 s; STR gap +25.78 s, margin +1.99 s] (gaps and margins not displayed)
+     tooltip Within reach: LEC, VER [LEC gap −4.27 s, margin +23.50 s; VER gap −12.45 s, margin +15.33 s] (gaps and margins not displayed)
+     tooltip Lapped traffic: none
+     track flag at the clock: 1 (green)
+     (not displayed) PIA in the rank of SAI's rejoin: crossing of L25 5409.74 s (projected: true, stage out-lap, pending loss 23.4 s, pace 81.869 s/lap from recent) against SAI's predicted 5409.05 s: SAI ahead by 0.69 s at the end of L25
+     gap tags of the other cars on the ring (to SAI; − = ahead): VER −12.5, NOR +21.1, LEC −4.3, PIA +5.3, HAM +5.4, PER +20.9, STR +25.8
+   pit in k laps, "rivals" off ([ / ] or the header stepper):
+     stepper k = 0..10; rivals stop off; tooltip Lap model: MEDIUM +0.069 s/lap (10 stints) → HARD +0.033 s/lap (3 stints); Fresh-tyre delta: −0.160 s on the first flying lap (6 stints)
+        k  centre line                         tooltip: in-lap, rejoin             pitting now instead (same lap)         other cars
+        0  SAI pits now: P3 → P7                in-lap L24, rejoin P7 at the end of L25 —                                      no stops
+        1  SAI pits in 1: P3 → P8 (−2 vs now)   in-lap L25, rejoin P8 at the end of L26 P6 (−2 vs now; waiting costs 1.8 s)    no stops
+        2  SAI pits in 2: P3 → P7 (−1 vs now)   in-lap L26, rejoin P7 at the end of L27 P6 (−1 vs now; waiting costs 3.6 s)    no stops
+        3  SAI pits in 3: P3 → P7 (−1 vs now)   in-lap L27, rejoin P7 at the end of L28 P6 (−1 vs now; waiting costs 5.4 s)    no stops
+        4  SAI pits in 4: P3 → P7 (−1 vs now)   in-lap L28, rejoin P7 at the end of L29 P6 (−1 vs now; waiting costs 7.3 s)    no stops
+        5  SAI pits in 5: P3 → P7 (−3 vs now)   in-lap L29, rejoin P7 at the end of L30 P4 (−3 vs now; waiting costs 9.1 s)    no stops
+        6  SAI pits in 6: P3 → P7 (−3 vs now)   in-lap L30, rejoin P7 at the end of L31 P4 (−3 vs now; waiting costs 11.1 s)   no stops
+        7  SAI pits in 7: P3 → P7 (−3 vs now)   in-lap L31, rejoin P7 at the end of L32 P4 (−3 vs now; waiting costs 13.0 s)   no stops
+        8  SAI pits in 8: P3 → P7 (−3 vs now)   in-lap L32, rejoin P7 at the end of L33 P4 (−3 vs now; waiting costs 15.0 s)   no stops
+        9  SAI pits in 9: P3 → P7 (−3 vs now)   in-lap L33, rejoin P7 at the end of L34 P4 (−3 vs now; waiting costs 17.0 s)   no stops
+       10  SAI pits in 10: P3 → P7 (−3 vs now)  in-lap L34, rejoin P7 at the end of L35 P4 (−3 vs now; waiting costs 19.1 s)   no stops
+   pit in k laps, "rivals" ON (the toggle in the header):
+     stepper k = 0..10; rivals stop ON; tooltip Lap model: MEDIUM +0.069 s/lap (10 stints) → HARD +0.033 s/lap (3 stints); Fresh-tyre delta: −0.160 s on the first flying lap (6 stints)
+        k  centre line                         tooltip: in-lap, rejoin             pitting now instead (same lap)         other cars
+        0  SAI pits now: P3 → P7                in-lap L24, rejoin P7 at the end of L25 —                                      stop when due (none by then)
+        1  SAI pits in 1: P3 → P8 (−2 vs now)   in-lap L25, rejoin P8 at the end of L26 P6 (−2 vs now; waiting costs 1.8 s)    stop when due (none by then)
+        2  SAI pits in 2: P3 → P7 (−1 vs now)   in-lap L26, rejoin P7 at the end of L27 P6 (−1 vs now; waiting costs 3.6 s)    stop when due (none by then)
+        3  SAI pits in 3: P3 → P7 (−1 vs now)   in-lap L27, rejoin P7 at the end of L28 P6 (−1 vs now; waiting costs 5.4 s)    stop when due (none by then)
+        4  SAI pits in 4: P3 → P7 (−1 vs now)   in-lap L28, rejoin P7 at the end of L29 P6 (−1 vs now; waiting costs 7.3 s)    stop when due (none by then)
+        5  SAI pits in 5: P3 → P7 (−3 vs now)   in-lap L29, rejoin P7 at the end of L30 P4 (−3 vs now; waiting costs 9.1 s)    stop when due (none by then)
+        6  SAI pits in 6: P3 → P7 (−3 vs now)   in-lap L30, rejoin P7 at the end of L31 P4 (−3 vs now; waiting costs 11.1 s)   stop when due (none by then)
+        7  SAI pits in 7: P3 → P7 (−3 vs now)   in-lap L31, rejoin P7 at the end of L32 P4 (−3 vs now; waiting costs 13.0 s)   stop when due: STR
+        8  SAI pits in 8: P3 → P6 (−4 vs now)   in-lap L32, rejoin P6 at the end of L33 P2 (−4 vs now; waiting costs 15.0 s)   stop when due: LEC, HAM, STR, OCO, MAG
+        9  SAI pits in 9: P3 → P6 (−4 vs now)   in-lap L33, rejoin P6 at the end of L34 P2 (−4 vs now; waiting costs 17.0 s)   stop when due: LEC, HAM, STR, OCO, MAG
+       10  SAI pits in 10: P3 → P6 (−4 vs now)  in-lap L34, rejoin P6 at the end of L35 P2 (−4 vs now; waiting costs 19.1 s)   stop when due: LEC, HAM, STR, OCO, MAG
+   focus card, Rivals rows (store updateRivalContext at this clock, store clock 5291.41 s): P1 VER -12.4s ↔ (stable) M 24L | P2 LEC -4.3s ↔ (stable) M 24L | P4 PIA +5.3s ↔ (stable) H 2L | P5 HAM +5.4s ↔ (stable) M 24L
+  [demo] lap seek "lap 25": frame #2444, sessionNow 5291.81 s, replay lap 25; SAI laps completed 23 (P3), PIA laps completed 23 (P4); PIA's gap tag on the ring +5.3 s (exact +5.31 s; − = ahead of SAI)
+   every readout below identical to the backend clock above
+  [backend] the lap seek "lap 25" lands 7.6 s before SAI's L24 crossing, about 3.3 s before a pit entry 4.3 s ahead of the line (SAI's L27 entry)
+  [demo] the lap seek "lap 25" lands 7.2 s before SAI's L24 crossing, about 2.9 s before a pit entry 4.3 s ahead of the line (SAI's L27 entry)
+
+C.3 How long each readout holds over the D2 window
+  [backend] Circle of Doom, SAI in focus: window 5218.28..5299.04 s (80.8 s); frames 5218.61..5299.01 s, 202 frames of 0.4 s, 21 causal states
+    Pit now: "P3 → P7" 100.0% (5218.61–5299.41 s, 80.8 s)
+    Rejoin positions: "P6 28.2% · P7 44.6% · P8 27.2%" 24.8% (5218.61–5238.61 s, 20.0 s); "P6 25.9% · P7 50.7% · P8 23.4%" 75.2% (5238.61–5299.41 s, 60.8 s)
+    Pit loss: "27.7 s (p10–p90 26.6–28.5 s, 7 stops)" 24.8% (5218.61–5238.61 s, 20.0 s); "27.8 s (p10–p90 26.7–28.5 s, 8 stops)" 11.9% (5238.61–5248.21 s, 9.6 s); "27.8 s (p10–p90 26.7–28.6 s, 8 stops)" 16.3% (5248.21–5261.41 s, 13.2 s); "27.8 s (p10–p90 26.6–28.6 s, 8 stops)" 7.9% (5261.41–5267.81 s, 6.4 s); "27.8 s (p10–p90 26.6–28.5 s, 8 stops)" 39.1% (5267.81–5299.41 s, 31.6 s)
+    Traffic at the rejoin: "0.33 s behind STR (< 1.0 s)" 24.8% (5218.61–5238.61 s, 20.0 s); "0.52 s behind STR (< 1.0 s)" 5.9% (5238.61–5243.41 s, 4.8 s); "0.84 s behind STR (< 1.0 s)" 28.2% (5243.41–5266.21 s, 22.8 s); "0.79 s behind STR (< 1.0 s)" 10.4% (5266.21–5274.61 s, 8.4 s); "0.77 s behind STR (< 1.0 s)" 30.7% (5274.61–5299.41 s, 24.8 s)
+    Traffic probability: "72%" 24.8% (5218.61–5238.61 s, 20.0 s); "74%" 5.9% (5238.61–5243.41 s, 4.8 s); "48%" 38.6% (5243.41–5274.61 s, 31.2 s); "62%" 30.7% (5274.61–5299.41 s, 24.8 s)
+    Gain the place: "HAM, PER, NOR, STR" 100.0% (5218.61–5299.41 s, 80.8 s)
+    Within reach: "LEC, VER" 100.0% (5218.61–5299.41 s, 80.8 s)
+    pit in 1: "rejoin P7 at the end of L26; pitting now instead P6 (−1 vs now; waiting costs 2.0 s)" 30.7% (5218.61–5243.41 s, 24.8 s); "rejoin P8 at the end of L26; pitting now instead P6 (−2 vs now; waiting costs 2.0 s)" 10.9% (5243.41–5252.21 s, 8.8 s); "rejoin P8 at the end of L26; pitting now instead P6 (−2 vs now; waiting costs 1.9 s)" 11.4% (5252.21–5261.41 s, 9.2 s); "rejoin P8 at the end of L26; pitting now instead P6 (−2 vs now; waiting costs 1.8 s)" 47.0% (5261.41–5299.41 s, 38.0 s)
+    pit in 2: "rejoin P7 at the end of L27; pitting now instead P6 (−1 vs now; waiting costs 3.8 s)" 5.4% (5218.61–5223.01 s, 4.4 s); "rejoin P7 at the end of L27; pitting now instead P6 (−1 vs now; waiting costs 3.7 s)" 47.5% (5223.01–5261.41 s, 38.4 s); "rejoin P7 at the end of L27; pitting now instead P6 (−1 vs now; waiting costs 3.6 s)" 47.0% (5261.41–5299.41 s, 38.0 s)
+    pit in 3: "rejoin P7 at the end of L28; pitting now instead P6 (−1 vs now; waiting costs 5.6 s)" 30.7% (5218.61–5243.41 s, 24.8 s); "rejoin P7 at the end of L28; pitting now instead P6 (−1 vs now; waiting costs 5.5 s)" 22.3% (5243.41–5261.41 s, 18.0 s); "rejoin P7 at the end of L28; pitting now instead P6 (−1 vs now; waiting costs 5.4 s)" 47.0% (5261.41–5299.41 s, 38.0 s)
+  [demo] Circle of Doom, SAI in focus: window 5218.28..5299.04 s (80.8 s); frames 5219.01..5299.01 s, 101 frames of 0.8 s, 20 causal states
+    Pit now: "P3 → P7" 100.0% (5219.01–5299.81 s, 80.8 s)
+    Rejoin positions: "P6 28.2% · P7 44.6% · P8 27.2%" 24.8% (5219.01–5239.01 s, 20.0 s); "P6 25.9% · P7 50.7% · P8 23.4%" 75.2% (5239.01–5299.81 s, 60.8 s)
+    Pit loss: "27.7 s (p10–p90 26.6–28.5 s, 7 stops)" 24.8% (5219.01–5239.01 s, 20.0 s); "27.8 s (p10–p90 26.7–28.5 s, 8 stops)" 11.9% (5239.01–5248.61 s, 9.6 s); "27.8 s (p10–p90 26.7–28.6 s, 8 stops)" 15.8% (5248.61–5261.41 s, 12.8 s); "27.8 s (p10–p90 26.6–28.6 s, 8 stops)" 7.9% (5261.41–5267.81 s, 6.4 s); "27.8 s (p10–p90 26.6–28.5 s, 8 stops)" 39.6% (5267.81–5299.81 s, 32.0 s)
+    Traffic at the rejoin: "0.33 s behind STR (< 1.0 s)" 24.8% (5219.01–5239.01 s, 20.0 s); "0.52 s behind STR (< 1.0 s)" 5.9% (5239.01–5243.81 s, 4.8 s); "0.84 s behind STR (< 1.0 s)" 27.7% (5243.81–5266.21 s, 22.4 s); "0.79 s behind STR (< 1.0 s)" 10.9% (5266.21–5275.01 s, 8.8 s); "0.77 s behind STR (< 1.0 s)" 30.7% (5275.01–5299.81 s, 24.8 s)
+    Traffic probability: "72%" 24.8% (5219.01–5239.01 s, 20.0 s); "74%" 5.9% (5239.01–5243.81 s, 4.8 s); "48%" 38.6% (5243.81–5275.01 s, 31.2 s); "62%" 30.7% (5275.01–5299.81 s, 24.8 s)
+    Gain the place: "HAM, PER, NOR, STR" 100.0% (5219.01–5299.81 s, 80.8 s)
+    Within reach: "LEC, VER" 100.0% (5219.01–5299.81 s, 80.8 s)
+    pit in 1: "rejoin P7 at the end of L26; pitting now instead P6 (−1 vs now; waiting costs 2.0 s)" 30.7% (5219.01–5243.81 s, 24.8 s); "rejoin P8 at the end of L26; pitting now instead P6 (−2 vs now; waiting costs 2.0 s)" 10.9% (5243.81–5252.61 s, 8.8 s); "rejoin P8 at the end of L26; pitting now instead P6 (−2 vs now; waiting costs 1.9 s)" 10.9% (5252.61–5261.41 s, 8.8 s); "rejoin P8 at the end of L26; pitting now instead P6 (−2 vs now; waiting costs 1.8 s)" 47.5% (5261.41–5299.81 s, 38.4 s)
+    pit in 2: "rejoin P7 at the end of L27; pitting now instead P6 (−1 vs now; waiting costs 3.8 s)" 5.0% (5219.01–5223.01 s, 4.0 s); "rejoin P7 at the end of L27; pitting now instead P6 (−1 vs now; waiting costs 3.7 s)" 47.5% (5223.01–5261.41 s, 38.4 s); "rejoin P7 at the end of L27; pitting now instead P6 (−1 vs now; waiting costs 3.6 s)" 47.5% (5261.41–5299.81 s, 38.4 s)
+    pit in 3: "rejoin P7 at the end of L28; pitting now instead P6 (−1 vs now; waiting costs 5.6 s)" 30.7% (5219.01–5243.81 s, 24.8 s); "rejoin P7 at the end of L28; pitting now instead P6 (−1 vs now; waiting costs 5.5 s)" 21.8% (5243.81–5261.41 s, 17.6 s); "rejoin P7 at the end of L28; pitting now instead P6 (−1 vs now; waiting costs 5.4 s)" 47.5% (5261.41–5299.81 s, 38.4 s)
+  PIA's first flying lap on the new set (L25) 79.907 s against its last full lap on the old set (L22) 81.869 s (hindsight; the window projects PIA at its pace on the old set)
+
+D. What happened (hindsight: the lap rows after the decision clocks)
+D.1 Stops and lap rows
+  pit entries: PIA L23 (MEDIUM -> HARD); SAI L27 (MEDIUM -> HARD)
+  lap | PIA lap time, set, age, pos | SAI lap time, set, age, pos | gap at the line (SAI crossing − PIA crossing; + = PIA ahead)
+  L20 | 81.853 M 20 P5     | 82.025 M 20 P4     | −0.75 s
+  L21 | 82.212 M 21 P5     | 82.006 M 21 P4     | −0.96 s
+  L22 | 81.869 M 22 P5     | 81.926 M 22 P4     | −0.90 s
+  L23 | 86.220 M 23 P4 IN  | 81.812 M 23 P3     | −5.31 s
+  L24 | 103.264 H  2 P8 OUT | 81.773 M 24 P3     | −26.80 s
+  L25 | 79.907 H  3 P7     | 81.468 M 25 P1     | −25.24 s
+  L26 | 80.577 H  4 P7     | 81.588 M 26 P1     | −24.23 s
+  L27 | 80.785 H  5 P6     | 86.350 M 27 P1 IN  | −18.66 s
+  L28 | 80.599 H  6 P4     | 104.128 H  1 P6 OUT | +4.86 s
+  L29 | 80.313 H  7 P4     | 81.597 H  2 P6     | +6.15 s
+  L30 | 80.578 H  8 P4     | 80.648 H  3 P5     | +6.22 s
+  measured stop loss (utils/pitLoss.js perStopLoss, whole race): PIA L23 27.5 s (measured), SAI L27 28.2 s (measured); race median over 25 green-flag stops 28.0 s
+  classified: PIA 4 (Finished), SAI 5 (Finished); gap at the end of L63: +8.19 s
+D.2 The Circle of Doom projections against the lap rows
+  D1 check: PIA pitted at the end of L23 as "pit now" assumed; PIA's place at the end of L24 (its out-lap, the target lap) P8
+  D1 check, one lap on: PIA's place at the end of L25 (the "pitting now instead" place of pit in 1) P7
+  D2 check: SAI pitted at the end of L27 (k = 3 from the D2 clock); SAI's place at the end of L28 (the target lap of k = 3) P6
+D.3 The Circle of Doom read back after both stops (PIA in focus; SAI's gap tag on the ring, also in its tooltip as "Gap to PIA"):
+    [backend] lap seek "lap 30": frame #5952, sessionNow 5717.41 s; PIA P4 (28 laps), SAI P6 (28 laps); SAI's gap tag to PIA +4.9 s (exact +4.86 s)
+    [demo] lap seek "lap 30": frame #2976, sessionNow 5717.41 s; PIA P4 (28 laps), SAI P6 (28 laps); SAI's gap tag to PIA +4.9 s (exact +4.86 s)
+    [backend] first frame after SAI's crossing of L28: frame #5790, sessionNow 5652.61 s; PIA P4 (28 laps), SAI P6 (28 laps); SAI's gap tag to PIA +4.9 s (exact +4.86 s)
+    [demo] first frame after SAI's crossing of L28: frame #2895, sessionNow 5652.61 s; PIA P4 (28 laps), SAI P6 (28 laps); SAI's gap tag to PIA +4.9 s (exact +4.86 s)
+    [backend] End key (lap seek to the last lap): frame #12612, sessionNow 8381.41 s; PIA P4 (61 laps), SAI P5 (61 laps); SAI's gap tag to PIA +8.4 s (exact +8.40 s)
+    [demo] End key (lap seek to the last lap): frame #6306, sessionNow 8381.41 s; PIA P4 (61 laps), SAI P5 (61 laps); SAI's gap tag to PIA +8.4 s (exact +8.40 s)
+    [backend] timeline Skip to end button (last frame, race over): frame #13012, sessionNow Infinity; PIA P4 (63 laps), SAI P5 (63 laps); SAI's gap tag to PIA +8.2 s (exact +8.19 s)
+    [demo] timeline Skip to end button (last frame, race over): frame #6506, sessionNow Infinity; PIA P4 (63 laps), SAI P5 (63 laps); SAI's gap tag to PIA +8.2 s (exact +8.19 s)
+  hold of the +4.86 s tag: from SAI's L28 crossing 5652.57 s until SAI's L29 crossing 5734.17 s (81.6 s; the tag reads the latest lap both cars have completed)
+
+E. Model inputs at the clocks of B and C (the pit loss is this race's; the other estimates as labelled)
+  D1 lap seek "lap 24", 5205.01 s: pit loss race, median 27.66 s, p10 26.59 s, p90 28.55 s, n 7; samples: ALO L7 28.0, BOT L8 28.5, GAS L8 27.7, RIC L11 27.4, TSU L12 26.0, HUL L13 27.0, RUS L21 28.6
+    lap model (pit in k): MEDIUM +0.071 s/lap (race, 10 stints) -> HARD +0.035 s/lap (race, 3 stints); fresh-tyre delta −0.281 s (race, n 5)
+    focus pace of the window 81.869 s/lap (recent); reference lap 82.268 s; next compound modelled HARD
+  D1 pause (PIA crossed L22), 5136.61 s: pit loss race, median 27.52 s, p10 26.50 s, p90 28.43 s, n 6; samples: ALO L7 28.3, BOT L8 28.6, GAS L8 27.6, RIC L11 27.4, TSU L12 26.0, HUL L13 27.0
+    lap model (pit in k): MEDIUM +0.071 s/lap (race, 10 stints) -> HARD +0.035 s/lap (race, 3 stints); fresh-tyre delta −0.145 s (race, n 4)
+    focus pace of the window 81.869 s/lap (recent); reference lap 82.227 s; next compound modelled HARD
+  D2 pause (PIA pit entry), 5218.61 s: pit loss race, median 27.66 s, p10 26.59 s, p90 28.55 s, n 7; samples: ALO L7 28.0, BOT L8 28.5, GAS L8 27.7, RIC L11 27.4, TSU L12 26.0, HUL L13 27.0, RUS L21 28.6
+    lap model (pit in k): MEDIUM +0.071 s/lap (race, 10 stints) -> HARD +0.035 s/lap (race, 3 stints); fresh-tyre delta −0.281 s (race, n 5)
+    focus pace of the window 82.006 s/lap (recent); reference lap 82.239 s; next compound modelled HARD
+  the cross-race priors (PRIORS, utils/raceSimulation.js) are fitted on all 30 cached races, Imola 2024 included; this race's per-compound degradation is combined with them (raceDegradation), its stint-life survival takes the prior's tail past its longest stint
+
+F. Causality: the readouts of B and C (Circle of Doom; pit in k with rivals off and on) with the future rewritten must not change
+  D1 lap seek (PIA, 5205.01 s): future rows + track status rewritten identical; dnfMap = {} identical; positive control (the focus's completed laps from L17 +0.5 s) changed
+  D1 pause (PIA, 5136.61 s): future rows + track status rewritten identical; dnfMap = {} identical; positive control (the focus's completed laps from L17 +0.5 s) changed
+  D2 pause (SAI, 5218.61 s): future rows + track status rewritten identical; dnfMap = {} identical; positive control (the focus's completed laps from L17 +0.5 s) changed
+
+G. ANALYSIS ONLY, NOT DISPLAYED. The Undercut Calculator is in App.jsx's view map but no control opens it (utils/slotOptions.js,
+   DockedLayout VIZ_TABS, the command palette and the window presets do not list it); its numbers below are what utils/undercut.js
+   undercutSweep returns with the panel's arguments (UndercutCalculator.jsx:108-169), never what a reader sees.
+   occurrences of the id 'undercut' as a string: utils/slotOptions.js 0, components/layout/DockedLayout.jsx 0, components/CommandPalette/commandRegistry.js 0, utils/windowPresets.js 0, hooks/useKeyboardShortcuts.js 0, store/useF1Store.js 0, components/layout/PitWallLayout.jsx 0; App.jsx view-map key "undercut:" 1
+G.1 D1 at 5136.61 s (frame #4500), focus PIA, rival SAI, RIVAL STOPS = likely:
+    FOCUS PIA M·L23 vs RIVAL SAI M·L23; GAP NOW −0.90s; PIT LOSS 27.5s (n 6); NEW-TYRE GAIN +1.855s; LAPS LEFT 40
+    ✓ AHEAD AFTER BOTH STOPS: Best pit lap L23 → PIA ahead by 10.59s at the flag (end of L63) (gains 11.49s on now)
+    RIVAL STOPS [likely] -> "L31 · stint-life survival of this race"; select offers L23..L62
+    PIT-LAP SWEEP: NOW +10.59 | L24 +10.29 | L25 +9.81 | L26 +9.23 | L27 +8.54 | L28 +7.74 | L29 +6.84 | L30 +5.83 | L31 +4.72 | L32 +3.49 | L33 +2.16 | L34 +0.73 | L35 −0.81 | L36 −2.46 | L37 −4.22 | L38 −6.08
+    lap model: MEDIUM +0.071 s/lap (race, n 10), new set HARD, fresh-tyre delta −0.145 s (race)
+G.2 same clock, RIVAL STOPS = L24 (the strategist's cover hypothesis: SAI boxes one lap after PIA):
+    FOCUS PIA M·L23 vs RIVAL SAI M·L23; GAP NOW −0.90s; PIT LOSS 27.5s (n 6); NEW-TYRE GAIN +1.855s; LAPS LEFT 40
+    ✓ AHEAD AFTER BOTH STOPS: Best pit lap L23 → PIA ahead by 5.01s at the flag (end of L63) (gains 5.92s on now)
+    RIVAL STOPS [L24] -> "L24 · chosen here"; select offers L23..L62
+    PIT-LAP SWEEP: NOW +5.01 | L24 +4.72 | L25 +4.24 | L26 +3.65 | L27 +2.96 | L28 +2.17 | L29 +1.26 | L30 +0.25 | L31 −0.86 | L32 −2.08 | L33 −3.41 | L34 −4.85 | L35 −6.39 | L36 −8.04 | L37 −9.79 | L38 −11.65
+    lap model: MEDIUM +0.071 s/lap (race, n 10), new set HARD, fresh-tyre delta −0.145 s (race)
+  at the lap seek "lap 24" (5205.01 s), RIVAL STOPS = L24: ✓ AHEAD AFTER BOTH STOPS: Best pit lap L23 → PIA ahead by 5.03s at the flag (end of L63) (gains 5.93s on now)
+G.3 expiry of the RIVAL STOPS choice L24 made at D1 (UndercutCalculator.jsx:170-174: a choice the rival has passed, or made before
+  it changed tyres, is dropped and the select returns to "likely"); every distinct state from D1 to 5340 s:
+    from 5136.61 s (frame #4500): choice kept; AHEAD best L23 +5.01
+    from 5156.61 s (frame #4550): choice kept; AHEAD best L23 +5.03
+    from 5169.41 s (frame #4582): choice kept; AHEAD best L23 +5.02
+    from 5173.41 s (frame #4592): choice kept; AHEAD best L23 +5.01
+    from 5176.61 s (frame #4600): choice kept; AHEAD best L23 +5.02
+    from 5205.01 s (frame #4671): choice kept; AHEAD best L23 +5.03
+    from 5217.41 s (frame #4702): choice kept; AHEAD best L23 +4.83
+    from 5218.61 s (frame #4705): panel unavailable (focus-stopping); the choice is kept while unavailable
+    from 5326.21 s (frame #4974): choice DROPPED (source race, expired L24: past) -> the select resets to likely; BEHIND best L40 −77.77
+    from 5333.81 s (frame #4993): choice DROPPED (source race, expired L24: past) -> the select resets to likely; BEHIND best L40 −77.23
+    from 5335.41 s (frame #4997): choice DROPPED (source race, expired L24: past) -> the select resets to likely; BEHIND best L40 −77.03
+    from 5339.41 s (frame #5007): choice DROPPED (source race, expired L24: past) -> the select resets to likely; BEHIND best L40 −77.26
+G.4 scrub, first frame after PIA's crossing of L17..L22: RIVAL STOPS likely | RIVAL STOPS = that lap + 2 (to be set again at every lap):
+    end of L17 (4726.6 s): GAP NOW −0.87 | AHEAD best L18 +7.28 (rival L28, race) | BEHIND best L18 −3.10 (rival L19, chosen)
+    end of L18 (4808.6 s): GAP NOW −1.00 | AHEAD best L19 +5.04 (rival L29, race) | BEHIND best L19 −3.45 (rival L20, chosen)
+    end of L19 (4890.6 s): GAP NOW −0.93 | BEHIND best L20 −1.30 (rival L29, race) | BEHIND best L20 −6.52 (rival L21, chosen)
+    end of L20 (4972.6 s): GAP NOW −0.75 | AHEAD best L21 +12.04 (rival L30, race) | AHEAD best L21 +6.20 (rival L22, chosen)
+    end of L21 (5054.6 s): GAP NOW −0.96 | AHEAD best L22 +9.15 (rival L30, race) | AHEAD best L22 +4.01 (rival L23, chosen)
+    end of L22 (5136.6 s): GAP NOW −0.90 | AHEAD best L23 +10.59 (rival L31, race) | AHEAD best L23 +5.01 (rival L24, chosen)
+G.5 D2 at 5218.61 s, focus SAI, rival PIA (stop in progress, the select is disabled):
+    FOCUS SAI M·L24 vs RIVAL PIA M·L23; GAP NOW +0.90s; PIT LOSS 27.7s (n 7); NEW-TYRE GAIN +2.047s; LAPS LEFT 39
+    ✗ BEHIND AFTER BOTH STOPS: Best pit lap L24 → SAI behind by 2.92s at the flag (end of L63) (loses 3.82s on now)
+    RIVAL STOPS [likely] -> "L23 · stop in progress"; select offers L23..L62
+    PIT-LAP SWEEP: NOW −2.92 | L25 −3.33 | L26 −3.92 | L27 −4.61 | L28 −5.41 | L29 −6.31 | L30 −7.32 | L31 −8.43 | L32 −9.65 | L33 −10.97 | L34 −12.40 | L35 −13.93 | L36 −15.57 | L37 −17.32 | L38 −19.17 | L39 −21.13
+    lap model: MEDIUM +0.071 s/lap (race, n 10), new set HARD, fresh-tyre delta −0.281 s (race)
+G.6 the same maths with SAI in at its real in-lap L27 and the horizon at the end of L28 (after both stops, NOT a horizon the panel uses): column L23 +7.05 s against the real +4.86 s
+G.7 the demo frames (verdict lines only):
+  [demo] lap seek "lap 24" 5205.41 s: likely ✓ AHEAD AFTER BOTH STOPS: Best pit lap L23 → PIA ahead by 11.90s at the flag (end of L63) (gains 12.81s on now) | L24 ✓ AHEAD AFTER BOTH STOPS: Best pit lap L23 → PIA ahead by 5.03s at the flag (end of L63) (gains 5.93s on now)
+  [demo] pause after PIA's L22 crossing 5136.61 s: likely ✓ AHEAD AFTER BOTH STOPS: Best pit lap L23 → PIA ahead by 10.59s at the flag (end of L63) (gains 11.49s on now) | L24 ✓ AHEAD AFTER BOTH STOPS: Best pit lap L23 → PIA ahead by 5.01s at the flag (end of L63) (gains 5.92s on now)
+
+H. Second vignette, the same race: GAS (P16) vs SAR, GAS boxes at the end of L30, SAR covers at L31
+  GAS crosses L29 at 5763.079 s, pit entry 5846.752 s; SAR crosses L29 at 5761.198 s
+  [backend] lap seek "lap 31": frame #6154, 5798.21 s (inside GAS's decision window: true); SAR's gap tag to GAS −1.9
+     centre: "GAS pits now: P16 → P19"; centre pit-loss line "pit loss 27.6 s (15 stops)"
+     tooltip Pit now: P16 → P19 (target lap: end of L31)
+     tooltip Rejoin positions: P19 100.0%
+     rivals ON, k = 1: in-lap L31, rejoin P19 at the end of L32; pitting now instead P19 (= now; waiting costs 1.8 s); stopping by then: none
+  [demo] lap seek "lap 31": frame #3077, 5798.21 s (inside GAS's decision window: true); SAR's gap tag to GAS −1.9
+     centre: "GAS pits now: P16 → P19"; centre pit-loss line "pit loss 27.6 s (15 stops)"
+     tooltip Pit now: P16 → P19 (target lap: end of L31)
+     tooltip Rejoin positions: P19 100.0%
+     rivals ON, k = 1: in-lap L31, rejoin P19 at the end of L32; pitting now instead P19 (= now; waiting costs 1.8 s); stopping by then: none
+  [backend] pause after GAS crosses L29: frame #6067, 5763.41 s (inside GAS's decision window: true); SAR's gap tag to GAS −1.9
+     centre: "GAS pits now: P16 → P19"; centre pit-loss line "pit loss 27.6 s (15 stops)"
+     tooltip Pit now: P16 → P19 (target lap: end of L31)
+     tooltip Rejoin positions: P19 100.0%
+     rivals ON, k = 1: in-lap L31, rejoin P19 at the end of L32; pitting now instead P19 (= now; waiting costs 1.8 s); stopping by then: none
+  [demo] pause after GAS crosses L29: frame #3034, 5763.81 s (inside GAS's decision window: true); SAR's gap tag to GAS −1.9
+     centre: "GAS pits now: P16 → P19"; centre pit-loss line "pit loss 27.6 s (15 stops)"
+     tooltip Pit now: P16 → P19 (target lap: end of L31)
+     tooltip Rejoin positions: P19 100.0%
+     rivals ON, k = 1: in-lap L31, rejoin P19 at the end of L32; pitting now instead P19 (= now; waiting costs 1.8 s); stopping by then: none
+  [backend] H hold, Circle of Doom GAS (rivals ON): window 5763.08..5846.75 s (83.7 s); frames 5763.41..5846.61 s, 209 frames of 0.4 s, 22 causal states
+    Pit now: "P16 → P19" 100.0% (5763.41–5847.01 s, 83.6 s)
+    Rejoin positions: "P19 100.0%" 100.0% (5763.41–5847.01 s, 83.6 s)
+    Pit loss: "27.6 s (p10–p90 26.3–28.6 s, 15 stops)" 100.0% (5763.41–5847.01 s, 83.6 s)
+    Traffic at the rejoin: "no: OCO 16.0 s ahead" 12.0% (5763.41–5773.41 s, 10.0 s); "no: OCO 18.3 s ahead" 88.0% (5773.41–5847.01 s, 73.6 s)
+    Traffic probability: "0%" 100.0% (5763.41–5847.01 s, 83.6 s)
+    Gain the place: "BOT, ALO, OCO" 100.0% (5763.41–5847.01 s, 83.6 s)
+    Within reach: "RIC, SAR, HUL, TSU, ZHO, MAG, HAM, STR" 100.0% (5763.41–5847.01 s, 83.6 s)
+    pit in 1 (rivals on): "rejoin P19 at the end of L32; pitting now instead P19 (= now; waiting costs 1.8 s); stopping by then: none" 91.9% (5763.41–5840.21 s, 76.8 s); "rejoin P19 at the end of L32; pitting now instead P19 (= now; waiting costs 1.9 s); stopping by then: none" 8.1% (5840.21–5847.01 s, 6.8 s)
+    pit in 10 (rivals on): "rejoin P19 at the end of L41; pitting now instead P16 (−3 vs now; waiting costs 18.6 s); stopping by then: STR, MAG, ALB" 1.4% (5763.41–5764.61 s, 1.2 s); "rejoin P19 at the end of L41; pitting now instead P16 (−3 vs now; waiting costs 18.7 s); stopping by then: STR, MAG, ALB" 9.1% (5764.61–5772.21 s, 7.6 s); "rejoin P19 at the end of L41; pitting now instead P16 (−3 vs now; waiting costs 18.5 s); stopping by then: STR, MAG, ALB" 1.4% (5772.21–5773.41 s, 1.2 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 18.5 s); stopping by then: STR, MAG, ALB" 39.2% (5773.41–5806.21 s, 32.8 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 18.5 s); stopping by then: STR, MAG" 13.4% (5806.21–5817.41 s, 11.2 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 18.7 s); stopping by then: STR, MAG" 27.3% (5817.41–5840.21 s, 22.8 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 18.9 s); stopping by then: STR, MAG" 6.2% (5840.21–5845.41 s, 5.2 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 19.1 s); stopping by then: STR, MAG" 0.5% (5845.41–5845.81 s, 0.4 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 19.4 s); stopping by then: STR, MAG" 1.4% (5845.81–5847.01 s, 1.2 s)
+  [demo] H hold, Circle of Doom GAS (rivals ON): window 5763.08..5846.75 s (83.7 s); frames 5763.81..5846.21 s, 104 frames of 0.8 s, 22 causal states
+    Pit now: "P16 → P19" 100.0% (5763.81–5847.01 s, 83.2 s)
+    Rejoin positions: "P19 100.0%" 100.0% (5763.81–5847.01 s, 83.2 s)
+    Pit loss: "27.6 s (p10–p90 26.3–28.6 s, 15 stops)" 100.0% (5763.81–5847.01 s, 83.2 s)
+    Traffic at the rejoin: "no: OCO 16.0 s ahead" 11.5% (5763.81–5773.41 s, 9.6 s); "no: OCO 18.3 s ahead" 88.5% (5773.41–5847.01 s, 73.6 s)
+    Traffic probability: "0%" 100.0% (5763.81–5847.01 s, 83.2 s)
+    Gain the place: "BOT, ALO, OCO" 100.0% (5763.81–5847.01 s, 83.2 s)
+    Within reach: "RIC, SAR, HUL, TSU, ZHO, MAG, HAM, STR" 100.0% (5763.81–5847.01 s, 83.2 s)
+    pit in 1 (rivals on): "rejoin P19 at the end of L32; pitting now instead P19 (= now; waiting costs 1.8 s); stopping by then: none" 92.3% (5763.81–5840.61 s, 76.8 s); "rejoin P19 at the end of L32; pitting now instead P19 (= now; waiting costs 1.9 s); stopping by then: none" 7.7% (5840.61–5847.01 s, 6.4 s)
+    pit in 10 (rivals on): "rejoin P19 at the end of L41; pitting now instead P16 (−3 vs now; waiting costs 18.6 s); stopping by then: STR, MAG, ALB" 1.0% (5763.81–5764.61 s, 0.8 s); "rejoin P19 at the end of L41; pitting now instead P16 (−3 vs now; waiting costs 18.7 s); stopping by then: STR, MAG, ALB" 9.6% (5764.61–5772.61 s, 8.0 s); "rejoin P19 at the end of L41; pitting now instead P16 (−3 vs now; waiting costs 18.5 s); stopping by then: STR, MAG, ALB" 1.0% (5772.61–5773.41 s, 0.8 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 18.5 s); stopping by then: STR, MAG, ALB" 39.4% (5773.41–5806.21 s, 32.8 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 18.5 s); stopping by then: STR, MAG" 13.5% (5806.21–5817.41 s, 11.2 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 18.7 s); stopping by then: STR, MAG" 27.9% (5817.41–5840.61 s, 23.2 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 18.9 s); stopping by then: STR, MAG" 5.8% (5840.61–5845.41 s, 4.8 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 19.1 s); stopping by then: STR, MAG" 1.0% (5845.41–5846.21 s, 0.8 s); "rejoin P19 at the end of L41; pitting now instead P17 (−2 vs now; waiting costs 19.4 s); stopping by then: STR, MAG" 1.0% (5846.21–5847.01 s, 0.8 s)
+  (analysis only, not displayed) Undercut Calculator GAS vs SAR at 5763.41 s: likely ✓ AHEAD AFTER BOTH STOPS: Best pit lap L32 → GAS ahead by 28.39s at the flag (end of L62) (gains 30.27s on now) / RIVAL STOPS [likely] -> "L47 · stint-life survival of this race"; select offers L30..L62
+    RIVAL STOPS = L31: ✓ AHEAD AFTER BOTH STOPS: Best pit lap L32 → GAS ahead by 1.31s at the flag (end of L62) (gains 3.19s on now)
+  truth: GAS L8 (SOFT -> HARD), L30 (HARD -> MEDIUM); SAR L31 (HARD -> MEDIUM); gap at the line end of L32 (SAR − GAS) +4.53 s; classified GAS 16 (Lapped), SAR 17 (Lapped); stop losses GAS L30 27.8 s, SAR L31 30.5 s; GAS place at the end of L31 (its out-lap) P19
+  gap at the end of L62 (last lap both completed; both lapped): +1.34 s

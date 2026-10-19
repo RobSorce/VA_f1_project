@@ -55,6 +55,40 @@
    "lap_rows": 927,
    "rain_samples": 58,
    "weather_samples": 178
+  },
+  {
+   "year": 2025,
+   "round": 16,
+   "session_type": "R",
+   "race_name": "Italian Grand Prix",
+   "why": "use case: box now or wait for a gap in traffic",
+   "frames_in_backend": 11218,
+   "frames_in_demo": 5609,
+   "laps": 53,
+   "drivers": 20,
+   "safety_car_periods": 0,
+   "virtual_safety_car_periods": 0,
+   "wet_tyre_laps": 0,
+   "lap_rows": 975,
+   "rain_samples": 0,
+   "weather_samples": 144
+  },
+  {
+   "year": 2024,
+   "round": 7,
+   "session_type": "R",
+   "race_name": "Emilia Romagna Grand Prix",
+   "why": "use case: undercut or cover",
+   "frames_in_backend": 13013,
+   "frames_in_demo": 6507,
+   "laps": 63,
+   "drivers": 20,
+   "safety_car_periods": 0,
+   "virtual_safety_car_periods": 0,
+   "wet_tyre_laps": 0,
+   "lap_rows": 1238,
+   "rain_samples": 0,
+   "weather_samples": 143
   }
  ],
  "frame_step": 2,
@@ -92,6 +126,30 @@
    "bytes": 124308,
    "json_bytes": 956347
   },
+  "2024_7_R/analytics.json.gz": {
+   "bytes": 3197,
+   "json_bytes": 18182
+  },
+  "2024_7_R/frames.json.gz": {
+   "bytes": 1720384,
+   "json_bytes": 15153480
+  },
+  "2024_7_R/session.json.gz": {
+   "bytes": 133639,
+   "json_bytes": 1110671
+  },
+  "2025_16_R/analytics.json.gz": {
+   "bytes": 2943,
+   "json_bytes": 16768
+  },
+  "2025_16_R/frames.json.gz": {
+   "bytes": 1341307,
+   "json_bytes": 12009187
+  },
+  "2025_16_R/session.json.gz": {
+   "bytes": 110979,
+   "json_bytes": 889919
+  },
   "2025_1_R/analytics.json.gz": {
    "bytes": 2481,
    "json_bytes": 13912
@@ -124,9 +182,17 @@
    "bytes": 20579,
    "json_bytes": 132787
   },
+  "pca/fit_without_2024_7.json.gz": {
+   "bytes": 20538,
+   "json_bytes": 132205
+  },
   "pca/fit_without_2025_1.json.gz": {
    "bytes": 20679,
    "json_bytes": 133491
+  },
+  "pca/fit_without_2025_16.json.gz": {
+   "bytes": 20496,
+   "json_bytes": 132494
   },
   "pca/matrix.json.gz": {
    "bytes": 45105,
@@ -137,14 +203,14 @@
    "json_bytes": 144085
   },
   "schedule_2024.json.gz": {
-   "bytes": 206,
-   "json_bytes": 335
+   "bytes": 238,
+   "json_bytes": 493
   },
   "schedule_2025.json.gz": {
-   "bytes": 164,
-   "json_bytes": 186
+   "bytes": 192,
+   "json_bytes": 338
   }
  },
- "total_bytes": 5532286,
+ "total_bytes": 8885829,
  "budget_bytes": 20000000
 }

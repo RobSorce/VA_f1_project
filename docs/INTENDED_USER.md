@@ -12,6 +12,8 @@
 
 > **To be rewritten.** These use cases were written for an earlier version of the dashboard and have not been rewritten for the current views. On 2026-10-15 only the steps and numbers the code contradicts were removed or corrected to describe the code, each with a dated note; no use case was added.
 
+The current use cases, with step-by-step walkthroughs in the static demo and every number traced to a script output, are in [USE_CASES.md](USE_CASES.md).
+
 ### 1. Real-time race monitoring and pit window identification
 **Scenario**: During a Grand Prix, the strategist needs to determine the optimal lap to pit their driver.
 
@@ -28,7 +30,7 @@
 **Scenario**: Before a race weekend, the strategist reviews the cached races to identify which strategy patterns (1-stop, 2-stop, early vs late pit) went with which results.
 
 **How the system supports this**:
-- The PCA Biplot projects the (driver, race) rows of the cached races into 2D, coloured by team or by finishing class: 534 rows of 30 races (`docs/evidence/pca_rebuild.txt`), the 24 races of 2024 and six of 2025 (`docs/evidence/evaluate_forecast.txt` lists them). Its filters are all races, the season and the race on screen. The static demo carries three races (`docs/evidence/export_demo_data_report.txt`).
+- The PCA Biplot projects the (driver, race) rows of the cached races into 2D, coloured by team or by finishing class: 534 rows of 30 races (`docs/evidence/pca_rebuild.txt`), the 24 races of 2024 and six of 2025 (`docs/evidence/evaluate_forecast.txt` lists them). Its filters are all races, the season and the race on screen. The static demo carries five races (`docs/evidence/export_demo_data_report.txt`).
 - Lasso selection on the biplot triggers backend analysis (descriptive differences per feature: Hedges' g with an interval and a random-selection baseline; common pit windows, stint patterns).
 - The loading vectors on the biplot show which features drive each axis; the axes are labelled by their top loadings (with the current feature set: race pace against the field on the first axis, stint length and pit stops on the second, `docs/evidence/pca_rebuild.txt`).
 - The Cross-Race Analysis panel (`PCAAnalysisPanel.jsx`, beside the biplot) shows the tyre strategies and the pit windows of the selection, and the Strategy Timeline draws the selection's strategies as extra rows.

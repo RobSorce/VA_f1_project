@@ -61,18 +61,23 @@ DEFAULT_OUT = BACKEND.parent / 'frontend' / 'public' / 'data'
 
 # The demo races: (year, round, why it is in the demo). Monza 2024 is the race
 # every methodology document uses; 2024 R5 (China) is a safety-car race and
-# 2025 R1 (Australia) a wet race. Only races whose session and replay frames
-# are cached can be exported (2024 R21, Sao Paulo, has no cached frames).
+# 2025 R1 (Australia) a wet race; 2025 R16 (Monza) and 2024 R7 (Emilia
+# Romagna, Imola) carry the use cases of a pit-stop rejoin into traffic and of
+# an undercut. Only races whose session and replay frames are cached can be
+# exported (2024 R21, Sao Paulo, has no cached frames).
 DEMO_RACES = (
     (2024, 16, 'reference race of the methodology documents'),
     (2024, 5, 'safety-car race'),
     (2025, 1, 'wet race'),
+    (2025, 16, 'use case: box now or wait for a gap in traffic'),
+    (2024, 7, 'use case: undercut or cover'),
 )
 
 # Every FRAME_STEP-th replay frame is kept (0.4 s -> 0.8 s between frames).
-# ASSUMPTION: 2. Measured on the three demo races (gzip size of the frames
-# at each step, a one-off measurement): every frame with whole
-# positions = 9.71 MB gzip in total, every 2nd = 5.02 MB, every 3rd = 3.40 MB;
+# ASSUMPTION: 2. Measured on the first three demo races (2024 R16, 2024 R5,
+# 2025 R1; gzip size of the frames at each step, a one-off measurement):
+# every frame with whole positions = 9.71 MB gzip in total, every 2nd =
+# 5.02 MB, every 3rd = 3.40 MB;
 # 2 keeps the corners of the track map (a chord of 0.8 s) and half the size.
 FRAME_STEP = 2
 
@@ -351,7 +356,7 @@ def main_cli(argv=None):
     print(text)
     if args.report:
         os.makedirs(os.path.dirname(os.path.abspath(args.report)), exist_ok=True)
-        with open(args.report, 'w', encoding='utf-8') as f:
+        with open(args.report, 'w', encoding='utf-8', newline='\n') as f:
             f.write(text)
     if manifest.get('total_bytes_with_manifest', 0) > BUDGET_BYTES:
         print('over the repository budget', file=sys.stderr)

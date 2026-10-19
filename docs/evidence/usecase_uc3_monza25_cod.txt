@@ -1,0 +1,449 @@
+UC3 Monza 2025 (2025 R16), focus LEC: the Circle of Doom before the stop on in-lap 33
+(frontend/scripts/usecases/uc3_monza25_cod.mjs; every readout causal at its clock, module calls as CircleOfDoom.jsx)
+
+1. Data and clocks
+  session: backend/data/processed_cache/session_2025_16_R.json, 975 lap rows, 53 laps; sessionTimeOffset 3469.893 s
+  backend frames: 11218, step 0.4 s
+  demo: read from frontend/public/data/2025_16_R; 5609 frames, step 0.8 s; frame clocks = every 2nd backend frame: true; lap rows differing from the backend session on the fields used: 0; track_status identical: true; sessionTimeOffset 3469.893 s
+  LEC: grid 4, classified 4 (Finished); winner VER
+  track status periods other than green in the whole race: 2 0-265.233; 2 1499.126-2003.394; 2 6813.012-6824.95
+  decision window W: from LEC's line at the end of L27 (5737.832 s) to his pit entry on L33 (6235.616 s): 497.8 s of race time
+  then "stopping": pit entry to the end of his out-lap L34 (6342.457 s): 106.8 s
+  lap-seek clocks (→ / ←, Ctrl+K "Jump to Lap", lap click on the expanded timeline = lapFrameMap[L], the first frame with the leader on lap L):
+    LAP 27: backend 5635.893 s (36:06 elapsed), demo 5636.293 s (36:06 elapsed) (leader VER ended L26 at 5635.706 s); LEC on L26, crosses its line 19.0 s later (5654.852 s; first frame after it 36:25 elapsed, demo 36:25)
+    LAP 28: backend 5719.093 s (37:29 elapsed), demo 5719.493 s (37:29 elapsed) (leader VER ended L27 at 5718.721 s); LEC on L27, crosses its line 18.7 s later (5737.832 s; first frame after it 37:48 elapsed, demo 37:48)
+    LAP 29: backend 5801.893 s (38:52 elapsed), demo 5801.893 s (38:52 elapsed) (leader VER ended L28 at 5801.752 s); LEC on L28, crosses its line 19.0 s later (5820.925 s; first frame after it 39:11 elapsed, demo 39:11)
+    LAP 30: backend 5884.693 s (40:14 elapsed), demo 5885.093 s (40:15 elapsed) (leader VER ended L29 at 5884.563 s); LEC on L29, crosses its line 19.0 s later (5903.661 s; first frame after it 40:34 elapsed, demo 40:34)
+    LAP 31: backend 5967.493 s (41:37 elapsed), demo 5967.493 s (41:37 elapsed) (leader VER ended L30 at 5967.491 s); LEC on L30, crosses its line 19.1 s later (5986.633 s; first frame after it 41:56 elapsed, demo 41:56)
+    LAP 32: backend 6050.693 s (43:00 elapsed), demo 6050.693 s (43:00 elapsed) (leader VER ended L31 at 6050.432 s); LEC on L31, crosses its line 18.8 s later (6069.490 s; first frame after it 43:19 elapsed, demo 43:20)
+    LAP 33: backend 6133.493 s (44:23 elapsed), demo 6133.893 s (44:24 elapsed) (leader VER ended L32 at 6133.322 s); LEC on L32, crosses its line 19.0 s later (6152.465 s; first frame after it 44:42 elapsed, demo 44:43)
+    LAP 34: backend 6216.293 s (45:46 elapsed), demo 6216.293 s (45:46 elapsed) (leader VER ended L33 at 6216.265 s); LEC on L33, crosses its line 23.2 s later (6239.484 s; first frame after it 46:09 elapsed, demo 46:09)
+
+2. What the Circle of Doom shows at the lap-seek clocks (focus LEC; backend frame; the demo frame is checked for the same memo key)
+  -- LAP 27 (→ / Jump to Lap 27; 36:06 elapsed, demo 36:06): sessionNow 5635.893 s (backend frame)
+     centre: LAP 27/53 | Track Clear | ref lap 1:23.82 (median of last 5 green laps) | pit loss 25.2 s (5 stops)
+     LEC: lap in progress L26 (last line crossing 5571.478 s), position P4
+     centre focus line: LEC pits now: P4 → P12
+     rejoin label: P12 100%
+     tooltip: Pit now P4 → P12 | Rejoin positions P12 100.0% | Draws 1000, bootstrap of 5 stops
+              Pit loss 25.2 s (p10–p90 24.9–26.2 s, 5 stops) | Traffic at the rejoin: no: HAD 1.5 s ahead | Traffic probability 0%
+              Gain the place: RUS, HAM, ANT, ALB, SAI, OCO, STR, HAD | Within reach: PIA, NOR, VER | Lapped traffic: none
+     (not displayed: target lap 27, predicted crossing 5763.20 s, LEC pace 83.263 s/lap (recent))
+     ring tags / hover "Gap to LEC": RUS +3.7 s | HAM +5.2 s | ALB +18.8 s | ANT +14.2 s | SAI +19.6 s | OCO +20.3 s | STR +21.1 s | HAD +22.4 s
+     pit in k (stepper / keys [ ], k = 1..10; "rivals" not pressed, the default): in-lap L33 is k = 7, centre "LEC pits in 7: P4 → P9 (+3 vs now)"
+        k1 in-lap L27: P12 at the end of L28; pitting now instead P12 (= now; waiting gains 0.6 s)
+        k2 in-lap L28: P12 at the end of L29; pitting now instead P12 (= now; waiting gains 1.2 s)
+        k3 in-lap L29: P11 at the end of L30; pitting now instead P12 (+1 vs now; waiting gains 1.8 s)
+        k4 in-lap L30: P10 at the end of L31; pitting now instead P12 (+2 vs now; waiting gains 2.4 s)
+        k5 in-lap L31: P9 at the end of L32; pitting now instead P12 (+3 vs now; waiting gains 3.1 s)
+        k6 in-lap L32: P9 at the end of L33; pitting now instead P12 (+3 vs now; waiting gains 3.8 s)
+        k7 in-lap L33: P9 at the end of L34; pitting now instead P12 (+3 vs now; waiting gains 4.5 s)
+        k8 in-lap L34: P9 at the end of L35; pitting now instead P12 (+3 vs now; waiting gains 5.2 s)
+        k9 in-lap L35: P7 at the end of L36; pitting now instead P12 (+5 vs now; waiting gains 5.9 s)
+        k10 in-lap L36: P7 at the end of L37; pitting now instead P12 (+5 vs now; waiting gains 6.6 s)
+        tooltip rows: Lap model MEDIUM −0.022 s/lap (13 stints) → HARD −0.006 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints)
+     "rivals" pressed: rows that differ: k8 in-lap L34: P5 at the end of L35; pitting now instead P8 (+3 vs now; waiting gains 5.2 s) [other cars stopping by then: VER, NOR, PIA, RUS, HAM, ANT, SAI, COL] ; k9 in-lap L35: P4 at the end of L36; pitting now instead P8 (+4 vs now; waiting gains 5.9 s) [other cars stopping by then: VER, NOR, PIA, RUS, HAM, ANT, SAI, COL] ; k10 in-lap L36: P4 at the end of L37; pitting now instead P8 (+4 vs now; waiting gains 6.6 s) [other cars stopping by then: VER, NOR, PIA, RUS, HAM, ANT, SAI, COL]
+     demo frame 5636.293 s: memo key equal; centre and label identical
+  -- LAP 28 (→ / Jump to Lap 28; 37:29 elapsed, demo 37:29): sessionNow 5719.093 s (backend frame)
+     centre: LAP 28/53 | Track Clear | ref lap 1:23.87 (median of last 5 green laps) | pit loss 25.2 s (5 stops)
+     LEC: lap in progress L27 (last line crossing 5654.852 s), position P4
+     centre focus line: LEC pits now: P4 → P12
+     rejoin label: P12 100% | traffic 0.90 s behind HAD
+     tooltip: Pit now P4 → P12 | Rejoin positions P12 100.0% | Draws 1000, bootstrap of 5 stops
+              Pit loss 25.2 s (p10–p90 24.9–26.2 s, 5 stops) | Traffic at the rejoin: 0.90 s behind HAD (< 1.0 s) | Traffic probability 60%
+              Gain the place: RUS, HAM, ANT, ALB, SAI, OCO, STR, HAD | Within reach: PIA, NOR, VER | Lapped traffic: none
+     (not displayed: target lap 28, predicted crossing 5846.59 s, LEC pace 83.263 s/lap (recent))
+     ring tags / hover "Gap to LEC": RUS +4.3 s | HAM +5.8 s | ALB +18.7 s | ANT +15.5 s | SAI +20.1 s | OCO +20.9 s | STR +21.9 s | HAD +23.1 s
+     pit in k (stepper / keys [ ], k = 1..10; "rivals" not pressed, the default): in-lap L33 is k = 6, centre "LEC pits in 6: P4 → P9 (+3 vs now)"
+        k1 in-lap L28: P12 at the end of L29; pitting now instead P12 (= now; waiting gains 0.5 s)
+        k2 in-lap L29: P11 at the end of L30; pitting now instead P12 (+1 vs now; waiting gains 1.1 s)
+        k3 in-lap L30: P10 at the end of L31; pitting now instead P12 (+2 vs now; waiting gains 1.6 s)
+        k4 in-lap L31: P9 at the end of L32; pitting now instead P12 (+3 vs now; waiting gains 2.2 s)
+        k5 in-lap L32: P9 at the end of L33; pitting now instead P12 (+3 vs now; waiting gains 2.8 s)
+        k6 in-lap L33: P9 at the end of L34; pitting now instead P12 (+3 vs now; waiting gains 3.4 s)
+        k7 in-lap L34: P9 at the end of L35; pitting now instead P12 (+3 vs now; waiting gains 4.0 s)
+        k8 in-lap L35: P8 at the end of L36; pitting now instead P12 (+4 vs now; waiting gains 4.7 s)
+        k9 in-lap L36: P8 at the end of L37; pitting now instead P12 (+4 vs now; waiting gains 5.3 s)
+        k10 in-lap L37: P8 at the end of L38; pitting now instead P12 (+4 vs now; waiting gains 6.0 s)
+        tooltip rows: Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.008 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints)
+     "rivals" pressed: rows that differ: k8 in-lap L35: P5 at the end of L36; pitting now instead P8 (+3 vs now; waiting gains 4.7 s) [other cars stopping by then: VER, NOR, PIA, RUS, HAM, ANT, SAI, COL] ; k9 in-lap L36: P5 at the end of L37; pitting now instead P8 (+3 vs now; waiting gains 5.3 s) [other cars stopping by then: VER, NOR, PIA, RUS, HAM, ANT, SAI, COL] ; k10 in-lap L37: P5 at the end of L38; pitting now instead P8 (+3 vs now; waiting gains 6.0 s) [other cars stopping by then: VER, NOR, PIA, RUS, HAM, ANT, SAI, COL]
+     demo frame 5719.493 s: memo key equal; centre and label identical
+  -- LAP 29 (→ / Jump to Lap 29; 38:52 elapsed, demo 38:52): sessionNow 5801.893 s (backend frame)
+     centre: LAP 29/53 | Track Clear | ref lap 1:23.88 (median of last 5 green laps) | pit loss 25.2 s (5 stops)
+     LEC: lap in progress L28 (last line crossing 5737.832 s), position P4
+     centre focus line: LEC pits now: P4 → P10
+     rejoin label: P10 60% · P11 40%
+     tooltip: Pit now P4 → P10 | Rejoin positions P10 60.4% · P11 39.6% | Draws 1000, bootstrap of 5 stops
+              Pit loss 25.2 s (p10–p90 24.9–26.3 s, 5 stops) | Traffic at the rejoin: no: STR 1.1 s ahead | Traffic probability 60%
+              Gain the place: HAM, ANT, ALB, SAI, OCO, STR, HAD | Within reach: PIA, NOR, VER | Lapped traffic: none
+     (not displayed: target lap 29, predicted crossing 5929.37 s, LEC pace 83.152 s/lap (recent))
+     ring tags / hover "Gap to LEC": RUS +9.3 s | HAM +6.2 s | ALB +19.5 s | ANT +16.2 s | SAI +21.1 s | OCO +21.9 s | STR +22.7 s | HAD +24.0 s
+     pit in k (stepper / keys [ ], k = 1..10; "rivals" not pressed, the default): in-lap L33 is k = 5, centre "LEC pits in 5: P4 → P7 (+3 vs now)"
+        k1 in-lap L29: P10 at the end of L30; pitting now instead P10 (= now; waiting gains 0.5 s)
+        k2 in-lap L30: P9 at the end of L31; pitting now instead P10 (+1 vs now; waiting gains 1.1 s)
+        k3 in-lap L31: P8 at the end of L32; pitting now instead P10 (+2 vs now; waiting gains 1.7 s)
+        k4 in-lap L32: P7 at the end of L33; pitting now instead P10 (+3 vs now; waiting gains 2.3 s)
+        k5 in-lap L33: P7 at the end of L34; pitting now instead P10 (+3 vs now; waiting gains 2.9 s)
+        k6 in-lap L34: P7 at the end of L35; pitting now instead P10 (+3 vs now; waiting gains 3.5 s)
+        k7 in-lap L35: P7 at the end of L36; pitting now instead P8 (+1 vs now; waiting gains 4.1 s)
+        k8 in-lap L36: P6 at the end of L37; pitting now instead P8 (+2 vs now; waiting gains 4.8 s)
+        k9 in-lap L37: P6 at the end of L38; pitting now instead P8 (+2 vs now; waiting gains 5.4 s)
+        k10 in-lap L38: P6 at the end of L39; pitting now instead P8 (+2 vs now; waiting gains 6.1 s)
+        tooltip rows: Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints)
+     "rivals" pressed: rows that differ: k7 in-lap L35: P5 at the end of L36; pitting now instead P5 (= now; waiting gains 4.1 s) [other cars stopping by then: VER, NOR, PIA, HAM, ANT, SAI, COL] ; k8 in-lap L36: P4 at the end of L37; pitting now instead P5 (+1 vs now; waiting gains 4.8 s) [other cars stopping by then: VER, NOR, PIA, HAM, ANT, SAI, COL] ; k9 in-lap L37: P4 at the end of L38; pitting now instead P5 (+1 vs now; waiting gains 5.4 s) [other cars stopping by then: VER, NOR, PIA, HAM, ANT, SAI, COL] ; k10 in-lap L38: P4 at the end of L39; pitting now instead P5 (+1 vs now; waiting gains 6.1 s) [other cars stopping by then: VER, NOR, PIA, HAM, ANT, SAI, COL]
+     demo frame 5801.893 s: memo key equal; centre and label identical
+  -- LAP 30 (→ / Jump to Lap 30; 40:14 elapsed, demo 40:15): sessionNow 5884.693 s (backend frame)
+     centre: LAP 30/53 | Track Clear | ref lap 1:23.81 (median of last 5 green laps) | pit loss 25.2 s (6 stops)
+     LEC: lap in progress L29 (last line crossing 5820.925 s), position P4
+     centre focus line: LEC pits now: P4 → P9
+     rejoin label: P8 34% · P9 50% · P10 16% | traffic 0.17 s behind STR
+     tooltip: Pit now P4 → P9 | Rejoin positions P8 33.8% · P9 50.5% · P10 15.7% | Draws 1000, bootstrap of 6 stops
+              Pit loss 25.2 s (p10–p90 24.5–26.2 s, 6 stops) | Traffic at the rejoin: 0.17 s behind STR (< 1.0 s) | Traffic probability 100%
+              Gain the place: HAM, ALB, SAI, OCO, STR, HAD | Within reach: PIA, NOR, VER | Lapped traffic: none
+     (not displayed: target lap 30, predicted crossing 6012.32 s, LEC pace 83.111 s/lap (recent))
+     ring tags / hover "Gap to LEC": RUS +30.3 s | HAM +6.5 s | ALB +19.7 s | ANT +20.9 s | SAI +21.5 s | OCO +22.5 s | STR +23.5 s | HAD +24.6 s
+     pit in k (stepper / keys [ ], k = 1..10; "rivals" not pressed, the default): in-lap L33 is k = 4, centre "LEC pits in 4: P4 → P6 (+1 vs now)"
+        k1 in-lap L30: P8 at the end of L31; pitting now instead P7 (−1 vs now; waiting costs 0.2 s)
+        k2 in-lap L31: P7 at the end of L32; pitting now instead P7 (= now; waiting gains 0.4 s)
+        k3 in-lap L32: P6 at the end of L33; pitting now instead P7 (+1 vs now; waiting gains 1.0 s)
+        k4 in-lap L33: P6 at the end of L34; pitting now instead P7 (+1 vs now; waiting gains 1.6 s)
+        k5 in-lap L34: P6 at the end of L35; pitting now instead P7 (+1 vs now; waiting gains 2.2 s)
+        k6 in-lap L35: P6 at the end of L36; pitting now instead P7 (+1 vs now; waiting gains 2.8 s)
+        k7 in-lap L36: P5 at the end of L37; pitting now instead P7 (+2 vs now; waiting gains 3.4 s)
+        k8 in-lap L37: P5 at the end of L38; pitting now instead P7 (+2 vs now; waiting gains 4.1 s)
+        k9 in-lap L38: P5 at the end of L39; pitting now instead P6 (+1 vs now; waiting gains 4.7 s)
+        k10 in-lap L39: P5 at the end of L40; pitting now instead P6 (+1 vs now; waiting gains 5.4 s)
+        tooltip rows: Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta −0.716 s on the first flying lap (2 stints)
+     "rivals" pressed: rows that differ: k7 in-lap L36: P4 at the end of L37; pitting now instead P5 (+1 vs now; waiting gains 3.4 s) [other cars stopping by then: VER, NOR, PIA, HAM, SAI, COL] ; k8 in-lap L37: P4 at the end of L38; pitting now instead P5 (+1 vs now; waiting gains 4.1 s) [other cars stopping by then: VER, NOR, PIA, HAM, SAI, COL] ; k9 in-lap L38: P4 at the end of L39; pitting now instead P5 (+1 vs now; waiting gains 4.7 s) [other cars stopping by then: VER, NOR, PIA, HAM, SAI, COL] ; k10 in-lap L39: P4 at the end of L40; pitting now instead P5 (+1 vs now; waiting gains 5.4 s) [other cars stopping by then: VER, NOR, PIA, HAM, SAI, COL]
+     demo frame 5885.093 s: memo key equal; centre and label identical
+  -- LAP 31 (→ / Jump to Lap 31; 41:37 elapsed, demo 41:37): sessionNow 5967.493 s (backend frame)
+     centre: LAP 31/53 | Track Clear | ref lap 1:23.70 (median of last 5 green laps) | pit loss 25.1 s (7 stops)
+     LEC: lap in progress L30 (last line crossing 5903.661 s), position P4
+     centre focus line: LEC pits now: P4 → P7
+     rejoin label: P6 14% · P7 42% · P8 29% · P10 15% | traffic 0.87 s behind SAI
+     tooltip: Pit now P4 → P7 | Rejoin positions P6 13.9% · P7 41.9% · P8 28.6% · P10 15.6% | Draws 1000, bootstrap of 7 stops
+              Pit loss 25.1 s (p10–p90 23.8–26.1 s, 7 stops) | Traffic at the rejoin: 0.87 s behind SAI (< 1.0 s) | Traffic probability 86%
+              Gain the place: HAM, ALB, SAI, OCO, STR | Within reach: PIA, NOR, VER | Lapped traffic: none
+     (not displayed: target lap 31, predicted crossing 6094.94 s, LEC pace 83.093 s/lap (recent))
+     ring tags / hover "Gap to LEC": RUS +30.0 s | HAM +6.8 s | ALB +20.2 s | ANT +42.1 s | SAI +22.6 s | OCO +23.4 s | STR +24.4 s | HAD +25.2 s
+     pit in k (stepper / keys [ ], k = 1..10; "rivals" not pressed, the default): in-lap L33 is k = 3, centre "LEC pits in 3: P4 → P6 (= now)"
+        k1 in-lap L31: P7 at the end of L32; pitting now instead P6 (−1 vs now; waiting costs 0.2 s)
+        k2 in-lap L32: P6 at the end of L33; pitting now instead P6 (= now; waiting gains 0.4 s)
+        k3 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting gains 1.0 s)
+        k4 in-lap L34: P6 at the end of L35; pitting now instead P6 (= now; waiting gains 1.6 s)
+        k5 in-lap L35: P6 at the end of L36; pitting now instead P6 (= now; waiting gains 2.2 s)
+        k6 in-lap L36: P6 at the end of L37; pitting now instead P6 (= now; waiting gains 2.8 s)
+        k7 in-lap L37: P6 at the end of L38; pitting now instead P6 (= now; waiting gains 3.4 s)
+        k8 in-lap L38: P6 at the end of L39; pitting now instead P6 (= now; waiting gains 4.1 s)
+        k9 in-lap L39: P6 at the end of L40; pitting now instead P6 (= now; waiting gains 4.7 s)
+        k10 in-lap L40: P6 at the end of L41; pitting now instead P6 (= now; waiting gains 5.4 s)
+        tooltip rows: Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.009 s/lap (6 stints) | Fresh-tyre delta −0.761 s on the first flying lap (2 stints)
+     "rivals" pressed: rows that differ: k7 in-lap L37: P5 at the end of L38; pitting now instead P5 (= now; waiting gains 3.4 s) [other cars stopping by then: VER, NOR, PIA, HAM, SAI, COL] ; k8 in-lap L38: P5 at the end of L39; pitting now instead P5 (= now; waiting gains 4.1 s) [other cars stopping by then: VER, NOR, PIA, HAM, SAI, COL] ; k9 in-lap L39: P5 at the end of L40; pitting now instead P5 (= now; waiting gains 4.7 s) [other cars stopping by then: VER, NOR, PIA, HAM, SAI, COL] ; k10 in-lap L40: P5 at the end of L41; pitting now instead P5 (= now; waiting gains 5.4 s) [other cars stopping by then: VER, NOR, PIA, HAM, SAI, COL]
+     demo frame 5967.493 s: memo key equal; centre and label identical
+  -- LAP 32 (→ / Jump to Lap 32; 43:00 elapsed, demo 43:00): sessionNow 6050.693 s (backend frame)
+     centre: LAP 32/53 | Track Clear | ref lap 1:23.49 (median of last 5 green laps) | pit loss 25.1 s (7 stops)
+     LEC: lap in progress L31 (last line crossing 5986.633 s), position P4
+     centre focus line: LEC pits now: P4 → P6
+     rejoin label: P6 84% · P8 16%
+     tooltip: Pit now P4 → P6 | Rejoin positions P6 84.4% · P8 15.6% | Draws 1000, bootstrap of 7 stops
+              Pit loss 25.1 s (p10–p90 23.8–26.1 s, 7 stops) | Traffic at the rejoin: no: ALB 4.2 s ahead | Traffic probability 16%
+              Gain the place: HAM, ALB, OCO, STR | Within reach: PIA, NOR, VER | Lapped traffic: none
+     (not displayed: target lap 32, predicted crossing 6177.70 s, LEC pace 82.980 s/lap (recent))
+     ring tags / hover "Gap to LEC": RUS +29.6 s | HAM +7.3 s | ALB +20.4 s | ANT +41.9 s | SAI +27.5 s | OCO +24.1 s | STR +25.0 s | HAD +25.9 s
+     pit in k (stepper / keys [ ], k = 1..10; "rivals" not pressed, the default): in-lap L33 is k = 2, centre "LEC pits in 2: P4 → P6 (= now)"
+        k1 in-lap L32: P6 at the end of L33; pitting now instead P6 (= now; waiting gains 0.2 s)
+        k2 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting gains 0.8 s)
+        k3 in-lap L34: P6 at the end of L35; pitting now instead P6 (= now; waiting gains 1.4 s)
+        k4 in-lap L35: P6 at the end of L36; pitting now instead P6 (= now; waiting gains 2.0 s)
+        k5 in-lap L36: P6 at the end of L37; pitting now instead P6 (= now; waiting gains 2.6 s)
+        k6 in-lap L37: P6 at the end of L38; pitting now instead P6 (= now; waiting gains 3.2 s)
+        k7 in-lap L38: P6 at the end of L39; pitting now instead P6 (= now; waiting gains 3.8 s)
+        k8 in-lap L39: P6 at the end of L40; pitting now instead P6 (= now; waiting gains 4.4 s)
+        k9 in-lap L40: P6 at the end of L41; pitting now instead P6 (= now; waiting gains 5.1 s)
+        k10 in-lap L41: P6 at the end of L42; pitting now instead P6 (= now; waiting gains 5.7 s)
+        tooltip rows: Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.010 s/lap (6 stints) | Fresh-tyre delta −0.355 s on the first flying lap (4 stints)
+     "rivals" pressed: rows that differ: k7 in-lap L38: P5 at the end of L39; pitting now instead P5 (= now; waiting gains 3.8 s) [other cars stopping by then: VER, NOR, PIA, HAM, COL] ; k8 in-lap L39: P5 at the end of L40; pitting now instead P5 (= now; waiting gains 4.4 s) [other cars stopping by then: VER, NOR, PIA, HAM, COL] ; k9 in-lap L40: P5 at the end of L41; pitting now instead P5 (= now; waiting gains 5.1 s) [other cars stopping by then: VER, NOR, PIA, HAM, COL] ; k10 in-lap L41: P5 at the end of L42; pitting now instead P5 (= now; waiting gains 5.7 s) [other cars stopping by then: VER, NOR, PIA, HAM, COL]
+     demo frame 6050.693 s: memo key equal; centre and label identical
+  -- LAP 33 (→ / Jump to Lap 33; 44:23 elapsed, demo 44:24): sessionNow 6133.493 s (backend frame)
+     centre: LAP 33/53 | Track Clear | ref lap 1:23.38 (median of last 5 green laps) | pit loss 24.9 s (8 stops)
+     LEC: lap in progress L32 (last line crossing 6069.490 s), position P4
+     centre focus line: LEC pits now: P4 → P6
+     rejoin label: P6 88% · P7 12%
+     tooltip: Pit now P4 → P6 | Rejoin positions P6 87.9% · P7 12.1% | Draws 1000, bootstrap of 8 stops
+              Pit loss 24.9 s (p10–p90 22.8–26.0 s, 8 stops) | Traffic at the rejoin: no: ALB 3.9 s ahead | Traffic probability 12%
+              Gain the place: HAM, ALB | Within reach: PIA, NOR, VER | Lapped traffic: none
+     (not displayed: target lap 33, predicted crossing 6260.36 s, LEC pace 82.972 s/lap (recent))
+     ring tags / hover "Gap to LEC": RUS +29.4 s | HAM +8.1 s | ALB +20.5 s | ANT +41.7 s | SAI +48.5 s | OCO +25.1 s | STR +25.7 s | HAD +26.5 s
+     pit in k (stepper / keys [ ], k = 1..10; "rivals" not pressed, the default): in-lap L33 is k = 1, centre "LEC pits in 1: P4 → P6 (= now)"
+        k1 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting gains 0.1 s)
+        k2 in-lap L34: P6 at the end of L35; pitting now instead P6 (= now; waiting gains 0.7 s)
+        k3 in-lap L35: P6 at the end of L36; pitting now instead P6 (= now; waiting gains 1.3 s)
+        k4 in-lap L36: P6 at the end of L37; pitting now instead P6 (= now; waiting gains 1.8 s)
+        k5 in-lap L37: P6 at the end of L38; pitting now instead P7 (+1 vs now; waiting gains 2.4 s)
+        k6 in-lap L38: P6 at the end of L39; pitting now instead P7 (+1 vs now; waiting gains 3.0 s)
+        k7 in-lap L39: P6 at the end of L40; pitting now instead P7 (+1 vs now; waiting gains 3.5 s)
+        k8 in-lap L40: P6 at the end of L41; pitting now instead P7 (+1 vs now; waiting gains 4.1 s)
+        k9 in-lap L41: P6 at the end of L42; pitting now instead P7 (+1 vs now; waiting gains 4.7 s)
+        k10 in-lap L42: P6 at the end of L43; pitting now instead P7 (+1 vs now; waiting gains 5.3 s)
+        tooltip rows: Lap model MEDIUM −0.017 s/lap (13 stints) → HARD −0.012 s/lap (6 stints) | Fresh-tyre delta −0.393 s on the first flying lap (4 stints)
+     "rivals" pressed: rows that differ: k6 in-lap L38: P5 at the end of L39; pitting now instead P6 (+1 vs now; waiting gains 3.0 s) [other cars stopping by then: VER, NOR, PIA, HAM, COL] ; k7 in-lap L39: P5 at the end of L40; pitting now instead P6 (+1 vs now; waiting gains 3.5 s) [other cars stopping by then: VER, NOR, PIA, HAM, COL] ; k8 in-lap L40: P5 at the end of L41; pitting now instead P6 (+1 vs now; waiting gains 4.1 s) [other cars stopping by then: VER, NOR, PIA, HAM, COL] ; k9 in-lap L41: P5 at the end of L42; pitting now instead P6 (+1 vs now; waiting gains 4.7 s) [other cars stopping by then: VER, NOR, PIA, HAM, COL] ; k10 in-lap L42: P5 at the end of L43; pitting now instead P6 (+1 vs now; waiting gains 5.3 s) [other cars stopping by then: VER, NOR, PIA, HAM, COL]
+     demo frame 6133.893 s: memo key equal; centre and label identical
+  -- LAP 34 (→ / Jump to Lap 34; 45:46 elapsed, demo 45:46): sessionNow 6216.293 s (backend frame)
+     centre: LAP 34/53 | Track Clear | ref lap 1:23.22 (median of last 5 green laps) | pit loss 24.9 s (8 stops)
+     LEC: lap in progress L33 (last line crossing 6152.465 s), position P4
+     centre focus line: LEC pits now: P4 → P6
+     rejoin label: P6 100%
+     tooltip: Pit now P4 → P6 | Rejoin positions P6 100.0% | Draws 1000, bootstrap of 8 stops
+              Pit loss 24.9 s (p10–p90 22.9–26.0 s, 8 stops) | Traffic at the rejoin: no: ALB 3.9 s ahead | Traffic probability 0%
+              Gain the place: HAM, ALB | Within reach: PIA, NOR, VER | Lapped traffic: none
+     (not displayed: target lap 34, predicted crossing 6343.35 s, LEC pace 82.972 s/lap (recent))
+     ring tags / hover "Gap to LEC": RUS +29.2 s | HAM +8.3 s | ALB +20.7 s | ANT +41.6 s | SAI +48.1 s | OCO +26.0 s | STR +26.8 s | HAD +31.9 s
+     demo frame 6216.293 s: memo key equal; centre and label identical
+
+3. Every readout from LAP 28 (5719.093 s) to the end of LEC's out-lap (6342.457 s), event by event
+   Columns: interval of race time it holds (playback), share of W, frames there (backend 0.4 s / demo 0.8 s), the event that starts it,
+   centre focus line | rejoin label | traffic probability | p(P6) (exact draw share, tooltip "Rejoin positions") | pit loss | Gain the place | Within reach
+   5719.1-5737.8 (18.7 s, W 0.0%, frames 47/23) starts at: LAP 28 seek clock (+2 later events, nothing listed changes); LEC on L27
+        LEC pits now: P4 → P12 | P12 100% | traffic 0.90 s behind HAD | tp 60% | p(P6) 0.0% | pit loss 25.2 s (5 stops) | gain: RUS, HAM, ANT, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5737.8-5743.4 (5.5 s, W 1.1%, frames 14/7) starts at: LEC completes L27; LEC on L28
+        LEC pits now: P4 → P11 | P11 60% · P12 40% | traffic 0.80 s behind STR | tp 81% | p(P6) 0.0% | pit loss 25.2 s (5 stops) | gain: RUS, HAM, ANT, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5743.4-5758.9 (15.5 s, W 3.1%, frames 39/20) starts at: RUS pit entry (in-lap 27) (+4 later events, nothing listed changes); LEC on L28
+        LEC pits now: P4 → P10 | P10 60% · P11 40% | traffic 0.80 s behind STR | tp 81% | p(P6) 0.0% | pit loss 25.2 s (5 stops) | gain: HAM, ANT, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5758.9-5759.7 (0.8 s, W 0.2%, frames 2/1) starts at: SAI completes L27; LEC on L28
+        LEC pits now: P4 → P10 | P10 60% · P11 40% | traffic 0.80 s behind STR | tp 81% | p(P6) 0.0% | pit loss 25.2 s (5 stops) | gain: HAM, ANT, ALB, OCO, SAI, STR, HAD | reach: PIA, NOR, VER
+   5759.7-5760.5 (0.8 s, W 0.2%, frames 2/1) starts at: OCO completes L27; LEC on L28
+        LEC pits now: P4 → P10 | P10 60% · P11 40% | traffic 0.80 s behind STR | tp 81% | p(P6) 0.0% | pit loss 25.2 s (5 stops) | gain: HAM, ANT, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5760.5-5820.9 (60.4 s, W 12.1%, frames 151/75) starts at: STR completes L27 (+11 later events, nothing listed changes); LEC on L28
+        LEC pits now: P4 → P10 | P10 60% · P11 40% | tp 60% | p(P6) 0.0% | pit loss 25.2 s (5 stops) | gain: HAM, ANT, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5820.9-5838.0 (17.1 s, W 3.4%, frames 43/22) starts at: LEC completes L28 (+1 later events, nothing listed changes); LEC on L29
+        LEC pits now: P4 → P10 | P9 21% · P10 60% · P11 19% | traffic 0.21 s behind STR | tp 100% | p(P6) 0.0% | pit loss 25.2 s (5 stops) | gain: HAM, ANT, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5838.0-5844.4 (6.4 s, W 1.3%, frames 16/8) starts at: ANT pit entry (in-lap 28) (+4 later events, nothing listed changes); LEC on L29
+        LEC pits now: P4 → P9 | P8 21% · P9 60% · P10 19% | traffic 0.21 s behind STR | tp 100% | p(P6) 0.0% | pit loss 25.2 s (5 stops) | gain: HAM, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5844.4-5851.3 (6.9 s, W 1.4%, frames 17/8) starts at: STR completes L28 (+1 later events, nothing listed changes); LEC on L29
+        LEC pits now: P4 → P9 | P8 21% · P9 60% · P10 19% | traffic 0.24 s behind STR | tp 100% | p(P6) 0.0% | pit loss 25.2 s (5 stops) | gain: HAM, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5851.3-5865.8 (14.5 s, W 2.9%, frames 36/18) starts at: RUS completes L28 (+4 later events, nothing listed changes); LEC on L29
+        LEC pits now: P4 → P9 | P8 34% · P9 50% · P10 16% | traffic 0.16 s behind STR | tp 100% | p(P6) 0.0% | pit loss 25.2 s (6 stops) | gain: HAM, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5865.8-5903.7 (37.9 s, W 7.6%, frames 95/48) starts at: BEA completes L28 (+5 later events, nothing listed changes); LEC on L29
+        LEC pits now: P4 → P9 | P8 34% · P9 50% · P10 16% | traffic 0.17 s behind STR | tp 100% | p(P6) 0.0% | pit loss 25.2 s (6 stops) | gain: HAM, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5903.7-5926.3 (22.6 s, W 4.5%, frames 56/28) starts at: LEC completes L29 (+2 later events, nothing listed changes); LEC on L30
+        LEC pits now: P4 → P7 | P7 66% · P8 18% · P9 16% | traffic 0.92 s behind SAI | tp 84% | p(P6) 0.0% | pit loss 25.2 s (6 stops) | gain: HAM, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5926.3-5927.1 (0.8 s, W 0.2%, frames 2/1) starts at: SAI completes L29; LEC on L30
+        LEC pits now: P4 → P7 | P7 66% · P8 18% · P9 16% | traffic 0.95 s behind SAI | tp 84% | p(P6) 0.0% | pit loss 25.2 s (6 stops) | gain: HAM, ALB, OCO, SAI, STR, HAD | reach: PIA, NOR, VER
+   5927.1-5928.9 (1.8 s, W 0.4%, frames 5/2) starts at: OCO completes L29 (+1 later events, nothing listed changes); LEC on L30
+        LEC pits now: P4 → P8 | P7 50% · P8 34% · P9 16% | traffic 0.04 s behind OCO | tp 100% | p(P6) 0.0% | pit loss 25.2 s (6 stops) | gain: HAM, ALB, SAI, OCO, STR, HAD | reach: PIA, NOR, VER
+   5928.9-5945.8 (16.9 s, W 3.4%, frames 42/21) starts at: HAD completes L29 (+3 later events, nothing listed changes); LEC on L30
+        LEC pits now: P4 → P8 | P7 50% · P8 34% · P10 16% | traffic 0.04 s behind OCO | tp 100% | p(P6) 0.0% | pit loss 25.2 s (6 stops) | gain: HAM, ALB, SAI, OCO, STR | reach: PIA, NOR, VER
+   5945.8-5955.1 (9.4 s, W 1.9%, frames 24/12) starts at: ANT completes L29 (+2 later events, nothing listed changes); LEC on L30
+        LEC pits now: P4 → P7 | P6 14% · P7 42% · P8 29% · P10 15% | traffic 0.86 s behind SAI | tp 86% | p(P6) 13.9% | pit loss 25.1 s (7 stops) | gain: HAM, ALB, SAI, OCO, STR | reach: PIA, NOR, VER
+   5955.1-5986.6 (31.5 s, W 6.3%, frames 78/39) starts at: TSU completes L29 (+4 later events, nothing listed changes); LEC on L30
+        LEC pits now: P4 → P7 | P6 14% · P7 42% · P8 29% · P10 15% | traffic 0.87 s behind SAI | tp 86% | p(P6) 13.9% | pit loss 25.1 s (7 stops) | gain: HAM, ALB, SAI, OCO, STR | reach: PIA, NOR, VER
+   5986.6-6010.3 (23.7 s, W 4.8%, frames 60/30) starts at: LEC completes L30 (+2 later events, nothing listed changes); LEC on L31
+        LEC pits now: P4 → P6 | P6 69% · P7 15% · P8 16% | tp 31% | p(P6) 69.1% | pit loss 25.1 s (7 stops) | gain: HAM, ALB, SAI, OCO, STR | reach: PIA, NOR, VER
+   6010.3-6010.7 (0.4 s, W 0.1%, frames 1/1) starts at: SAI pit entry (in-lap 30); LEC on L31
+        LEC pits now: P4 → P6 | P6 84% · P7 16% | tp 16% | p(P6) 84.4% | pit loss 25.1 s (7 stops) | gain: HAM, ALB, OCO, STR | reach: PIA, NOR, VER
+   6010.7-6011.7 (0.9 s, W 0.2%, frames 2/1) starts at: OCO completes L30; LEC on L31
+        LEC pits now: P4 → P6 | P6 84% · P7 16% | tp 0% | p(P6) 84.4% | pit loss 25.1 s (7 stops) | gain: HAM, ALB, OCO, STR | reach: PIA, NOR, VER
+   6011.7-6069.5 (57.8 s, W 11.6%, frames 144/72) starts at: STR completes L30 (+14 later events, nothing listed changes); LEC on L31
+        LEC pits now: P4 → P6 | P6 84% · P8 16% | tp 16% | p(P6) 84.4% | pit loss 25.1 s (7 stops) | gain: HAM, ALB, OCO, STR | reach: PIA, NOR, VER
+   6069.5-6094.6 (25.1 s, W 5.0%, frames 63/31) starts at: LEC completes L31 (+2 later events, nothing listed changes); LEC on L32
+        LEC pits now: P4 → P6 | P6 84% · P7 16% | tp 16% | p(P6) 84.4% | pit loss 25.1 s (7 stops) | gain: HAM, ALB, OCO, STR | reach: PIA, NOR, VER
+   6094.6-6095.2 (0.7 s, W 0.1%, frames 2/1) starts at: OCO completes L31; LEC on L32
+        LEC pits now: P4 → P6 | P6 84% · P7 16% | tp 16% | p(P6) 84.4% | pit loss 25.1 s (7 stops) | gain: HAM, ALB, STR, OCO | reach: PIA, NOR, VER
+   6095.2-6117.9 (22.7 s, W 4.6%, frames 57/29) starts at: STR completes L31 (+7 later events, nothing listed changes); LEC on L32
+        LEC pits now: P4 → P6 | P6 84% · P7 16% | tp 16% | p(P6) 84.4% | pit loss 25.1 s (7 stops) | gain: HAM, ALB, OCO | reach: PIA, NOR, VER
+   6117.9-6152.5 (34.5 s, W 6.9%, frames 86/43) starts at: SAI completes L31 (+5 later events, nothing listed changes); LEC on L32
+        LEC pits now: P4 → P6 | P6 88% · P7 12% | tp 12% | p(P6) 87.9% | pit loss 24.9 s (8 stops) | gain: HAM, ALB | reach: PIA, NOR, VER
+   6152.5-6235.6 (83.2 s, W 16.7%, frames 208/104) starts at: LEC completes L32 (+19 later events, nothing listed changes); LEC on L33
+        LEC pits now: P4 → P6 | P6 100% | tp 0% | p(P6) 100.0% | pit loss 24.9 s (8 stops) | gain: HAM, ALB | reach: PIA, NOR, VER
+   6235.6-6262.2 (26.6 s, W 0.0%, frames 66/33) starts at: LEC pit entry (in-lap 33) (+4 later events, nothing listed changes); LEC on L33/34
+        LEC stopping → P6 | P6 100% | tp 0% | p(P6) 100.0% | pit loss 24.9 s (8 stops) | gain: HAM, ALB | reach: PIA, NOR, VER
+   6262.2-6263.0 (0.8 s, W 0.0%, frames 2/1) starts at: OCO completes L33; LEC on L34
+        LEC stopping → P6 | P6 100% | tp 0% | p(P6) 100.0% | pit loss 24.9 s (8 stops) | gain: HAM, ALB, OCO | reach: PIA, NOR, VER
+   6263.0-6264.1 (1.1 s, W 0.0%, frames 3/1) starts at: STR completes L33; LEC on L34
+        LEC stopping → P6 | P6 100% | tp 0% | p(P6) 100.0% | pit loss 24.9 s (8 stops) | gain: HAM, ALB, OCO, STR | reach: PIA, NOR, VER
+   6264.1-6287.3 (23.2 s, W 0.0%, frames 58/29) starts at: RUS completes L33 (+7 later events, nothing listed changes); LEC on L34
+        LEC stopping → P6 | P6 100% | tp 0% | p(P6) 100.0% | pit loss 24.9 s (8 stops) | gain: HAM, ALB, OCO, STR, RUS | reach: PIA, NOR, VER
+   6287.3-6327.1 (39.7 s, W 0.0%, frames 99/50) starts at: HAD completes L33 (+6 later events, nothing listed changes); LEC on L34
+        LEC stopping → P6 | P6 100% | tp 0% | p(P6) 100.0% | pit loss 24.7 s (9 stops) | gain: HAM, ALB, OCO, STR, RUS | reach: PIA, NOR, VER
+   6327.1-6339.1 (12.0 s, W 0.0%, frames 30/15) starts at: HAM completes L34; LEC on L34
+        LEC stopping → P6 | P6 100% | tp 0% | p(P6) 100.0% | pit loss 24.7 s (9 stops) | gain: ALB, OCO, STR, RUS | reach: HAM, PIA, NOR, VER
+   6339.1-6342.5 (3.4 s, W 0.0%, frames 9/4) starts at: ALB completes L34; LEC on L34
+        LEC stopping → P6 | P6 100% | tp 0% | p(P6) 100.0% | pit loss 24.7 s (9 stops) | gain: OCO, STR, RUS | reach: ALB, HAM, PIA, NOR, VER
+   check: 2338 frame clocks (backend and demo) in the range, memo key different from its segment's: 0
+
+4. Shares of W (5737.8-6235.6 s, 497.8 s; backend frames 1245, demo frames 623)
+  4a. consecutive readouts of the centre line and the rejoin label (what a reader sees change), with their duration:
+     5737.8-5743.4 (from 37:48 elapsed, demo 37:48; 5.5 s, 1.1% of W; frames 14/7): LEC pits now: P4 → P11 | P11 60% · P12 40% | traffic 0.80 s behind STR
+     5743.4-5760.5 (from 37:53 elapsed, demo 37:53; 17.2 s, 3.4% of W; frames 43/22): LEC pits now: P4 → P10 | P10 60% · P11 40% | traffic 0.80 s behind STR
+     5760.5-5820.9 (from 38:10 elapsed, demo 38:11; 60.4 s, 12.1% of W; frames 151/75): LEC pits now: P4 → P10 | P10 60% · P11 40%
+     5820.9-5838.0 (from 39:11 elapsed, demo 39:11; 17.1 s, 3.4% of W; frames 43/22): LEC pits now: P4 → P10 | P9 21% · P10 60% · P11 19% | traffic 0.21 s behind STR
+     5838.0-5844.4 (from 39:28 elapsed, demo 39:28; 6.4 s, 1.3% of W; frames 16/8): LEC pits now: P4 → P9 | P8 21% · P9 60% · P10 19% | traffic 0.21 s behind STR
+     5844.4-5851.3 (from 39:34 elapsed, demo 39:35; 6.9 s, 1.4% of W; frames 17/8): LEC pits now: P4 → P9 | P8 21% · P9 60% · P10 19% | traffic 0.24 s behind STR
+     5851.3-5865.8 (from 39:41 elapsed, demo 39:41; 14.5 s, 2.9% of W; frames 36/18): LEC pits now: P4 → P9 | P8 34% · P9 50% · P10 16% | traffic 0.16 s behind STR
+     5865.8-5903.7 (from 39:56 elapsed, demo 39:56; 37.9 s, 7.6% of W; frames 95/48): LEC pits now: P4 → P9 | P8 34% · P9 50% · P10 16% | traffic 0.17 s behind STR
+     5903.7-5926.3 (from 40:34 elapsed, demo 40:34; 22.6 s, 4.5% of W; frames 56/28): LEC pits now: P4 → P7 | P7 66% · P8 18% · P9 16% | traffic 0.92 s behind SAI
+     5926.3-5927.1 (from 40:56 elapsed, demo 40:56; 0.8 s, 0.2% of W; frames 2/1): LEC pits now: P4 → P7 | P7 66% · P8 18% · P9 16% | traffic 0.95 s behind SAI
+     5927.1-5928.9 (from 40:57 elapsed, demo 40:57; 1.8 s, 0.4% of W; frames 5/2): LEC pits now: P4 → P8 | P7 50% · P8 34% · P9 16% | traffic 0.04 s behind OCO
+     5928.9-5945.8 (from 40:59 elapsed, demo 40:59; 16.9 s, 3.4% of W; frames 42/21): LEC pits now: P4 → P8 | P7 50% · P8 34% · P10 16% | traffic 0.04 s behind OCO
+     5945.8-5955.1 (from 41:16 elapsed, demo 41:16; 9.4 s, 1.9% of W; frames 24/12): LEC pits now: P4 → P7 | P6 14% · P7 42% · P8 29% · P10 15% | traffic 0.86 s behind SAI
+     5955.1-5986.6 (from 41:25 elapsed, demo 41:25; 31.5 s, 6.3% of W; frames 78/39): LEC pits now: P4 → P7 | P6 14% · P7 42% · P8 29% · P10 15% | traffic 0.87 s behind SAI
+     5986.6-6010.3 (from 41:56 elapsed, demo 41:56; 23.7 s, 4.8% of W; frames 60/30): LEC pits now: P4 → P6 | P6 69% · P7 15% · P8 16%
+     6010.3-6011.7 (from 42:20 elapsed, demo 42:20; 1.3 s, 0.3% of W; frames 3/2): LEC pits now: P4 → P6 | P6 84% · P7 16%
+     6011.7-6069.5 (from 42:22 elapsed, demo 42:22; 57.8 s, 11.6% of W; frames 144/72): LEC pits now: P4 → P6 | P6 84% · P8 16%
+     6069.5-6117.9 (from 43:19 elapsed, demo 43:20; 48.5 s, 9.7% of W; frames 122/61): LEC pits now: P4 → P6 | P6 84% · P7 16%
+     6117.9-6152.5 (from 44:08 elapsed, demo 44:08; 34.5 s, 6.9% of W; frames 86/43): LEC pits now: P4 → P6 | P6 88% · P7 12%
+     6152.5-6235.6 (from 44:42 elapsed, demo 44:43; 83.2 s, 16.7% of W; frames 208/104): LEC pits now: P4 → P6 | P6 100%
+  4b. by predicted place (centre "P4 → Pn"):
+     P6: 249.0 s (50.0%); frames backend 623/1245 (50.0%), demo 312/623 (50.1%)
+     P7: 64.3 s (12.9%); frames backend 160/1245 (12.9%), demo 80/623 (12.8%)
+     P8: 18.7 s (3.8%); frames backend 47/1245 (3.8%), demo 23/623 (3.7%)
+     P9: 65.6 s (13.2%); frames backend 164/1245 (13.2%), demo 82/623 (13.2%)
+     P10: 94.7 s (19.0%); frames backend 237/1245 (19.0%), demo 119/623 (19.1%)
+     P11: 5.5 s (1.1%); frames backend 14/1245 (1.1%), demo 7/623 (1.1%)
+  4c. traffic flag at the rejoin (label "traffic x s behind CAR"):
+     flag up: 188.4 s (37.8%); frames backend 471/1245 (37.8%), demo 236/623 (37.9%)
+       behind STR: 105.4 s (21.2%); frames backend 264/1245 (21.2%), demo 133/623 (21.3%)
+       behind SAI: 64.3 s (12.9%); frames backend 160/1245 (12.9%), demo 80/623 (12.8%)
+       behind OCO: 18.7 s (3.8%); frames backend 47/1245 (3.8%), demo 23/623 (3.7%)
+     no flag: 309.4 s (62.2%); frames backend 774/1245 (62.2%), demo 387/623 (62.1%)
+  4d. traffic probability (tooltip) and p(P6):
+     traffic probability >= 50%: 248.8 s (50.0%); frames backend 622/1245 (50.0%), demo 311/623 (49.9%)
+     traffic probability 0%: 84.1 s (16.9%); frames backend 210/1245 (16.9%), demo 105/623 (16.9%)
+     p(P6) >= 50%: 249.0 s (50.0%); frames backend 623/1245 (50.0%), demo 312/623 (50.1%)
+  4e. by LEC's lap in progress (from his line at the end of the previous lap):
+     L28 (5737.8-5820.9 s, 83.1 s): P4 → P11 | P11 60% · P12 40% | traffic 0.80 s behind STR [5.5 s, 6.7%] ; P4 → P10 | P10 60% · P11 40% | traffic 0.80 s behind STR [17.2 s, 20.7%] ; P4 → P10 | P10 60% · P11 40% [60.4 s, 72.7%]
+     L29 (5820.9-5903.7 s, 82.7 s): P4 → P10 | P9 21% · P10 60% · P11 19% | traffic 0.21 s behind STR [17.1 s, 20.7%] ; P4 → P9 | P8 21% · P9 60% · P10 19% | traffic 0.21 s behind STR [6.4 s, 7.7%] ; P4 → P9 | P8 21% · P9 60% · P10 19% | traffic 0.24 s behind STR [6.9 s, 8.3%] ; P4 → P9 | P8 34% · P9 50% · P10 16% | traffic 0.16 s behind STR [14.5 s, 17.5%] ; P4 → P9 | P8 34% · P9 50% · P10 16% | traffic 0.17 s behind STR [37.9 s, 45.8%]
+     L30 (5903.7-5986.6 s, 83.0 s): P4 → P7 | P7 66% · P8 18% · P9 16% | traffic 0.92 s behind SAI [22.6 s, 27.3%] ; P4 → P7 | P7 66% · P8 18% · P9 16% | traffic 0.95 s behind SAI [0.8 s, 0.9%] ; P4 → P8 | P7 50% · P8 34% · P9 16% | traffic 0.04 s behind OCO [1.8 s, 2.2%] ; P4 → P8 | P7 50% · P8 34% · P10 16% | traffic 0.04 s behind OCO [16.9 s, 20.4%] ; P4 → P7 | P6 14% · P7 42% · P8 29% · P10 15% | traffic 0.86 s behind SAI [9.4 s, 11.3%] ; P4 → P7 | P6 14% · P7 42% · P8 29% · P10 15% | traffic 0.87 s behind SAI [31.5 s, 37.9%]
+     L31 (5986.6-6069.5 s, 82.9 s): P4 → P6 | P6 69% · P7 15% · P8 16% [23.7 s, 28.6%] ; P4 → P6 | P6 84% · P7 16% [1.3 s, 1.6%] ; P4 → P6 | P6 84% · P8 16% [57.8 s, 69.8%]
+     L32 (6069.5-6152.5 s, 83.0 s): P4 → P6 | P6 84% · P7 16% [48.5 s, 58.4%] ; P4 → P6 | P6 88% · P7 12% [34.5 s, 41.6%]
+     L33 (6152.5-6235.6 s, 83.2 s): P4 → P6 | P6 100% [83.2 s, 100.0%]
+
+5. Pit in k laps: the row of in-lap L33 (the stop LEC made) over W, k = 33 - LEC's lap in progress.
+   "off" = the default (other cars do not stop), "on" = the "rivals" button pressed; "flat" = the same row with a flat lap model
+   (no tyre wear, no fresh-tyre delta): NOT displayed, it separates what the lap model adds from the window's constant paces.
+   5737.8-5743.4 (5.5 s, 1.1% of W; frames 14/7): k5: off P8 at L34 (+2 vs now; waiting gains 3.0 s) | on the same | flat P8 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.020 s/lap (13 stints) → HARD −0.008 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints)
+   5743.4-5744.0 (0.7 s, 0.1% of W; frames 2/1): k5: off P7 at L34 (+2 vs now; waiting gains 3.0 s) | on the same | flat P7 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.020 s/lap (13 stints) → HARD −0.008 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints)
+   5744.0-5760.5 (16.5 s, 3.3% of W; frames 41/21): k5: off P7 at L34 (+2 vs now; waiting gains 2.9 s) | on the same | flat P7 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.008 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints) ... Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints) (2 values over the interval)
+   5760.5-5814.3 (53.7 s, 10.8% of W; frames 134/67): k5: off P7 at L34 (+3 vs now; waiting gains 2.9 s) | on the same | flat P7 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints)
+   5814.3-5820.9 (6.7 s, 1.3% of W; frames 17/8): k5: off P7 at L34 (+3 vs now; waiting gains 2.8 s) | on the same | flat P7 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints)
+   5820.9-5838.0 (17.1 s, 3.4% of W; frames 43/22): k4: off P7 at L34 (+1 vs now; waiting gains 2.3 s) | on the same | flat P7 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints) ... Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints) (2 values over the interval)
+   5838.0-5865.8 (27.7 s, 5.6% of W; frames 69/34): k4: off P6 at L34 (+1 vs now; waiting gains 2.3 s) | on the same | flat P6 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints) ... Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta +0.000 s on the first flying lap (1 stints) (2 values over the interval)
+   5865.8-5903.7 (37.9 s, 7.6% of W; frames 95/48): k4: off P6 at L34 (+1 vs now; waiting gains 1.6 s) | on the same | flat P6 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta −0.699 s on the first flying lap (2 stints) ... Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta −0.716 s on the first flying lap (2 stints) (3 values over the interval)
+   5903.7-5979.9 (76.2 s, 15.3% of W; frames 190/95): k3: off P6 at L34 (= now; waiting gains 1.0 s) | on the same | flat P6 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.019 s/lap (13 stints) → HARD −0.007 s/lap (6 stints) | Fresh-tyre delta −0.716 s on the first flying lap (2 stints) ... Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.009 s/lap (6 stints) | Fresh-tyre delta −0.761 s on the first flying lap (2 stints) (5 values over the interval)
+   5979.9-5986.6 (6.8 s, 1.4% of W; frames 17/8): k3: off P6 at L34 (= now; waiting gains 0.9 s) | on the same | flat P6 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.009 s/lap (6 stints) | Fresh-tyre delta −0.761 s on the first flying lap (2 stints)
+   5986.6-6030.4 (43.8 s, 8.8% of W; frames 110/55): k2: off P6 at L34 (= now; waiting gains 0.4 s) | on the same | flat P6 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.009 s/lap (6 stints) | Fresh-tyre delta −0.761 s on the first flying lap (2 stints) ... Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.008 s/lap (6 stints) | Fresh-tyre delta −0.761 s on the first flying lap (2 stints) (2 values over the interval)
+   6030.4-6038.9 (8.5 s, 1.7% of W; frames 21/11): k2: off P6 at L34 (= now; waiting gains 1.0 s) | on the same | flat P6 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.008 s/lap (6 stints) | Fresh-tyre delta −0.143 s on the first flying lap (3 stints)
+   6038.9-6069.5 (30.6 s, 6.1% of W; frames 76/38): k2: off P6 at L34 (= now; waiting gains 0.8 s) | on the same | flat P6 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.018 s/lap (13 stints) → HARD −0.008 s/lap (6 stints) | Fresh-tyre delta −0.355 s on the first flying lap (4 stints) ... Lap model MEDIUM −0.017 s/lap (13 stints) → HARD −0.010 s/lap (6 stints) | Fresh-tyre delta −0.355 s on the first flying lap (4 stints) (3 values over the interval)
+   6069.5-6122.6 (53.1 s, 10.7% of W; frames 133/66): k1: off P6 at L34 (= now; waiting gains 0.2 s) | on the same | flat P6 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.017 s/lap (13 stints) → HARD −0.010 s/lap (6 stints) | Fresh-tyre delta −0.355 s on the first flying lap (4 stints) ... Lap model MEDIUM −0.017 s/lap (13 stints) → HARD −0.010 s/lap (6 stints) | Fresh-tyre delta −0.375 s on the first flying lap (4 stints) (2 values over the interval)
+   6122.6-6152.5 (29.9 s, 6.0% of W; frames 75/38): k1: off P6 at L34 (= now; waiting gains 0.1 s) | on the same | flat P6 at L34 (= now; waiting costs 0.0 s)
+        tooltip Lap model MEDIUM −0.017 s/lap (13 stints) → HARD −0.010 s/lap (6 stints) | Fresh-tyre delta −0.393 s on the first flying lap (4 stints) ... Lap model MEDIUM −0.017 s/lap (13 stints) → HARD −0.012 s/lap (6 stints) | Fresh-tyre delta −0.393 s on the first flying lap (4 stints) (2 values over the interval)
+   6152.5-6235.6 (83.2 s, 16.7% of W; frames 208/104): k0: in-lap L33 is the lap in progress; the stepper at 0 shows the pit-now window (section 3), no "pit in" row is displayed
+   summary over W (rivals off): P8 (+2 vs now) 5.5 s (1.1%); P7 (+2 vs now) 17.2 s (3.4%); P7 (+3 vs now) 60.4 s (12.1%); P7 (+1 vs now) 17.1 s (3.4%); P6 (+1 vs now) 65.6 s (13.2%); P6 (= now) 248.8 s (50.0%); k0 (no pit-in row; pit-now window) 83.2 s (16.7%)
+   at the lap-seek clocks:
+     LAP 27: k7 in-lap L33: P9 at the end of L34; pitting now instead P12 (+3 vs now; waiting gains 4.5 s) | flat: k7 in-lap L33: P9 at the end of L34; pitting now instead P9 (= now; waiting costs 0.0 s)
+     LAP 28: k6 in-lap L33: P9 at the end of L34; pitting now instead P12 (+3 vs now; waiting gains 3.4 s) | flat: k6 in-lap L33: P9 at the end of L34; pitting now instead P9 (= now; waiting costs 0.0 s)
+     LAP 29: k5 in-lap L33: P7 at the end of L34; pitting now instead P10 (+3 vs now; waiting gains 2.9 s) | flat: k5 in-lap L33: P7 at the end of L34; pitting now instead P7 (= now; waiting costs 0.0 s)
+     LAP 30: k4 in-lap L33: P6 at the end of L34; pitting now instead P7 (+1 vs now; waiting gains 1.6 s) | flat: k4 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting costs 0.0 s)
+     LAP 31: k3 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting gains 1.0 s) | flat: k3 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting costs 0.0 s)
+     LAP 32: k2 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting gains 0.8 s) | flat: k2 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting costs 0.0 s)
+     LAP 33: k1 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting gains 0.1 s) | flat: k1 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting costs 0.0 s)
+     LAP 34: k0 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting costs 0.0 s) | flat: k0 in-lap L33: P6 at the end of L34; pitting now instead P6 (= now; waiting costs 0.0 s)
+
+6. Gap tags of the cars behind (ring label "CAR +x.x" and hover row "Gap to LEC"; gapSeconds = crossing difference on the latest lap both cars have completed)
+   OCO: +20.9 s [5737.8-5759.7] → +21.9 s [5759.7-5843.4] → +22.5 s [5843.4-5927.1] → +23.4 s [5927.1-6010.7] → +24.1 s [6010.7-6094.6] → +25.1 s [6094.6-6178.5] → +26.0 s [6178.5-6235.6]
+   STR: +21.9 s [5737.8-5760.5] → +22.7 s [5760.5-5844.4] → +23.5 s [5844.4-5928.1] → +24.4 s [5928.1-6011.7] → +25.0 s [6011.7-6095.2] → +25.7 s [6095.2-6179.3] → +26.8 s [6179.3-6235.6]
+   SAI: +20.1 s [5737.8-5758.9] → +21.1 s [5758.9-5842.4] → +21.5 s [5842.4-5926.3] → +22.6 s [5926.3-6014.1] → +27.5 s [6014.1-6117.9] → +48.5 s [6117.9-6200.6] → +48.1 s [6200.6-6235.6]
+   HAD: +23.1 s [5737.8-5761.8] → +24.0 s [5761.8-5845.5] → +24.6 s [5845.5-5928.9] → +25.2 s [5928.9-6012.6] → +25.9 s [6012.6-6096.0] → +26.5 s [6096.0-6184.4] → +31.9 s [6184.4-6235.6]
+   ALB: +18.7 s [5737.8-5757.3] → +19.5 s [5757.3-5840.6] → +19.7 s [5840.6-5923.9] → +20.2 s [5923.9-6007.0] → +20.4 s [6007.0-6090.0] → +20.5 s [6090.0-6173.2] → +20.7 s [6173.2-6235.6]
+   HAM: +5.8 s [5737.8-5744.0] → +6.2 s [5744.0-5827.4] → +6.5 s [5827.4-5910.5] → +6.8 s [5910.5-5993.9] → +7.3 s [5993.9-6077.6] → +8.1 s [6077.6-6160.8] → +8.3 s [6160.8-6235.6]
+
+7. Model-based counterfactual (ex post; NOT displayed by any view): the pit-now window at the end of LEC's laps 27-32
+   (first backend frame at or after his line) placed among the OTHER cars' ACTUAL line crossings. The predicted crossing is the dashboard's
+   model (last crossing + 2 x recent pace + pit loss median); the actual crossings include stops the dashboard could not know yet.
+   end of L27 (frame 5737.893 s; in-lap L28): shown P11 with traffic 0.80 s behind STR; predicted crossing of L29 5929.35 s -> rank among the actual L29 crossings P10; car ahead on the road HAD (its L29) 0.47 s, behind RUS (its L29) 4.32 s
+   end of L28 (frame 5821.093 s; in-lap L29): shown P10 with traffic 0.21 s behind STR; predicted crossing of L30 6012.38 s -> rank among the actual L30 crossings P8; car ahead on the road STR (its L30) 0.73 s, behind HAD (its L30) 0.20 s
+   end of L29 (frame 5903.893 s; in-lap L30): shown P7 with traffic 0.92 s behind SAI; predicted crossing of L31 6095.02 s -> rank among the actual L31 crossings P7; car ahead on the road OCO (its L31) 0.45 s, behind STR (its L31) 0.21 s
+   end of L30 (frame 5986.693 s; in-lap L31): shown P6, no traffic flag; predicted crossing of L32 6177.69 s -> rank among the actual L32 crossings P6; car ahead on the road ALB (its L32) 4.53 s, behind OCO (its L32) 0.79 s
+   end of L31 (frame 6069.493 s; in-lap L32): shown P6, no traffic flag; predicted crossing of L33 6260.54 s -> rank among the actual L33 crossings P6; car ahead on the road ALB (its L33) 4.39 s, behind OCO (its L33) 1.65 s
+   end of L32 (frame 6152.693 s; in-lap L33): shown P6, no traffic flag; predicted crossing of L34 6343.33 s -> rank among the actual L34 crossings P6; car ahead on the road ALB (its L34) 4.28 s, behind OCO (its L34) 2.45 s
+   the stop made: window at the end of L32 predicted the L34 crossing at 6343.332 s; actual 6342.457 s (difference -0.874 s)
+
+8. What happened (lap rows, known only after the clock)
+   LEC L26: end 5654.852 s, lap 83.374 s, MEDIUM/26, track status 1, place P4, car ahead on the road PIA (its L26) 6.234 s
+   LEC L27: end 5737.832 s, lap 82.980 s, MEDIUM/27, track status 1, place P4, car ahead on the road PIA (its L27) 6.418 s
+   LEC L28: end 5820.925 s, lap 83.093 s, MEDIUM/28, track status 1, place P4, car ahead on the road PIA (its L28) 6.666 s
+   LEC L29: end 5903.661 s, lap 82.736 s, MEDIUM/29, track status 1, place P4, car ahead on the road PIA (its L29) 6.702 s
+   LEC L30: end 5986.633 s, lap 82.972 s, MEDIUM/30, track status 1, place P4, car ahead on the road PIA (its L30) 6.754 s
+   LEC L31: end 6069.490 s, lap 82.857 s, MEDIUM/31, track status 1, place P4, car ahead on the road PIA (its L31) 6.795 s
+   LEC L32: end 6152.465 s, lap 82.975 s, MEDIUM/32, track status 1, place P4, car ahead on the road PIA (its L32) 7.194 s
+   LEC L33: end 6239.484 s, lap 87.019 s, MEDIUM/33, track status 1, pit entry 6235.616, place P4, car ahead on the road PIA (its L33) 10.942 s
+   LEC L34: end 6342.457 s, lap 102.973 s, HARD/1, track status 1, pit exit 6259.867, place P6, car ahead on the road ALB (its L34) 3.401 s
+   LEC L35: end 6424.627 s, lap 82.170 s, HARD/2, track status 1, place P6, car ahead on the road ALB (its L35) 3.074 s
+   LEC L36: end 6506.988 s, lap 82.361 s, HARD/3, track status 1, place P6, car ahead on the road ALB (its L36) 2.826 s
+   LEC L37: end 6589.362 s, lap 82.374 s, HARD/4, track status 1, place P6, car ahead on the road ALB (its L37) 2.471 s
+   LEC L38: end 6671.487 s, lap 82.125 s, HARD/5, track status 1, place P6, car ahead on the road ALB (its L38) 1.938 s
+   LEC L39: end 6753.918 s, lap 82.431 s, HARD/6, track status 1, place P5, car ahead on the road ALB (its L39) 1.696 s
+   LEC L40: end 6836.216 s, lap 82.298 s, HARD/7, track status 12, place P5, car ahead on the road ALB (its L40) 1.420 s
+   LEC place at the line, changes over the race: L1 P5, L2 P3, L6 P4, L34 P6, L39 P5, L41 P4; classified 4
+   LEC's last three full laps on MEDIUM (L30-L32) mean 82.935 s; first three flying laps on HARD (L35-L37) mean 82.302 s; difference HARD - MEDIUM -0.633 s per lap
+   stops of the cars named in the windows (in-lap: pit entry, session seconds), and their line gap behind LEC (row Time - LEC Time; + = behind):
+     RUS: in-laps L27 (5743.4); classified 5; gap L26 4.26 | L27 9.26 | L28 30.33 | L29 30.01 | L30 29.64 | L31 29.44 | L32 29.17 | L33 24.62
+     HAM: in-laps L38 (6659.4); classified 6; gap L26 5.78 | L27 6.21 | L28 6.51 | L29 6.82 | L30 7.31 | L31 8.09 | L32 8.32 | L33 4.31
+     ALB: in-laps L41 (6917.3); classified 7; gap L26 18.72 | L27 19.46 | L28 19.72 | L29 20.21 | L30 20.37 | L31 20.52 | L32 20.69 | L33 16.67
+     ANT: in-laps L28 (5838.0); classified 9; gap L26 15.52 | L27 16.24 | L28 20.90 | L29 42.11 | L30 41.91 | L31 41.72 | L32 41.59 | L33 37.28
+     SAI: in-laps L30 (6010.3); classified 11; gap L26 20.06 | L27 21.05 | L28 21.51 | L29 22.63 | L30 27.49 | L31 48.46 | L32 48.11 | L33 43.61
+     OCO: in-laps L51 (7762.2); classified 15; gap L26 20.90 | L27 21.86 | L28 22.51 | L29 23.42 | L30 24.08 | L31 25.07 | L32 26.01 | L33 22.70
+     STR: in-laps L49 (7598.5); classified 18; gap L26 21.91 | L27 22.70 | L28 23.47 | L29 24.41 | L30 25.02 | L31 25.73 | L32 26.84 | L33 23.54
+     HAD: in-laps L32 (6180.7); classified 10; gap L26 23.07 | L27 23.97 | L28 24.57 | L29 25.22 | L30 25.95 | L31 26.52 | L32 31.89 | L33 47.86
+     GAS: in-laps L49 (7608.5); classified 16; gap L26 30.98 | L27 31.99 | L28 33.03 | L29 34.22 | L30 35.00 | L31 36.04 | L32 36.82 | L33 34.24
+   pit entries inside W (before LEC's): RUS in-lap 27 at 5743.4; ANT in-lap 28 at 5838.0; SAI in-lap 30 at 6010.3; HAD in-lap 32 at 6180.7
+   after the stop, at the lap-seek clocks (focus LEC): LEC's place (tooltip title "LEC — Pn") and the ring tags / "Gap to LEC" of the cars around:
+     LAP 35 (6299.093 s, 47:09 elapsed; demo 6299.493 s, 47:09 elapsed, memo key equal): LEC P4, on L34; PIA −10.9 s | HAM +4.3 s | ALB +16.7 s | OCO +22.7 s | STR +23.5 s
+     LAP 36 (6381.893 s, 48:32 elapsed; demo 6381.893 s, 48:32 elapsed, memo key equal): LEC P6, on L35; PIA −31.2 s | HAM −15.4 s | ALB −3.4 s | OCO +3.3 s | STR +4.0 s
+     LAP 37 (6464.693 s, 49:54 elapsed; demo 6465.093 s, 49:55 elapsed, memo key equal): LEC P6, on L36; PIA −30.8 s | HAM −14.5 s | ALB −3.1 s | OCO +4.6 s | STR +6.2 s
+     LAP 38 (6551.893 s, 51:22 elapsed; demo 6552.293 s, 51:22 elapsed, memo key equal): LEC P6, on L37; PIA −31.0 s | HAM −13.9 s | ALB −2.8 s | OCO +5.9 s | STR +7.4 s
+     LAP 39 (6635.493 s, 52:45 elapsed; demo 6635.493 s, 52:45 elapsed, memo key equal): LEC P6, on L38; PIA −30.9 s | HAM −13.4 s | ALB −2.5 s | OCO +7.0 s | STR +8.6 s
+     LAP 40 (6717.893 s, 54:08 elapsed; demo 6717.893 s, 54:08 elapsed, memo key equal): LEC P6, on L39; PIA −30.5 s | HAM −8.4 s | ALB −1.9 s | OCO +8.2 s | STR +9.7 s
+     LAP 41 (6800.693 s, 55:30 elapsed; demo 6801.093 s, 55:31 elapsed, memo key equal): LEC P5, on L40; PIA −30.5 s | HAM +12.0 s | ALB −1.7 s | OCO +9.2 s | STR +10.6 s
+     LAP 42 (6884.293 s, 56:54 elapsed; demo 6884.293 s, 56:54 elapsed, memo key equal): LEC P5, on L41; PIA −30.5 s | HAM +11.9 s | ALB −1.4 s | OCO +10.2 s | STR +11.5 s
+
+9. Context: lines of docs/evidence/cod_backtest.txt (frontend/scripts/cod_backtest.mjs), quoted, not recomputed here
+   | race       n_green  script_exact  module_exact  script_w1  module_w1
+   | 2025_16         18         72.2%         77.8%      77.8%      83.3%
+   |   module                       stops=709 exact=46.7% within_1=72.8%
+   |   stops where no rival stops at all before lap n + 1:
+   |     module                     stops=110 exact=87.3% within_1=96.4%
+
+10. Secondary vignette, same race: a pit loss measured on ONE stop (BEA, Haas, before his stop on in-lap 18)
+   pit-loss estimate (centre "pit loss x s (n stops)") by number of stops, from the race start to the end of LEC's out-lap:
+     3469.9-4353.3 (883.4 s): fallback 22.0 s
+     4353.3-5111.1 (757.8 s): 1 stop, first value 24.3 s, p10–p90 24.3–24.3 s [LAW L9]
+     5111.1-5195.2 (84.1 s): 2 stops, first value 25.4 s, p10–p90 25.2–25.7 s [LAW L9, BEA L18]
+     5195.2-5276.4 (81.1 s): 3 stops, first value 25.1 s, p10–p90 25.0–25.7 s [LAW L9, BEA L18, TSU L19]
+     5276.4-5277.5 (1.2 s): 4 stops, first value 25.1 s, p10–p90 24.8–25.7 s [LAW L9, BEA L18, TSU L19, ALO L20]
+     5277.5-5851.3 (573.7 s): 5 stops, first value 25.1 s, p10–p90 24.8–26.1 s [LAW L9, BEA L18, TSU L19, ALO L20, BOR L20]
+     5851.3-5945.8 (94.5 s): 6 stops, first value 25.2 s, p10–p90 24.5–26.2 s [LAW L9, BEA L18, TSU L19, ALO L20, BOR L20, RUS L27]
+     5945.8-6117.9 (172.2 s): 7 stops, first value 25.1 s, p10–p90 23.8–26.0 s [LAW L9, BEA L18, TSU L19, ALO L20, BOR L20, RUS L27, ANT L28]
+     6117.9-6287.3 (169.4 s): 8 stops, first value 24.9 s, p10–p90 22.8–26.0 s [LAW L9, BEA L18, TSU L19, ALO L20, BOR L20, RUS L27, ANT L28, SAI L30]
+     6287.3-6342.5 (55.1 s): 9 stops, first value 24.7 s, p10–p90 22.9–25.9 s [LAW L9, BEA L18, TSU L19, ALO L20, BOR L20, RUS L27, ANT L28, SAI L30, HAD L32]
+   LAP 18 seek clock 4890.293 s (23:40 elapsed; demo 4890.693 s, 23:40 elapsed), focus BEA: centre "pit loss 24.7 s (1 stop)" | "BEA pits now: P11 → P19" | label "P19 100%"
+     tooltip: Rejoin positions P19 100.0% | Draws 1000, bootstrap of 1 stops | Pit loss 24.7 s (p10–p90 24.7–24.7 s, 1 stops) | Traffic at the rejoin: no: LAW 1.3 s ahead | Traffic probability 0%
+   BEA from the LAP 18 seek clock to his pit entry (5002.731 s):
+     4890.3-4940.7 (50.4 s; frames 127/63): BEA pits now: P11 → P19 | P19 100% | pit loss 24.7 s (1 stop) | p10–p90 24.7–24.7
+     4940.7-5002.4 (61.7 s; frames 154/77): BEA pits now: P11 → P19 | P19 100% | pit loss 25.1 s (1 stop) | p10–p90 25.1–25.1
+     5002.4-5002.7 (0.3 s; frames 1/1): BEA pits now: P12 → P19 | P19 100% | pit loss 25.1 s (1 stop) | p10–p90 25.1–25.1
+   what happened: BEA pit entry L18 5002.7 s; end of out-lap L19 place P19, car ahead on the road LAW (its L19) 2.46 s; classified 12
