@@ -437,6 +437,7 @@ export default function PositionByLap() {
         .attr('text-anchor', 'middle')
         .attr('fill', TEXT_COLORS.muted)
         .style('font-size', CHART_FONT.label)
+        .style('font-variant-numeric', 'tabular-nums')
         .text(`LAP ${currentLap}`);
     }
 

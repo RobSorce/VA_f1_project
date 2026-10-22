@@ -23,7 +23,7 @@
 //     no column given up in a preset pane.
 //
 // Heights use the CSS line-height of the text (body 1.4 unless a rule sets
-// another); widths use the Formula1 faces (the weight's face) and 0.6 em for
+// another); widths use the Inter faces (the weight's face) and 0.6 em for
 // JetBrains Mono (its advance is 600/1000), 1 em for a glyph the face lacks.
 // Exit code 1 when a row is cut or a page holds nothing. Run:
 //   node frontend/scripts/audit/panel_fit.mjs
@@ -62,8 +62,8 @@ const SP = (() => {
 })();
 
 const css = M.loadCss(SRC);
-const F = loadFaces();
-if (!F) { console.log('Formula1 font files missing'); process.exit(1); }
+const F = loadFaces('Inter');
+if (!F) { console.log('Inter font files missing'); process.exit(1); }
 const mono = (text, size) => [...text].length * 0.6 * size;
 const LH = 1.4; // body line-height
 // The timing sheet's columns, read from lapTimeChart.js (it imports modules
@@ -73,7 +73,8 @@ const TIMING_COLUMNS = (() => {
   const block = src.match(/export const TIMING_COLUMNS = Object\.freeze\(\[([\s\S]*?)\]\);/)[1];
   const cols = [...block.matchAll(/\{ key: '(\w+)',[^}]*?defaultW: (\d+),\s*minW: (\d+),[^}]*\}/g)]
     .map((m) => ({ key: m[1], defaultW: Number(m[2]), minW: Number(m[3]) }));
-  if (cols.length !== 11) throw new Error(`TIMING_COLUMNS: ${cols.length} columns read`);
+  const declared = (block.match(/\{ key: '/g) || []).length;
+  if (cols.length !== declared) throw new Error(`TIMING_COLUMNS: ${cols.length} of ${declared} columns read`);
   return cols;
 })();
 const SCROLLBAR_W = 6; // base.css ::-webkit-scrollbar (the rows' body scrolls when they do not fit)
@@ -266,7 +267,7 @@ export function consistencyModel(vp, W, H, { expandedCompounds = 0 } = {}) {
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   teeToEvidence('panel_fit.txt');
-  console.log(`Fit of the layout lane's views at the V13 target viewports (CSS + components + Formula1 metrics), ${new Date().toLocaleDateString('sv-SE')}`);
+  console.log(`Fit of the layout lane's views at the V13 target viewports (CSS + components + Inter metrics), ${new Date().toLocaleDateString('sv-SE')}`);
   console.log(`Leaderboard rows ${LB_ROW_MIN}-${LB_ROW_MAX} px, pager ${LB_PAGER_H} px, legend inline from ${LB_LEGEND_POPOVER_H} px of height; focus cards open from ${CARDS_OPEN_H} px`);
   console.log(`Sectors rows ${SP.ROW_MIN}-${SP.ROW_MAX} px, pager ${SP.PAGER_H} px, ranked columns >= ${SP.COL_EM} em; Consistency rows ${CL.CONSISTENCY_ROW_MIN}-${CL.CONSISTENCY_ROW_MAX} px, cards >= ${CL.CONSISTENCY_CARD_EM} em\n`);
   for (const vp of M.VIEWPORTS) {

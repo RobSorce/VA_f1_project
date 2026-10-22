@@ -289,7 +289,7 @@ export default function RaceControlPanel() {
       display: 'flex', flexDirection: 'column',
       background: SURFACES.panel,
       color: TEXT_COLORS.primary,
-      fontFamily: "'Titillium Web', 'Inter', sans-serif",
+      fontFamily: 'var(--font-primary)',
       overflow: 'hidden',
     }}>
       {/* Header strip */}
@@ -311,7 +311,7 @@ export default function RaceControlPanel() {
             }}
           />
           <span style={{
-            fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+            fontFamily: 'var(--font-primary)',
             fontWeight: 800, letterSpacing: '0.10em', textTransform: 'uppercase',
             fontSize: CHART_FONT.data, color: TEXT_COLORS.primary,
           }}>Race Control</span>

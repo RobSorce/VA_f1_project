@@ -10,6 +10,7 @@
 // cell, never cut.
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import { installMiniDom } from './helpers/miniDom.js';
+import { haveWebFont, textWidth } from './helpers/fontWidths.js';
 
 vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
 if (typeof globalThis.localStorage === 'undefined') {
@@ -50,7 +51,7 @@ const PANES = [
 ];
 
 describe('floors and fit (pure)', () => {
-  it('floors: every value whole at the data size (JetBrains Mono 0.6 em, the surname in Formula1 Bold)', () => {
+  it('floors: every value whole at the data size (JetBrains Mono 0.6 em, the surname in Inter Bold)', () => {
     for (const d of [11, 12.5]) {
       const f = Object.fromEntries(TIMING_COLUMNS.map((c, i) => [c.key, timingColumnFloors(d)[i]]));
       const mono = (n) => n * 0.6 * d;
@@ -58,7 +59,8 @@ describe('floors and fit (pure)', () => {
       expect(f.lapTime).toBeGreaterThanOrEqual(mono(9) + 2); // "◆1:21.123"
       expect(f.gap).toBeGreaterThanOrEqual(mono(7)); // "+12.345"
       expect(f.pos).toBeGreaterThanOrEqual(mono(3) + 0.06 * d); // "RET"
-      expect(f.driver).toBeGreaterThanOrEqual(8.45 * d); // HULKENBERG in Formula1 Bold
+      // HULKENBERG in Inter Bold (700), uppercase, 0.03 em letter-spacing
+      if (haveWebFont) expect(f.driver).toBeGreaterThanOrEqual(textWidth('HULKENBERG', d, 700, { letterSpacingEm: 0.03 }));
       expect(f.tyre).toBeGreaterThanOrEqual(14); // the compound badge
     }
   });
@@ -138,8 +140,8 @@ describe('mounted: the grid follows the rows\' box', () => {
       // the header has the same columns, and no "+N" cell
       expect(v.header().style.gridTemplateColumns).toBe(tpl);
       expect(v.host.querySelector('.timing-sheet__hidden-cols')).toBeNull();
-      // the driver cell carries the full name, its surname in Formula1 Bold (not the Wide face of 800)
-      const name = rows[0].children[3];
+      // the driver cell carries the full name and the team, its surname in Bold (700)
+      const name = rows[0].children[TIMING_COLUMNS.findIndex((c) => c.key === 'driver')];
       expect(name.getAttribute('title')).toBeTruthy();
       const surname = [...name.children].find((c) => c.style.textTransform === 'uppercase');
       expect(surname.style.fontWeight).toBe('700');

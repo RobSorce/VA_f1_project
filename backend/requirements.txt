@@ -1,4 +1,4 @@
-# F1 Analytics Platform
+# Race strategy analytics backend
 
 ## Backend Python Dependencies
 

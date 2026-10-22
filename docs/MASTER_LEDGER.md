@@ -1,4 +1,4 @@
-# F1 Race Control — Master Ledger
+# Lapwise — Master Ledger
 
 > Single-source, exhaustive entry point for the final Visual Analytics report.
 > Every subsequent document (INSIGHTS, RELATED_WORK, PCA_METHODOLOGY, etc.) is a deeper dive on a section that already appears here.
@@ -39,7 +39,7 @@ Repository: [github.com/RobSorce/VA_f1_project](https://github.com/RobSorce/VA_f
 
 ## 1 · What the system is and why
 
-**F1 Race Control** is a full-stack visual-analytics platform for Formula 1 race-strategy decision making.
+**Lapwise** is a full-stack visual-analytics platform for Formula 1 race-strategy decision making.
 It is *not* an F1 information dashboard. It is a decision-support tool that closes the loop
 
 ```
@@ -651,25 +651,25 @@ Defined in `hooks/useKeyboardShortcuts.js` and mirrored in `ShortcutCheatsheet/S
 
 ### 14.1 Typography
 
-**Three font families, each with a role:**
+**Two font families, both self-hosted** (WOFF2 under `frontend/public/fonts/`, one static face per weight the CSS uses, declared in `tokens.css`; no request goes to a font service) **and both under the SIL Open Font License 1.1** (the `OFL.txt` next to each):
 
 | Family | Role | Usage |
 |---|---|---|
-| **Formula1** (Regular 400, Bold 700, Wide 900) — self-hosted TTFs under `/fonts/` | Brand / display / dashboard | Titles, leaderboard, timing tower, tab headers. The official F1 broadcast typeface. |
-| **Titillium Web** | Body / fallback | Panel body text, settings, data tables. Fallback when Formula1 isn't available. |
-| **JetBrains Mono** (fallback: Fira Code, SF Mono, Cascadia Code) | Monospace | Numeric values, lap times, tyre life, telemetry tooltips, keyboard kbd chips, command palette. |
-| **Space Grotesk** / Inter | Command palette UI | Robinhood-Legend-inspired command palette typography (`--rh-font-sans`). |
+| **Inter** 4.1 (400, 500, 600, 700, 800, 900) — `fonts/inter/` | Text and titles | The wordmark, titles, leaderboard, timing tower, tab headers, panel text, settings, the command palette (`--rh-font-sans`). |
+| **JetBrains Mono** 2.304 (400, 500, 600, 700; fallback: Fira Code, SF Mono, Cascadia Code) — `fonts/jetbrains-mono/` | Monospace | Numeric values, lap times, tyre life, telemetry tooltips, keyboard kbd chips, the command palette's keys, the status marks of the timing tower. |
+
+Numbers that change during the replay are drawn with tabular figures (`font-variant-numeric: tabular-nums`; JetBrains Mono's are tabular by design).
 
 ```css
---font-primary : 'Formula1', 'Titillium Web', system-ui, sans-serif;
---font-display : 'Formula1', 'Titillium Web', system-ui, sans-serif;
+--font-primary : 'Inter', system-ui, sans-serif;
+--font-display : 'Inter', system-ui, sans-serif;
 --font-mono    : 'JetBrains Mono', 'Fira Code', monospace;
---rh-font-sans : 'Space Grotesk', 'Inter', system-ui, sans-serif;
+--rh-font-sans : 'Inter', system-ui, -apple-system, sans-serif;
 ```
 
 ### 14.2 Type scale
 `max(data floor, 0.6875rem) (xs)` · `max(data floor, 0.8125rem) (sm)` · `0.9375rem (base)` · `1.0625rem (lg)` · `1.25rem (xl)` · `1.5rem (2xl)` · `2rem (3xl)` · `2.5rem (4xl)`. Type floors (`tokens.css`): data text `--font-size-data`, `clamp(11px, …, 12.5px)`, and other text `--font-size-label`, `clamp(10px, …, 11.5px)`, growing with the viewport height.
-Weights: `400 / 500 / 600 / 700 / 900`.
+Weights: `400 / 500 / 600 / 700 / 800 / 900`.
 Tracking: `-0.02em (tight)` / `+0.01em (subtle)` / `+0.08em (wide, used for uppercase kickers)`.
 
 ### 14.3 Spacing

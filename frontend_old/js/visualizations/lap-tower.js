@@ -75,7 +75,7 @@ class LapTowerVisualization {
         this.width = rect.width || 280;
         this.height = rect.height || 600;
 
-        // Create header with F1 logo and lap counter
+        // Create header with the lap counter
         this.createHeader();
 
         // Create SVG for standings
@@ -110,13 +110,9 @@ class LapTowerVisualization {
             border-bottom: 2px solid rgba(255,255,255,0.1);
         `;
 
-        // F1 Logo and RACE text
+        // RACE text
         header.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px;">
-                <svg viewBox="0 0 80 20" style="height: 18px; fill: white;">
-                    <path d="M5.5,0 L0,20 L10,20 L12.5,10 L25,10 L27.5,0 L5.5,0 Z M15,0 L12.5,10 L17.5,10 L20,0 L15,0 Z"/>
-                    <path d="M30,0 L35,0 L42.5,12.5 L45,0 L50,0 L45,20 L40,20 L32.5,7.5 L30,20 L25,20 L30,0 Z" transform="translate(20,0)"/>
-                </svg>
                 <span style="font-size: 18px; font-weight: 900; letter-spacing: 0.1em; color: white;">RACE</span>
             </div>
             <div class="lap-counter" style="display: flex; align-items: baseline; gap: 4px;">

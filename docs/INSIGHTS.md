@@ -2,7 +2,7 @@
 
 > **Status: to be re-derived after the 2026-10 fixes.** The insights below were written before the October 2026 fixes (forecast model, degradation definition, PCA features, pit loss). Claims the audit disproved have been removed, each with a dated note in its place; the remaining observations are kept as the record of that exploration until they are measured again on the current code.
 
-This document describes non-obvious patterns and insights that the F1 Race Strategy Dashboard enables users to discover through interactive visual exploration. Each insight demonstrates a capability that goes beyond simple data display.
+This document describes non-obvious patterns and insights that the dashboard enables users to discover through interactive visual exploration. Each insight demonstrates a capability that goes beyond simple data display.
 
 ## Live Insights Feed
 

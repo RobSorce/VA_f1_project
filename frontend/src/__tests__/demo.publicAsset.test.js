@@ -1,5 +1,5 @@
-// The demo bundle requested /f1-logo.png and /team-logos/*
-// from the origin root, which 404s on GitHub Pages (base /VA_f1_project/).
+// The demo bundle requested its images of public/ from the origin root,
+// which 404s on GitHub Pages (base /VA_f1_project/).
 // Every file of public/ is now referenced through publicAsset (the build's
 // base); this test keeps root-relative public paths out of the components.
 import { describe, it, expect } from 'vitest';
@@ -15,8 +15,8 @@ const PUBLIC = path.resolve(SRC, '../public');
 describe('public assets go through the build base', () => {
   it('publicAsset joins the base and the path inside public/', () => {
     const base = import.meta.env.BASE_URL || '/';
-    expect(publicAsset('f1-logo.png')).toBe(`${base}f1-logo.png`);
-    expect(publicAsset('/team-logos/mclaren.png')).toBe(`${base}team-logos/mclaren.png`);
+    expect(publicAsset('data/manifest.json')).toBe(`${base}data/manifest.json`);
+    expect(publicAsset('/fonts/favicon.svg')).toBe(`${base}fonts/favicon.svg`);
   });
 
   it('no component or helper names a public file by a root-relative path', () => {

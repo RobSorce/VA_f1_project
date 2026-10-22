@@ -1,5 +1,5 @@
 // The Lap Times timing-sheet header never clips
-// silently. Each label (uppercase Formula1 Bold at the data size, 0.06 em
+// silently. Each label (uppercase Inter Bold at the data size, 0.06 em
 // letter-spacing) fits its default column width at every size of
 // --font-size-data (11 px at 1536 x 750 up to the 12.5 px top of the clamp,
 // 12.41 px at 1920 x 1080); a label still too wide (a column dragged narrow)
@@ -10,7 +10,7 @@
 // at 12.41 px, cut without an ellipsis or a title.
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import { installMiniDom } from './helpers/miniDom.js';
-import { haveFormula1, textWidth } from './helpers/fontWidths.js';
+import { haveWebFont, textWidth } from './helpers/fontWidths.js';
 
 vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
 if (typeof globalThis.localStorage === 'undefined') {
@@ -37,7 +37,7 @@ installResizeObserverMock();
 const INITIAL = useF1Store.getState();
 const SIZES = [11, 12.41, 12.5];
 
-describe.skipIf(!haveFormula1)('every header label fits its default column (real font widths)', () => {
+describe.skipIf(!haveWebFont)('every header label fits its default column (real font widths)', () => {
   for (const size of SIZES) {
     it(`data type ${size} px`, () => {
       const over = [];
@@ -51,7 +51,7 @@ describe.skipIf(!haveFormula1)('every header label fits its default column (real
     });
   }
 
-  it('the columns as a whole are no wider than before the repair (the gap column gave its room to Team and Laps)', () => {
+  it('the columns as a whole are no wider than before the repair (the gap column gave its room to Team and Laps; Team, the logo column, is gone)', () => {
     const total = TIMING_COLUMNS.reduce((a, c) => a + c.defaultW, 0);
     // 30 + 3 + 38 + 170 + 3 x 72 + 96 + 96 + 54 + 38 = 741 px before
     expect(total).toBeLessThanOrEqual(741 + 2);

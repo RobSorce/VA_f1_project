@@ -7,8 +7,8 @@
 // pane height - panel header (2 x --spacing-sm + one line of the data type at
 // 1.2) - sheet column header (4 + 4 px padding + data x 1.2 + 1 px border) -
 // lap-range bar (4 + 6 px padding + a label line of the label type at 1.2 +
-// 3 px + the 16 px bar). Smallest row: 16 px (the compact 16 px team logo,
-// no padding; the real row adds a 1 px border and the text line).
+// 3 px + the 16 px bar). Smallest row: 16 px (the text line of the data type
+// at the body's line-height 1.4 and the 1 px border are more).
 // Run: node frontend/scripts/audit/laptimes_sheet_fit.mjs
 // Writes docs/evidence/laptimes_sheet_fit.txt (or the file after --out) and prints the same text.
 import path from 'node:path';

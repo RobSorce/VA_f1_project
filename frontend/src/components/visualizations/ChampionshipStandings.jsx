@@ -188,7 +188,7 @@ export default function ChampionshipStandings() {
         .attr('fill', isDimmed ? TEXT_COLORS.muted : TEXT_COLORS.secondary)
         .style('font-size', CHART_FONT.data)
         .style('font-weight', 600)
-        .style('font-family', "'Formula1', 'Titillium Web', sans-serif")
+        .style('font-family', 'var(--font-primary)')
         .text(entry.totalPoints);
 
       // Left label: position + flag + name
@@ -205,7 +205,7 @@ export default function ChampionshipStandings() {
         .attr('fill', isDimmed ? TEXT_COLORS.muted : nameColor)
         .style('font-size', CHART_FONT.data)
         .style('font-weight', 700)
-        .style('font-family', "'Formula1', 'Titillium Web', sans-serif")
+        .style('font-family', 'var(--font-primary)')
         .text(`${entry.position}. ${flag} ${label}${gapStr}`);
 
       // Invisible hit area

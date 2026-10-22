@@ -97,7 +97,7 @@ area collapses to ≈ **1326 × 584 px** — 54 % of the design height.
 `position: fixed; inset: 0; display: flex; align-items: center`
 (`dashboard.css:1327`). The `.session-screen__body` below it is a
 three-column flex row: Live card (≈ 500 px tall) + Selector card
-(≈ 600 px tall) + Driver grid (420 × 520 px). Stacking the logo
+(≈ 600 px tall) + Driver grid (420 × 520 px). Stacking the brand block
 (100 px) on top, total vertical demand is **≈ 700 px**.
 
 On 1366 × 768 (≈ 688 px of usable height) the driver grid's bottom

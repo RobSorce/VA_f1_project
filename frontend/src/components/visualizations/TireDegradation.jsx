@@ -119,7 +119,7 @@ export default function TireDegradation() {
   const driverBadge = driver ? (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6,
-      fontSize: CHART_FONT.data, fontWeight: 800, fontFamily: "'Titillium Web', sans-serif",
+      fontSize: CHART_FONT.data, fontWeight: 800, fontFamily: 'var(--font-primary)',
       textTransform: 'uppercase', letterSpacing: '0.06em',
     }}>
       <span style={{
@@ -171,7 +171,7 @@ export default function TireDegradation() {
         .attr('x', width / 2).attr('y', height / 2)
         .attr('text-anchor', 'middle')
         .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data)
-        .attr('font-family', "'Titillium Web', sans-serif")
+        .attr('font-family', 'var(--font-primary)')
         .text('Focus a driver to view tyre degradation');
       return;
     }
@@ -183,7 +183,7 @@ export default function TireDegradation() {
         .attr('x', width / 2).attr('y', height / 2)
         .attr('text-anchor', 'middle')
         .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data)
-        .attr('font-family', "'Titillium Web', sans-serif")
+        .attr('font-family', 'var(--font-primary)')
         .text('Not enough lap data for degradation analysis');
       return;
     }
@@ -247,7 +247,7 @@ export default function TireDegradation() {
       .attr('fill', TEXT_COLORS.muted)
       .style('font-size', CHART_FONT.label)
       .attr('font-weight', 700)
-      .attr('font-family', "'Titillium Web', sans-serif")
+      .attr('font-family', 'var(--font-primary)')
       .text('Tyre life (laps)');
 
     // Y-axis — format as m:ss.sss
@@ -273,7 +273,7 @@ export default function TireDegradation() {
       .attr('fill', TEXT_COLORS.muted)
       .style('font-size', CHART_FONT.label)
       .attr('font-weight', 700)
-      .attr('font-family', "'Titillium Web', sans-serif")
+      .attr('font-family', 'var(--font-primary)')
       .text('Lap time');
 
     // Draw each stint: scatter points + regression line + slope annotation

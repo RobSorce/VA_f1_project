@@ -1,6 +1,6 @@
 // Circle of Doom in its Pit Wall slot at common viewports (1920x1080,
 // 2048x1100, 1440x900, 1536x750, 1366x768), laid out from the slot size as in the browser and
-// measured with the real Formula1 font metrics (public/fonts, advance widths).
+// measured with the real Inter metrics (public/fonts, advance widths).
 // Centre text never below 10 px (the label floor): lines without room leave the centre for the
 // legend line, lap/maxLap and the pit loss with its "(fallback)" last.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -36,70 +36,19 @@ const { estimatePitLoss } = await import('../utils/pitLoss.js');
 const { computeSessionTimeOffset } = await import('../utils/raceTime.js');
 const { hasCachedSession, loadCachedSession } = await import('./helpers/cachedSession.js');
 
+const { haveWebFont, faceWidths } = await import('./helpers/fontWidths.js');
+
 const fs = await import('node:fs');
 const path = await import('node:path');
 const { fileURLToPath } = await import('node:url');
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SRC = path.resolve(HERE, '..');
-const FONTS = path.resolve(SRC, '../public/fonts');
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // ---------------------------------------------------------------------------
-// Real font metrics: advance widths from the TTF files (cmap format 4 + hmtx),
-// the faces the CSS maps the weights to (tokens.css @font-face: 400 Regular,
-// 700 Bold, 900 Wide; 500 falls back to 400, 600 to 700; italic is synthesised)
-function fontWidths(file) {
-  const b = fs.readFileSync(file);
-  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
-  const tables = {};
-  for (let i = 0; i < dv.getUint16(4); i++) {
-    const o = 12 + i * 16;
-    tables[String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3])] = dv.getUint32(o + 8);
-  }
-  const unitsPerEm = dv.getUint16(tables.head + 18);
-  const numHMetrics = dv.getUint16(tables.hhea + 34);
-  const advance = (gid) => dv.getUint16(tables.hmtx + 4 * Math.min(gid, numHMetrics - 1));
-  let sub = null;
-  for (let i = 0; i < dv.getUint16(tables.cmap + 2); i++) {
-    const pid = dv.getUint16(tables.cmap + 4 + i * 8);
-    const off = dv.getUint32(tables.cmap + 8 + i * 8);
-    if (dv.getUint16(tables.cmap + off) === 4 && (pid === 3 || pid === 0)) sub = tables.cmap + off;
-  }
-  const segX2 = dv.getUint16(sub + 6);
-  const ends = sub + 14;
-  const starts = ends + segX2 + 2;
-  const deltas = starts + segX2;
-  const ranges = deltas + segX2;
-  const glyph = (code) => {
-    for (let i = 0; i < segX2 / 2; i++) {
-      if (code > dv.getUint16(ends + 2 * i)) continue;
-      const start = dv.getUint16(starts + 2 * i);
-      if (code < start) return 0;
-      const delta = dv.getInt16(deltas + 2 * i);
-      const ro = dv.getUint16(ranges + 2 * i);
-      if (!ro) return (code + delta) & 0xffff;
-      const g = dv.getUint16(ranges + 2 * i + ro + 2 * (code - start));
-      return g ? (g + delta) & 0xffff : 0;
-    }
-    return 0;
-  };
-  return (text, size) => {
-    let u = 0;
-    for (const ch of text) u += advance(glyph(ch.codePointAt(0)));
-    return (u / unitsPerEm) * size;
-  };
-}
-
-const haveFonts = ['Formula1-Regular-1.ttf', 'Formula1-Bold-4.ttf', 'Formula1-Wide.ttf']
-  .every((f) => fs.existsSync(path.join(FONTS, f)));
-const faces = haveFonts ? {
-  400: fontWidths(path.join(FONTS, 'Formula1-Regular-1.ttf')),
-  700: fontWidths(path.join(FONTS, 'Formula1-Bold-4.ttf')),
-  900: fontWidths(path.join(FONTS, 'Formula1-Wide.ttf')),
-} : null;
-/** The view's measureText: width of a text in the face its weight maps to (weight 700 by default). */
-const realMeasure = faces
-  ? (text, size, weight = 700) => faces[weight >= 900 ? 900 : weight >= 600 ? 700 : 400](text, size)
-  : null;
+// Real font metrics: advance widths of the Inter faces of tokens.css
+// (helpers/fontWidths.js; italic is synthesised from the upright face)
+const haveFonts = haveWebFont;
+/** The view's measureText: width of a text in the face of its weight (weight 700 by default), tabular figures (.cod). */
+const realMeasure = haveFonts ? (text, size, weight = 700) => faceWidths(weight, { tabular: true })(text, size) : null;
 
 // ---------------------------------------------------------------------------
 // The Pit Wall slot of the circle (.cod, the panel content) at a viewport,

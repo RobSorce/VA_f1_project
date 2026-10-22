@@ -1,6 +1,6 @@
 """
 FastAPI Main Application
-F1 Analytics Platform API
+Race strategy analytics API
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,8 +74,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="F1 Analytics Platform API",
-    description="Real-time F1 strategy analytics and race outcome prediction",
+    title="Race Strategy Analytics API",
+    description="Real-time Formula 1 strategy analytics and race outcome prediction",
     version="1.0.0"
 )
 
@@ -320,7 +320,7 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
 
 @app.get("/")
 async def root():
-    return {"message": "F1 Analytics Platform API", "version": "1.0.0"}
+    return {"message": "Race Strategy Analytics API", "version": "1.0.0"}
 
 
 @app.get("/api/health")

@@ -31,7 +31,7 @@ export const TIME_COLORS = {
  * Columns of the timing sheet (LapTimeChart.jsx), widths in CSS px: the
  * defaults (the user can drag them), fitted to the pane down to the floors
  * of ./timingSheetFit.js (minW: the floor of a column without one). The
- * header is uppercase Formula1 Bold at the data size, 0.06 em
+ * header is uppercase Inter Bold at the data size, 0.06 em
  * letter-spacing: every label fits its default width up to
  * the 12.5 px top of --font-size-data (real font widths,
  * __tests__/laptimes.header.test.js). Phase 9c (D3): "GAP TO FASTEST" was
@@ -39,12 +39,13 @@ export const TIME_COLORS = {
  * 12.41 px, all cut without an ellipsis; the gap column is now "Gap" (its full
  * name in the header's title) and the 16 px it no longer needs went to Team and
  * Laps. A label still cut (a column fitted or dragged narrower) ends in an
- * ellipsis, its full name in the title.
+ * ellipsis, its full name in the title. The Team column, which held the team
+ * logos, is gone with them: the team is the colour bar and the driver cell's
+ * title.
  */
 export const TIMING_COLUMNS = Object.freeze([
   { key: 'pos',     label: 'P',        title: 'Position',       defaultW: 30,  minW: 24,  resizable: false, align: 'center' },
   { key: 'bar',     label: '',         defaultW: 3,   minW: 3,   resizable: false, align: 'center' },
-  { key: 'team',    label: 'Team',     defaultW: 50,  minW: 22,  resizable: true,  align: 'center' },
   { key: 'driver',  label: 'Driver',   defaultW: 170, minW: 70,  resizable: true,  align: 'flex-start' },
   { key: 's1',      label: 'S1',       title: 'Sector 1',       defaultW: 72,  minW: 48,  resizable: true,  align: 'flex-end' },
   { key: 's2',      label: 'S2',       title: 'Sector 2',       defaultW: 72,  minW: 48,  resizable: true,  align: 'flex-end' },

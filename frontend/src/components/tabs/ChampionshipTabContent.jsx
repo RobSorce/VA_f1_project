@@ -28,7 +28,7 @@ export default function ChampionshipTabContent() {
               padding: '5px 14px',
               fontSize: CHART_FONT.label,
               fontWeight: subtab === t.id ? 700 : 500,
-              fontFamily: "'Titillium Web', sans-serif",
+              fontFamily: 'var(--font-primary)',
               // the inactive sub-tab in the muted text colour (>= 4.5:1, it read 4.52:1 at white 0.45)
               color: subtab === t.id ? TEXT_COLORS.primary : TEXT_COLORS.muted,
               background: subtab === t.id ? 'rgba(255,255,255,0.08)' : 'transparent',

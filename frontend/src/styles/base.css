@@ -1,5 +1,5 @@
 /* ==========================================================================
-   F1 Race Control - Base Styles
+   Lapwise - Base Styles
    ========================================================================== */
 
 *,
@@ -40,6 +40,14 @@ body {
   color: var(--color-text-primary);
   background-color: var(--color-bg-primary);
   height: 100vh;
+}
+
+/* Form controls take the page's font (the user agent gives them its own) */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 /* Links: the text red (>= 4.5:1 on every dark surface, V13); hover turns

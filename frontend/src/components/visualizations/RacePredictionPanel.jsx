@@ -160,7 +160,7 @@ export default function RacePredictionPanel() {
                 <span style={{ fontSize: CHART_FONT.data, fontWeight: 700, color: CHART_COLORS.text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Monte Carlo Projection
                 </span>
-                <span style={{ fontSize: CHART_FONT.label, ...muted }}>
+                <span style={{ fontSize: CHART_FONT.label, ...muted, fontVariantNumeric: 'tabular-nums' }}>
                   Lap {currentLap}/{effectiveMaxLap} &middot; {lapsRemaining} to go
                 </span>
               </div>
@@ -177,7 +177,7 @@ export default function RacePredictionPanel() {
                 }} />
               </div>
               {raceParams && (
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: CHART_FONT.label, ...muted }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: CHART_FONT.label, ...muted, fontVariantNumeric: 'tabular-nums' }}>
                   <span title={pitLossInfo.isFallback
                     ? 'No valid green-flag stop yet: fallback value (an assumption, not data)'
                     : `Median of ${pitLossInfo.n} green-flag stops in this race (in-lap + out-lap - 2 x the driver's green-flag median lap). Each simulated stop draws its loss around this median.`}
@@ -223,7 +223,7 @@ export default function RacePredictionPanel() {
                 borderBottom: `1px solid ${GRID_COLORS.grid}`,
               }}>
                 {predTabs.map(t => (
-                  <button key={t.id} onClick={() => setActiveTab(t.id)} style={tabPillStyle(shownTab === t.id)}>
+                  <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ ...tabPillStyle(shownTab === t.id), fontVariantNumeric: 'tabular-nums' }}>
                     {t.label}
                   </button>
                 ))}

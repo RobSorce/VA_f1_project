@@ -44,7 +44,7 @@ const containerStyle = {
   height: '100%',
   overflow: 'hidden',
   background: 'rgba(10,10,20,0.95)',
-  fontFamily: "'Titillium Web', 'Inter', 'Segoe UI', sans-serif",
+  fontFamily: 'var(--font-primary)',
   fontSize: 11,
   color: TEXT_COLORS.secondary,
   userSelect: 'none',
@@ -61,7 +61,7 @@ const headerStyle = {
 };
 
 const headerTitleStyle = {
-  fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+  fontFamily: 'var(--font-primary)',
   fontSize: 12,
   fontWeight: 900,
   color: TEXT_COLORS.primary,
@@ -107,21 +107,22 @@ const tableStyle = {
 // Design widths in px summing to 476 (the 480 px column minus its borders),
 // drawn as percentages of the table so the columns always fit the panel
 // (table-layout fixed; a cell too narrow would end in an ellipsis). Each one
-// holds its widest value and its header at TOWER_FONT: sector '◆28.123', lap
-// '◆1:21.456', gap '+12.345' / 'LEADER', 'POS', 'LAP'
-// (docs/evidence/tower_columns.txt).
+// holds its widest value and its header at TOWER_FONT in Inter, the status
+// marks in JetBrains Mono: the widest driver code with its tyre, sector
+// '◆28.123', lap '◆1:21.456', gap '+12.345' / 'LEADER', 'LAP'; the position
+// header is "P", its full name in the title (docs/evidence/tower_columns.txt).
 const COL = {
-  pos: 26,
+  pos: 22,
   num: 28,
-  driver: 62,
-  gap: 48,
-  int: 48,
-  s1: 54,
-  s2: 54,
-  s3: 54,
+  driver: 68,
+  gap: 51,
+  int: 51,
+  s1: 52,
+  s2: 52,
+  s3: 52,
   lapTime: 62,
   lap: 26,
-  status: 14,
+  status: 12,
 };
 const COL_TOTAL = Object.values(COL).reduce((a, w) => a + w, 0);
 const colPct = (w) => `${((100 * w) / COL_TOTAL).toFixed(3)}%`;
@@ -131,7 +132,7 @@ const colPct = (w) => `${((100 * w) / COL_TOTAL).toFixed(3)}%`;
 function TimingValue({ glyph, children }) {
   return (
     <>
-      {glyph && <span className="timing-glyph" style={{ marginRight: 2, fontWeight: 700 }}>{glyph}</span>}
+      {glyph && <span className="timing-glyph" style={{ marginRight: 2, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{glyph}</span>}
       {children}
     </>
   );
@@ -192,7 +193,7 @@ const TimingRow = React.memo(function TimingRow({
     textOverflow: 'ellipsis',
     verticalAlign: 'middle',
     fontVariantNumeric: 'tabular-nums',
-    fontFamily: "'Titillium Web', 'Inter', sans-serif",
+    fontFamily: 'var(--font-primary)',
     borderBottom: '1px solid rgba(255,255,255,0.03)',
   };
 
@@ -312,7 +313,7 @@ const TimingRow = React.memo(function TimingRow({
       <td style={{ ...cellBase, width: COL.status }}>
         <span
           title={statusLabel}
-          style={{ color: statusColor, fontWeight: 800, fontSize: TOWER_FONT }}
+          style={{ color: statusColor, fontWeight: 800, fontSize: TOWER_FONT, fontFamily: 'var(--font-mono)' }}
         >{statusGlyph}</span>
       </td>
     </tr>
@@ -493,7 +494,7 @@ export default function TimingTower() {
           </colgroup>
           <thead>
             <tr>
-              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>POS</th>
+              <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }} title="Position">P</th>
               <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>#</th>
               <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'left', paddingLeft: 6 }}>Driver</th>
               <th style={{ fontWeight: 700, padding: '0 1px', textAlign: 'center' }}>GAP</th>

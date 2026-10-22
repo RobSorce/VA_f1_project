@@ -1,6 +1,8 @@
-# F1 Race Strategy Dashboard
+# Lapwise
 
 Interactive visual analytics platform for Formula 1 race strategy analysis.
+
+> Unofficial project, not associated in any way with the Formula 1 companies. F1, FORMULA ONE, FORMULA 1, FIA FORMULA ONE WORLD CHAMPIONSHIP, GRAND PRIX and related marks are trade marks of Formula One Licensing B.V.
 
 **Visual Analytics Course — Sapienza Università di Roma (DIAG)**
 
@@ -162,4 +164,5 @@ Every link goes through the Zustand store; [docs/COORDINATION_GRAPH.md](docs/COO
 
 - [FastF1](https://github.com/theOehrly/Fast-F1) (MIT licence): the backend reads the sessions, laps, telemetry, schedules and results of past sessions through it.
 - [f1-race-replay](https://github.com/IAmTomShaw/f1-race-replay) (MIT licence): the replay frames built by `backend/data/extractors/fastf1_extractor.py` (`extract_race_frames`) reuse its frame format.
+- [Inter](https://github.com/rsms/inter) 4.1 and [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) 2.304 (SIL Open Font License 1.1): the typefaces of the dashboard, self-hosted in `frontend/public/fonts` with their licences (`OFL.txt`).
 - [MultiViewer](https://multiviewer.app/changelog), Circle of Doom (introduced in v2.8.0, 24 Jul 2026; changed in v2.9.0, 26 Sep 2026): the inspiration of our Circle of Doom view. Ours has a pit-loss estimator checked on the cached races (`backend/scripts/validate_pit_loss_and_rejoin.py`, `docs/evidence/validate_pit_loss_and_rejoin.txt`: the dashboard's estimator, `frontend/src/utils/pitLoss.js`, is the row `causal_fixed`, its median over a whole race the column `true_loss`; the row `current_code` is the earlier in-lap-only estimate it is compared with), the probability of each rejoin position, a "pit in k laps" projection, and the coordination with the rest of the dashboard.

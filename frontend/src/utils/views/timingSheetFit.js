@@ -24,16 +24,14 @@ export const TIMING_PAD_X = 6;
  * Floor of each column: the width its values need at the data size, in
  * data-type ems (JetBrains Mono 0.6 em a character: "◆28.123" 4.38 em,
  * "◆1:21.123" 5.58 em, "+12.345" 4.2 em, "RET" 1.86 em; the widest surname,
- * HULKENBERG, 8.45 em in Formula1 Bold) or in px (the 3 px team bar, the
- * 16-20 px logo, the 14 px compound badge). Measured in
- * docs/evidence/timing_floors.txt. A header label
- * wider than its floor ends in an ellipsis (its full name in the title).
+ * HULKENBERG, 7.11 em in Inter Bold) or in px (the 3 px team bar, the 14 px
+ * compound badge). Measured in docs/evidence/timing_floors.txt. A header
+ * label wider than its floor ends in an ellipsis (its full name in the title).
  */
 export const TIMING_FLOORS = Object.freeze({
   pos: { em: 2.2 },
   bar: { px: 3 },
-  team: { px: 22 },
-  driver: { em: 8.6 },
+  driver: { em: 7.2 },
   s1: { em: 4.4 },
   s2: { em: 4.4 },
   s3: { em: 4.4 },
@@ -44,7 +42,7 @@ export const TIMING_FLOORS = Object.freeze({
 });
 
 /** Columns given up, in this order, when even the floors do not fit. */
-export const TIMING_DROP_ORDER = Object.freeze(['team', 'laps', 'tyre', 'gap', 's3', 's2', 's1']);
+export const TIMING_DROP_ORDER = Object.freeze(['laps', 'tyre', 'gap', 's3', 's2', 's1']);
 
 /** The header's "+N" cell (hidden columns), in data-type ems. */
 export const TIMING_HIDDEN_EM = 2.6;

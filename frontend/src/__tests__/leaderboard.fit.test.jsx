@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { installMiniDom } from './helpers/miniDom.js';
 import { hasCachedSession, loadCachedSession } from './helpers/cachedSession.js';
 import { loadCss, px, shellAt, VIEWPORTS } from './helpers/layoutModel.js';
+import { haveWebFont, faceWidths } from './helpers/fontWidths.js';
 
 vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
 if (typeof globalThis.localStorage === 'undefined') {
@@ -57,7 +58,6 @@ const { towerRowStyle, towerBodyStyle } = await import('../utils/views/leaderboa
 const { fitRows } = await import('../utils/views/chartBox.js');
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FONTS = path.resolve(SRC, '../public/fonts');
 const INITIAL = useF1Store.getState();
 const text = (el) => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
 
@@ -222,49 +222,16 @@ describe('the tower in the sidebar (mini DOM, measured sizes mocked)', () => {
 // Static fit at the four viewports (the model of
 // frontend/scripts/audit/panel_fit.mjs): the sidebar's height less the
 // tower chrome (CSS rules and tokens), the legend (inline from 900 px of
-// height, its lines from the real Formula1 widths), a flag banner, the
+// height, its lines from the real Inter widths), a flag banner, the
 // forecast footer and the focus cards (collapsed below 1200 px, SidebarFocusCards)
 // leaves >= 20 x 18 px for the rows in every state.
-function faceWidths(file) {
-  const b = fs.readFileSync(file);
-  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
-  const tables = {};
-  for (let i = 0; i < dv.getUint16(4); i++) {
-    const o = 12 + i * 16;
-    tables[String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3])] = dv.getUint32(o + 8);
-  }
-  const upm = dv.getUint16(tables.head + 18);
-  const nh = dv.getUint16(tables.hhea + 34);
-  const adv = (g) => dv.getUint16(tables.hmtx + 4 * Math.min(g, nh - 1));
-  let sub = null;
-  for (let i = 0; i < dv.getUint16(tables.cmap + 2); i++) {
-    const pid = dv.getUint16(tables.cmap + 4 + i * 8);
-    const off = dv.getUint32(tables.cmap + 8 + i * 8);
-    if (dv.getUint16(tables.cmap + off) === 4 && (pid === 3 || pid === 0)) sub = tables.cmap + off;
-  }
-  const segX2 = dv.getUint16(sub + 6);
-  const ends = sub + 14; const starts = ends + segX2 + 2; const deltas = starts + segX2; const ranges = deltas + segX2;
-  const glyph = (code) => {
-    for (let i = 0; i < segX2 / 2; i++) {
-      if (code > dv.getUint16(ends + 2 * i)) continue;
-      const start = dv.getUint16(starts + 2 * i);
-      if (code < start) return 0;
-      const ro = dv.getUint16(ranges + 2 * i);
-      if (!ro) return (code + dv.getInt16(deltas + 2 * i)) & 0xffff;
-      const g = dv.getUint16(ranges + 2 * i + ro + 2 * (code - start));
-      return g ? (g + dv.getInt16(deltas + 2 * i)) & 0xffff : 0;
-    }
-    return 0;
-  };
-  // a glyph the face lacks counts 1 em (an upper bound of the fallback)
-  return (t, size) => [...t].reduce((a, ch) => { const g = glyph(ch.codePointAt(0)); return a + (g ? adv(g) : upm); }, 0) / upm * size;
-}
-const haveFonts = ['Formula1-Regular-1.ttf', 'Formula1-Wide.ttf'].every((f) => fs.existsSync(path.join(FONTS, f)));
+const haveFonts = haveWebFont;
 
 describe.skipIf(!haveFonts)('static fit: 20 rows >= 18 px in every state at the four viewports', () => {
   const css = loadCss(SRC);
-  const regular = faceWidths(path.join(FONTS, 'Formula1-Regular-1.ttf'));
-  const wide = faceWidths(path.join(FONTS, 'Formula1-Wide.ttf'));
+  // the legend's labels at 400, its glyphs at 800 (Legend.jsx shape 'glyph')
+  const regular = faceWidths(400);
+  const glyph = faceWidths(800);
   const lb = fs.readFileSync(path.join(SRC, 'components/visualizations/Leaderboard.jsx'), 'utf8');
   const vis = fs.readFileSync(path.join(SRC, 'styles/visualizations.css'), 'utf8');
   it('the constants the model reads', () => {
@@ -286,7 +253,7 @@ describe.skipIf(!haveFonts)('static fit: 20 rows >= 18 px in every state at the 
       const header = 12 + Math.max(18, 16 * LH + 1.5) + 1;
       const chrome = header + 24 + (6 + data * LH + 1);
       const items = [['▲', 'vs grid'], ['▼', 'lost'], ['S', ''], ['M', ''], ['H', ''], ['P', 'pit'], ['⇅', '<30%'], ['⇅', '≥30%'], ['⇅', '≥60%'], ['⚔', 'battle']]
-        .map(([g, t], i) => 2 * xs + (i >= 2 && i <= 4 ? Math.max(14, wide(g, label)) + 6 : Math.max(10, wide(g, label))) + 4 + (t ? regular(t, label) : 0));
+        .map(([g, t], i) => 2 * xs + (i >= 2 && i <= 4 ? Math.max(14, glyph(g, label)) + 6 : Math.max(10, glyph(g, label))) + 4 + (t ? regular(t, label) : 0));
       let lines = 1; let x = 0;
       for (const w of items) { if (x > 0 && x + xs + w > s.sidebar - 12) { lines += 1; x = w; } else x += (x > 0 ? xs : 0) + w; }
       const legend = vp.H >= 900 ? 2 * xs + lines * (4 + label * LH) + (lines - 1) * xs : 0;

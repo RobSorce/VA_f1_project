@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeed';
+import { APP_NAME } from '../../utils/brand';
 
 export default function Footer() {
   const currentLap = useF1Store((s) => s.currentLap);
@@ -109,7 +110,7 @@ export default function Footer() {
 
       <div className="footer-right">
         <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-xs)' }}>
-          Race Control — Sapienza
+          {APP_NAME} — Sapienza
         </span>
       </div>
     </footer>

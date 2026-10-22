@@ -8,6 +8,7 @@
 *.jpg binary
 *.gz binary
 *.ttf binary
+*.woff2 binary
 *.zip binary
 *.npy binary
 *.pt binary

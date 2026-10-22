@@ -1,5 +1,5 @@
 /* ==========================================================================
-   F1 Race Control - Dashboard Layout
+   Lapwise - Dashboard Layout
    Fixed-viewport design: no page scroll at any supported size
    (1366x768, 1536x750, 1920x1080, 2048x1100; V13)
    ========================================================================== */
@@ -61,29 +61,8 @@
   flex: 0 0 auto;
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-}
-
-.logo-f1-img {
-  height: 28px;
-  width: auto;
-  object-fit: contain;
-  filter: drop-shadow(0 0 8px rgba(225, 6, 0, 0.5));
-}
-
-.logo-text {
-  font-family: var(--font-display);
+.header-wordmark {
   font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-black);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  background: linear-gradient(135deg, var(--color-f1-red) 0%, #ff4444 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .session-selector {
@@ -1266,6 +1245,7 @@
 
 .timeline-player__status-text {
   font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -1509,28 +1489,21 @@
     gap: 16px;
     padding: 12px 12px 16px;
   }
-  .session-screen__logo { gap: 4px; }
+  .session-screen__brand { gap: 4px; }
   .session-screen__getting-started { margin-top: 10px; padding: 12px 14px 10px; }
 }
 
-.session-screen__logo {
+.session-screen__brand {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
 }
 
-.session-screen__logo-img {
-  height: 52px;
-  width: auto;
-  filter: drop-shadow(0 0 20px rgba(225, 6, 0, 0.5));
-}
-
 .session-screen__title {
-  font-family: var(--font-display);
-  font-size: var(--font-size-3xl);
-  font-weight: var(--font-weight-black);
-  letter-spacing: 0.12em;
+  font-size: var(--font-size-4xl);
+  /* room for the descender: the gradient is clipped to the text box */
+  line-height: 1.3;
   background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.7) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -1763,11 +1736,9 @@
   color: var(--color-text-primary);
 }
 
-.weather-bar__logo {
-  height: 22px;
-  width: auto;
+.weather-bar__wordmark {
+  font-size: var(--font-size-base);
   flex-shrink: 0;
-  filter: drop-shadow(0 0 6px rgba(225, 6, 0, 0.4));
 }
 
 .weather-bar__event {
@@ -1902,8 +1873,8 @@
 
 /* Event name: the full one, "GP" for "Grand Prix" up to 1440 px wide
    (WeatherBar.jsx); the box still ends a longer name in an ellipsis, the
-   full name in its title (Phase 9c D3: "Italian Grand Prix", 118 px in the
-   Formula1 Bold face, was cut in the 109 px box at 1366 x 768) */
+   full name in its title (Phase 9c D3: "Italian Grand Prix" was cut in the
+   109 px box at 1366 x 768) */
 .weather-bar__event-short { display: none; }
 
 /* 1366-1440 px wide: the decorative icons of the bar give their room to
@@ -3574,7 +3545,7 @@
   flex-shrink: 0;
 }
 
-/* Bold, not the Wide black face, and 6 px sides: the toggle and the live
+/* Bold, not black, and 6 px sides: the toggle and the live
    legend share one line in the 794 px pane of the Pace preset at 1920 x 1080,
    so its 20 rows fit (frontend/scripts/audit/panel_fit.mjs) */
 .sectors-panel__toggle-btn {
@@ -3794,9 +3765,9 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Bold, not the Wide black face: a title and its "Lap N" stay on one line
-   in a column of SECTORS_COL_EM (16 ems: "SPEED TRAP Lap 53" 148 px in the
-   184 px of a 200 px column at 12.5 px; the Wide face took 228 px) */
+/* Bold, not black: a title and its "Lap N" stay on one line in a column of
+   SECTORS_COL_EM (16 ems; the lines of each column header at the target
+   viewports: docs/evidence/panel_fit.txt) */
 .sectors-panel__col-title {
   font-size: var(--font-size-data);
   font-weight: var(--font-weight-bold);
@@ -4210,7 +4181,7 @@
 
 /* Collapsed state — one line, its height fitted by ConsistencyPanel.jsx
    (20-30 px: 18 px of content under the card's border); its parts keep one
-   line in the CONSISTENCY_CARD_EM width (Bold, not the Wide black face, for
+   line in the CONSISTENCY_CARD_EM width (Bold, not black, for
    the code and the badge; no driver number) */
 .consistency-card--collapsed {
   padding: 0 8px;
@@ -4866,6 +4837,17 @@
   color: #8ab4f8;
 }
 
+/* The trade-mark notice (utils/brand.js) under the subtitle: in sight
+   without a scroll at every window size */
+.session-screen__notice {
+  max-width: 720px;
+  margin: 0;
+  font-size: var(--font-size-label);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 [data-theme="light"] .session-screen__getting-started {
   background: rgba(0, 0, 0, 0.02);
   border-color: rgba(0, 0, 0, 0.08);
@@ -5198,19 +5180,9 @@
   margin-bottom: 12px;
 }
 
-.settings-tab__about-logo {
-  height: 22px;
-  object-fit: contain;
-}
-
 .settings-tab__about-title {
-  font-size: 14px;
-  font-weight: var(--font-weight-black);
-  font-family: var(--font-display);
-  color: var(--color-text-primary);
+  font-size: 18px;
   margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .settings-tab__about-subtitle {
@@ -5936,7 +5908,7 @@
 
 .welcome-toast__text {
   font-size: var(--rh-text-sm, 12px);
-  font-family: var(--rh-font-sans, 'Space Grotesk', sans-serif);
+  font-family: var(--rh-font-sans, 'Inter', sans-serif);
   color: var(--rh-text-secondary, #B0B0B0);
   white-space: nowrap;
 }
@@ -7887,6 +7859,7 @@
   flex-shrink: 0;
   white-space: nowrap;
   font-size: var(--font-size-data);
+  font-variant-numeric: tabular-nums;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;

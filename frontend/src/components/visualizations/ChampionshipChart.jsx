@@ -284,7 +284,7 @@ export default function ChampionshipChart() {
           .attr('fill', labelColor)
           .style('font-size', CHART_FONT.data)
           .style('font-weight', 700)
-          .style('font-family', "'Formula1', 'Titillium Web', sans-serif")
+          .style('font-family', 'var(--font-primary)')
           .text(isDriverView ? entry.abbr : entry.team.slice(0, 10));
       }
 

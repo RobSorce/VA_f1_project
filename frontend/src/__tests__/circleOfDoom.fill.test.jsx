@@ -13,7 +13,7 @@
 // (utils/views/chartBox.js useChartBox).
 //
 // Mounted in the mini DOM with the synthetic race (helpers/chartFixtures.js)
-// and the real Formula1 metrics as its text measure; the cell sizes are the
+// and the real Inter metrics as its text measure; the cell sizes are the
 // model of helpers/pitWallMaps.js (codSlotAt: the CSS as written).
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
@@ -47,7 +47,7 @@ const { useF1Store } = await import('../store/useF1Store.js');
 const { computeSessionTimeOffset } = await import('../utils/raceTime.js');
 const { installResizeObserverMock, syntheticSession } = await import('./helpers/chartFixtures.js');
 const { loadCss, VIEWPORTS } = await import('./helpers/layoutModel.js');
-const { codSlotAt, haveFormula1 } = await import('./helpers/pitWallMaps.js');
+const { codSlotAt, haveWebFont } = await import('./helpers/pitWallMaps.js');
 const { textWidth } = await import('./helpers/fontWidths.js');
 const { screenTexts, FLOORS } = await import('./helpers/screenFont.js');
 const { FRAME_FALLBACK_MS } = await import('../utils/views/chartBox.js');
@@ -65,10 +65,8 @@ const LEGEND_ROW_GAP = 1;
 const STATUS_LINE_H = 13;
 const BLOCK_GAP = 2;
 
-/** The view's measureText: the face its weight maps to (700 by default). */
-const measure = haveFormula1
-  ? (t, size, weight = 700) => textWidth(t, size, weight >= 900 ? 900 : weight >= 600 ? 700 : 400)
-  : null;
+/** The view's measureText: the face of its weight (700 by default), tabular figures (.cod). */
+const measure = haveWebFont ? (t, size, weight = 700) => textWidth(t, size, weight, { tabular: true }) : null;
 
 function raceAtLap(lap) {
   const offset = computeSessionTimeOffset(SESSION.lap_times);
@@ -161,13 +159,15 @@ function expectFills(slot, lay) {
   }
   // the ring grows with the smaller side of the plot: it keeps all but the
   // room of the labels beside it (gapOut + the widest label, about 90 px a
-  // side at most) and is never under 40 % of the half-side
+  // side at most) and is never under a third of the half-side (the labels'
+  // share is the largest in the smallest cell, 1536 x 750, where the legend
+  // beside the plot gives the larger ring and a taller plot)
   const half = Math.min(lay.plotW, lay.plotH) / 2;
-  expect(lay.R).toBeGreaterThanOrEqual(0.4 * half);
+  expect(lay.R).toBeGreaterThanOrEqual(half / 3);
   expect(lay.R).toBeLessThanOrEqual(half);
 }
 
-describe.skipIf(!haveFormula1)('the Circle of Doom plot uses its Pit Wall cell at the four viewports', () => {
+describe.skipIf(!haveWebFont)('the Circle of Doom plot uses its Pit Wall cell at the four viewports', () => {
   beforeAll(() => raceAtLap(12));
   afterAll(async () => {
     if (view) await view.unmount();
@@ -184,7 +184,7 @@ describe.skipIf(!haveFormula1)('the Circle of Doom plot uses its Pit Wall cell a
     await mountIn(slot);
     await resizeSlot(slot);
     const lay = laidOut();
-    radius[name] = { R: lay.R, side: Math.min(lay.plotW, lay.plotH) };
+    radius[name] = { R: lay.R, side: Math.min(slot.width, slot.height) };
     console.log(`${name}: slot ${slot.width} x ${slot.height} -> plot ${lay.plotW} x ${lay.plotH} (legend ${lay.side ? 'beside' : `under, ${lay.legendH} px`}, ${lay.statusLines} legend line(s)), ring R ${lay.R.toFixed(1)}`);
     expectFills(slot, lay);
     expect(codUnderFloor(lay.svg, vp)).toEqual([]);
@@ -193,7 +193,7 @@ describe.skipIf(!haveFormula1)('the Circle of Doom plot uses its Pit Wall cell a
     view = null;
   }, 20000);
 
-  it('the ring grows with min(width, height) of the plot: ordered by that side, never smaller', () => {
+  it('the ring grows with min(width, height) of the cell: ordered by that side, never smaller', () => {
     const byside = Object.values(radius).sort((a, b) => a.side - b.side);
     expect(byside).toHaveLength(4);
     for (let i = 1; i < byside.length; i += 1) expect(byside[i].R).toBeGreaterThanOrEqual(byside[i - 1].R);
@@ -202,7 +202,7 @@ describe.skipIf(!haveFormula1)('the Circle of Doom plot uses its Pit Wall cell a
   });
 });
 
-describe.skipIf(!haveFormula1)('the plot follows the cell when the window moves between the screens', () => {
+describe.skipIf(!haveWebFont)('the plot follows the cell when the window moves between the screens', () => {
   beforeAll(() => raceAtLap(12));
   afterAll(async () => {
     if (view) await view.unmount();
