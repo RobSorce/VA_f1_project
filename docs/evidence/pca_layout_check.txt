@@ -1,0 +1,171 @@
+PCA layout check (frontend/scripts/pca_layout_check.mjs)
+build: frontend/dist (base /); browser: Chrome/141.0.7390.37, headless, device scale factor 1
+UC2 states: 2024 R16, Analytics (PCA) (key 6), "PCA Biplot", "Skip to end", "This race", colour "Finish", axes on
+overlap of two labels = intersection area / the smaller label's area; "inside its row" = share of the line's box within the row's box
+
+## 1536 x 864 CSS px
+- no selection
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+- one-stoppers (lasso above the line): 9 stars
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+  Differences: 7 rows on the first page, pager: features 1–7 of 12
+    row                        height  above random  no interval  random |g|  axis vs strip (left, width)
+    Pit Stops                    36.0             —            —       100 %  0.00, 0.06
+    Best Lap vs Field            36.0             —            —       100 %  0.00, 0.06
+    Sector 3 vs Field            36.0             —            —       100 %  0.00, 0.06
+    Last 5-Lap Pace vs Field     36.0             —            —       100 %  0.00, 0.06
+    Race Pace vs Field           36.0             —            —       100 %  0.00, 0.06
+    Sector 1 vs Field            36.0             —            —       100 %  0.00, 0.06
+    Grid Position                36.0             —            —       100 %  0.00, 0.06
+- two-or-more-stoppers (lasso below the line): 10 stars
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+  Differences: 7 rows on the first page, pager: features 1–7 of 12
+    row                        height  above random  no interval  random |g|  axis vs strip (left, width)
+    Longest Stint                36.0         100 %            —       100 %  0.00, 0.06
+    Avg Stint Length             50.1         100 %            —       100 %  0.00, 0.06
+    Best Lap vs Field            50.1         100 %            —       100 %  0.00, 0.06
+    Last 5-Lap Pace vs Field     36.0             —            —       100 %  0.00, 0.06
+    Sector 2 vs Field            36.0             —            —       100 %  0.00, 0.06
+    Sector 3 vs Field            36.0             —            —       100 %  0.00, 0.06
+    Race Pace vs Field           36.0             —            —       100 %  0.00, 0.06
+- PIA + NOR (two clicks)
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+  Differences: 7 rows on the first page, pager: features 1–7 of 12
+    row                        height  above random  no interval  random |g|  axis vs strip (left, width)
+    Sector 2 vs Field            36.0             —            —       100 %  0.00, 0.06
+    Sector 3 vs Field            36.0             —            —       100 %  0.00, 0.06
+    Race Pace vs Field           36.0             —            —       100 %  0.00, 0.06
+    Best Lap vs Field            36.0             —            —       100 %  0.00, 0.06
+    Last 5-Lap Pace vs Field     36.0             —            —       100 %  0.00, 0.06
+    Grid Position                36.0             —            —       100 %  0.00, 0.06
+    Longest Stint                36.0             —            —       100 %  0.00, 0.06
+
+## 1920 x 1080 CSS px
+- no selection
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+- one-stoppers (lasso above the line): 9 stars
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+  Differences: 12 rows on the first page, pager: no pager (every row on one page)
+    row                        height  above random  no interval  random |g|  axis vs strip (left, width)
+    Pit Stops                    38.5             —            —       100 %  0.00, 0.30
+    Best Lap vs Field            38.5             —            —       100 %  0.00, 0.30
+    Sector 3 vs Field            38.5             —            —       100 %  0.00, 0.30
+    Last 5-Lap Pace vs Field     38.5             —            —       100 %  0.00, 0.30
+    Race Pace vs Field           38.5             —            —       100 %  0.00, 0.30
+    Sector 1 vs Field            38.5             —            —       100 %  0.00, 0.30
+    Grid Position                38.5             —            —       100 %  0.00, 0.30
+    Sector 2 vs Field            38.5             —            —       100 %  0.00, 0.30
+    Avg Stint Length             38.5             —            —       100 %  0.00, 0.30
+    Longest Stint                38.5             —            —       100 %  0.00, 0.30
+    Lap-Time Scatter             38.5             —            —       100 %  0.00, 0.30
+    Tyre Degradation             38.5             —            —       100 %  0.00, 0.30
+- two-or-more-stoppers (lasso below the line): 10 stars
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+  Differences: 12 rows on the first page, pager: no pager (every row on one page)
+    row                        height  above random  no interval  random |g|  axis vs strip (left, width)
+    Longest Stint                38.5         100 %            —       100 %  0.00, 0.30
+    Avg Stint Length             38.5         100 %            —       100 %  0.00, 0.30
+    Best Lap vs Field            38.5         100 %            —       100 %  0.00, 0.30
+    Last 5-Lap Pace vs Field     38.5             —            —       100 %  0.00, 0.30
+    Sector 2 vs Field            38.5             —            —       100 %  0.00, 0.30
+    Sector 3 vs Field            38.5             —            —       100 %  0.00, 0.30
+    Race Pace vs Field           38.5             —            —       100 %  0.00, 0.30
+    Pit Stops                    38.5             —            —       100 %  0.00, 0.30
+    Grid Position                38.5             —            —       100 %  0.00, 0.30
+    Sector 1 vs Field            38.5             —            —       100 %  0.00, 0.30
+    Lap-Time Scatter             38.5             —            —       100 %  0.00, 0.30
+    Tyre Degradation             38.5             —            —       100 %  0.00, 0.30
+- PIA + NOR (two clicks)
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+  Differences: 12 rows on the first page, pager: no pager (every row on one page)
+    row                        height  above random  no interval  random |g|  axis vs strip (left, width)
+    Sector 2 vs Field            38.5             —            —       100 %  0.00, 0.30
+    Sector 3 vs Field            38.5             —            —       100 %  0.00, 0.30
+    Race Pace vs Field           38.5             —            —       100 %  0.00, 0.30
+    Best Lap vs Field            38.5             —            —       100 %  0.00, 0.30
+    Last 5-Lap Pace vs Field     38.5             —            —       100 %  0.00, 0.30
+    Grid Position                38.5             —            —       100 %  0.00, 0.30
+    Longest Stint                38.5             —            —       100 %  0.00, 0.30
+    Avg Stint Length             38.5             —            —       100 %  0.00, 0.30
+    Sector 1 vs Field            38.5             —            —       100 %  0.00, 0.30
+    Pit Stops                    38.5             —            —       100 %  0.00, 0.30
+    Lap-Time Scatter             38.5             —            —       100 %  0.00, 0.30
+    Tyre Degradation             38.5             —            —       100 %  0.00, 0.30
+
+## 2048 x 1152 CSS px
+- no selection
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+- one-stoppers (lasso above the line): 9 stars
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+  Differences: 12 rows on the first page, pager: no pager (every row on one page)
+    row                        height  above random  no interval  random |g|  axis vs strip (left, width)
+    Pit Stops                    38.8             —            —       100 %  0.00, 0.00
+    Best Lap vs Field            38.8             —            —       100 %  0.00, 0.00
+    Sector 3 vs Field            38.8             —            —       100 %  0.00, 0.00
+    Last 5-Lap Pace vs Field     38.8             —            —       100 %  0.00, 0.00
+    Race Pace vs Field           38.8             —            —       100 %  0.00, 0.00
+    Sector 1 vs Field            38.8             —            —       100 %  0.00, 0.00
+    Grid Position                38.8             —            —       100 %  0.00, 0.00
+    Sector 2 vs Field            38.8             —            —       100 %  0.00, 0.00
+    Avg Stint Length             38.8             —            —       100 %  0.00, 0.00
+    Longest Stint                38.8             —            —       100 %  0.00, 0.00
+    Lap-Time Scatter             38.8             —            —       100 %  0.00, 0.00
+    Tyre Degradation             38.8             —            —       100 %  0.00, 0.00
+- two-or-more-stoppers (lasso below the line): 10 stars
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+  Differences: 12 rows on the first page, pager: no pager (every row on one page)
+    row                        height  above random  no interval  random |g|  axis vs strip (left, width)
+    Longest Stint                38.8         100 %            —       100 %  0.00, 0.00
+    Avg Stint Length             38.8         100 %            —       100 %  0.00, 0.00
+    Best Lap vs Field            38.8         100 %            —       100 %  0.00, 0.00
+    Last 5-Lap Pace vs Field     38.8             —            —       100 %  0.00, 0.00
+    Sector 2 vs Field            38.8             —            —       100 %  0.00, 0.00
+    Sector 3 vs Field            38.8             —            —       100 %  0.00, 0.00
+    Race Pace vs Field           38.8             —            —       100 %  0.00, 0.00
+    Pit Stops                    38.8             —            —       100 %  0.00, 0.00
+    Grid Position                38.8             —            —       100 %  0.00, 0.00
+    Sector 1 vs Field            38.8             —            —       100 %  0.00, 0.00
+    Lap-Time Scatter             38.8             —            —       100 %  0.00, 0.00
+    Tyre Degradation             38.8             —            —       100 %  0.00, 0.00
+- PIA + NOR (two clicks)
+  biplot: 8 labels drawn, 0 on hover / focus only, 4 leader lines, 19 points
+    label / label overlaps: none
+    label / point overlaps: none
+  Differences: 12 rows on the first page, pager: no pager (every row on one page)
+    row                        height  above random  no interval  random |g|  axis vs strip (left, width)
+    Sector 2 vs Field            38.8             —            —       100 %  0.00, 0.00
+    Sector 3 vs Field            38.8             —            —       100 %  0.00, 0.00
+    Race Pace vs Field           38.8             —            —       100 %  0.00, 0.00
+    Best Lap vs Field            38.8             —            —       100 %  0.00, 0.00
+    Last 5-Lap Pace vs Field     38.8             —            —       100 %  0.00, 0.00
+    Grid Position                38.8             —            —       100 %  0.00, 0.00
+    Longest Stint                38.8             —            —       100 %  0.00, 0.00
+    Avg Stint Length             38.8             —            —       100 %  0.00, 0.00
+    Sector 1 vs Field            38.8             —            —       100 %  0.00, 0.00
+    Pit Stops                    38.8             —            —       100 %  0.00, 0.00
+    Lap-Time Scatter             38.8             —            —       100 %  0.00, 0.00
+    Tyre Degradation             38.8             —            —       100 %  0.00, 0.00
+
+RESULT: PASS

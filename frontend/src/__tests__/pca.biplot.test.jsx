@@ -55,6 +55,8 @@ const {
   causalPoints, shownFinish, pointFill, loadedRaceOf, loadedRaceClock, loadedResultHidden,
 } = await import('../utils/views/pcaBiplot.js');
 const { default: PCABiplot } = await import('../components/visualizations/PCABiplot.jsx');
+const { estimateLabelSize, boxesOverlap, MAX_ARROWS } = await import('../utils/views/pcaLoadingLabels.js');
+const { SURFACES, chartFontPx } = await import('../utils/colors.js');
 
 const EMBEDDINGS = JSON.parse(fs.readFileSync(EMBEDDINGS_FILE, 'utf8'));
 globalThis.__pcaEmbeddings = EMBEDDINGS;
@@ -88,10 +90,10 @@ globalThis.__pcaAtClock = ({ year, round, session_now: now }) => {
   };
 };
 
-async function mount() {
+async function mount({ width = 640, height = 420 } = {}) {
   const host = dom.document.createElement('div');
   dom.document.body.appendChild(host);
-  dom.setRect(host, { left: 0, top: 0, width: 640, height: 420 });
+  dom.setRect(host, { left: 0, top: 0, width, height });
   const root = createRoot(host);
   await act(async () => { root.render(React.createElement(PCABiplot)); });
   return {
@@ -381,5 +383,83 @@ describe('PCA biplot race filter and outcome colour (P2)', () => {
     });
     expect([...useF1Store.getState().selectedPCAPoints].sort()).toEqual(loadedRows.map((p) => p.id).sort());
     await view.click('All races');
+  });
+});
+
+// The loading labels (utils/views/pcaLoadingLabels.js, placement unit-tested
+// in pca.loadingLabels.test.js): here, how the view draws what it places.
+// The minimal DOM measures no text, so the view sizes labels by its estimate.
+describe('PCA biplot loading labels', () => {
+  const labelBoxOf = (t) => {
+    const { w, h } = estimateLabelSize(t.textContent, chartFontPx('data'));
+    const x = Number(t.getAttribute('x'));
+    const y = Number(t.getAttribute('y')) - h * 0.8;
+    return { x0: x, y0: y, x1: x + w, y1: y + h };
+  };
+
+  it('one label per arrow, over the points (drawn after them), with a halo, never catching the mouse; no two overlap', async () => {
+    setLoaded();
+    const view = await mount();
+    await view.click('This race');
+    const svg = view.svg();
+    const arrows = [...svg.querySelectorAll('line.pca-arrow')];
+    const labels = [...svg.querySelectorAll('.pca-arrow-labels text.pca-arrow-label')];
+    expect(arrows).toHaveLength(MAX_ARROWS);
+    expect(labels.map((t) => t.getAttribute('data-key'))).toEqual(arrows.map((a) => a.getAttribute('data-key')));
+    const plot = svg.querySelector('g');
+    const kids = [...plot.children];
+    const lastPoint = kids.reduce((m, el, i) => (el.getAttribute('class')?.includes('pca-point') ? i : m), -1);
+    expect(kids.indexOf(svg.querySelector('.pca-arrow-labels'))).toBeGreaterThan(lastPoint);
+    expect(kids.indexOf(svg.querySelector('.pca-arrows'))).toBeLessThan(lastPoint);
+    expect(svg.querySelector('.pca-arrow-labels').getAttribute('pointer-events')).toBe('none');
+    for (const t of labels) {
+      expect(t.getAttribute('stroke')).toBe(SURFACES.panel);
+      expect(t.getAttribute('paint-order')).toBe('stroke');
+    }
+    const shown = labels.filter((t) => t.getAttribute('display') !== 'none').map(labelBoxOf);
+    for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) expect(boxesOverlap(shown[i], shown[j])).toBe(false);
+    // a label moved off its tip has a leader line from that tip
+    for (const l of svg.querySelectorAll('.pca-arrow-leader')) {
+      const a = svg.querySelector(`line.pca-arrow[data-key="${l.getAttribute('data-key')}"]`);
+      expect([l.getAttribute('x1'), l.getAttribute('y1')]).toEqual([a.getAttribute('x2'), a.getAttribute('y2')]);
+    }
+    await view.unmount();
+  });
+
+  it('a small plot: a label with no room waits on its arrow, shown on hover and keyboard focus; the hint in the longest wording that fits', async () => {
+    setLoaded();
+    const view = await mount({ width: 260, height: 170 });
+    const svg = view.svg();
+    const hits = [...svg.querySelectorAll('line.pca-arrow-hit')];
+    expect(hits.length).toBeGreaterThan(0);
+    // the longest loading keeps its label
+    const first = svg.querySelector('.pca-arrow-labels text');
+    expect(first.getAttribute('display')).not.toBe('none');
+    for (const hit of hits) {
+      const label = svg.querySelector(`.pca-arrow-label[data-key="${hit.getAttribute('data-key')}"]`);
+      expect(hit.getAttribute('tabindex')).toBe('0');
+      expect(hit.getAttribute('aria-label')).toBe(`Loading arrow: ${label.textContent}`);
+      expect(label.getAttribute('display')).toBe('none');
+      await act(async () => { dom.mouse(hit, 'mouseenter', { bubbles: false }); });
+      expect(label.getAttribute('display')).toBeNull();
+      await act(async () => { dom.mouse(hit, 'mouseleave', { bubbles: false }); });
+      expect(label.getAttribute('display')).toBe('none');
+      await act(async () => { dom.mouse(hit, 'focus', { bubbles: false }); });
+      expect(label.getAttribute('display')).toBeNull();
+      await act(async () => { dom.mouse(hit, 'blur', { bubbles: false }); });
+      expect(label.getAttribute('display')).toBe('none');
+    }
+    // the hint: the longest wording whose measured length fits under the plot
+    const width = Number(svg.getAttribute('viewBox').split(' ')[2]);
+    const innerW = width - 46 - 15;
+    const room = 2 * Math.min(46 + innerW / 2, width - 46 - innerW / 2) - 4;
+    const info = [...svg.querySelectorAll('text')].find((t) => /Shift\+drag to lasso/.test(t.textContent));
+    const wordings = [
+      'Arrows show which features drive each axis (hover one to name it) | Shift+drag to lasso',
+      'Hover or focus an unnamed arrow to name it | Shift+drag to lasso',
+    ];
+    const length = (t) => t.length * 5; // the minimal DOM's text length
+    expect(info.textContent).toBe(wordings.find((t) => length(t) <= room) || 'Arrows show which features drive each axis | Shift+drag to lasso');
+    await view.unmount();
   });
 });

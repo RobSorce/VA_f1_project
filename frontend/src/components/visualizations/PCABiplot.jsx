@@ -3,14 +3,15 @@ import * as d3 from 'd3';
 import { useF1Store, sessionScopeOf, pcaRequestOf } from '../../store/useF1Store';
 import { attachLasso } from '../../utils/lasso';
 import {
-  markPath, isLoadedRace, filterPoints, filterOptions, loadedRaceOf, causalPoints,
+  markPath, markRadius, isLoadedRace, filterPoints, filterOptions, loadedRaceOf, causalPoints,
   pointFill, teamLegendItems, outcomeLegendItems, shapeLegendItems, tooltipHtml, COLOR_BY,
 } from '../../utils/views/pcaBiplot';
+import { loadingArrows, placeLoadingLabels, estimateLabelSize } from '../../utils/views/pcaLoadingLabels';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 import { useChartBox, chartSize } from '../../utils/views/chartBox';
 import {
-  CHART_FONT, TEXT_COLORS, GRID_COLORS, UI_COLORS, withAlpha, contextColor, SURFACES,
+  CHART_FONT, TEXT_COLORS, GRID_COLORS, UI_COLORS, withAlpha, contextColor, SURFACES, chartFontPx,
 } from '../../utils/colors';
 
 // Toggle button: active = the brush / selection blue with its border; a
@@ -24,11 +25,34 @@ const toggleStyle = (active, disabled = false) => ({
   transition: 'all 0.12s',
 });
 
+// Box of an SVG text in its user space (getBBox), or null where it cannot be
+// measured (no layout: tests, server rendering)
+function textBox(node) {
+  try {
+    const b = node?.getBBox?.();
+    return b && b.width > 0 ? b : null;
+  } catch {
+    return null;
+  }
+}
+const boxOf = (b) => ({ x0: b.x, y0: b.y, x1: b.x + b.width, y1: b.y + b.height });
+// Length of an SVG text (px), or null where it cannot be measured
+function textLength(node) {
+  try {
+    const n = node?.getComputedTextLength?.();
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function PCABiplot() {
   const svgRef = useRef(null);
   // The box the chart fills: it lays out again at each new size (D4)
   const box = useChartBox(svgRef);
   const cleanupRef = useRef(null);
+  // The "Clear N selected" button over the plot: no loading label goes under it
+  const clearRef = useRef(null);
 
   const pcaEmbeddings = useF1Store((s) => s.pcaEmbeddings);
   const loadPCAEmbeddings = useF1Store((s) => s.loadPCAEmbeddings);
@@ -172,6 +196,7 @@ export default function PCABiplot() {
           .attr('stroke', GRID_COLORS.axis)
           .attr('stroke-dasharray', '4,4');
         g.append('text')
+          .attr('class', 'pca-avg-label')
           .attr('x', originX + 4).attr('y', 12)
           .attr('fill', TEXT_COLORS.muted)
           .style('font-size', CHART_FONT.label)
@@ -179,21 +204,15 @@ export default function PCABiplot() {
       }
     }
 
-    // Feature loading arrows (top 8 by magnitude). Hidden when axes
-    // are toggled off — without axes the arrows have no semantic
-    // anchor (origin disappears) so it would just look noisy.
-    const topLoadings = showAxes ? loadings.slice(0, 8) : [];
-    // Recompute origin in case axes are off (we need it for arrow start).
+    // Feature loading arrows (the largest loadings, utils/views/pcaLoadingLabels.js
+    // loadingArrows). Hidden when axes are toggled off: without axes the
+    // arrows have no semantic anchor (the origin disappears).
     const originX = x(0);
     const originY = y(0);
-    if (topLoadings.length > 0) {
-      // Scale loadings to fit within the plot
-      const maxLoading = Math.max(...topLoadings.map((l) => Math.sqrt(l.pc1 ** 2 + l.pc2 ** 2)));
-      const arrowScale = Math.min(innerW, innerH) * 0.35 / (maxLoading || 1);
-
-      const arrowG = g.append('g').attr('class', 'pca-arrows');
-
-      // Arrow marker
+    const arrows = showAxes ? loadingArrows(loadings, { originX, originY, innerW, innerH }) : [];
+    // Lines and leader lines under the points; labels drawn over them later
+    const arrowG = g.append('g').attr('class', 'pca-arrows');
+    if (arrows.length > 0) {
       svg.append('defs').append('marker')
         .attr('id', 'pca-arrow')
         .attr('viewBox', '0 0 10 10')
@@ -203,35 +222,15 @@ export default function PCABiplot() {
         .append('path')
         .attr('d', 'M 0 2 L 8 5 L 0 8 Z')
         .attr('fill', TEXT_COLORS.muted);
-
-      topLoadings.forEach((l) => {
-        const dx = l.pc1 * arrowScale;
-        const dy = -l.pc2 * arrowScale; // flip y
-        const startX = originX;
-        const startY = originY;
-        const endX = startX + dx;
-        const endY = startY + dy;
-
-        // Only draw if arrow stays within plot area
-        if (endX < -10 || endX > innerW + 10 || endY < -10 || endY > innerH + 10) return;
-
+      arrows.forEach((a) => {
         arrowG.append('line')
-          .attr('x1', startX).attr('y1', startY)
-          .attr('x2', endX).attr('y2', endY)
+          .attr('class', 'pca-arrow')
+          .attr('data-key', a.key)
+          .attr('x1', a.x0).attr('y1', a.y0)
+          .attr('x2', a.x1).attr('y2', a.y1)
           .attr('stroke', TEXT_COLORS.muted)
           .attr('stroke-width', 1.2)
           .attr('marker-end', 'url(#pca-arrow)');
-
-        // Label at tip
-        const labelOffsetX = dx > 0 ? 4 : -4;
-        const labelOffsetY = dy > 0 ? 10 : -4;
-        arrowG.append('text')
-          .attr('x', endX + labelOffsetX).attr('y', endY + labelOffsetY)
-          .attr('text-anchor', dx > 0 ? 'start' : 'end')
-          .attr('fill', TEXT_COLORS.secondary)
-          .style('font-size', CHART_FONT.data)
-          .attr('font-weight', 600)
-          .text(l.label);
       });
     }
 
@@ -324,7 +323,7 @@ export default function PCABiplot() {
     });
 
     // Info text
-    g.append('text')
+    const infoText = g.append('text')
       .attr('x', innerW / 2).attr('y', innerH + 16)
       .attr('text-anchor', 'middle')
       .attr('fill', TEXT_COLORS.muted)
@@ -332,14 +331,123 @@ export default function PCABiplot() {
       .text('Arrows show which features drive each axis | Shift+drag to lasso');
 
     // Selected count
+    let countText = null;
     if (selectedPCAPoints.length > 0) {
-      g.append('text')
+      countText = g.append('text')
         .attr('x', innerW - 4).attr('y', 12)
         .attr('text-anchor', 'end')
         .attr('fill', TEXT_COLORS.primary)
         .style('font-size', CHART_FONT.label)
         .attr('font-weight', 700)
         .text(`${selectedPCAPoints.length} selected`);
+    }
+
+    // Loading labels, over the points with a halo in the panel colour: placed
+    // clear of each other, of the chart's text and controls and, where there
+    // is room, of the points (utils/views/pcaLoadingLabels.js); a label moved
+    // from the tip has a leader line; one with no room is shown on hover and
+    // keyboard focus of its arrow, the longest loadings labelled first
+    if (arrows.length > 0) {
+      const labelG = g.append('g').attr('class', 'pca-arrow-labels').attr('pointer-events', 'none');
+      const fontPx = chartFontPx('data');
+      const labels = arrows.map((a) => {
+        const node = labelG.append('text')
+          .attr('class', 'pca-arrow-label')
+          .attr('data-key', a.key)
+          .attr('fill', TEXT_COLORS.secondary)
+          .style('font-size', CHART_FONT.data)
+          .attr('font-weight', 600)
+          .attr('stroke', SURFACES.panel)
+          .attr('stroke-width', 3)
+          .attr('stroke-linejoin', 'round')
+          .attr('paint-order', 'stroke')
+          .text(a.label);
+        // the text's own box at (0, 0) (the halo adds 1.5 px around it), or an estimate
+        const bb = textBox(node.node());
+        const est = estimateLabelSize(a.label, fontPx);
+        const size = bb ? { w: bb.width + 3, h: bb.height + 3, dx: -bb.x + 1.5, dy: -bb.y + 1.5 } : { ...est, dx: 0, dy: est.h * 0.8 };
+        return { node, size };
+      });
+      // never under: the "avg" and "N selected" texts, the Clear button
+      const obstacles = [];
+      g.selectAll('.pca-avg-label').each(function avgBox() { const b = textBox(this); if (b) obstacles.push(boxOf(b)); });
+      if (countText) { const b = textBox(countText.node()); if (b) obstacles.push(boxOf(b)); }
+      const clear = clearRef.current;
+      if (clear && typeof clear.getBoundingClientRect === 'function') {
+        const sr = svgRef.current.getBoundingClientRect();
+        const cr = clear.getBoundingClientRect();
+        const k = sr.width > 0 ? width / sr.width : 1;
+        if (cr.width > 0) {
+          obstacles.push({
+            x0: (cr.left - sr.left) * k - margin.left, y0: (cr.top - sr.top) * k - margin.top,
+            x1: (cr.right - sr.left) * k - margin.left, y1: (cr.bottom - sr.top) * k - margin.top,
+          });
+        }
+      }
+      // avoided where there is room: the points drawn and the driver rings
+      const radius = { star: markRadius(true) + 1, circle: markRadius(false) + 1 };
+      const pointBoxes = visible.map((d) => {
+        const r = Math.max(isLoaded(d) ? radius.star : radius.circle, selectedDrivers.includes(d.driver) ? 9 : 0);
+        return { x0: x(d.x) - r, y0: y(d.y) - r, x1: x(d.x) + r, y1: y(d.y) + r };
+      });
+      const placed = placeLoadingLabels({
+        arrows: arrows.map((a, i) => ({ ...a, w: labels[i].size.w, h: labels[i].size.h })),
+        bounds: { x0: 0, y0: 0, x1: innerW, y1: innerH },
+        obstacles,
+        points: pointBoxes,
+      });
+      if (placed.some((p) => !p.placed)) {
+        // the hint for the arrows left unnamed, in the longest wording that
+        // fits (the text is centred at margin.left + innerW / 2)
+        const room = 2 * Math.min(margin.left + innerW / 2, width - margin.left - innerW / 2) - 4;
+        const fits = (t) => {
+          infoText.text(t);
+          const len = textLength(infoText.node());
+          return len == null || len <= room;
+        };
+        ['Arrows show which features drive each axis (hover one to name it) | Shift+drag to lasso',
+          'Hover or focus an unnamed arrow to name it | Shift+drag to lasso']
+          .find(fits) || infoText.text('Arrows show which features drive each axis | Shift+drag to lasso');
+      }
+      placed.forEach((p, i) => {
+        const { node, size } = labels[i];
+        node.attr('x', p.box.x0 + size.dx).attr('y', p.box.y0 + size.dy)
+          .attr('display', p.placed ? null : 'none');
+        if (p.leader) {
+          arrowG.append('line')
+            .attr('class', 'pca-arrow-leader')
+            .attr('data-key', p.key)
+            .attr('x1', p.leader.x1).attr('y1', p.leader.y1)
+            .attr('x2', p.leader.x2).attr('y2', p.leader.y2)
+            .attr('stroke', TEXT_COLORS.muted)
+            .attr('stroke-width', 0.8)
+            .attr('stroke-dasharray', '2,2');
+        }
+        if (!p.placed) {
+          // the label on hover or keyboard focus of its arrow (a wide hit line)
+          const a = arrows[i];
+          const line = arrowG.select(`line.pca-arrow[data-key="${a.key}"]`);
+          const show = (on) => {
+            node.attr('display', on ? null : 'none');
+            line.attr('stroke', on ? TEXT_COLORS.primary : TEXT_COLORS.muted).attr('stroke-width', on ? 2 : 1.2);
+          };
+          arrowG.append('line')
+            .attr('class', 'pca-arrow-hit')
+            .attr('data-key', a.key)
+            .attr('x1', a.x0).attr('y1', a.y0)
+            .attr('x2', a.x1).attr('y2', a.y1)
+            .attr('stroke', 'transparent')
+            .attr('stroke-width', 12)
+            .attr('pointer-events', 'stroke')
+            .attr('tabindex', 0)
+            .attr('role', 'img')
+            .attr('aria-label', `Loading arrow: ${a.label}`)
+            .style('cursor', 'help')
+            .style('outline', 'none')
+            .on('mouseenter focus', () => show(true))
+            .on('mouseleave blur', () => show(false));
+        }
+      });
     }
 
   }, [pcaEmbeddings, points, visible, loaded, resultHidden, colorBy, selectedPCAPoints, selectedDrivers,
@@ -430,6 +538,7 @@ export default function PCABiplot() {
             <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
             {selectedPCAPoints.length > 0 && (
               <button
+                ref={clearRef}
                 onClick={clearSelection}
                 style={{
                   position: 'absolute', top: 6, left: 6,

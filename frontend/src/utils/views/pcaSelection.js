@@ -187,6 +187,47 @@ export function forestHalfWidth(rows, threshold = null) {
   return Math.max(0.5, Math.ceil(m / 0.5) * 0.5);
 }
 
+/**
+ * One page of a list whose rows each have their own height (px): consecutive
+ * rows while their heights add up to the box; when the list needs more than
+ * one page the pager line (pagerH) comes out of the box first. A page holds at
+ * least one row. A box not measured yet (0) holds every row.
+ *
+ * @param {Array} items
+ * @param {Array<number>} heights - one per item
+ * @param {number} page - 0-based, clamped to the pages there are
+ * @param {number} boxH - height of the box, px
+ * @param {number} [pagerH] - height of the pager line, px
+ * @returns {{rows: Array, page: number, pages: number, first: number, last: number, paged: boolean}}
+ *   first / last are 1-based item numbers of the page (0 when empty)
+ */
+export function pageByHeights(items, heights, page, boxH, pagerH = 0) {
+  const list = Array.isArray(items) ? items : [];
+  const hs = list.map((_, i) => Math.max(0, Number(heights?.[i]) || 0));
+  // half a px of slack: heights are measured to sub-pixels
+  const fits = (used, room) => used <= room + 0.5;
+  const breaks = [0];
+  if (list.length && Number(boxH) > 0 && !fits(hs.reduce((a, b) => a + b, 0), boxH)) {
+    const room = boxH - pagerH;
+    let used = 0;
+    hs.forEach((h, i) => {
+      if (i > breaks[breaks.length - 1] && !fits(used + h, room)) {
+        breaks.push(i);
+        used = 0;
+      }
+      used += h;
+    });
+  }
+  const pages = breaks.length;
+  const p = Math.min(pages - 1, Math.max(0, Math.floor(Number(page) || 0)));
+  const start = breaks[p];
+  const end = p + 1 < pages ? breaks[p + 1] : list.length;
+  const rows = list.slice(start, end);
+  return {
+    rows, page: p, pages, first: rows.length ? start + 1 : 0, last: rows.length ? end : 0, paged: pages > 1,
+  };
+}
+
 /** Position (0..width) of a g value on the forest plot axis [-half, +half]. */
 export function forestX(v, half, width) {
   const c = Math.max(-half, Math.min(half, v));

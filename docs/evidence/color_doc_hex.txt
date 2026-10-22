@@ -52,8 +52,8 @@ code: literals of frontend/src/utils/colors.js and the dark-theme tokens (:root)
 #5C6677  line 132  x1  CHANNEL_RAMP_LOW
 #4A5568  line 135  x1  TRACK_COLORS.surface
 #FDEA45  line 136  x1  OUTCOME_COLORS.podium
-#A9A177  line 136  x1  OUTCOME_COLORS.points
 #61636F  line 136  x1  OUTCOME_COLORS.none
+#13B1CE  line 136  x1  OUTCOME_COLORS.points
 #FFD700  line 137  x1  MEDAL_COLORS.1, --color-accent-warning, --medal-gold
 #C0C0C0  line 137  x1  MEDAL_COLORS.2
 #CD7F32  line 137  x1  MEDAL_COLORS.3

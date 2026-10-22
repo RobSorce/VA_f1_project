@@ -36,6 +36,18 @@ export function markPath(loaded, hover = false) {
 }
 
 /**
+ * Half-size of the box of a mark at (0, 0): the largest coordinate of its
+ * path (the outline drawn on it is not included).
+ * @param {boolean} loaded
+ * @param {boolean} [hover]
+ * @returns {number}
+ */
+export function markRadius(loaded, hover = false) {
+  const nums = markPath(loaded, hover).match(/-?\d*\.?\d+(?:e-?\d+)?/gi) || ['0'];
+  return Math.max(...nums.map((v) => Math.abs(Number(v))));
+}
+
+/**
  * Legend swatch of a mark: the mark's own path (components/ui/Legend.jsx
  * shape 'symbol') and a viewBox around it, with room for the stroke.
  * @param {boolean} loaded
@@ -43,8 +55,7 @@ export function markPath(loaded, hover = false) {
  */
 export function markSwatch(loaded) {
   const path = markPath(loaded);
-  const nums = path.match(/-?\d*\.?\d+(?:e-?\d+)?/gi) || ['0'];
-  const r = Math.max(...nums.map((v) => Math.abs(Number(v)))) + 1.5;
+  const r = markRadius(loaded) + 1.5;
   return { shape: 'symbol', path, viewBox: `${-r} ${-r} ${2 * r} ${2 * r}` };
 }
 
@@ -120,10 +131,12 @@ export function filterOptions(points, loaded, { raceClock = 'ended', reason = nu
 export const POINTS_PLACES = Math.max(...Object.keys(F1_POINTS).map(Number));
 export const PODIUM_PLACES = 3;
 
-// Sequential classes, brighter = better result: cividis at t = 1, 0.685 and
-// 0.37, the lowest t at which the colour still reaches 3:1 against the panel
-// background (scripts/pca_outcome_palette.mjs, output in
-// docs/evidence/pca_outcome_palette.txt: contrast 14.86 / 7.03 /
+// Ordered classes, brighter = better result: podium and no points are
+// cividis at t = 1 and 0.37, the lowest t at which the colour still reaches
+// 3:1 against the panel background; points is a cyan at the lightness of
+// cividis' middle class, whose khaki read as grey next to the no-points grey
+// (scripts/pca_outcome_palette.mjs, output in
+// docs/evidence/pca_outcome_palette.txt: contrast 14.86 / 7.16 /
 // 3.07, L* 92.2 / 66.1 / 42.1)
 export const OUTCOME_CLASSES = [
   { key: 'podium', label: `Podium (P1–P${PODIUM_PLACES})`, color: OUTCOME_COLORS.podium },

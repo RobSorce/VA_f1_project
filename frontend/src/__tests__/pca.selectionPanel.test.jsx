@@ -46,7 +46,7 @@ const useF1StoreModule = await import('../store/useF1Store.js');
 const { useF1Store } = useF1StoreModule;
 const {
   selectionRows, selectionStatistics, forestHalfWidth, forestX, fmtSigned, fmtInterval, sameSelection, ANALYSIS_LABEL,
-  selectionClockNote, missingIntervalNote, progressRowNote,
+  selectionClockNote, missingIntervalNote, progressRowNote, pageByHeights,
 } = await import('../utils/views/pcaSelection.js');
 const { default: PCAAnalysisPanel } = await import('../components/visualizations/PCAAnalysisPanel.jsx');
 
@@ -234,6 +234,24 @@ describe('the panel (P3)', () => {
     });
   });
 
+  it('the head and every row share one grid (subgrid): the g axis sits over the strips', () => {
+    const grid = view.host.querySelector('.pca-forest-grid');
+    expect(grid.style.gridTemplateColumns).toMatch(/minmax/);
+    const head = grid.querySelector('.pca-forest-head');
+    const list = grid.querySelector('.pca-forest-rows');
+    expect(head.parentNode).toBe(grid);
+    expect(list.parentNode).toBe(grid);
+    for (const el of [head, list, ...list.querySelectorAll('.pca-forest-row')]) {
+      expect(el.style.gridTemplateColumns).toBe('subgrid');
+      expect(el.style.gridColumn).toBe('1 / -1');
+    }
+    // the axis is in the head's second column, the strips in the rows' second column
+    expect(head.children[1].querySelector('svg.pca-forest-axis-svg')).toBeTruthy();
+    for (const r of list.querySelectorAll('.pca-forest-row')) expect(r.children[1].tagName.toLowerCase()).toBe('svg');
+    // rows as tall as their content: no fixed height
+    expect([...list.querySelectorAll('.pca-forest-row')].every((r) => !r.style.height)).toBe(true);
+  });
+
   it('an answer of another selection is not shown', async () => {
     await act(async () => { useF1Store.setState({ selectedPCAPoints: ['ALB_2024_1'] }); });
     expect(view.body()).toContain('Analyzing selection');
@@ -278,6 +296,26 @@ describe('view model (utils/views/pcaSelection.js)', () => {
     expect(missingIntervalNote({ ...row, ciLow: -1, ciHigh: 1 }, 2)).toBeNull();
     // a former answer gives no reason
     expect(missingIntervalNote(row, null)).toBeNull();
+  });
+
+  it('pageByHeights: rows of their own heights, as many as fit, the pager line taken only when paging', () => {
+    const items = ['a', 'b', 'c', 'd', 'e'];
+    // all fit (the pager line is not needed)
+    expect(pageByHeights(items, [36, 50, 50, 36, 36], 0, 208, 22)).toMatchObject({
+      rows: items, page: 0, pages: 1, first: 1, last: 5, paged: false,
+    });
+    // a taller row (a wrapped label + "above random") pushes the last row to the next page
+    const p0 = pageByHeights(items, [36, 50, 50, 36, 36], 0, 200, 22);
+    expect(p0).toMatchObject({ rows: ['a', 'b', 'c', 'd'], pages: 2, first: 1, last: 4, paged: true });
+    expect(pageByHeights(items, [36, 50, 50, 36, 36], 1, 200, 22)).toMatchObject({ rows: ['e'], page: 1, first: 5, last: 5 });
+    // the page index is clamped; a row taller than the box still gets a page of its own
+    expect(pageByHeights(items, [36, 50, 50, 36, 36], 9, 200, 22).page).toBe(1);
+    expect(pageByHeights(['a', 'b'], [300, 20], 0, 100, 22).rows).toEqual(['a']);
+    // sub-pixel heights: half a px of slack
+    expect(pageByHeights(['a', 'b'], [50.3, 50.3], 0, 100.4, 22).paged).toBe(false);
+    // a box not measured yet holds every row; an empty list has one empty page
+    expect(pageByHeights(items, [36, 36, 36, 36, 36], 0, 0, 22).rows).toEqual(items);
+    expect(pageByHeights([], [], 0, 100, 22)).toMatchObject({ rows: [], pages: 1, first: 0, last: 0, paged: false });
   });
 });
 

@@ -590,14 +590,16 @@ export const TRACK_COLORS = {
 // is drawn on them in contrastText: black on all three, >= 6.6:1)
 export const MEDAL_COLORS = { 1: '#FFD700', 2: '#C0C0C0', 3: '#CD7F32' };
 
-// Finishing-outcome classes of the PCA biplot (sequential, brighter = better):
-// cividis at t = 1, 0.685 and 0.37, the lowest t still at 3:1 on the panel
-// (scripts/pca_outcome_palette.mjs; docs/evidence/
-// pca_outcome_palette.txt: 14.86 / 7.03 / 3.07); ordered by lightness, so it
-// stands on colour alone under every vision type (cvd_check.txt)
+// Finishing-outcome classes of the PCA biplot (ordered, brighter = better):
+// podium and no points are cividis at t = 1 and 0.37, the lowest t still at
+// 3:1 on the panel; points is a cyan at the lightness of cividis' middle
+// class (its khaki read as grey next to the no-points grey on small marks)
+// (scripts/pca_outcome_palette.mjs; docs/evidence/pca_outcome_palette.txt);
+// ordered by lightness, so it stands on colour alone under every vision type
+// (cvd_check.txt)
 export const OUTCOME_COLORS = {
   podium: '#fdea45',
-  points: '#a9a177',
+  points: '#13b1ce',
   none: '#61636f',
 };
 

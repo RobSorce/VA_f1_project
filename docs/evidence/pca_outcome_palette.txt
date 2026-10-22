@@ -6,7 +6,16 @@ viridis   0.33   #31678e / #35b779 / #fde725 (t 0.330, 0.665, 1.000)   3.02 / 7.
 plasma    0.39   #ad2793 / #f1814d / #f0f921 (t 0.390, 0.695, 1.000)   3.04 / 6.97 / 15.95   42.0 / 66.3 / 94.9   24.3
 inferno   0.48   #b3325a / #f8890c / #fcffa4 (t 0.480, 0.740, 1.000)   3.07 / 7.48 / 17.43   42.7 / 68.6 / 98.3   26.0
 
-Chosen: cividis (designed for colour-vision deficiency; monotone lightness).
+Chosen: cividis (designed for colour-vision deficiency; monotone lightness) for the podium and no-points classes.
+
+Middle class (points): cividis' own #a9a177, or the cyan at its L* (CIE LCh hue 220, chroma 40)
+                             contrast  L*     C* N/P/D/T          dE2000 to podium N/P/D/T    to no points N/P/D/T        to selection blue  to bronze
+  former (cividis)  #a9a177  7.03  66.1   23 / 24 / 23 / 10  24.6 / 25.1 / 24.0 / 17.8   32.8 / 31.8 / 32.9 / 26.8   42.4               20.7
+  cyan              #13b1ce  7.16  66.1   40 / 21 / 29 / 42  50.3 / 49.0 / 54.4 / 39.0   33.7 / 27.0 / 24.6 / 32.8   19.0               46.3
+  no points #61636f: C* N/P/D/T 7 / 7 / 7 / 3
+
+Classes: podium #fdea45, points #13b1ce, no points #61636f
+utils/colors.js OUTCOME_COLORS: podium #fdea45, points #13b1ce, no points #61636f (the same)
 
 Team colours on the same background (utils/colors.js TEAM_COLORS):
   Red Bull Racing  #3671C6  contrast 3.78

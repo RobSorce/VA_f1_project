@@ -5,6 +5,7 @@ This folder holds the outputs of the measurement scripts that the documentation,
 How to run the scripts:
 
 - `frontend/scripts/*.mjs`: from `frontend/`, `npx vite-node scripts/<name>.mjs` (they import `src/` modules). Most read the cached race sessions in `backend/data/processed_cache` (git-ignored, filled by `backend/scripts/bulk_download.py`). Each writes its file here; `cod_backtest`, `cvd_check` and `shortcuts_table` take `--out FILE` to write it elsewhere.
+- `frontend/scripts/pca_layout_check.mjs`: from `frontend/`, `npm run build:demo` then `node scripts/pca_layout_check.mjs` (plain node; Chrome or Chromium found on the usual paths, or `--chrome PATH`; `--dist DIR` measures another build, `--out FILE` writes elsewhere). It needs no race cache.
 - `frontend/scripts/usecases/*.mjs`: from `frontend/`, `npx vite-node scripts/usecases/<name>.mjs` (`--out FILE` writes elsewhere). Each writes `usecase_<name>.txt` here; the table "Use cases" below says which of them need the race cache.
 - `frontend/scripts/audit/*.mjs`: static layout, type and colour checks that read the CSS and the components as written. From the repository root, `node frontend/scripts/audit/<name>.mjs`; the ones marked *vite-node* run from `frontend/` as `npx vite-node scripts/audit/<name>.mjs`. Each prints its report and writes the same text here (`--out FILE` writes it elsewhere).
 - `backend/scripts/*.py`: from `backend/`, `python -m scripts.<name> --out ../docs/evidence/<file>` (backend virtual environment).
@@ -51,6 +52,7 @@ How to run the scripts:
 | `live_pca_rewind.txt` | `frontend/scripts/live_pca_rewind.mjs` | `docs/analytics_provenance.md`, `docs/PCA_METHODOLOGY.md`, `docs/MASTER_LEDGER.md`, `frontend/src/__tests__/pca.help.test.js` |
 | `live_pca_compare.txt` | `frontend/scripts/live_pca_compare.mjs` | (the script) |
 | `pca_outcome_palette.txt` | `frontend/scripts/pca_outcome_palette.mjs` | `docs/COLOR_ENCODING.md`, `frontend/src/utils/colors.js`, `frontend/src/utils/views/pcaBiplot.js` |
+| `pca_layout_check.txt` | `frontend/scripts/pca_layout_check.mjs` (headless Chrome on the demo build) | `docs/USE_CASES.md` (UC2) |
 | `pca_session_switch_answers.json` | `backend/scripts/pca_session_switch_answers.py` | input of `frontend/scripts/pca_session_switch_check.mjs` |
 | `pca_session_switch_check.txt` | `frontend/scripts/pca_session_switch_check.mjs` | (the script) |
 | `pca_selection_sample.json` | a saved response of `POST /api/pca/analyze-selection` (5 points) | input of `frontend/scripts/pca_views_probe.mjs`, which writes `pca_views_probe_<label>.txt` here |

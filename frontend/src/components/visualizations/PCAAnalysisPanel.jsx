@@ -8,7 +8,7 @@ import {
 import { patternStopCount } from '../../utils/strategyViews';
 import {
   selectionRows, selectionStatistics, forestHalfWidth, fmtSigned, fmtInterval, fmtMean,
-  sameSelection, selectionClockNote, missingIntervalNote, progressRowNote,
+  sameSelection, selectionClockNote, missingIntervalNote, progressRowNote, pageByHeights,
 } from '../../utils/views/pcaSelection';
 import {
   drawForestStrip, drawForestAxis, FOREST_W, FOREST_H, FOREST_AXIS_H,
@@ -34,7 +34,9 @@ const tabPillStyle = (active) => ({
 const ACCENT = UI_COLORS.brush;
 const ABOVE_RANDOM_COLOR = ACCENT;
 const WITHIN_RANDOM_COLOR = TEXT_COLORS.secondary;
-// Columns of a row: feature, forest strip, numbers
+// Columns of the forest table (feature, forest strip, numbers): one grid for
+// the head and every row (CSS subgrid), so the g axis of the head and the
+// strips of the rows share their column to the pixel
 const FOREST_COLUMNS = 'minmax(80px, 1fr) minmax(90px, 1.6fr) minmax(96px, auto)';
 // Colours of the forest strips (utils/views/pcaForestChart.js)
 const FOREST_COLORS = {
@@ -42,7 +44,7 @@ const FOREST_COLORS = {
   threshold: GRID_COLORS.rule,
   zero: GRID_COLORS.axis,
 };
-// Rows of the paged lists: one forest row holds up to three text lines
+// Height of a text line of the paged lists
 const LINE_PX = () => Math.ceil(chartFontPx('data') * 1.35);
 const PAGER_H = 22;
 const muted = { color: TEXT_COLORS.secondary };
@@ -460,9 +462,14 @@ function PatternStrip({ stints, rowH }) {
 
 /**
  * The Differences tab: one row per feature (label, the D3 forest strip on a
- * shared g axis, the numbers), rows fitted to the panel and paged when they
- * do not fit (no scroll); a D3 legend names the marks; the method and the
- * long explanation sit in "Method" (open: it takes the rows' place).
+ * shared g axis, the numbers), each row as tall as its text needs (a label
+ * that wraps, "above random", the notes), rows fitted to the panel and paged
+ * when they do not fit (no scroll); a D3 legend names the marks; the method
+ * and the long explanation sit in "Method" (open: it takes the rows' place).
+ *
+ * Every row is laid out in the shared grid, the rows of other pages after the
+ * page's own and hidden: the columns then depend on all rows, never on the
+ * page, and each row's height is measured where it is drawn.
  */
 function ForestTable({ rows, stats, half, statsBanner }) {
   const rowsRef = useRef(null);
@@ -475,20 +482,18 @@ function ForestTable({ rows, stats, half, statsBanner }) {
   const [page, setPage] = useState(0);
   const [methodOpen, setMethodOpen] = useState(false);
 
-  // Lines of a row: label (+ "above random", + progress note) and numbers
-  // (+ no-interval note, + random |g| line); every row of a page as tall as
-  // the tallest needs
-  const lines = rows.reduce((m, r) => {
-    const interval = fmtInterval(r.ciLow, r.ciHigh);
+  // Height of each row: as measured in the grid (a label or a number that
+  // wraps takes another line), else counted from its lines: label (+ "above
+  // random", + progress note) and numbers (+ no-interval note, + random |g| line)
+  const measured = useRowHeights(rowsRef, rows);
+  const heights = rows.map((r) => {
+    if (measured[r.feature] > 0) return measured[r.feature];
     const left = 1 + (r.exceedsRandom ? 1 : 0) + (progressRowNote(r, stats) ? 1 : 0);
-    const right = 2 + (interval ? 0 : 1);
-    return Math.max(m, left, right);
-  }, 2);
-  const rowH = lines * LINE_PX() + 6;
-  const fit = fitRows(rowsBox.height, rows.length, {
-    rowMin: rowH, rowMax: rowH, rowDefault: rowH, pagerH: PAGER_H,
+    const right = 2 + (fmtInterval(r.ciLow, r.ciHigh) ? 0 : 1);
+    return Math.max(left, right) * LINE_PX() + 6;
   });
-  const pg = pageOf(rows, page, fit.perPage);
+  const pg = pageByHeights(rows, heights, page, rowsBox.height, PAGER_H);
+  const shown = new Set(pg.rows.map((r) => r.feature));
 
   useEffect(() => {
     if (axisRef.current && axisBox.width > 0) {
@@ -521,26 +526,37 @@ function ForestTable({ rows, stats, half, statsBanner }) {
           background: 'var(--color-bg-tertiary)', borderRadius: 'var(--radius-md)', padding: 'var(--spacing-sm)',
           display: methodOpen ? 'none' : 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden',
         }}>
-        {/* Column heads; the g axis (D3) over the strips, its direction under it */}
-        <div role="row" style={{
-          display: 'grid', gridTemplateColumns: FOREST_COLUMNS, gap: 6, flexShrink: 0,
-          fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary, fontWeight: 600, marginBottom: 2, alignItems: 'end',
+        <div className="pca-forest-grid" style={{
+          display: 'grid', gridTemplateColumns: FOREST_COLUMNS, gridTemplateRows: 'auto minmax(0, 1fr)',
+          columnGap: 6, flex: 1, minHeight: 0,
         }}>
-          <span role="columnheader">Feature</span>
-          <span role="columnheader" ref={axisBoxRef} style={{ minWidth: 0 }}>
-            <svg ref={axisRef} className="pca-forest-axis-svg" style={{ display: 'block', height: FOREST_AXIS_H }} />
-            <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{'◀'} lower in selection</span><span>higher {'▶'}</span>
+          {/* Column heads; the g axis (D3) over the strips, its direction under it */}
+          <div role="row" className="pca-forest-head" style={{
+            display: 'grid', gridColumn: '1 / -1', gridTemplateColumns: 'subgrid',
+            fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary, fontWeight: 600, marginBottom: 2, alignItems: 'end',
+          }}>
+            <span role="columnheader">Feature</span>
+            <span role="columnheader" ref={axisBoxRef} style={{ minWidth: 0 }}>
+              <svg ref={axisRef} className="pca-forest-axis-svg" style={{ display: 'block', height: FOREST_AXIS_H }} />
+              {/* one line: the strips' column is the head's too, and a second line would take a row's room */}
+              <span style={{ display: 'flex', justifyContent: 'space-between', whiteSpace: 'nowrap' }}
+                title="Left of 0: lower in the selection than in the other rows; right of 0: higher">
+                <span>{'◀'} lower</span><span>higher {'▶'}</span>
+              </span>
             </span>
-          </span>
-          <span role="columnheader" style={{ textAlign: 'right' }}>g [interval] · random |g|</span>
+            <span role="columnheader" style={{ textAlign: 'right' }}>g [interval] · random |g|</span>
+          </div>
+          <div ref={rowsRef} className="pca-forest-rows" style={{
+            display: 'grid', gridColumn: '1 / -1', gridTemplateColumns: 'subgrid', alignContent: 'start',
+            // each row as tall as its content: never shrunk to fit the box (the pager does that)
+            gridAutoRows: 'max-content', minHeight: 0, overflow: 'hidden',
+          }}>
+            {[...pg.rows, ...rows.filter((r) => !shown.has(r.feature))].map((r) => (
+              <ForestRow key={r.feature} r={r} stats={stats} half={half} hidden={!shown.has(r.feature)} />
+            ))}
+          </div>
         </div>
-        <div ref={rowsRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          {pg.rows.map((r) => (
-            <ForestRow key={r.feature} r={r} stats={stats} half={half} height={fit.rowH} />
-          ))}
-        </div>
-        {fit.paged && <Pager page={pg} total={rows.length} onPage={setPage} what="features" />}
+        {pg.paged && <Pager page={pg} total={rows.length} onPage={setPage} what="features" />}
         <svg ref={legendRef} className="pca-forest-legend" style={{ display: 'block', flexShrink: 0, maxWidth: '100%', marginTop: 2 }} />
       </div>
       <details
@@ -572,8 +588,43 @@ function ForestTable({ rows, stats, half, statsBanner }) {
   );
 }
 
-/** One feature row: label, the D3 forest strip, the numbers. */
-function ForestRow({ r, stats, half, height }) {
+/**
+ * Heights (px) of the rows of a list, by feature, as laid out: a
+ * ResizeObserver on every row (data-feature), so a wrap from a new width or a
+ * font that loaded late is seen; a row with no box (the list hidden) keeps
+ * its last height. Empty where there is no ResizeObserver (no layout).
+ */
+function useRowHeights(listRef, rows) {
+  const [heights, setHeights] = useState({});
+  const keys = rows.map((r) => r.feature).join('|');
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || typeof ResizeObserver === 'undefined') return undefined;
+    const obs = new ResizeObserver((entries) => {
+      setHeights((prev) => {
+        let next = prev;
+        for (const e of entries) {
+          const key = e.target.getAttribute('data-feature');
+          const h = e.borderBoxSize?.[0]?.blockSize ?? e.target.getBoundingClientRect().height;
+          if (key && h > 0 && Math.abs((prev[key] || 0) - h) > 0.25) {
+            if (next === prev) next = { ...prev };
+            next[key] = h;
+          }
+        }
+        return next;
+      });
+    });
+    list.querySelectorAll('[data-feature]').forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+  }, [listRef, keys]);
+  return heights;
+}
+
+/**
+ * One feature row: label, the D3 forest strip, the numbers. A row of another
+ * page is laid out but hidden (its columns and height still count).
+ */
+function ForestRow({ r, stats, half, hidden = false }) {
   const svgRef = useRef(null);
   const color = r.exceedsRandom ? ABOVE_RANDOM_COLOR : WITHIN_RANDOM_COLOR;
   const interval = fmtInterval(r.ciLow, r.ciHigh);
@@ -592,13 +643,16 @@ function ForestRow({ r, stats, half, height }) {
     });
   });
   return (
-    <div role="row" className="pca-forest-row"
-      title={`g = ${r.g} · selection mean ${fmtMean(r.selectedMean, r.unit)} · other rows ${fmtMean(r.restMean, r.unit)}`}
+    <div role={hidden ? undefined : 'row'} className={hidden ? 'pca-forest-row-offpage' : 'pca-forest-row'}
+      data-feature={r.feature}
+      aria-hidden={hidden || undefined}
+      title={hidden ? undefined : `g = ${r.g} · selection mean ${fmtMean(r.selectedMean, r.unit)} · other rows ${fmtMean(r.restMean, r.unit)}`}
       style={{
-        display: 'grid', gridTemplateColumns: FOREST_COLUMNS, gap: 6, height, boxSizing: 'border-box',
+        display: 'grid', gridColumn: '1 / -1', gridTemplateColumns: 'subgrid', boxSizing: 'border-box',
         alignItems: 'center', padding: '2px 0', borderTop: `1px solid ${GRID_COLORS.grid}`, overflow: 'hidden',
+        visibility: hidden ? 'hidden' : undefined,
       }}>
-      <span role="cell" style={{ fontSize: CHART_FONT.data, color: TEXT_COLORS.primary, fontWeight: r.exceedsRandom ? 700 : 500, lineHeight: 1.35 }}>
+      <span role={hidden ? undefined : 'cell'} style={{ fontSize: CHART_FONT.data, color: TEXT_COLORS.primary, fontWeight: r.exceedsRandom ? 700 : 500, lineHeight: 1.35 }}>
         {r.label}
         {r.exceedsRandom && (
           <span className="pca-above-random" style={{ display: 'block', fontSize: CHART_FONT.label, color: ABOVE_RANDOM_COLOR, fontWeight: 700 }}>
@@ -612,9 +666,9 @@ function ForestRow({ r, stats, half, height }) {
           </span>
         )}
       </span>
-      <svg ref={svgRef} role="cell" viewBox={`0 0 ${FOREST_W} ${FOREST_H}`} preserveAspectRatio="none"
+      <svg ref={svgRef} role={hidden ? undefined : 'cell'} viewBox={`0 0 ${FOREST_W} ${FOREST_H}`} preserveAspectRatio="none"
         width="100%" height={FOREST_H} aria-label={`g ${fmtSigned(r.g)}`} />
-      <span role="cell" style={{ fontSize: CHART_FONT.data, textAlign: 'right', lineHeight: 1.35, fontVariantNumeric: 'tabular-nums' }}>
+      <span role={hidden ? undefined : 'cell'} style={{ fontSize: CHART_FONT.data, textAlign: 'right', lineHeight: 1.35, fontVariantNumeric: 'tabular-nums' }}>
         <span style={{ color, fontWeight: 700 }}>g {fmtSigned(r.g)}</span>
         {interval && <span style={{ color: TEXT_COLORS.secondary }}> {interval}</span>}
         {noInterval && (

@@ -32,7 +32,7 @@ Closest pair of each palette over the four vision types (`docs/evidence/cvd_chec
 | `CHANNEL_COLORS` | speed / brake (deuteranopia) | 11.5 | PASS | channel name |
 | `SERIES_COLORS` | series 2 / series 3 (tritanopia) | 11.1 | PASS | lap number |
 | `SECTOR_COLORS` | S1 / S3 (protanopia) | 14.1 | PASS | S1 / S2 / S3 |
-| `OUTCOME_COLORS` (PCA) | podium / points (tritanopia) | 17.8 | PASS | ordered by lightness |
+| `OUTCOME_COLORS` (PCA) | points / no points (deuteranopia) | 24.6 | PASS | ordered by lightness |
 | `MEDAL_COLORS` | P1 / P2 (tritanopia) | 19.0 | PASS | the position number |
 | `TEAM_COLORS` | Alpine / Haas (deuteranopia) | 1.0 | PASS WITH CUE | driver code, teammate dash |
 | Teammate tints vs their team colour | McLaren (deuteranopia) | 11.0 | PASS | plus the dash 6,3 |
@@ -133,7 +133,7 @@ The F1 brand red #E10600 (`UI_COLORS.accent`, `--color-f1-red`; #FF6B63 as text,
 - Up to four comparison series of one chart, laps of a driver (`SERIES_COLORS`): #56B4E9, #E69F00, #CC79A7, #F0E442, each >= 4.73:1 on the elevated surface; closest pair 11.1.
 - Track sectors (`SECTOR_COLORS`): S1 #CC79A7, S2 #F0E442, S3 #56B4E9, always labelled S1 / S2 / S3, drawn at full opacity; closest pair 14.1.
 - Track Map surface and overlays with no category of their own (`TRACK_COLORS`): the track #4A5568, the DRS zones with white #FFFFFF edges and the label DRS (`--track-drs`; seasons before 2026), the DRS detection points #C9CCD6, the north arrow #FF6B63.
-- Finishing classes of the PCA biplot (`OUTCOME_COLORS`, cividis at t = 1, 0.685 and 0.37, brighter = better): podium #fdea45, points #a9a177, no points #61636f (3.07:1 on the panel, the lowest t at 3:1; `docs/evidence/pca_outcome_palette.txt`). Ordered by lightness, so it stands on colour alone (closest pair 17.8). A row whose result is not known yet at the replay clock is drawn as an outline only.
+- Finishing classes of the PCA biplot (`OUTCOME_COLORS`, brighter = better): podium #fdea45 and no points #61636f are cividis at t = 1 and 0.37 (3.07:1 on the panel, the lowest t at 3:1); points #13b1ce is a cyan at the lightness of cividis' middle class (CIE LCh hue 220, chroma 40). Cividis' own middle class, a khaki of chroma 23, read almost as grey next to the no-points grey on the biplot's small marks. The cyan keeps chroma 40 (21 under protanopia, 29 under deuteranopia, 42 under tritanopia, against 24, 23 and 10 for the khaki), stays 19.0 CIEDE2000 from the selection blue and cannot be taken for the bronze of the P3 badges (`docs/evidence/pca_outcome_palette.txt`). Ordered by lightness, so it stands on colour alone: closest pair 24.6, points / no points under deuteranopia (`docs/evidence/cvd_check.txt`). Against the khaki it moves further from the podium under every vision type and from no points under normal vision and tritanopia, but comes closer to no points under protanopia and deuteranopia (27.0 and 24.6 against 31.8 and 32.9; `docs/evidence/pca_outcome_palette.txt`). A row whose result is not known yet at the replay clock is drawn as an outline only.
 - Podium medals of the final classification (`MEDAL_COLORS`): #FFD700, #C0C0C0, #CD7F32, the position number on them in black (>= 6.6:1).
 
 ## 10. Focus + context (de-emphasised items)
