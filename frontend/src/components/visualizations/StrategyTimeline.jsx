@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { useF1Store } from '../../store/useF1Store';
 import {
-  getDriverColor, TYRE_COLORS, TYRE_LABELS, tyreColor, tyreLetter, textColor, tintedChip, withAlpha,
+  getDriverColor, TYRE_COLORS, TYRE_LABELS, tyreColor, tyreLetter, textColor, tintedChip,
   STATUS_COLORS, TEXT_COLORS, GRID_COLORS, UI_COLORS, SURFACES, CHART_FONT, chartFontPx,
 } from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
@@ -32,7 +32,7 @@ const pagerBtn = {
 };
 const MARGIN = { top: 12, right: 18, bottom: 28, left: 96 };
 
-export default function StrategyTimeline({ showOverlays = false }) {
+export default function StrategyTimeline() {
   const svgRef = useRef(null);
   const boxRef = useRef(null);
   // The box the chart fills (the svg's container): rows and layout follow it (D4)
@@ -47,7 +47,6 @@ export default function StrategyTimeline({ showOverlays = false }) {
   const lstmPredictions = useF1Store((s) => s.lstmPredictions);
   const focusDriver = useF1Store((s) => s.focusDriver);
   const pcaStrategyAnalysis = useF1Store((s) => s.pcaStrategyAnalysis);
-  const geminiOverlays = useF1Store((s) => s.geminiOverlays);
   const setSelectedPCAPoints = useF1Store((s) => s.setSelectedPCAPoints);
   const currentLap = useF1Store((s) => s.currentLap);
   const setSelectedStint = useF1Store((s) => s.setSelectedStint);
@@ -97,7 +96,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
 
   // Legend (V4): every mark of the chart. Compounds as their badge (FIA
   // colour + letter, as in the bars' labels), the pit-stop diamonds, the
-  // hatched predicted stints, the lap-range band and the overlays
+  // hatched predicted stints, the lap-range band and the Simulator's plan
   const legendItems = [
     ...['SOFT', 'MEDIUM', 'HARD', 'INTERMEDIATE', 'WET'].map((c) => ({
       label: c === 'INTERMEDIATE' ? 'Inter' : c[0] + c.slice(1).toLowerCase(),
@@ -108,7 +107,6 @@ export default function StrategyTimeline({ showOverlays = false }) {
     { label: 'Predicted (hatched)', color: TEXT_COLORS.secondary, shape: 'band' },
     ...(selectedLapRange ? [{ label: 'Lap range', color: UI_COLORS.brush, shape: 'band', fill: UI_COLORS.brushFill }] : []),
     ...(simulatorStrategy?.stints?.length ? [{ label: 'Simulator', color: TEXT_COLORS.secondary, shape: 'line', dash: '4,3' }] : []),
-    ...(showOverlays ? [{ label: 'Gemini', color: STATUS_COLORS.predicted, shape: 'band' }] : []),
   ];
 
   // Drivers (alphabetical) and the page of them that fits the chart's height
@@ -490,26 +488,6 @@ export default function StrategyTimeline({ showOverlays = false }) {
         });
       }
 
-      // Gemini overlay rows
-      if (showOverlays && geminiOverlays?.length) {
-        geminiOverlays.forEach((scenario, i) => {
-          const driver = scenario.driver || rowsShown[0];
-          if (!y(driver)) return;
-
-          (scenario.stints || []).forEach((stint) => {
-            const compound = (stint.compound || 'MEDIUM').toUpperCase();
-            g.append('rect')
-              .attr('class', 'stint-bar stint-bar--gemini')
-              .attr('x', x(stint.lap_start || 1))
-              .attr('y', y(driver) - 3)
-              .attr('width', Math.max(2, x((stint.lap_start || 1) + (stint.length || 10)) - x(stint.lap_start || 1)))
-              .attr('height', y.bandwidth() + 6)
-              .attr('rx', 3)
-              .attr('fill', withAlpha(STATUS_COLORS.predicted, 0.25));
-          });
-        });
-      }
-
       // Simulator strategy ghost overlay
       if (simulatorStrategy?.stints?.length && simulatorStrategy.driver) {
         const driver = simulatorStrategy.driver;
@@ -591,7 +569,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
     return () => {
       d3.select('body').select('.strat-tooltip').remove();
     };
-  }, [strategies, pitMarkers, inPitLane, storeMaxLap, totalRaceLaps, selectedDrivers, currentLap, lstmPredictions, focusDriver, pcaStrategyAnalysis, geminiOverlays, showOverlays, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound, selectedLapRange, setSelectedLapRange, simulatorStrategy, shownKey, box.width, box.height]);
+  }, [strategies, pitMarkers, inPitLane, storeMaxLap, totalRaceLaps, selectedDrivers, currentLap, lstmPredictions, focusDriver, pcaStrategyAnalysis, toggleDriver, setHighlightedDriver, setSelectedStint, highlightedCompound, selectedLapRange, setSelectedLapRange, simulatorStrategy, shownKey, box.width, box.height]);
 
   // Lightweight highlight effect — recolours the bars and their labels
   // (focus + context by colour, never opacity: stintLevel) without a full redraw
@@ -634,7 +612,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
         </>
       )}
       focused={focusedView === 'strategy'}
-      shortcutKey="7"
+      shortcutKey="3"
     >
       <div ref={boxRef} className="viz-container">
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />

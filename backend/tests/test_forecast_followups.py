@@ -217,18 +217,3 @@ def test_cached_identifiers_still_use_the_cached_race_distance(monkeypatch, monz
     stints = out['predicted_stints']
     assert stints and stints[-1]['lap_start'] + stints[-1]['length'] == 53
 
-
-# -- the assistant prompt names the served method --------------------------
-
-def test_assistant_prompt_names_the_forecast_method_and_target_laps():
-    from api.routers import gemini
-    req = gemini.GeminiRequest(query='pace?', session_type='R', race_context={'lstm': {
-        'driver': 'SAI', 'method': 'persistence', 'methodLabel': 'Persistence (next laps = last clean lap)',
-        'originLap': 25, 'targetLaps': [26, 27], 'predictedTimes': [85.1, 85.2], 'heldOutMae': 0.637,
-        'pitProbability': 0.2,
-    }})
-    prompt = gemini._build_prompt(req)
-    assert '## Lap-time forecast (SAI, method: Persistence (next laps = last clean lap), from lap 25)' in prompt
-    assert '  Lap 26: 85.100s' in prompt and '  Lap 27: 85.200s' in prompt
-    assert 'Held-out MAE of this method: 0.637s per lap' in prompt
-    assert 'LSTM Predictions' not in prompt

@@ -42,7 +42,7 @@ Interactive visual analytics platform for Formula 1 race strategy analysis.
 | Backend: FastAPI (port 8000)                                     |
 |   FastF1 extractor | features | PCA + selection analysis         |
 |   forecast (LSTM and baselines) | degradation fit | replay frames|
-|   Gemini route with a rule-based fallback | live timing          |
+|   live timing                                                    |
 +------------------------------------------------------------------+
 | Data: FastF1 cache + processed JSON cache (both git-ignored),    |
 |   the PCA matrix and the trained forecast model (in the repo),   |
@@ -83,7 +83,6 @@ python api\main.py
 ```
 
 Optional, with the virtual environment active and from `backend/`:
-- Real Gemini answers in the AI Assistant: `GEMINI_API_KEY` in `backend/.env` (copy the repository's `.env.example`); the `google-genai` package it needs is in `requirements.txt`. Without the key (or without the package), the assistant answers with a rule-based fallback marked MOCK.
 - Team-radio transcription in live mode: `pip install faster-whisper` (model chosen by `VA_WHISPER_MODEL`).
 - Rebuild the PCA from the cached races: `python -m scripts.pca_rebuild` (it rewrites `data/processed/`).
 - Retrain the forecast: `python -m model.prepare_data`, then `python -m model.train`, then `python -m scripts.evaluate_forecast` (it chooses the method the app serves). These steps read the cached races.
@@ -103,11 +102,11 @@ Open `http://localhost:5173`. The dev server proxies `/api` (the live WebSocket 
 Other scripts (from `frontend/`): `npm test` (Vitest), `npm run build` (production build in `dist/`), `npm run build:demo` and `npm run check:demo` (the GitHub Pages build and its check without a backend).
 
 ### Static demo (GitHub Pages, no backend)
-https://robsorce.github.io/VA_f1_project/ is the demo build (`npm run build:demo`, `.github/workflows/deploy.yml`, which deploys on a push to `main` or `v4`): the API is answered from `frontend/public/data`, written by `backend/scripts/export_demo_data.py` for five races (2024 R16 Monza, 2024 R5 China with its safety cars, 2025 R1 Australia in the wet, 2025 R16 Monza for a use case on boxing now or waiting for a gap in traffic, 2024 R7 Imola for one on an undercut or a cover; 8.89 MB, `docs/evidence/export_demo_data_report.txt`). A normal build whose backend does not answer switches to the same demo. Either way the weather bar shows a DEMO chip, and a switch at run time raises a toast; the LSTM forecast, Gemini, telemetry, live timing and the other races say "Requires the local backend".
+https://robsorce.github.io/VA_f1_project/ is the demo build (`npm run build:demo`, `.github/workflows/deploy.yml`, which deploys on a push to `main` or `v4`): the API is answered from `frontend/public/data`, written by `backend/scripts/export_demo_data.py` for five races (2024 R16 Monza, 2024 R5 China with its safety cars, 2025 R1 Australia in the wet, 2025 R16 Monza for a use case on boxing now or waiting for a gap in traffic, 2024 R7 Imola for one on an undercut or a cover; 8.89 MB, `docs/evidence/export_demo_data_report.txt`). A normal build whose backend does not answer switches to the same demo. Either way the weather bar shows a DEMO chip, and a switch at run time raises a toast; the LSTM forecast, telemetry, live timing and the other races say "Requires the local backend".
 
 ### Environment variables (optional)
 The variables the code reads are listed, with what each one does, in [.env.example](.env.example):
-- backend (`backend/.env`, loaded by `backend/api/main.py`, or the shell): `GEMINI_API_KEY` (Gemini answers), `OPENF1_API_KEY` (OpenF1 access during a live session), `VA_WHISPER_MODEL` (team-radio transcription model);
+- backend (`backend/.env`, a copy of `.env.example` loaded by `backend/api/main.py`, or the shell): `OPENF1_API_KEY` (OpenF1 access during a live session), `VA_WHISPER_MODEL` (team-radio transcription model);
 - frontend (`frontend/.env`): `VITE_DEMO=1` makes a normal build the static demo;
 - demo build (the shell running `npm run build:demo`): `DEMO_BASE`, the path the site is served under (the deploy workflow sets it from the repository name).
 
@@ -116,7 +115,7 @@ The variables the code reads are listed, with what each one does, in [.env.examp
 After a session is picked on the start screen (season, event and session, or CONNECT LIVE), the dashboard fills the browser window; the page itself never scrolls (the views that scroll inside their own pane are listed in [docs/SCROLL_JUSTIFICATIONS.md](docs/SCROLL_JUSTIFICATIONS.md)).
 
 - **Top bar** (weather bar): session and weather, the command bar, the layout presets and the session menu; the DEMO chip in the static demo.
-- **Pit Wall** (Monitor mode, shown after a session loads; `p` switches between it and the analysis area): the Timing Tower with the sector panel and the focus-driver card on the left; the session bar, the Race Pace Grid, the Track Map, the Circle of Doom, the weather, the race-control feed and a Gemini quick query on the right.
+- **Pit Wall** (Monitor mode, shown after a session loads; `p` switches between it and the analysis area): the Timing Tower with the sector panel and the focus-driver card on the left; the session bar, the Race Pace Grid, the Track Map, the Circle of Doom, the weather and the race-control feed on the right.
 - **Analysis area** (Analyze mode): the Leaderboard sidebar (collapsible, with the focus-driver cards) beside the Track Map, or beside the docked layout once a view is opened. The docked layout is a split-pane workspace: each pane holds tabs (its `+` adds one), the splitters resize the panes, "Arrange" cycles the arrangement and "Exit Layout" returns to the Pit Wall. The layout presets of the top bar fill it in one click (Strategy, Tyres, Pace, Prediction, Overview, Pit Window, Simulator), and the custom layout builder picks a pane shape and a view per slot.
 - **Dock** (bottom bar): one button per view, grouped Monitor, Timing, Tyres, Strategy, Analysis, Prediction and System, with the Pit Wall as a mode switch. A click opens the view as a tab of the docked layout and a second click closes it; drag a button to reorder the dock, right-click it to configure; the buttons that do not fit go to the ⋯ overflow menu.
 - **Timeline player** (bottom, collapsible): play / pause and replay speed, and a scrubber with the race's track-status events (flags, safety car, VSC); a click on a race event sets the lap range.
@@ -141,7 +140,6 @@ Every link goes through the Zustand store; [docs/COORDINATION_GRAPH.md](docs/COO
 
 - **Frontend:** React 18, Vite 5, Zustand 4, D3.js 7
 - **Backend:** Python, FastAPI, FastF1, scikit-learn, PyTorch (LSTM)
-- **AI:** Google Gemini API through the `google-genai` package (optional: without a key, a rule-based fallback)
 - **Data:** FastF1 library (real F1 timing and telemetry)
 
 ## Documentation

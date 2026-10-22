@@ -123,7 +123,7 @@ Font floors (colors.js FONT_FLOOR_PX): data 11 px, label 10 px
    Run Simulation button       #000000 on #8AB4F8: 9.96 -> PASS
    (grid rgba(255,255,255,0.06), axis rgba(255,255,255,0.30), rules rgba(255,255,255,0.45): not data, no floor)
 
-## Stint strips (Simulator, PCA patterns, Strategy Engineer, tyre mix): compound fill and letter
+## Stint strips (Simulator, PCA patterns, tyre mix): compound fill and letter
    SOFT          #FF3333 letter 'S' #000000 5.77:1, fill on the darkest-to-lightest surface >= 3.98:1 -> PASS
    MEDIUM        #FFC300 letter 'M' #000000 13.06:1, fill on the darkest-to-lightest surface >= 9.01:1 -> PASS
    HARD          #EEEEEE letter 'H' #000000 18.10:1, fill on the darkest-to-lightest surface >= 12.49:1 -> PASS

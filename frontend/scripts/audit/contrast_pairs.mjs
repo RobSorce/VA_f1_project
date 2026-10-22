@@ -75,10 +75,7 @@ const headerBg = H.over(col(decl('.panel-header', 'background')), panelGlass);
 add(`Panel export icon (${decl('.panel-export-btn', 'color')}), non-text`, col(decl('.panel-export-btn', 'color')), headerBg, 3, 'components.css .panel-export-btn');
 add(`Panel export icon, hover / focus (${decl('.panel-export-btn:hover', 'color')}), non-text`, col(decl('.panel-export-btn:hover', 'color')), headerBg, 3, 'components.css .panel-export-btn:hover, :focus-visible');
 
-// 4. Championship: inactive sub-tab and the standings' empty state
-const champTab = read('components/tabs/ChampionshipTabContent.jsx').match(/color: subtab === t\.id \? TEXT_COLORS\.\w+ : (TEXT_COLORS\.\w+)/);
-must(champTab, 'championship sub-tab colour not found');
-add(`Championship sub-tab, inactive (${champTab[1]})`, col(C.TEXT_COLORS[champTab[1].split('.')[1]]), panelGlass, 4.5, 'components/tabs/ChampionshipTabContent.jsx');
+// 4. Championship: the standings' empty state
 const champEmpty = read('components/visualizations/ChampionshipStandings.jsx').match(/color: (TEXT_COLORS\.\w+), fontSize: CHART_FONT\.data,\s*\}\}>\s*No championship data loaded/);
 must(champEmpty, 'standings empty-state colour not found');
 add(`Championship standings empty state (${champEmpty[1]})`, col(C.TEXT_COLORS[champEmpty[1].split('.')[1]]), panelGlass, 4.5, 'components/visualizations/ChampionshipStandings.jsx');
@@ -117,24 +114,14 @@ for (const bgName of ['page', 'panel']) {
   add(`TrackMap speed ramp low end cividis(${C.SPEED_RAMP_START}) ${lo} on ${bgName}`, col(d3.color(lo).formatHex()), bg, 3, 'utils/colors.js SPEED_RAMP_START');
 }
 
-// 8. Ask box (Pit Wall side column): the text input's boundary and focus ring
-const sideBg = H.over(col('rgba(12,12,28,0.75)'), col(C.SURFACES.page));
-const inputBorder = (decl('.pitwall-quick__input', 'border') || '').match(/(rgba?\([^)]*\)|#[0-9a-fA-F]+)/);
-must(inputBorder, 'Ask input border not found');
-const inputBg = H.over(col(decl('.pitwall-quick__input', 'background')), sideBg);
-add(`Ask box input boundary (${inputBorder[1]})`, H.over(col(inputBorder[1]), inputBg), inputBg, 3, 'dashboard.css .pitwall-quick__input');
-const focusRing = (decl('.pitwall-quick__input:focus-visible', 'outline') || '').match(/(#[0-9a-fA-F]+)/);
-must(focusRing, 'Ask input focus ring not found');
-add('Ask box input focus ring', col(focusRing[1]), sideBg, 3, 'dashboard.css .pitwall-quick__input:focus-visible');
-
-// 9. Retired rows: never faded
+// 8. Retired rows: never faded
 const lapJsx = read('components/visualizations/LapTimeChart.jsx');
 must(!/retiredOpacity/.test(lapJsx), 'LapTimeChart retired opacity still present');
 add('LapTimeChart retired row text (STATUS_COLORS.retired, no opacity)', col(C.STATUS_COLORS.retired), PANEL, 4.5, 'LapTimeChart.jsx');
 must(decl('.tower-row--retired', 'opacity') == null, '.tower-row--retired has an opacity');
 add('Leaderboard retired position text (--status-retired, no opacity)', col(decl('.tower-row__pos--retired', 'color').replace(' !important', '')), PANEL, 4.5, 'visualizations.css .tower-row--retired / .tower-row__pos--retired');
 
-// 10. Delta areas (Lap Delta, telemetry GAP): the hatch lines are the diverging colours
+// 9. Delta areas (Lap Delta, telemetry GAP): the hatch lines are the diverging colours
 const hatch = read('utils/views/deltaHatch.js');
 must(/\.attr\('stroke', color\)/.test(hatch), 'hatch lines are not the diverging colour');
 for (const [k, c] of Object.entries(C.DIVERGING).filter(([key]) => ['better', 'worse'].includes(key))) {
@@ -142,7 +129,7 @@ for (const [k, c] of Object.entries(C.DIVERGING).filter(([key]) => ['better', 'w
   add(`delta area hatch line (${k} ${c}) on the panel`, col(c), PANEL, 3, 'utils/views/deltaHatch.js');
 }
 
-// 11. Championship standings bars: markColor, drawn opaque; a context bar is
+// 10. Championship standings bars: markColor, drawn opaque; a context bar is
 //     mixed toward the panel (contextColor, >= 2:1, D7 phase 9c), no opacity
 const standJsx = read('components/visualizations/ChampionshipStandings.jsx');
 must(/const color = markColor\(style\.color, SURFACES\.panel\);/.test(standJsx)
@@ -168,7 +155,7 @@ add(`ChampionshipStandings context bar (contextColor, D7 mark floor), worst of t
 must(/style=\{l\.car\.dim \? \{ stroke: CONTEXT_LEADER \} : undefined\}/.test(codJsx), 'Circle context leader changed');
 add('CircleOfDoom context leader line (contextColor of the leader grey, D7 mark floor)', col(C.contextColor('rgba(255,255,255,0.28)', C.SURFACES.panel)), PANEL, 2, 'CircleOfDoom.jsx CONTEXT_LEADER');
 
-// 12. Tooltips and the session menu: --glass-bg-opaque, worst case over white
+// 11. Tooltips and the session menu: --glass-bg-opaque, worst case over white
 for (const sel of ['.tooltip', '.session-menu', '.telem-crosshair-tooltip']) {
   const bgDecl = decl(sel, 'background');
   const overWhite = H.over(col(bgDecl), WHITE);
@@ -179,7 +166,7 @@ for (const sel of ['.tooltip', '.session-menu', '.telem-crosshair-tooltip']) {
   add(`${sel} muted text over the panel (${bgDecl})`, col(C.TEXT_COLORS.muted), overPanel, 4.5, `${sel} background`);
 }
 
-// 13. Keyframes that fade an element with text or a status mark: at the lowest opacity
+// 12. Keyframes that fade an element with text or a status mark: at the lowest opacity
 const allCss = H.listFiles(SRC, ['.css']).map((f) => [path.relative(SRC, f).split(path.sep).join('/'), fs.readFileSync(f, 'utf8')]);
 const kfMin = new Map();
 for (const [, src] of allCss) {

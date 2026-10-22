@@ -23,7 +23,7 @@
 
 /* --- Modal --- */
 /* Wide enough for three balanced columns: a section may continue in the next
-   column (a row never splits, a title never ends a column), so the 45
+   column (a row never splits, a title never ends a column), so the 43
    shortcut rows fit without a scrollbar from 1366x768 up
    (docs/evidence/cheatsheet_fit.txt); the body keeps
    overflow-y: auto only as the fallback for windows narrower than 900 px

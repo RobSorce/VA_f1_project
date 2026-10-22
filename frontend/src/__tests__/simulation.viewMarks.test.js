@@ -82,7 +82,7 @@ describe('listedBattles order: badge level, then race order (never the point est
     expect(shown.map((x) => x.aheadCurrentPos)).toEqual([2, 5, 1, 8, 11, 14]);
   });
 
-  it('the insight cards (first 3 gold / green) and the quick query (first) follow the list and the levels', () => {
+  it('the insight cards (first 3 gold / green) and the first listed battle follow the list and the levels', () => {
     const a = [battle(5, 72), battle(2, 66), battle(8, 45), battle(1, 40), battle(11, 10), battle(14, 12)];
     const pa = { ...result(a), badges: projectionBadges(result(a)) };
     // the same state with new probabilities within the error: levels and list kept

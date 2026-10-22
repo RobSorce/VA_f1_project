@@ -163,8 +163,6 @@ export const useF1Store = create((set, get) => ({
     lstmPredictions: null,
     degradationRegression: null,
     tsneStrategyAnalysis: null,
-    geminiMessages: [],
-    geminiOverlays: [],
     selectedDrivers: [],
     highlightedDriver: null,
     focusDriver: null,
@@ -476,24 +474,4 @@ export const useF1Store = create((set, get) => ({
     try { const data = await api.getTSNEEmbeddings(); set({ tsneEmbeddings: data }); }
     catch (e) { console.error('Failed to load t-SNE embeddings', e); }
   },
-
-  // ── Gemini ────────────────────────────────────────────────────
-  geminiMessages: [],
-  geminiOverlays: [],
-
-  sendGeminiQuery: async (query) => {
-    const { year, round, currentLap, selectedDrivers, lstmPredictions } = get();
-    set((s) => ({ geminiMessages: [...s.geminiMessages, { role: 'user', content: query }] }));
-    try {
-      const resp = await api.queryGemini({ query, year, round, current_lap: currentLap, drivers: selectedDrivers, lstm_predictions: lstmPredictions });
-      set((s) => ({
-        geminiMessages: [...s.geminiMessages, { role: 'ai', content: resp.response, scenarios: resp.scenarios }],
-        geminiOverlays: resp.scenarios || [],
-      }));
-    } catch (e) {
-      set((s) => ({ geminiMessages: [...s.geminiMessages, { role: 'ai', content: 'Failed to get response from Gemini.' }] }));
-    }
-  },
-
-  setGeminiOverlays: (overlays) => set({ geminiOverlays: overlays }),
 }));

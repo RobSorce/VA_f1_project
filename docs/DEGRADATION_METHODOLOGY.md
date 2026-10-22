@@ -225,9 +225,6 @@ Frontend (`frontend/src/utils/degradation.js`):
   `degradationRegression.regressions` with `r_squared` and `n_points`, fields
   the endpoint does not return (it returns the primary fit, `stints` and
   `all_drivers`), so this insight is never shown.
-- **AI assistant context** (store `sendGeminiQuery`): the brushed fit, as
-  the store holds it, goes into the race context; the backend
-  (`api/routers/gemini.py`) writes it into the prompt as JSON.
 - **Race simulation** (`raceSimulation.js`, and through it the Undercut
   Calculator and the Circle of Doom): `stintFits` / `cleanStintLaps` at the
   clock, combined into `raceDegradation` as described above.

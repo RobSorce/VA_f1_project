@@ -8,7 +8,6 @@ import { useF1Store } from '../../store/useF1Store';
 // sub-1440 viewports so the panel never opens flush against every edge.
 const PANEL_SIZES = {
   settings: [820, 580],
-  ai: [880, 600],
   championship: [880, 600],
 };
 const DEFAULT_SIZE = [700, 520];

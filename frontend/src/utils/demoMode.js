@@ -7,9 +7,8 @@
  * backend/scripts/export_demo_data.py): a few cached races, their replay
  * frames, analytics, the PCA biplot and its lasso analysis (computed in the
  * browser, utils/pcaSelectionStats.js), the degradation fits
- * (utils/degradation.js). The model features (LSTM forecast, Gemini),
- * telemetry, live timing and every race outside the demo need the local
- * backend: their calls reject with a BackendOnlyError and the views read
+ * (utils/degradation.js). The LSTM forecast, telemetry, live timing and
+ * every race outside the demo need the local backend: their calls reject with a BackendOnlyError and the views read
  * useDemoMode to say so (BACKEND_ONLY_TEXT).
  *
  * Demo mode starts
@@ -39,13 +38,12 @@ export const BACKEND_RECHECK_MS = 30000;
 export const BACKEND_ONLY_TEXT = 'Requires the local backend';
 
 /** The longer explanation (tooltip / help line of the demo chip). */
-export const DEMO_NOTE = 'Static demo: a few bundled races, no backend. The LSTM forecast, Gemini, '
+export const DEMO_NOTE = 'Static demo: a few bundled races, no backend. The LSTM forecast, '
   + 'telemetry, live timing and the other races need the local backend (see the README).';
 
 /** Features that only the backend can answer (keys of BackendOnlyError.feature). */
 export const BACKEND_ONLY_FEATURES = Object.freeze({
   forecast: 'the LSTM lap-time forecast',
-  gemini: 'the Gemini strategy assistant',
   telemetry: 'car telemetry',
   live: 'live timing',
   session: 'races outside the static demo',

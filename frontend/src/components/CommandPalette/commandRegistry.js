@@ -96,14 +96,6 @@ export function createCommandRegistry() {
       action: () => openOverlayTab(getState(), 'analytics'),
     },
     {
-      id: 'open-ai',
-      label: 'AI Strategist',
-      category: 'Navigation',
-      shortcut: '7',
-      icon: 'sparkles',
-      action: () => openOverlayTab(getState(), 'ai'),
-    },
-    {
       id: 'open-compare',
       label: 'Compare',
       category: 'Navigation',
@@ -318,32 +310,12 @@ export function createCommandRegistry() {
       action: () => openOverlayTab(getState(), 'tyres'),
     },
     {
-      id: 'open-strategy-ai',
-      label: 'Strategy & AI Assistant',
-      category: 'Analytics',
-      // opens the AI Strategist (key 7); S opens the Strategy Timeline
-      shortcut: '7',
-      icon: 'layers',
-      action: () => openOverlayTab(getState(), 'ai'),
-    },
-    {
       id: 'open-analytics-pca',
       label: 'Analytics (PCA)',
       category: 'Analytics',
       shortcut: 'A',
       icon: 'bar-chart',
       action: () => openOverlayTab(getState(), 'analytics'),
-    },
-    {
-      id: 'toggle-gemini-panel',
-      label: 'Toggle Gemini Floating Panel',
-      category: 'Analytics',
-      shortcut: 'G',
-      icon: 'sparkles',
-      action: () => {
-        window.dispatchEvent(new CustomEvent('toggle-gemini-panel'));
-        getState().closeCommandPalette();
-      },
     },
     {
       id: 'driver-comparison',

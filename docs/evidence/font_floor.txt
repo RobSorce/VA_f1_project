@@ -1,13 +1,13 @@
-Font-size floors, 2026-10-16: data / default 11 px, --font-size-label text 10 px
+Font-size floors, 2026-10-22: data / default 11 px, --font-size-label text 10 px
 Root font-size (base.css html): 1536x750 14.08px, 1366x768 13.23px, 1920x1080 16.00px, 2048x1100 16.00px
 --font-size-label = clamp(10px, calc(6.786px + 0.4286vh), 11.5px) -> 1536x750 10.00, 1366x768 10.08, 1920x1080 11.41, 2048x1100 11.50
 --font-size-data = clamp(11px, calc(7.786px + 0.4286vh), 12.5px) -> 1536x750 11.00, 1366x768 11.08, 1920x1080 12.41, 2048x1100 12.50
 --font-size-xs = max(var(--font-size-data), 0.6875rem) -> 1536x750 11.00, 1366x768 11.08, 1920x1080 12.41, 2048x1100 12.50
 --font-size-sm = max(var(--font-size-data), 0.8125rem) -> 1536x750 11.44, 1366x768 11.08, 1920x1080 13.00, 2048x1100 13.00
 
-CSS: 394 font-size declarations; FAIL 0; UNEVALUATED 0; INHERIT 0; INACTIVE 0
+CSS: 372 font-size declarations; FAIL 0; UNEVALUATED 0; INHERIT 0; INACTIVE 0
 
-JS/JSX literal font sizes: 517; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN 431
+JS/JSX literal font sizes: 495; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN 414
   components/visualizations/CircleOfDoom.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 6
      DYNAMIC  :1241  fs0
      DYNAMIC  :1270  fs0
@@ -59,10 +59,10 @@ JS/JSX literal font sizes: 517; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN
      DYNAMIC  :98  font
      DYNAMIC  :147  font
   utils/views/stintStripChart.js [other lane]: FAIL 0, CHECK 0, DYNAMIC 4
-     DYNAMIC  :90  font
-     DYNAMIC  :118  font
-     DYNAMIC  :146  null
-     DYNAMIC  :146  font
+     DYNAMIC  :89  font
+     DYNAMIC  :117  font
+     DYNAMIC  :145  null
+     DYNAMIC  :145  font
   utils/views/undercutSweepChart.js [other lane]: FAIL 0, CHECK 0, DYNAMIC 7
      DYNAMIC  :110  null
      DYNAMIC  :110  font

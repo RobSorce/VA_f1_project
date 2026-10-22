@@ -9,10 +9,12 @@
 // (utils/dockCapacity.js dockCapacity + dockRow) and the rendered row is
 // checked against the bar's max-width.
 //
-// It also replays the measure of the code before Phase 9c: the buttons
-// measured once at mount with the fallback font (system-ui = Segoe UI Bold on
-// Windows, the Titillium Web fallback is not local) and the divider's margins
-// and the border left out, then the Formula1 labels once the web font is in.
+// It also replays the measure of the code before Phase 9c, on the default
+// dock of that time (ten items, with the AI Strategist removed since): the
+// buttons measured once at mount with the fallback font (system-ui = Segoe UI
+// Bold on Windows, the Titillium Web fallback is not local) and the divider's
+// margins and the border left out, then the Formula1 labels once the web font
+// is in.
 //
 // Exit code 1 when the row is wider than the bar at a target viewport. Run:
 //   node frontend/scripts/audit/dock_fit.mjs
@@ -36,7 +38,9 @@ if (!F1) { console.log('Formula1 font files missing: frontend/public/fonts'); pr
 // The default dock (store DOCK_DEFAULTS) and every view the dock can hold
 // (utils/slotOptions.js labels; settings and charts are never dock items)
 const DEFAULT_LABELS = ['Pit Wall', 'Lap Times', 'Tyres', 'Strategy Timeline', 'Circle of Doom', 'Analytics (PCA)',
-  'Race Prediction', 'Race Control', 'AI Strategist', 'Championship'];
+  'Race Prediction', 'Race Control', 'Championship'];
+// The default dock before Phase 9c (it held the AI Strategist)
+const DEFAULT_LABELS_9C = [...DEFAULT_LABELS.slice(0, -1), 'AI Strategist', 'Championship'];
 const ALL_LABELS = [...DEFAULT_LABELS, 'Track Map', 'Telemetry', 'Lap Delta', 'Sectors & Speeds', 'Sector Delta',
   'Consistency', 'Race Pace Grid', 'Position Tracker', 'Tyre Degradation', 'Tyre Health', 'Pace Retention',
   'Strategy Analysis', 'Strategy Simulator', 'Driver Compare', 'Race Situation (PCA)'];
@@ -115,7 +119,7 @@ if (isMain) {
   for (const vp of M.VIEWPORTS) {
     const d = dockAt(vp, f1);
     console.log(`\n== ${vp.name} == bar max-width ${d.maxWidth.toFixed(1)} px; label ${d.label.toFixed(2)} px${d.labelHidden ? ' (hidden)' : ''}, button padding ${d.tabPad} px, fixed labels ${d.fixedLabelHidden ? 'hidden' : 'shown'}; gap ${d.box.gap}, bar padding ${d.box.paddingLeft} + border 0.5 each side, divider ${d.divider.width} + ${d.divider.marginLeft} + ${d.divider.marginRight}`);
-    for (const [name, labels] of [['default dock (10 items)', DEFAULT_LABELS], [`every view (${ALL_LABELS.length} items)`, ALL_LABELS]]) {
+    for (const [name, labels] of [[`default dock (${DEFAULT_LABELS.length} items)`, DEFAULT_LABELS], [`every view (${ALL_LABELS.length} items)`, ALL_LABELS]]) {
       const r = layOut(d, labels);
       const ok = r.row <= d.maxWidth + 0.5;
       if (!ok) failures += 1;
@@ -125,12 +129,12 @@ if (isMain) {
       // Before Phase 9c: measured at mount with the fallback font, without the
       // divider margins and the border, never again after the fonts loaded
       const dFallback = dockAt(vp, sg);
-      const items = dFallback.items(DEFAULT_LABELS);
+      const items = dFallback.items(DEFAULT_LABELS_9C);
       const oldFixed = dFallback.box.paddingLeft + dFallback.box.paddingRight
         + dFallback.fixedGroup.reduce((a, c) => a + c.width + dFallback.box.gap, 0);
       const oldCap = dockCapacity(items.map((c) => c.width), { available: d.maxWidth, fixedWidth: oldFixed, overflowWidth: OVERFLOW_BUTTON_W, gap: d.box.gap });
-      const after = dockRow([...d.items(DEFAULT_LABELS).slice(0, oldCap), ...(oldCap < 10 ? [d.overflow] : []), ...d.fixedGroup], d.box);
-      console.log(`  before 9c (measured once with the fallback font): ${oldCap} of 10 shown (fallback row ${dockRow([...items, ...dFallback.fixedGroup], dFallback.box).toFixed(1)} px); with the Formula1 labels that row is ${after.toFixed(1)} px${after > d.maxWidth + 0.5 ? `, ${(after - d.maxWidth).toFixed(1)} px wider than the bar: the first and last buttons cut (centred row)` : ', fits'}`);
+      const after = dockRow([...d.items(DEFAULT_LABELS_9C).slice(0, oldCap), ...(oldCap < DEFAULT_LABELS_9C.length ? [d.overflow] : []), ...d.fixedGroup], d.box);
+      console.log(`  before 9c (measured once with the fallback font): ${oldCap} of ${DEFAULT_LABELS_9C.length} shown (fallback row ${dockRow([...items, ...dFallback.fixedGroup], dFallback.box).toFixed(1)} px); with the Formula1 labels that row is ${after.toFixed(1)} px${after > d.maxWidth + 0.5 ? `, ${(after - d.maxWidth).toFixed(1)} px wider than the bar: the first and last buttons cut (centred row)` : ', fits'}`);
     }
   }
   console.log(failures ? `\n${failures} failure(s)` : '\nThe dock row fits its bar at the four viewports (default dock and every view).');

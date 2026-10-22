@@ -2,7 +2,7 @@
  * d3ports lane: contrast and colour-vision check of every mark the strategy
  * views draw (V1 / V13 targets 2 and 4) — Race Prediction, Strategy
  * Simulator, Race Analysis, Cross-Race Analysis, Undercut Calculator, Sector
- * Delta, Race Control, Strategy Engineer — with the colours of
+ * Delta, Race Control — with the colours of
  * utils/colors.js and utils/views/strategyMarks.js as the views use them.
  *
  * Run from frontend/ (vite-node resolves the modules' extensionless imports):
@@ -176,7 +176,7 @@ emit(`   (grid ${GRID_COLORS.grid}, axis ${GRID_COLORS.axis}, rules ${GRID_COLOR
 emit();
 
 // 9. Stint strips: FIA compound fills (marks) and the letter on them
-emit('## Stint strips (Simulator, PCA patterns, Strategy Engineer, tyre mix): compound fill and letter');
+emit('## Stint strips (Simulator, PCA patterns, tyre mix): compound fill and letter');
 for (const [k, c] of Object.entries(TYRE_COLORS)) {
   const letter = contrastText(c);
   const lr = contrastRatio(letter, c);

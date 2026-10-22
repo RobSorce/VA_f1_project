@@ -4,7 +4,7 @@ FP2 on screen: raceClock not-started; request params {"year":2024,"round":16,"se
 store: selection 19; the post-race answer still held: false; analysis requests after the load 1, body {"point_ids":[19 ids],"year":2024,"round":16,"session_now":0}
 answer now held: n_selected 0, pit windows [], strategies [], _pcaAnalysisAt null
 panel (Summary) mentions the post-race strategy "MEDIUM -> HARD": false; (Details) shows the post-race pit windows "L5–L23": false
-pattern consumers (Strategy Timeline ghost rows, Gemini pcaPatterns) read strategies: []
+pattern consumers (Strategy Timeline ghost rows) read strategies: []
 
 == B. 2024 R16 frame replay at its last frame, the 19 stars lassoed, then 2024 R8 (frames) ==
 2024 R16 at its last frame: frames 11406; sessionNow Infinity; analysis _pcaAnalysisAt Infinity

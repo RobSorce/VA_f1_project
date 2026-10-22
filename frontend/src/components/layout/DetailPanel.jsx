@@ -6,7 +6,6 @@ import StrategyTimeline from '../visualizations/StrategyTimeline';
 import TireSilhouette from '../visualizations/TireSilhouette';
 import RaceSituationMap from '../visualizations/RaceSituationMap';
 import StrategyAnalysis from '../visualizations/StrategyAnalysis';
-import GeminiAssistant from '../visualizations/GeminiAssistant';
 import TireDegradation from '../visualizations/TireDegradation';
 
 export default function DetailPanel() {
@@ -21,7 +20,6 @@ export default function DetailPanel() {
           {activePanel === 'timing' && 'Timing & Delta'}
           {activePanel === 'strategy' && 'Strategy'}
           {activePanel === 'analytics' && 'Analytics'}
-          {activePanel === 'ai' && 'AI Assistant'}
           {activePanel === 'degradation' && 'Tyre Degradation'}
         </span>
         <button className="detail-panel__close" onClick={closePanel} title="Close panel">
@@ -58,16 +56,6 @@ export default function DetailPanel() {
             </div>
             <div style={{ flex: '1 1 45%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <StrategyAnalysis />
-            </div>
-          </>
-        )}
-        {activePanel === 'ai' && (
-          <>
-            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <StrategyTimeline showOverlays />
-            </div>
-            <div style={{ flex: '1 1 50%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <GeminiAssistant />
             </div>
           </>
         )}

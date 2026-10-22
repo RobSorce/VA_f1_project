@@ -6,9 +6,9 @@
 // the first (Pit Wall) and last (Settings) buttons cut (the row is centred).
 // BottomTabBar measured its buttons once, when it mounted, before the
 // Formula1 web font was in: with the fallback font's labels the default dock
-// fits (1292 px at 1536 x 750 with Segoe UI Bold, the system-ui of Windows),
-// with the Formula1 Bold labels it is 1490 px (frontend/scripts/audit/
-// dock_fit.mjs); the divider's 12 px of margin and the bar's border were not
+// of that time (ten items) fit (1292 px at 1536 x 750 with Segoe UI Bold, the
+// system-ui of Windows), with the Formula1 Bold labels it was 1490 px
+// (frontend/scripts/audit/dock_fit.mjs); the divider's 12 px of margin and the bar's border were not
 // counted either. Now the bar measures again when the fonts finish loading
 // and checks the rendered row after every render.
 //
@@ -213,6 +213,10 @@ function renderedRow(nav) {
   return dockRow(parts, { gap: c.gap, paddingLeft: c.navPad, paddingRight: c.navPad, borderLeft: c.border, borderRight: c.border });
 }
 
+// A dock of ten views, the defaults and the Position Tracker: with the
+// Formula1 labels it overflows the bar at 1536 x 750 and fits at 2048 x 1100
+const TEN = [...DOCK_DEFAULTS, 'positionlaps'];
+
 async function mount(items = DOCK_DEFAULTS) {
   useF1Store.setState({ ...INITIAL, dockItems: [...items], showDashboard: true, activeTab: 'pitwall', dockedLayout: null, openOverlays: [] });
   const host = dom.document.createElement('div');
@@ -278,7 +282,9 @@ describe.skipIf(!haveFont)('the dock at the four viewports, with the real CSS wi
     const vp = VIEWPORTS.find((x) => x.name === '1536x750');
     env.vp = vp;
     const c = dockCss(vp);
-    const labels = SLOT_OPTIONS.filter((o) => DOCK_DEFAULTS.includes(o.id)).map((o) => o.label.toUpperCase());
+    // the default dock of that browser pass: today's defaults and the AI
+    // Strategist, a view removed since
+    const labels = [...SLOT_OPTIONS.filter((o) => DOCK_DEFAULTS.includes(o.id)).map((o) => o.label.toUpperCase()), 'AI STRATEGIST'];
     const width = (t, loaded) => { env.fontLoaded = loaded; return 2 * c.tabPad + Math.max(18, labelWidth(t, c.label)); };
     const fixedW = (t, loaded) => { env.fontLoaded = loaded; return 2 * c.fixedPad + Math.max(18, c.fixedLabelHidden ? 0 : labelWidth(t, c.label)); };
     const oldFixed = 2 * c.navPad + c.divider.width + c.gap + ['LAYOUTS', '⌘K', 'SETTINGS'].reduce((a, t) => a + fixedW(t, false) + c.gap, 0);
@@ -308,7 +314,7 @@ describe.skipIf(!haveFont)('the dock at the four viewports, with the real CSS wi
     const vp = VIEWPORTS.find((x) => x.name === '1920x1080');
     env.vp = vp;
     dom.window.innerWidth = vp.W;
-    const v = await mount();
+    const v = await mount(TEN);
     expect(v.items()).toHaveLength(10);
     env.fontScale = 1.25; // e.g. a user font setting
     await act(async () => { useF1Store.setState({ activeTab: 'laptimes' }); });
@@ -330,7 +336,7 @@ describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, 
 
   it('the bar shrinks (2048 -> 1536 px window): its observer refits the row within the callback', async () => {
     moveTo(at('2048x1100'));
-    const v = await mount();
+    const v = await mount(TEN);
     expect(v.items()).toHaveLength(10);
     // moved to the 1536 px screen: the bar's max-width shrinks; nothing renders but the observer
     moveTo(at('1536x750'));
@@ -350,7 +356,7 @@ describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, 
 
   it('the container grows (1536 -> 2048 px window): every item back on the bar within the callback', async () => {
     moveTo(at('1536x750'));
-    const v = await mount();
+    const v = await mount(TEN);
     expect(v.items().length).toBeLessThan(10);
     moveTo(at('2048x1100'));
     let inCallback = null;
@@ -366,7 +372,7 @@ describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, 
 
   it('a window resize alone (no observer notification): refitted within the event', async () => {
     moveTo(at('2048x1100'));
-    const v = await mount();
+    const v = await mount(TEN);
     moveTo(at('1366x768'));
     let inEvent = null;
     await act(async () => {
@@ -379,8 +385,9 @@ describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, 
 
   it('the bar\'s own change (an item moved to the ⋯ popover): the observer measures nothing more', async () => {
     moveTo(at('1536x750'));
-    const v = await mount();
+    const v = await mount(TEN);
     const before = v.items().length;
+    expect(v.overflow()).not.toBeNull();
     const row = renderedRow(v.nav);
     await act(async () => { notifyResize(v.nav, row); });
     expect(v.items()).toHaveLength(before);

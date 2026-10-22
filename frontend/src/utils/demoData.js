@@ -15,8 +15,8 @@
  *  - degradation fits of a brushed lap range: degradationResponse below
  *    (the backend's api/routers/predictions.py degradation_response over
  *    utils/degradation.js stintFits; parity test as above);
- *  - LSTM forecast, Gemini, telemetry, live timing, raw positions, the
- *    sessions that are not demo races: BackendOnlyError.
+ *  - LSTM forecast, telemetry, live timing, raw positions, the sessions
+ *    that are not demo races: BackendOnlyError.
  *
  * Files ending in .gz are gzip JSON, decompressed in the browser with
  * DecompressionStream (a server that already sent them decoded, with
@@ -355,7 +355,6 @@ const ANSWERS = {
     return degradationResponse(p.lap_times || [], data.drivers || [], data.lap_start, data.lap_end,
       data.session_now ?? null, type);
   },
-  queryGemini: backendOnly('gemini'),
   getSectors: async (year, round, type = 'R') => (await demoAnalytics(year, round, type)).sectors,
   getConsistency: async (year, round, type = 'R') => (await demoAnalytics(year, round, type)).consistency,
   getSpeedRankings: async (year, round, type = 'R') => (await demoAnalytics(year, round, type)).speed_rankings,

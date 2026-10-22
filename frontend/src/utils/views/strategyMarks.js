@@ -1,7 +1,7 @@
 /**
  * The marks the strategy views (Race Prediction, Strategy Simulator, Strategy
- * Analysis, Undercut Calculator, Sector Delta, PCA analysis, Race Control,
- * Strategy Engineer) draw for a meaning: each is a colour of utils/colors.js
+ * Analysis, Undercut Calculator, Sector Delta, PCA analysis, Race Control)
+ * draw for a meaning: each is a colour of utils/colors.js
  * (no colour is defined here) plus the glyph or word that carries the same
  * meaning without colour (V1: no colour-only encoding, no red / green pair).
  *
@@ -94,9 +94,6 @@ export const CHART_COLORS = Object.freeze({
   accent: UI_COLORS.brush,
   predicted: UI_COLORS.predicted,
 });
-
-/** Accent of the AI / strategy-engineer views (Gemini): the predicted colour. */
-export const AI_ACCENT = UI_COLORS.predicted;
 
 /** A chip tinted with a colour, its text lifted to 4.5:1 on the tint (colors.js tintedChip). */
 export function chipStyle(color, alpha = 0.15) {

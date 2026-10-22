@@ -27,7 +27,7 @@ Static checks at 1536 × 750, 1366 × 768, 1920 × 1080 and 2048 × 1100:
 | S4 | Settings accordion did not scroll | Settings scrolls inside its overlay window (`.settings-tab`, justified); auto-fit is off below 1440 × 900. |
 | S5 | Visualisations below a usable size | Pane sizes of every window preset at the four sizes are listed by `layout_fit.mjs` (`docs/evidence/layout_fit.txt`); the browser pass judges each view at those sizes. |
 | S6 | No page-level scroll fallback | By design: a fixed-viewport dashboard. The fallback that was added for it is the regression described above and has been removed. |
-| S7 | Cheatsheet on a short viewport | Three balanced columns in which a section may continue in the next column, modal up to 92 vh: the 45 shortcut rows need at most 492 px of column at 1536 x 750 and 493 px at 1366 x 768, against 604 and 620 px of room (`docs/evidence/cheatsheet_fit.txt`; re-measured on 2026-10-16, after Shift+C and the Ctrl+arrow keys were added to the cheatsheet: 42 rows needed 468 and 469 px), so no target window shows a scrollbar. With the earlier sections that never split and the 88 vh modal they did not fit at those two sizes (an estimate). The scroll stays as the fallback below 900 px of width. |
+| S7 | Cheatsheet on a short viewport | Three balanced columns in which a section may continue in the next column, modal up to 92 vh: the 43 shortcut rows need at most 468 px of column at 1536 x 750 and 469 px at 1366 x 768, against 604 and 620 px of room (`docs/evidence/cheatsheet_fit.txt`, re-measured on 2026-10-22, after the keys 7 and G of the removed strategy assistant left the cheatsheet), so no target window shows a scrollbar. With the earlier sections that never split and the 88 vh modal they did not fit at those two sizes (an estimate). The scroll stays as the fallback below 900 px of width. |
 | S8 | Command palette at narrow height | Unchanged: keyboard-first result list, justified. |
 
 Statements of the record below that are no longer true: the dashboard
@@ -44,9 +44,9 @@ More of them, found on a second pass on 2026-10-15:
   `--bottom-tab-height` in `tokens.css`).
 - S3 and S5: a floating window's minimum is 420 × 320 px (`MIN_W`, `MIN_H` in
   `OverlayPanel.jsx`), not `MIN_H = 240`. Only Settings opens as a floating
-  window now: the AI and Championship views, whose 600 px default heights S3
-  discusses, open as tabs of the docked workspace (`setActiveTab` in
-  `useF1Store.js`).
+  window now: the Championship view, whose 600 px default height S3
+  discusses, opens as a tab of the docked workspace (`setActiveTab` in
+  `useF1Store.js`), and the AI view S3 names was removed on 2026-10-22.
 - S4: `.settings-tab__section` no longer clips its accordion body with
   `overflow: hidden` (`dashboard.css`).
 - S7: the cheatsheet modal is up to 92 vh, not 80 vh (see the status table).

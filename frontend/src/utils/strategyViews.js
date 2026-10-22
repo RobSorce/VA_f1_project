@@ -417,35 +417,6 @@ export function sessionScopeOf(s) {
 }
 
 /**
- * Request body of a free-text / quick Gemini query (the Pit Wall "AI
- * Strategist" box), for the same /gemini/strategy endpoint as the store's
- * sendGeminiQuery: the same year / round fields (GeminiRequest in
- * backend/api/routers/gemini.py) for the session on screen (sessionScopeOf,
- * never the pills; the pills only when nothing with cached rows is on
- * screen, as sendGeminiQuery), the type of the session on screen
- * (viewSessionType, R7) so the backend quotes no pit loss outside race
- * sessions, and the focus driver as `drivers` (the request has no `driver`
- * field).
- *
- * @param {Object} s - store state
- * @param {string} text - the query
- * @returns {{query: string, year: *, round: *, session_type: string,
- *   drivers: string[], current_lap: *}}
- */
-export function geminiQuickQueryBody(s, text) {
-  const driver = s?.focusDriver || s?.selectedDrivers?.[0] || null;
-  const scope = sessionScopeOf(s);
-  return {
-    query: String(text ?? '').trim(),
-    year: scope?.year ?? s?.year ?? null,
-    round: scope?.round ?? s?.round ?? null,
-    session_type: viewSessionType(s),
-    drivers: driver ? [driver] : [],
-    current_lap: s?.currentLap ?? null,
-  };
-}
-
-/**
  * The pit loss a panel shows and uses: the estimator's median (never the
  * mean). When the estimate is missing, has no median, or is the fallback, the
  * value is FALLBACK_PIT_LOSS.median with isFallback = true, and the UI must

@@ -623,14 +623,6 @@ export const UI_COLORS = {
   pitWindowText: '#B56FF8',
 };
 
-// Gemini brand gradient of the AI assistant's button and send button (chrome,
-// never a data encoding; the text on it is white, >= 4.5:1 on its darkest stop)
-export const GEMINI_COLORS = {
-  blue: '#4285F4',
-  purple: '#886FBF',
-  pink: '#D96570',
-};
-
 // F1 Team Colors - 2024 Official. Every TeamName of the cached sessions
 // (driver_info) has a key: 'Racing Bulls' is RB renamed for 2025 (FastF1's
 // TeamColor #6692FF in 2025 R1, the RB colour); 'Audi' and 'Cadillac' (2026)

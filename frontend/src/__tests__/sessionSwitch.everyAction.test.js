@@ -258,16 +258,6 @@ const SCENARIOS = {
       },
     };
   },
-  sendGeminiQuery: async () => {
-    const release = holdNext('queryGemini', { response: 'answer about R91' });
-    const p = store().sendGeminiQuery('pit now?');
-    return { release, wait: p, check: () => expect(JSON.stringify(store().geminiMessages)).not.toContain('R91') };
-  },
-  askGeminiQuick: async () => {
-    const release = holdNext('queryGemini', { response: 'quick answer about R91' });
-    const p = store().askGeminiQuick('pit now?');
-    return { release, wait: p, check: () => expect(store().geminiQuick).toEqual({ loading: false, response: '', error: '' }) };
-  },
   enterLiveMode: async () => {
     // a mock live entry still connecting: its snapshot arrives after C landed
     const release = holdNext('getLiveSnapshot', { tag: 'LIVE', lap_times: SESSIONS[91].lap_times.filter((r) => r.LapNumber <= 10), driver_info: [] });

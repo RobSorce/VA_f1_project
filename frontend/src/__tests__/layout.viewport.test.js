@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  VIEWPORTS, loadCss, pageScrollRules, shellAt, pitWallSpec, pitWallAt, dockedPanesAt, px,
+  VIEWPORTS, loadCss, pageScrollRules, shellAt, pitWallSpec, pitWallAt, dockedPanesAt,
 } from './helpers/layoutModel.js';
 import { parseCss } from './helpers/layoutCss.js';
 import { WINDOW_PRESETS } from '../utils/windowPresets.js';
@@ -84,40 +84,6 @@ describe('chrome rows and the app body at each target viewport', () => {
       expect(s.bodyExpanded, vp.name).toBe(s.body);
     }
   });
-});
-
-// The assistant button (fixed, bottom 76 px) covered 12-24 px of the
-// timeline row and the end of its status text. It now sits in the dock row,
-// in the gutter the dock pill leaves free on its right.
-describe('the assistant button stays in the dock row, clear of the dock pill', () => {
-  const fab = read('components/ui/GeminiFloatingButton.jsx');
-  const style = fab.slice(fab.indexOf('const fabStyle = {'), fab.indexOf('};', fab.indexOf('const fabStyle = {')));
-  const rules = dashRules.filter((r) => !r.media);
-  const dockMax = rules.filter((r) => r.selector === '.bottom-tab-bar').flatMap((r) => r.decls).filter((d) => d.prop === 'max-width').pop()?.value;
-
-  it('placed from the dock tokens, not a fixed bottom offset', () => {
-    expect(style).toMatch(/bottom: 'calc\(var\(--dock-margin\) \+ \(var\(--bottom-tab-height\) - var\(--assistant-button-size\)\) \/ 2\)'/);
-    expect(style).toMatch(/right: 16,/);
-    expect(style).toMatch(/width: 'var\(--assistant-button-size\)'/);
-    expect(dockMax).toBe('calc(100vw - 2 * var(--dock-side-gutter))');
-  });
-
-  for (const vp of VIEWPORTS) {
-    it(`${vp.name}: inside the dock row (below the timeline row) and right of the dock pill`, () => {
-      const s = shellAt(css, vp);
-      const size = px(css, '--assistant-button-size', vp);
-      const gutter = px(css, '--dock-side-gutter', vp);
-      const bottom = s.dockMargin + (s.dock - size) / 2;
-      const top = bottom + size; // px from the window's bottom edge
-      const timelineLow = s.dockMargin + s.dock;
-      const fabLeft = vp.W - 16 - size;
-      const dockRight = vp.W / 2 + (vp.W - 2 * gutter) / 2; // widest the centred pill can be
-      console.log(`${vp.name}: button ${bottom.toFixed(1)}-${top.toFixed(1)} px from the bottom, timeline row from ${timelineLow.toFixed(1)} px; x ${fabLeft}-${vp.W - 16}, dock pill ends at x <= ${dockRight}`);
-      expect(bottom).toBeGreaterThanOrEqual(s.dockMargin);
-      expect(top).toBeLessThanOrEqual(timelineLow);
-      expect(fabLeft).toBeGreaterThan(dockRight);
-    });
-  }
 });
 
 describe('Pit Wall: no cell can grow past the window', () => {

@@ -20,14 +20,12 @@ import ConsistencyPanel from './components/visualizations/ConsistencyPanel';
 // Tab content
 import ChartsTabContent from './components/tabs/ChartsTabContent';
 import LapTimesTabContent from './components/tabs/LapTimesTabContent';
-import AITabContent from './components/tabs/AITabContent';
 
 const OVERLAY_TABS = {
   laptimes: { title: 'Lap Times', Component: LapTimesTabContent },
   sectors: { title: 'Sectors & Speeds', Component: SectorsPanel },
   speed: { title: 'Speed / Telemetry', Component: SpeedPanel },
   consistency: { title: 'Consistency', Component: ConsistencyPanel },
-  ai: { title: 'AI Assistant', Component: AITabContent },
 };
 
 export default function App() {

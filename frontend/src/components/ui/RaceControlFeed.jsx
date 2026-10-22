@@ -25,8 +25,8 @@ function formatWallClock(ms) {
   return Number.isNaN(d.getTime()) ? '--:--' : d.toLocaleTimeString();
 }
 
-// The feed takes the room the Weather and Ask boxes leave in the Pit Wall
-// side column (flex 1, min-height 0): it shows the newest messages that fit,
+// The feed takes the room the Weather box leaves in the Pit Wall side
+// column (flex 1, min-height 0): it shows the newest messages that fit,
 // one line each (the full text in the tooltip), and counts the older ones
 const panelStyle = {
   flex: '1 1 0',

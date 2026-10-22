@@ -721,16 +721,16 @@ export function withBadges(result, prevBadges = null, ctx = null) {
     ...result,
     projections: [...(result?.projections || [])].sort((a, b) => rank.get(a.driver) - rank.get(b.driver)),
     badges,
-    // the risk rows every view reads (Risks tab, Strategy Analysis, assistant)
+    // the risk rows every view reads (Risks tab, Strategy Analysis)
     risks: badges.risks ?? result?.risks,
   };
 }
 
 /**
  * The finishing position a view shows for a projection row (the P label of
- * the Race Prediction panel, Strategy Analysis, the assistant's context): the
- * store's (projection.badges.mode, chained over recomputes by shownPositions:
- * it changes only on evidence beyond the Monte Carlo error of the whole
+ * the Race Prediction panel, Strategy Analysis): the store's
+ * (projection.badges.mode, chained over recomputes by shownPositions: it
+ * changes only on evidence beyond the Monte Carlo error of the whole
  * column); for a projection without badges, the rule with no previous state
  * (the median simulated position).
  *
@@ -820,8 +820,7 @@ export function battleLevel(projection, battle) {
  * without badges, the BATTLE_LIST_SIZE most likely. Ordered by badge level
  * (green, gold, then the others), then in race order (raceOrder): never by
  * the point estimate, so a view that takes the first rows of the list (the
- * insight cards, the assistant's quick query) changes only when a level or
- * the list does.
+ * insight cards) changes only when a level or the list does.
  *
  * @param {Object} projection - store.raceProjection
  * @returns {Array<Object>} battles with `level` (0 / 1 / 2)

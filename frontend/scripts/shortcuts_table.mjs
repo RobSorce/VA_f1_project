@@ -264,7 +264,7 @@ export function describe(r) {
     while (args.length < f.length - 1) args.push(undefined);
     parts.push(f(...args, st));
   }
-  for (const e of r.events) if (e === 'toggle-gemini-panel') parts.push('open / close the floating AI assistant');
+  for (const e of r.events) parts.push(`dispatch the window event "${e}"`);
   if (r.set?.commandPaletteOpen === true) {
     parts.push(r.set._paletteInitialCommand
       ? `open the command palette on "${r.set._paletteInitialCommand}"` : 'open the command palette');

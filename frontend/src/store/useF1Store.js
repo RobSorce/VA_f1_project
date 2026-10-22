@@ -2,32 +2,31 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as api from '../utils/apiClient';
 import { setHealthReporter } from '../utils/apiClient';
-import { isBackendOnlyError, useDemoMode, DEMO_NOTE } from '../utils/demoMode';
+import { useDemoMode, DEMO_NOTE } from '../utils/demoMode';
 import { setSessionDriverColors } from '../utils/colors';
 import { computePCA, LIVE_PCA_ALIGN } from '../utils/livePCA';
 import { extractRaceSituationFeatures, FEATURE_NAMES, estimatedLapsToPit } from '../utils/raceSituationFeatures';
 import { stintLifeEstimate } from '../utils/raceSimulation';
 import { replayReferenceAt } from '../utils/raceSituationReference';
 import {
-  createSimulationClient, planFromStints, withBadges, listedBattles, modePosition, whatIfKey, whatIfMarks,
-  whatIfMarksOf,
+  createSimulationClient, planFromStints, withBadges, whatIfKey, whatIfMarks,
 } from '../utils/simulationClient';
 import { seedFrom } from '../utils/prng';
 import {
   computeSessionTimeOffset, resolveSessionNow, completedLaps, lapStartTime, lapEndTime,
   raceClockLimit, activeSegmentWindow,
 } from '../utils/raceTime';
-import { deriveStints, pitStops, stintsRunning } from '../utils/stints';
+import { pitStops, stintsRunning } from '../utils/stints';
 import { driverStateAt, nonFinisherMap } from '../utils/driverState';
 import {
-  viewSessionType, isRaceSession, causalKey, sessionScopeOf, geminiQuickQueryBody,
+  viewSessionType, isRaceSession, causalKey, sessionScopeOf,
 } from '../utils/strategyViews';
 import { SLOT_IDS } from '../utils/slotOptions';
 import { brushFitKey } from '../utils/views/degradationViews';
 import { loadedRaceClock } from '../utils/views/pcaBiplot';
 import { FALLBACK_SEASONS, seasonsFromResponse } from '../utils/seasons';
 import {
-  forecastRequestOf, forecastEntry, focusForecast, forecastHeldOutMae, forecastPit,
+  forecastRequestOf, forecastEntry,
 } from '../utils/forecast';
 
 /* ── Race clock helpers (SESSION seconds, see utils/raceTime.js) ── */
@@ -468,9 +467,9 @@ function sameSimulationJob(a, b) {
 /**
  * State to drop at a clock change: every clock-derived analytic computed at
  * a LATER session time than `now` (each one carries the session time it was
- * computed at). Used in the same set() as the clock change, so no view and no
- * Gemini context ever reads values from a later clock; the analytics are then
- * recomputed at the new clock.
+ * computed at). Used in the same set() as the clock change, so no view ever
+ * reads values from a later clock; the analytics are then recomputed at the
+ * new clock.
  *
  * @param {Object} s - store state before the change
  * @param {number} now - session seconds after the change (Infinity = no limit)
@@ -823,7 +822,6 @@ export const DOCK_DEFAULTS = [
   'analytics',
   'prediction',
   'racecontrol',
-  'ai',
   'championship',
 ];
 
@@ -1186,26 +1184,21 @@ let _sessionLoadGeneration = 0;
 // landed.
 let _screenGeneration = 0;
 
-/** The Pit Wall quick query's state when nothing is asked (askGeminiQuick). */
-const GEMINI_QUICK_IDLE = Object.freeze({ loading: false, response: '', error: '' });
-
 /**
  * Partial state of a commit that puts another screen on: moves the screen
  * generation on (so every answer to a request of the previous screen is
- * dropped, sessionRequestGuard) and clears what was said about the previous
- * screen: the assistant's chat and its scenario overlays (StrategyTimeline
- * draws them), the quick query's answer, the telemetry spinner of requests
- * that can no longer land, and the lap range (D8): laps of one race never
- * filter the next (the Timing Sheet rows and title, the Position Tracker
- * brush, the Strategy Timeline band, the Tyre Degradation fit).
+ * dropped, sessionRequestGuard) and clears what belonged to the previous
+ * screen: the telemetry spinner of requests that can no longer land, and the
+ * lap range (D8): laps of one race never filter the next (the Timing Sheet
+ * rows and title, the Position Tracker brush, the Strategy Timeline band, the
+ * Tyre Degradation fit).
  *
  * @returns {Object} partial state
  */
 function screenSwitchState() {
   _screenGeneration += 1;
   return {
-    geminiMessages: [], geminiOverlays: [], geminiQuick: GEMINI_QUICK_IDLE, telemetryLoading: false,
-    selectedLapRange: null, brushLapRange: null,
+    telemetryLoading: false, selectedLapRange: null, brushLapRange: null,
   };
 }
 
@@ -1230,31 +1223,6 @@ function sessionRequestGuard(get) {
   return () => generation === _sessionLoadGeneration && screenGeneration === _screenGeneration
     && screenKeyOf(get()) === screen;
 }
-
-/**
- * What becomes of an assistant answer (sendGeminiQuery, askGeminiQuick) when
- * it arrives: 'show'; 'screen' when its request belonged to another screen
- * (sessionRequestGuard false); 'clock' when the clock on screen is now
- * earlier than the clock the question was asked at (a seek back): the answer
- * describes a later moment of the race than the one on screen (R3 / R6), as
- * the degradation and LSTM answers' clock checks drop theirs.
- *
- * @param {function(): boolean} current - sessionRequestGuard of the request
- * @param {function(): Object} get - the store's get
- * @param {number} askedAt - session seconds of the clock the question was asked at
- * @returns {'show'|'screen'|'clock'}
- */
-function geminiAnswerFate(current, get, askedAt) {
-  if (!current()) return 'screen';
-  return sessionNowOf(get()) < askedAt ? 'clock' : 'show';
-}
-
-/** The note that stands in for an assistant answer not shown (geminiAnswerFate). */
-const GEMINI_DROPPED_NOTE = Object.freeze({
-  screen: 'Answer not shown: another session was loaded while it was being prepared. Ask again.',
-  clock: 'Answer not shown: the clock moved back while it was being prepared, so it described a later '
-    + 'moment of the race. Ask again.',
-});
 
 // Telemetry requests in flight, as their guards (sessionRequestGuard):
 // telemetryLoading is true while one of them still belongs to the screen on
@@ -2568,10 +2536,6 @@ export const useF1Store = create(persist((set, get) => ({
     return { activeTab: next };
   }),
 
-  // ── Gemini floating panel ─────────────────────────────────────
-  geminiPanelOpen: false,
-  toggleGeminiPanel: () => set((s) => ({ geminiPanelOpen: !s.geminiPanelOpen })),
-
   // ── Settings (persist across sessions) ──────────────────────────
   theme: 'dark',
   tempUnit: 'C',
@@ -3626,7 +3590,7 @@ export const useF1Store = create(persist((set, get) => ({
   // /api/pca/analyze-selection), at the biplot's clock (pcaRequestOf): the
   // rows, stints and stops of the race on screen stop at the replay clock
   // (none before the race), so the panel, the Strategy Timeline's pattern
-  // rows, the insights and the Gemini context never show its future.
+  // rows and the insights never show its future.
   fetchPCAAnalysis: async (pointIds) => {
     const seq = (get()._pcaAnalysisSeq || 0) + 1;
     const req = pcaRequestOf(get());
@@ -3853,240 +3817,6 @@ export const useF1Store = create(persist((set, get) => ({
     }
   },
 
-  // ── Gemini ────────────────────────────────────────────────────
-  geminiMessages: [],
-  geminiOverlays: [],
-
-  sendGeminiQuery: async (query) => {
-    // Causal context: weather, stints, laps and every analytic as of
-    // sessionNow. Nothing computed at a later clock may reach the prompt
-    // (clock changes already drop it; this is the guard at the boundary).
-    const now = get().getSessionNow();
-    const stale = laterClockReset(get(), now);
-    if (Object.keys(stale).length) set(stale);
-    const { year, round, currentLap, maxLap, selectedDrivers, focusDriver,
-            lstmPredictions, raceProjection, raceSituationData,
-            degradationRegression, simulatorResult, pcaStrategyAnalysis,
-            rivalContext, sessionData } = get();
-    // The type of the session on screen (R7): sent with the request, and no
-    // pit-loss context outside race sessions ('R', 'S')
-    const sessionType = viewSessionType(get());
-    const isRace = isRaceSession(sessionType);
-    const question = { role: 'user', content: query };
-    set((s) => ({
-      geminiMessages: [...s.geminiMessages, question],
-    }));
-
-    // Build rich race context from ALL analytical sources
-    const raceContext = {};
-
-    // Session info
-    if (sessionData?.session_info) raceContext.session = sessionData.session_info;
-    const weatherNow = weatherAtSessionTime(sessionData?.weather_data, now);
-    if (weatherNow) raceContext.weather = weatherNow;
-
-    // Monte Carlo projections
-    if (raceProjection) {
-      raceContext.monteCarloProjections = (raceProjection.projections || []).slice(0, 10).map((p) => ({
-        driver: p.driver, currentPos: p.currentPos, expectedPos: p.expectedPos,
-        // the finishing position the panel shows: the median simulated
-        // position, moved only beyond the Monte Carlo error (modePosition)
-        medianPos: modePosition(raceProjection, p), posRange: p.posRange,
-        podiumProb: p.podiumProb, pointsProb: p.pointsProb,
-      }));
-      // the battles the panel lists (store list and order)
-      raceContext.monteCarloSimulations = raceProjection.numSimulations;
-      raceContext.battles = listedBattles(raceProjection).slice(0, 5).map((b) => ({
-        driver1: b.ahead, driver2: b.behind,
-        overtakeProb: b.prob, type: b.behindCompound + ' vs ' + b.aheadCompound,
-      }));
-      raceContext.risks = (raceProjection.risks || []).slice(0, 5);
-      if (raceProjection.raceParams) {
-        raceContext.raceParams = {
-          ...(isRace ? { pitLoss: raceProjection.raceParams.pitLoss } : {}),
-          scRate: raceProjection.raceParams.scRate,
-          lapNoise: raceProjection.raceParams.lapNoise,
-        };
-      }
-    }
-
-    // Driver features from live PCA
-    if (raceSituationData?.driverFeatures && selectedDrivers.length > 0) {
-      const feats = {};
-      for (const d of selectedDrivers) {
-        if (raceSituationData.driverFeatures[d]) feats[d] = raceSituationData.driverFeatures[d];
-      }
-      if (Object.keys(feats).length > 0) raceContext.driverFeatures = feats;
-    }
-
-    // Degradation regression
-    if (degradationRegression) {
-      raceContext.degradationRegression = degradationRegression;
-    }
-
-    // Simulator what-if result
-    // The positions are the cards' P labels (the median finishing position,
-    // moved only beyond the Monte Carlo error: whatIfMarks), as the Simulator
-    // shows them; the means go along under their own names (backlog S4)
-    if (simulatorResult) {
-      const shown = whatIfMarksOf(simulatorResult).shown;
-      raceContext.simulator = {
-        customPos: shown.custom,
-        baselinePos: shown.baseline,
-        customMeanPos: simulatorResult.simProjection?.expectedPos,
-        baselineMeanPos: simulatorResult.baselineProjection?.expectedPos,
-        delta: simulatorResult.delta,
-      };
-    }
-
-    // PCA cluster strategy patterns
-    if (pcaStrategyAnalysis?.strategies?.length) {
-      raceContext.pcaPatterns = pcaStrategyAnalysis.strategies.slice(0, 3);
-    }
-
-    // Rival context for focus driver
-    if (rivalContext?.length) {
-      raceContext.rivals = rivalContext.slice(0, 4);
-    }
-
-    // Lap-time forecast of the focus driver (utils/forecast.js): the method
-    // that made it (the method chosen on the validation races, not always the
-    // LSTM), its origin and target laps and its held-out error
-    const target = focusDriver || (selectedDrivers.length === 1 ? selectedDrivers[0] : null);
-    const forecast = focusForecast(lstmPredictions, target);
-    if (forecast) {
-      raceContext.lstm = {
-        driver: target,
-        method: forecast.method,
-        methodLabel: forecast.method_label || forecast.method,
-        originLap: forecast.lap,
-        targetLaps: forecast.target_laps,
-        predictedTimes: forecast.predicted_times,
-        heldOutMae: forecastHeldOutMae(forecast),
-        pitProbability: forecastPit(forecast).probability,
-        pitMethod: forecastPit(forecast).method,
-      };
-    }
-
-    // Tyre strategy summary for selected drivers: stints of the laps completed
-    // at sessionNow (utils/stints.js, same shape as tyre_strategy), so an
-    // ongoing stint reports its laps so far, never its final length
-    const tyreStrats = sessionData?.lap_times?.length
-      ? deriveStints(sessionData.lap_times, { sessionNow: now, running: stintsRunningOf(get()) })
-      : (sessionData?.tyre_strategy || sessionData?.strategies || []);
-    if (tyreStrats.length > 0) {
-      const targetDrivers = selectedDrivers.length > 0 ? selectedDrivers : (target ? [target] : []);
-      if (targetDrivers.length > 0) {
-        raceContext.tyreStrategy = {};
-        for (const drv of targetDrivers) {
-          // length = laps completed on the set (0 right after a pit exit),
-          // never a made-up default
-          const stints = tyreStrats
-            .filter((s) => s.Driver === drv && (s.LapStart || s.StartLap || 1) <= currentLap)
-            .map((s) => ({
-              compound: s.Compound, startLap: s.LapStart || s.StartLap || 1,
-              length: s.TotalLaps ?? s.StintLength ?? null, stintNumber: s.StintNumber,
-            }));
-          if (stints.length > 0) raceContext.tyreStrategy[drv] = stints;
-        }
-      }
-    }
-
-    // Recent lap times for focus driver
-    if (target && sessionData?.lap_times) {
-      raceContext.recentLaps = completedLaps(sessionData.lap_times, now)
-        .filter((lt) => lt.Driver === target && lt.LapNumber <= currentLap && lt.LapTimeSeconds > 0)
-        .sort((a, b) => b.LapNumber - a.LapNumber)
-        .slice(0, 5)
-        .map((lt) => ({
-          lap: lt.LapNumber, time: lt.LapTimeSeconds,
-          compound: lt.Compound, tyreLife: lt.TyreLife,
-          s1: lt.Sector1TimeSeconds, s2: lt.Sector2TimeSeconds, s3: lt.Sector3TimeSeconds,
-        }));
-      raceContext.focusDriver = target;
-    }
-    raceContext.selectedDrivers = selectedDrivers;
-    raceContext.currentLap = currentLap;
-    raceContext.maxLap = maxLap;
-
-    // The session on screen (never the pills), and its guard: an answer that
-    // arrives once another screen is on is about another session (D7); one
-    // that arrives after the clock moved back before `now` describes a later
-    // state than the one on screen (R3 / R6: geminiAnswerFate)
-    const scope = sessionScopeOf(get());
-    const current = sessionRequestGuard(get);
-    const fate = () => geminiAnswerFate(current, get, now);
-    // A dropped answer still leaves the question answered: when the question
-    // is still in the chat (a seek back, or a load that has not replaced the
-    // screen), a note says why no answer follows; a screen switch has
-    // cleared the chat, question included (screenSwitchState)
-    const dropped = (reason) => set((s) => (s.geminiMessages.includes(question)
-      ? { geminiMessages: [...s.geminiMessages, { role: 'ai', content: GEMINI_DROPPED_NOTE[reason], dropped: reason }] }
-      : {}));
-    try {
-      const resp = await api.queryGemini({
-        query,
-        year: scope?.year ?? year,
-        round: scope?.round ?? round,
-        session_type: sessionType,
-        current_lap: currentLap,
-        drivers: selectedDrivers,
-        // the forecast travels in race_context.lstm (method included)
-        race_context: Object.keys(raceContext).length > 0 ? raceContext : undefined,
-      });
-      const f = fate();
-      if (f !== 'show') { dropped(f); return; }
-      set((s) => ({
-        geminiMessages: [
-          ...s.geminiMessages,
-          { role: 'ai', content: resp.response, scenarios: resp.scenarios, is_mock: !!resp.is_mock },
-        ],
-        geminiOverlays: resp.scenarios || [],
-      }));
-    } catch (e) {
-      const f = fate();
-      if (f !== 'show') { dropped(f); return; }
-      // The static demo has no backend: the answer says so (BackendOnlyError)
-      set((s) => ({
-        geminiMessages: [
-          ...s.geminiMessages,
-          { role: 'ai', content: isBackendOnlyError(e) ? `${e.message}.` : 'Failed to get response from Gemini.' },
-        ],
-      }));
-    }
-  },
-
-  // The Pit Wall "AI Strategist" box (components/ui/GeminiQuickQuery.jsx):
-  // one question about the session on screen, its answer kept here
-  // (geminiQuick), not in the chat. The same guards as sendGeminiQuery: the
-  // answer of a request of another screen, or asked at a clock later than the
-  // one on screen now, is dropped, and a newer quick query replaces an older
-  // one still on its way. A screen switch clears it (screenSwitchState).
-  geminiQuick: GEMINI_QUICK_IDLE,
-  askGeminiQuick: async (text) => {
-    if (!String(text ?? '').trim()) return;
-    const s0 = get();
-    const askedAt = sessionNowOf(s0);
-    const current = sessionRequestGuard(get);
-    // This request's state object: a newer quick query or a screen switch
-    // replaces it, and then this answer has nothing to fill
-    const pending = { loading: true, response: '', error: '' };
-    set({ geminiQuick: pending });
-    let next;
-    try {
-      // The state at the click: the session on screen and its type (R7)
-      const result = await api.queryGemini(geminiQuickQueryBody(s0, text));
-      next = { loading: false, response: result?.response || result?.answer || JSON.stringify(result), error: '' };
-    } catch (err) {
-      next = { loading: false, response: '', error: err?.message || 'Failed to get response' };
-    }
-    if (get().geminiQuick !== pending) return;
-    const f = geminiAnswerFate(current, get, askedAt);
-    set({ geminiQuick: f === 'show' ? next : { loading: false, response: '', error: GEMINI_DROPPED_NOTE[f] } });
-  },
-
-  setGeminiOverlays: (overlays) => set({ geminiOverlays: overlays }),
-
   // ── Monte Carlo Race Projection ──────────────────────────────────
   // The only writer of a computed raceProjection (S5): every view reads it
   // from here. It runs when the race situation changes (store subscription
@@ -4178,15 +3908,6 @@ export const useF1Store = create(persist((set, get) => ({
     simulatorStrategy: strategy,
     isSimulatorActive: true,
   }),
-
-  applyGeminiScenario: (scenario) => {
-    if (!scenario?.stints) return;
-    const { focusDriver } = get();
-    set({
-      simulatorStrategy: { driver: focusDriver || scenario.driver, stints: scenario.stints },
-      isSimulatorActive: true,
-    });
-  },
 
   // What-if (S6): the plan's stops from the lap in progress on (in-lap +
   // compound, planFromStints), each charged a sampled pit loss, against the

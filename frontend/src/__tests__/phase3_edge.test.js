@@ -4,8 +4,6 @@
 //    the feed, and a live message delivered after the switch is dropped;
 //  - the lap-mode clock on the last lap is the leader's end of lap L-1
 //    (R4); Infinity only in live mode and the race-over state;
-//  - the Gemini request carries the session type, with no pit-loss
-//    context outside race sessions;
 //  - after a live -> replay switch the R7 gate follows the type of the
 //    session on screen (the live one until the replay lands), never the pill.
 // Synthetic fixtures run everywhere; blocks on cached sessions skip when the
@@ -24,7 +22,6 @@ vi.mock('../utils/apiClient', async (importOriginal) => {
   mocked.getLiveSnapshot = vi.fn(async () => fx().snapshot);
   mocked.loadLiveFullSession = vi.fn(() => fx().loadLiveFullSession());
   mocked.stopMockReplay = vi.fn(() => fx().stopMockReplay());
-  mocked.queryGemini = vi.fn(async (body) => { fx().geminiBodies.push(body); return { response: 'ok', scenarios: [] }; });
   return mocked;
 });
 vi.mock('../utils/liveWebSocket', () => ({
@@ -103,7 +100,6 @@ beforeEach(() => {
     snapshot: { lap_times: [], track_status: [], driver_info: [] },
     loadLiveFullSession: async () => ({}),
     stopMockReplay: async () => ({}),
-    geminiBodies: [],
     feeds: [],
   });
   liveWS.connect.mockClear();
@@ -278,45 +274,6 @@ describe('lap-mode clock on the last lap (R4)', () => {
       store().showRaceOver();
       expect(store().getSessionNow()).toBe(Infinity);
     }
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-describe('the Gemini request carries the session type (R7)', () => {
-  const PROJECTION = {
-    projections: [], battles: [], risks: [], computedAtNow: 0,
-    raceParams: { pitLoss: { median: 22, source: 'fallback', n: 0 }, scRate: 0.02, lapNoise: 0.3 },
-  };
-  async function ask(state) {
-    useF1Store.setState({
-      year: 2024, round: 99, sessionData: REPLAY, totalFrames: 0, currentLap: 3, maxLap: 5,
-      lapModeRaceOver: false, selectedDrivers: ['AAA'], focusDriver: 'AAA', raceProjection: PROJECTION,
-      ...state,
-    });
-    fixtures.geminiBodies.length = 0;
-    await store().sendGeminiQuery('when should I pit?');
-    expect(fixtures.geminiBodies).toHaveLength(1);
-    return fixtures.geminiBodies[0];
-  }
-
-  for (const [type, race] of [['R', true], ['S', true], ['Q', false], ['SQ', false], ['FP2', false]]) {
-    it(`loaded ${type}: session_type '${type}', pit loss ${race ? 'kept' : 'dropped'}`, async () => {
-      const body = await ask({ isLiveMode: false, loadedSessionType: type, sessionType: 'R' });
-      expect(body.session_type).toBe(type);
-      expect(isRaceSession(body.session_type)).toBe(race);
-      if (race) expect(body.race_context.raceParams.pitLoss).toEqual(PROJECTION.raceParams.pitLoss);
-      else expect(body.race_context.raceParams).not.toHaveProperty('pitLoss');
-      expect(body.race_context.raceParams.scRate).toBe(0.02);
-    });
-  }
-
-  it('live practice: the feed\'s type (FP), no pit loss', async () => {
-    const body = await ask({
-      isLiveMode: true, loadedSessionType: null, sessionType: 'R',
-      liveSessionInfo: { session_type: 'Practice', session_name: 'Practice 2' },
-    });
-    expect(body.session_type).toBe('FP');
-    expect(body.race_context.raceParams).not.toHaveProperty('pitLoss');
   });
 });
 

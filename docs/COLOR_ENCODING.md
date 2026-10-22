@@ -11,7 +11,7 @@ The app always runs the dark theme (the store's `setTheme` sets `data-theme="dar
 - Text >= 4.5:1 (SC 1.4.3); marks (lines, dots, bars, symbols) and the boundary of a control >= 3:1 (SC 1.4.11), against the dark surfaces they are drawn on: page #0f0f1e, panel #131326 (`--color-bg-panel` over the page), raised #1a1f33 (headers, cards, chart backgrounds), elevated #242938 (tooltips, hovered rows) (`SURFACES`).
 - `contrastRatio` is the WCAG ratio after alpha compositing; `markColor` lifts a team or category colour toward white just enough to reach 3:1 on its surface, `textColor` to 4.5:1; `contrastText` gives the text of a badge filled with a colour (black or white, whichever is higher); `tintedChip` puts a 15 % tint behind a label and lifts the label to 4.5:1 on that tint.
 - A de-emphasised (context) item keeps at least 3:1 for its text and 2:1 for its marks (`CONTEXT_FLOOR`, decision D7, section 10), and is never faded by an opacity on its text.
-- Checked by `frontend/scripts/cvd_check.mjs` (`docs/evidence/cvd_check.txt`: every palette, the neutral text, the marks and badges, the tinted chips; RESULT: PASS), `frontend/scripts/audit/contrast_pairs.mjs` (`contrast_pairs.txt`: 0 of 40 pairs under their threshold) and `frontend/scripts/audit/lane_marks_check.mjs` (`lane_marks_check.txt`, the strategy views; RESULT: PASS).
+- Checked by `frontend/scripts/cvd_check.mjs` (`docs/evidence/cvd_check.txt`: every palette, the neutral text, the marks and badges, the tinted chips; RESULT: PASS), `frontend/scripts/audit/contrast_pairs.mjs` (`contrast_pairs.txt`: 0 of 37 pairs under their threshold) and `frontend/scripts/audit/lane_marks_check.mjs` (`lane_marks_check.txt`, the strategy views; RESULT: PASS).
 
 ### Colour vision (colour-blind safe)
 
@@ -117,7 +117,7 @@ What the sign means is the view's, and each legend states it: in the Undercut sw
 
 In the Circle of Doom the pit-window line of the status text under the circle (`.cod-status__focus`) is drawn in the timing purple #C084FC (`--sector-purple`) for text contrast; the circle shows no lap-time bests, and cars keep their team colours.
 
-The F1 brand red #E10600 (`UI_COLORS.accent`, `--color-f1-red`; #FF6B63 as text, `--color-f1-red-text`) and the AI assistant's gradient (`GEMINI_COLORS`) are chrome, never a data encoding.
+The F1 brand red #E10600 (`UI_COLORS.accent`, `--color-f1-red`; #FF6B63 as text, `--color-f1-red-text`) is chrome, never a data encoding.
 
 ## 8. Flags, race control, severity and Monte Carlo levels
 

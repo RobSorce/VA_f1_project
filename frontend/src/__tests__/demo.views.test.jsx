@@ -2,9 +2,7 @@
 // backend the views say "Requires the local backend" where a model answer
 // would be, instead of an empty panel or a spinner:
 //  - Race Prediction: a Forecast tab with the note (the LSTM forecast);
-//  - Telemetry strip: the note in place of the traces (car telemetry);
-//  - Strategy assistant: a question sent gets the note as its answer (the
-//    store keeps the BackendOnlyError message), and the inputs say it.
+//  - Telemetry strip: the note in place of the traces (car telemetry).
 // The demo build answers the API from public/data (demo.apiClient.test.js);
 // here the flag is set as a demo build sets it (source 'build').
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -35,7 +33,6 @@ const {
 const { computeSessionTimeOffset, resolveSessionNow } = await import('../utils/raceTime.js');
 const { extractRaceSituationFeatures } = await import('../utils/raceSituationFeatures.js');
 const { default: RacePredictionPanel } = await import('../components/visualizations/RacePredictionPanel.jsx');
-const { default: GeminiAssistant } = await import('../components/visualizations/GeminiAssistant.jsx');
 
 const INITIAL = useF1Store.getState();
 const HAVE = hasCachedSession(2024, 16);
@@ -108,18 +105,5 @@ describe.skipIf(!HAVE)('static demo: the model-only views say what needs the loc
     expect(src).toMatch(/const demoActive = useDemoMode\(\(s\) => s\.active\);/);
     expect(src).toMatch(/\) : demoActive && !hasData \? \(\s*<div className="telemetry-strip__empty">\{BACKEND_ONLY_TEXT\}: \{BACKEND_ONLY_FEATURES\.telemetry\}\.<\/div>/);
     expect(BACKEND_ONLY_FEATURES.telemetry).toBe('car telemetry');
-  });
-
-  it('Strategy assistant: the input names the reason; a question gets the note as its answer', async () => {
-    monzaAtLap(30);
-    useDemoMode.setState({ active: true, source: 'build', reason: null });
-    const view = await mount(GeminiAssistant);
-    expect(view.host.querySelector('input.chat-input').getAttribute('placeholder')).toBe(`${BACKEND_ONLY_TEXT} (Gemini)`);
-    await view.unmount();
-    useF1Store.setState({ geminiMessages: [] });
-    await useF1Store.getState().sendGeminiQuery('pit now?');
-    const last = useF1Store.getState().geminiMessages.at(-1);
-    expect(last.role).toBe('ai');
-    expect(last.content).toBe(`${BACKEND_ONLY_TEXT}: ${BACKEND_ONLY_FEATURES.gemini}.`);
   });
 });

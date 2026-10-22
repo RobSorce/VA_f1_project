@@ -42,7 +42,7 @@ globalThis.__forecastFx = fx;
 const api = await import('../utils/apiClient');
 const { useF1Store } = await import('../store/useF1Store.js');
 const {
-  focusForecast, forecastPoints, forecastEntry, forecastRequestOf, forecastMethodText, FORECAST_LAPS,
+  focusForecast, forecastPoints, forecastEntry, forecastRequestOf, forecastMethodText,
 } = await import('../utils/forecast.js');
 const { extractRaceSituationFeatures } = await import('../utils/raceSituationFeatures.js');
 const { generateInsights } = await import('../utils/insightsGenerator.js');
@@ -343,7 +343,7 @@ describe('one trigger, one shape, never another driver\'s forecast', () => {
     expect(api.predictLSTM).not.toHaveBeenCalled();
   });
 
-  it('readers: the race situation uses the forecast only at its origin lap, the insights and the assistant name the method', async () => {
+  it('readers: the race situation uses the forecast only at its origin lap, the insights name the method', async () => {
     fx.predictLSTM = async (b) => answer(b, { predicted_times: [96.1, 96.6, 97.1, 97.6, 98.1] });
     await doubleClick('AAA', 20);
     const lstmPredictions = store().lstmPredictions;
@@ -364,37 +364,5 @@ describe('one trigger, one shape, never another driver\'s forecast', () => {
     expect(text).toMatch(/^LSTM forecast: AAA is projected to slow by 2\.00s over laps 20-24 \(held-out MAE 0\.608 s\)/);
     expect(generateInsights({ lstmPredictions, focusDriver: 'BBB', currentLap: 20, maxLap: 30 })
       .some((i) => i.category === 'forecast')).toBe(false);
-  });
-
-  it('the assistant context names the method of the focus driver\'s forecast', async () => {
-    fx.predictLSTM = async (b) => answer(b, { method: 'persistence', method_label: 'Persistence (next laps = last clean lap)' });
-    await doubleClick('AAA', 20);
-    let body = null;
-    api.queryGemini.mockImplementationOnce(async (b) => { body = b; return { response: 'ok' }; });
-    await store().sendGeminiQuery('pace?');
-    expect(body.race_context.lstm).toMatchObject({
-      driver: 'AAA', method: 'persistence', methodLabel: 'Persistence (next laps = last clean lap)', originLap: 19,
-      targetLaps: [20, 21, 22, 23, 24], heldOutMae: 0.637, pitProbability: 0.2, pitMethod: 'lstm',
-    });
-    expect('lstm_predictions' in body).toBe(false);
-    expect(FORECAST_LAPS).toBe(5);
-  });
-
-  it('the assistant context gives the Simulator cards\' P labels (medians), the means under their own names (backlog S4)', async () => {
-    const marks = { verdict: 1, shown: { custom: 3, baseline: 4 }, podium: 0, points: 0 };
-    useF1Store.setState({
-      simulatorResult: {
-        simProjection: { driver: 'AAA', expectedPos: 3.62 },
-        baselineProjection: { driver: 'AAA', expectedPos: 3.41 },
-        delta: { position: -0.21 },
-        marks,
-      },
-    });
-    let body = null;
-    api.queryGemini.mockImplementationOnce(async (b) => { body = b; return { response: 'ok' }; });
-    await store().sendGeminiQuery('plan?');
-    expect(body.race_context.simulator).toEqual({
-      customPos: 3, baselinePos: 4, customMeanPos: 3.62, baselineMeanPos: 3.41, delta: { position: -0.21 },
-    });
   });
 });

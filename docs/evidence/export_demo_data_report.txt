@@ -38,4 +38,4 @@ pca/strategies.json.gz                                     9289       144085
 schedule_2024.json.gz                                       238          493
 schedule_2025.json.gz                                       192          338
 
-total 8890366 bytes = 8.89 MB (budget 20 MB)
+total 8890354 bytes = 8.89 MB (budget 20 MB)

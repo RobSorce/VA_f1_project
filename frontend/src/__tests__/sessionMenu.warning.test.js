@@ -60,8 +60,6 @@ const ANALYTICAL = {
   brushLapRange: [2, 5],
   selectedPCAPoints: ['AAA_2024_1', 'BBB_2024_1', 'AAA_2023_5'],
   focusDriver: 'AAA',
-  geminiMessages: [{ role: 'user', text: 'pit now?' }, { role: 'ai', text: 'no' }],
-  geminiOverlays: [{ label: 'pit L32' }],
   simulatorStrategy: { stops: [{ lap: 20, compound: 'HARD' }] },
   simulatorResult: { delta: 0 },
   lstmPredictions: { AAA: { predicted_laps: [] } },
@@ -102,7 +100,7 @@ describe('the session-switch confirmation reads the PCA lasso', () => {
     const before = sessionSwitchSummary(store());
     // the lap ranges are cleared by a load, not kept (decision D8)
     expect(before.kept).toHaveLength(3);
-    expect(before.cleared).toHaveLength(7);
+    expect(before.cleared).toHaveLength(5);
     expect(before.cleared).toContain('lap range 3–6');
     console.log(`before the load: ${JSON.stringify(before)}`);
     fx.session = async () => race(12);
