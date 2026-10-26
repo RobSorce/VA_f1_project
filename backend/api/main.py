@@ -12,6 +12,7 @@ import logging
 import os
 import sys
 import json
+import re
 import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
@@ -26,6 +27,9 @@ from data.processors.feature_engineering import FeatureEngineer
 from data.processors.pca_compute import load_pca_embeddings, pca_embeddings_at, analyze_selection
 from data.processors.stints import build_tyre_strategy
 from utils.json_helpers import clean_dataframe_for_json
+from api.params import (
+    DriverCode, LapNumber, PointId, RoundNumber, Season, SessionType, session_type_code,
+)
 
 # Import routers with graceful fallback so that a broken optional dependency
 # (e.g. missing tensorflow) does not prevent the whole app from starting.
@@ -121,8 +125,31 @@ DISK_CACHE_DIR = Path(__file__).parent.parent / "data" / "processed_cache"
 DISK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
+# A disk-cache file name: words of letters and digits joined by underscores
+_CACHE_FILE_NAME = re.compile(r"[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*\.json")
+
+
+def _cache_file(*parts) -> Path:
+    """The disk-cache file named by parts: ('session', 2024, 16, 'R') is
+    session_2024_16_R.json in DISK_CACHE_DIR.
+
+    The parts come from validated request values (api/params.py); this is the
+    last check before a path is opened. ValueError unless the name is made of
+    letters, digits and underscores only and the resolved path is a file
+    directly inside DISK_CACHE_DIR, so no part can lead to another folder.
+    """
+    name = "_".join(str(p) for p in parts) + ".json"
+    if not _CACHE_FILE_NAME.fullmatch(name):
+        raise ValueError(f"unsafe cache file name: {name!r}")
+    folder = DISK_CACHE_DIR.resolve()
+    path = (folder / name).resolve()
+    if path.parent != folder:
+        raise ValueError(f"cache file outside {folder}: {name!r}")
+    return path
+
+
 def _disk_cache_path(prefix: str, year: int, round_num: int, session_type: str) -> Path:
-    return DISK_CACHE_DIR / f"{prefix}_{year}_{round_num}_{session_type}.json"
+    return _cache_file(prefix, int(year), int(round_num), session_type_code(session_type))
 
 
 def _load_from_disk(path: Path):
@@ -156,6 +183,7 @@ def get_raw_session(year: int, round_num: int, session_type: str = "R", offline=
     When offline=True, FastF1 uses only its local cache (no network requests).
     """
     import fastf1
+    session_type = session_type_code(session_type)
     cache_key = get_cache_key(year, round_num, session_type)
     if cache_key in raw_session_cache:
         return raw_session_cache[cache_key]
@@ -214,7 +242,9 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
 
     Every payload goes through _rebuild_tyre_strategy before entering the
     memory cache, so all three paths return stints split by the Stint column.
+    session_type is checked against api/params.py SESSION_TYPES (ValueError).
     """
+    session_type = session_type_code(session_type)
     cache_key = get_cache_key(year, round_num, session_type)
 
     # 1. In-memory cache (instant; tyre_strategy already rebuilt on insert)
@@ -363,7 +393,7 @@ def _season_published(year: int, lock_wait: float = _SEASON_LOCK_WAIT_S) -> Opti
     hit = _season_published_cache.get(year)
     if hit is not None and (hit[0] or time.monotonic() - hit[1] < _SEASON_RECHECK_S):
         return hit[0]
-    cached = schedule_cache.get(year) or _load_from_disk(DISK_CACHE_DIR / f"schedule_{year}.json")
+    cached = schedule_cache.get(year) or _load_from_disk(_cache_file("schedule", int(year)))
     if cached is not None and _has_rounds(cached.get('events')):
         published = True
     else:
@@ -412,14 +442,14 @@ async def get_seasons():
 
 
 @app.get("/api/schedule/{year}")
-async def get_schedule(year: int):
+async def get_schedule(year: Season):
     """Get event schedule for a season (disk + memory cached)."""
     # 1. Memory cache
     if year in schedule_cache:
         return schedule_cache[year]
 
     # 2. Disk cache
-    disk_path = DISK_CACHE_DIR / f"schedule_{year}.json"
+    disk_path = _cache_file("schedule", year)
     disk_data = _load_from_disk(disk_path)
     if disk_data is not None:
         logger.info(f"Loaded schedule from disk cache: {disk_path.name}")
@@ -453,13 +483,14 @@ async def get_schedule(year: int):
 
 
 @app.get("/api/session/{year}/{round_num}")
-async def get_session_data(year: int, round_num: int, session_type: str = "R"):
+async def get_session_data(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get comprehensive session data."""
     return await asyncio.to_thread(load_session, year, round_num, session_type)
 
 
 @app.get("/api/laptimes/{year}/{round_num}")
-async def get_lap_times(year: int, round_num: int, driver: Optional[str] = None, session_type: str = "R"):
+async def get_lap_times(year: Season, round_num: RoundNumber, driver: Optional[str] = None,
+                        session_type: SessionType = "R"):
     """Get lap times for a session (session_type, default the race; D16),
     optionally filtered by driver."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
@@ -472,12 +503,13 @@ async def get_lap_times(year: int, round_num: int, driver: Optional[str] = None,
 
 
 @app.get("/api/telemetry/{year}/{round_num}/{driver}")
-async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[int] = None, session_type: str = "R"):
+async def get_telemetry(year: Season, round_num: RoundNumber, driver: DriverCode, lap: Optional[LapNumber] = None,
+                        session_type: SessionType = "R"):
     """Get telemetry data for a specific driver."""
     try:
         # Disk cache for telemetry (keyed by driver + lap)
         lap_key = lap if lap else "fastest"
-        cache_path = DISK_CACHE_DIR / f"telemetry_{year}_{round_num}_{session_type}_{driver}_{lap_key}.json"
+        cache_path = _cache_file("telemetry", year, round_num, session_type, driver, lap_key)
         cached = _load_from_disk(cache_path)
         if cached is not None:
             logger.info(f"Telemetry from disk cache: {driver} lap {lap_key}")
@@ -512,7 +544,7 @@ async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[in
 
 
 @app.get("/api/circuit/{year}/{round_num}")
-async def get_circuit_info(year: int, round_num: int, session_type: str = "R"):
+async def get_circuit_info(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get circuit information including track coordinates (session_type,
     default the race; D16)."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
@@ -520,7 +552,7 @@ async def get_circuit_info(year: int, round_num: int, session_type: str = "R"):
 
 
 @app.get("/api/strategy/{year}/{round_num}")
-async def get_tyre_strategy(year: int, round_num: int, session_type: str = "R"):
+async def get_tyre_strategy(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get tyre strategy data for all drivers (one stint per tyre set) of the
     session of session_type (default the race; D16: the frontend sends the
     session on screen)."""
@@ -530,21 +562,21 @@ async def get_tyre_strategy(year: int, round_num: int, session_type: str = "R"):
 
 
 @app.get("/api/drivers/{year}/{round_num}")
-async def get_drivers(year: int, round_num: int, session_type: str = "R"):
+async def get_drivers(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get driver information for a session (session_type, default the race)."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return {"drivers": data['driver_info']}
 
 
 @app.get("/api/results/{year}/{round_num}")
-async def get_results(year: int, round_num: int, session_type: str = "R"):
+async def get_results(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get the results of a session (session_type, default the race)."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return {"results": data['race_results']}
 
 
 @app.get("/api/positions/{year}/{round_num}")
-async def get_positions(year: int, round_num: int, session_type: str = "R"):
+async def get_positions(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get position telemetry data for all drivers throughout the session
     (session_type, default the race)."""
     try:
@@ -560,7 +592,7 @@ async def get_positions(year: int, round_num: int, session_type: str = "R"):
 
 
 @app.get("/api/frames/{year}/{round_num}")
-async def get_race_frames(year: int, round_num: int, session_type: str = "R"):
+async def get_race_frames(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get race replay frames."""
     try:
         # Check disk cache first (instant)
@@ -588,7 +620,7 @@ async def get_race_frames(year: int, round_num: int, session_type: str = "R"):
 
 
 @app.get("/api/weather/{year}/{round_num}")
-async def get_weather(year: int, round_num: int, session_type: str = "R"):
+async def get_weather(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get weather data for a session (session_type, default the race)."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return {"weather": data['weather_data']}
@@ -900,7 +932,7 @@ def _compute_championship(year: int, fast_only: bool = True) -> Dict[str, Any]:
 
 
 @app.get("/api/championship/{year}")
-async def get_championship(year: int, load_all: bool = False):
+async def get_championship(year: Season, load_all: bool = False):
     """Get championship standings progression for a season.
 
     By default, only uses disk-cached sessions (instant).
@@ -911,7 +943,7 @@ async def get_championship(year: int, load_all: bool = False):
         try:
             result = await asyncio.to_thread(_compute_championship, year, fast_only=False)
             championship_cache[year] = result
-            disk_path = DISK_CACHE_DIR / f"championship_{year}.json"
+            disk_path = _cache_file("championship", year)
             _save_to_disk(disk_path, result)
             return result
         except Exception as e:
@@ -923,7 +955,7 @@ async def get_championship(year: int, load_all: bool = False):
 
     # Check disk cache for championship (one written by an older points model,
     # e.g. without the sprint points, is recomputed)
-    disk_path = DISK_CACHE_DIR / f"championship_{year}.json"
+    disk_path = _cache_file("championship", year)
     disk_data = _load_from_disk(disk_path)
     if disk_data is not None and disk_data.get('cache_version') == CHAMPIONSHIP_CACHE_VERSION:
         championship_cache[year] = disk_data
@@ -949,7 +981,7 @@ async def get_championship(year: int, load_all: bool = False):
 # clients; the t-SNE projection itself was removed.
 
 @app.get("/api/pca/embeddings")
-async def get_pca_embeddings(year: Optional[int] = None, round: Optional[int] = None,
+async def get_pca_embeddings(year: Optional[Season] = None, round: Optional[RoundNumber] = None,
                              session_now: Optional[float] = None):
     """Return PCA embeddings with loadings, auto-building if needed.
 
@@ -989,8 +1021,8 @@ class PCAAnalyzeRequest(BaseModel):
     point_ids: List[str]
     # The race being replayed and its clock: its rows, stints and stops are
     # taken at session_now (None = post-race)
-    year: Optional[int] = None
-    round: Optional[int] = None
+    year: Optional[Season] = None
+    round: Optional[RoundNumber] = None
     session_now: Optional[float] = None
 
 @app.post("/api/pca/analyze-selection")
@@ -1013,7 +1045,7 @@ async def analyze_tsne_selection(request: PCAAnalyzeRequest):
 
 
 @app.get("/api/pca/point-features/{point_id}")
-async def get_point_features(point_id: str):
+async def get_point_features(point_id: PointId):
     """Get the feature values of one biplot point (post-race row)."""
     import pandas as pd
     from data.processors.pca_compute import FEATURE_COLS, MATRIX_FILE, PROCESSED_DIR
@@ -1042,7 +1074,7 @@ async def get_point_features(point_id: str):
 
 # Alias (former route name, see above) of /api/pca/point-features/{point_id}
 @app.get("/api/tsne/point-features/{point_id}")
-async def get_point_features_former_route(point_id: str):
+async def get_point_features_former_route(point_id: PointId):
     """Alias of /api/pca/point-features/{point_id}."""
     return await get_point_features(point_id)
 
@@ -1181,9 +1213,10 @@ async def load_live_full_session():
         "Practice 1": "FP1", "Practice 2": "FP2", "Practice 3": "FP3",
         "Sprint Qualifying": "SQ", "Sprint Shootout": "SS",
     }
-    session_type = session_type_map.get(session_type_raw, session_type_raw)
-    if not session_type:
-        session_type = "R"
+    try:
+        session_type = session_type_code(session_type_map.get(session_type_raw, session_type_raw))
+    except ValueError:
+        return {"error": f"Unsupported session type: {session_type_raw!r}"}
 
     logger.info(f"Loading full session via FastF1: {year} '{event_name}' {session_type}")
 

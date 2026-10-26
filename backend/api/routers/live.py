@@ -10,6 +10,8 @@ from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
+from api.params import RoundNumber, Season
+
 router = APIRouter(prefix="/api/live", tags=["live"])
 logger = logging.getLogger(__name__)
 
@@ -163,8 +165,8 @@ async def list_mock_sessions():
 
 @router.get("/mock/start")
 async def start_mock_replay(
-    year: int = Query(2024),
-    round: int = Query(7),
+    year: Season = Query(2024),
+    round: RoundNumber = Query(7),
     speed: float = Query(10.0),
 ):
     """Start a mock live replay from cached session data."""

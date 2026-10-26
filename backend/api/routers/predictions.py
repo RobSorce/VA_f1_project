@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from api import params
+from api.params import RoundNumber, Season, SessionType
+
 # Pure modules (no torch): always importable
 from model.pit_timing import optimal_pit_lap as _pit_lap_from_probability
 from data.processors.degradation import FUEL_EFFECT_S_PER_LAP, MIN_FIT_LAPS, stint_fits
@@ -115,10 +118,10 @@ RACE_SESSION_TYPES = ("R", "S")
 
 
 def session_type_code(session_type) -> str:
-    """The session-type code to load ('R', 'S', 'Q', 'SQ', 'FP1'-'FP3'):
-    upper-cased, DEFAULT_SESSION_TYPE when empty."""
-    code = str(session_type or "").strip().upper()
-    return code or DEFAULT_SESSION_TYPE
+    """The session-type code to load ('R', 'S', 'Q', 'SQ', 'SS', 'FP1'-'FP3'):
+    upper-cased, DEFAULT_SESSION_TYPE when empty (api/params.py; ValueError
+    for any other value)."""
+    return params.session_type_code(session_type)
 
 
 def is_race_session(session_type) -> bool:
@@ -135,8 +138,8 @@ class LSTMRequest(BaseModel):
     # clock: session_now (session seconds, frontend getSessionNow; only laps
     # completed by then are read) and / or lap (the driver's last lap to use,
     # e.g. a clicked past lap). Neither: the driver's last lap of the session.
-    year: Optional[int] = None
-    round: Optional[int] = None
+    year: Optional[Season] = None
+    round: Optional[RoundNumber] = None
     driver: Optional[str] = None
     lap: Optional[int] = None
     session_now: Optional[float] = None
@@ -161,12 +164,12 @@ class LSTMRequest(BaseModel):
         default=None, validation_alias=AliasChoices('context_races', 'tsne_context'))
     # Type of the session the laps come from (D16; default the race). Outside
     # a race ('R') or sprint ('S') no pit stop is projected (race-only logic).
-    session_type: Optional[str] = DEFAULT_SESSION_TYPE
+    session_type: Optional[SessionType] = DEFAULT_SESSION_TYPE
 
 
 class DegradationRequest(BaseModel):
-    year: int
-    round: int
+    year: Season
+    round: RoundNumber
     drivers: List[str]
     lap_start: int
     lap_end: int
@@ -175,7 +178,7 @@ class DegradationRequest(BaseModel):
     session_now: Optional[float] = None
     # Type of the session the laps come from (D16; default the race). Outside
     # a race ('R') or sprint ('S') the fits are returned without a pit lap.
-    session_type: Optional[str] = DEFAULT_SESSION_TYPE
+    session_type: Optional[SessionType] = DEFAULT_SESSION_TYPE
 
 
 # -- Degradation constants ---------------------------------------------------

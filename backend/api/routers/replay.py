@@ -24,6 +24,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from api.params import RoundNumber, Season, SessionType
 from data.processors.stints import map_track_status_to_laps
 
 logger = logging.getLogger(__name__)
@@ -321,7 +322,7 @@ def _build_events(extractor, session, total_laps: int) -> list:
 # =========================================================================
 
 @router.get("/api/session/{year}/{round_num}/{session_type}/replay")
-async def get_replay_data(request: Request, year: int, round_num: int, session_type: str = "R"):
+async def get_replay_data(request: Request, year: Season, round_num: RoundNumber, session_type: SessionType):
     """
     Return structured replay data for a session.
 
