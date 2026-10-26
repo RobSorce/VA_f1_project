@@ -1,7 +1,32 @@
 """
 FastAPI Main Application
 F1 Analytics Platform API
+
+Run from backend/: python api/main.py, the same as uvicorn api.main:app on
+VA_API_HOST:VA_API_PORT (api/settings.py, default 127.0.0.1:8000).
 """
+import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / '.env')
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+if __name__ == "__main__":
+    # python api/main.py serves the app by its import path, as uvicorn
+    # api.main:app does, and the script stops here: this file is imported
+    # once, as api.main. Serving the script's own app object left two copies
+    # of the module (the script and the api.main the routers import
+    # load_session from): two session caches, two FastF1 locks, two FastF1
+    # loads of the same session at once.
+    import uvicorn
+    from api.settings import server_host, server_port
+    # 127.0.0.1 unless VA_API_HOST says otherwise: not reachable from the network
+    uvicorn.run("api.main:app", host=server_host(), port=server_port())
+    sys.exit(0)
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -10,17 +35,9 @@ from typing import Optional, Dict, Any, List
 import asyncio
 import logging
 import os
-import sys
 import json
 import re
 import numpy as np
-from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv(Path(__file__).parent.parent / '.env')
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from data.extractors.fastf1_extractor import FastF1Extractor, get_sample_session_data
 from data.processors.feature_engineering import FeatureEngineer
@@ -1300,12 +1317,3 @@ async def disconnect_live_signalr():
         _live_signalr_task = None
         return {"status": "disconnected"}
     return {"status": "not_connected"}
-
-
-# ============= Run Server =============
-
-if __name__ == "__main__":
-    import uvicorn
-    from api.settings import server_host, server_port
-    # 127.0.0.1 unless VA_API_HOST says otherwise: not reachable from the network
-    uvicorn.run(app, host=server_host(), port=server_port())

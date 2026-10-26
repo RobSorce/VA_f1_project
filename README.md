@@ -82,6 +82,8 @@ pip install -r requirements.txt
 python api\main.py
 ```
 
+`python api/main.py` is the same as `uvicorn api.main:app` run from `backend/`: the app module is imported once, as `api.main`. It listens on `127.0.0.1:8000`, this computer only (`VA_API_HOST` and `VA_API_PORT`, below, change it). Do not start `uvicorn main:app` from `backend/api/`: the routers import `api.main`, which would load a second copy of the module (two caches, two FastF1 locks).
+
 Optional, with the virtual environment active and from `backend/`:
 - Real Gemini answers in the AI Assistant: `GEMINI_API_KEY` in `backend/.env` (copy the repository's `.env.example`); the `google-genai` package it needs is in `requirements.txt`. Without the key (or without the package), the assistant answers with a rule-based fallback marked MOCK.
 - Team-radio transcription in live mode: `pip install faster-whisper` (model chosen by `VA_WHISPER_MODEL`).
