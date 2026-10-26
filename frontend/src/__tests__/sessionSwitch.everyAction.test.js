@@ -334,7 +334,10 @@ const ASYNC_ACTIONS = Object.entries(useF1Store.getState())
 
 beforeEach(async () => {
   for (const k of Object.keys(fx)) delete fx[k];
-  heldJobs.length = 0;
+  // A job the previous test left in the worker gets its answer: dropped
+  // unanswered, it would keep its channel in flight and hold every later
+  // request of that channel in the client's queue
+  releaseWorker();
   sessionFixtures();
   await onA();
   for (const f of Object.values(api)) if (f?.mockClear) f.mockClear();

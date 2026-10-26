@@ -1,4 +1,4 @@
-Chrome text contrast (dark theme, WCAG 2.1), CSS of the working tree, 2026-10-16
+Chrome text contrast (dark theme, WCAG 2.1), CSS of the working tree, 2026-10-26
 257 chrome text colours; FAIL 0; EXEMPT (disabled) 5
 
 Named chrome items (findings_2026-10-14.md section 2):
@@ -24,11 +24,11 @@ Named chrome items (findings_2026-10-14.md section 2):
 All chrome rows below the threshold:
 
 Modifier opacity (BEM --modifier rules with 0 < opacity < 1, on the element or an ancestor): 8 text rows reached, 0 below the threshold
-  EXEMPT 2.48:1 (needs 4.5)  .bottom-tab-bar__tab under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
-  EXEMPT 3.58:1 (needs 4.5)  .bottom-tab-bar__tab:hover under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
-  EXEMPT 4.63:1 (needs 4.5)  .bottom-tab-bar__tab--active under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
-  EXEMPT 2.11:1 (needs 4.5)  .tab-kbd under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
-  EXEMPT 2.64:1 (needs 4.5)  .bottom-tab-bar__tab:hover .tab-kbd under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
-  EXEMPT 4.07:1 (needs 4.5)  .bottom-tab-bar__tab--active .tab-kbd under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
-  EXEMPT 4.63:1 (needs 4.5)  .bottom-tab-bar__remove-badge under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2072) [off screen]
-  EXEMPT 2.91:1 (needs 4.5)  .dock-ctx-menu__item under .dock-ctx-menu__item--disabled (opacity 0.40, frontend/src/styles/dashboard.css:2314) [disabled]
+  EXEMPT 2.48:1 (needs 4.5)  .bottom-tab-bar__tab under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2045) [off screen]
+  EXEMPT 3.58:1 (needs 4.5)  .bottom-tab-bar__tab:hover under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2045) [off screen]
+  EXEMPT 4.63:1 (needs 4.5)  .bottom-tab-bar__tab--active under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2045) [off screen]
+  EXEMPT 2.11:1 (needs 4.5)  .tab-kbd under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2045) [off screen]
+  EXEMPT 2.64:1 (needs 4.5)  .bottom-tab-bar__tab:hover .tab-kbd under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2045) [off screen]
+  EXEMPT 4.07:1 (needs 4.5)  .bottom-tab-bar__tab--active .tab-kbd under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2045) [off screen]
+  EXEMPT 4.63:1 (needs 4.5)  .bottom-tab-bar__remove-badge under .bottom-tab-bar--hidden (opacity 0.50, frontend/src/styles/dashboard.css:2045) [off screen]
+  EXEMPT 2.91:1 (needs 4.5)  .dock-ctx-menu__item under .dock-ctx-menu__item--disabled (opacity 0.40, frontend/src/styles/dashboard.css:2287) [disabled]

@@ -202,7 +202,8 @@ async function main() {
       log(`  ${race.year} R${race.round} ${race.race_name}: ${summary}`);
     }
     log(`all demo races loaded in ${ms(t0)} (Pages-like host, gzip decoded with DecompressionStream)`);
-    const outside = pages.requests.filter((q) => !q.url.startsWith(BASE));
+    // /api is never a file of the site, under the base "/" too
+    const outside = pages.requests.filter((q) => !q.url.startsWith(BASE) || q.url.startsWith('/api/'));
     const apiHits = pages.requests.filter((q) => q.url.startsWith('/api') && q.url !== '/api/seasons');
     const dataReqs = pages.requests.filter((q) => q.url.startsWith(`${BASE}data/`));
     check(apiHits.length === 0, `requests to /api by the app: ${apiHits.length}`);

@@ -1,4 +1,4 @@
-Token contrast (WCAG 2.1; a translucent background is composited over the page #0f0f1e), 2026-10-16
+Token contrast (WCAG 2.1; a translucent background is composited over the page #0f0f1e), 2026-10-26
   --color-text-secondary #C9CCD6       on #0f0f1e 11.82:1, on #131326 11.40:1, on #1a1f33 10.17:1, on #242938 9.03:1
   --color-text-muted #A3A7B7           on #0f0f1e 7.92:1, on #131326 7.63:1, on #1a1f33 6.81:1, on #242938 6.05:1
   old muted rgba(255,255,255,0.45)     on #0f0f1e 4.52:1, on #242938 4.16:1

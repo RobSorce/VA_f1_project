@@ -1,4 +1,4 @@
-Fit of the layout lane's views at the V13 target viewports (CSS + components + Inter metrics), 2026-10-22
+Fit of the layout lane's views at the V13 target viewports (CSS + components + Inter metrics), 2026-10-26
 Leaderboard rows 18-28 px, pager 22 px, legend inline from 900 px of height; focus cards open from 1200 px
 Sectors rows 18-26 px, pager 22 px, ranked columns >= 16 em; Consistency rows 20-30 px, cards >= 32 em
 

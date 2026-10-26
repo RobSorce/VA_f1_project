@@ -64,7 +64,9 @@ function Swatch({ item, shape }) {
         height={SYMBOL_SWATCH_PX}
         viewBox={item.viewBox}
         aria-hidden="true"
-        style={{ flexShrink: 0, overflow: 'visible' }}
+        // the size inline too: a legend inside a chart's .viz-container would
+        // take that rule's width / height 100 % over the attributes
+        style={{ flexShrink: 0, overflow: 'visible', width: SYMBOL_SWATCH_PX, height: SYMBOL_SWATCH_PX }}
       >
         <path
           d={item.path}
@@ -84,7 +86,8 @@ function Swatch({ item, shape }) {
       ? [LINE_SWATCH.h / 2 - item.double, LINE_SWATCH.h / 2 + item.double]
       : [LINE_SWATCH.h / 2];
     return (
-      <svg width={LINE_SWATCH.w} height={LINE_SWATCH.h} aria-hidden="true" style={{ flexShrink: 0 }} className="legend-line">
+      <svg width={LINE_SWATCH.w} height={LINE_SWATCH.h} aria-hidden="true" className="legend-line"
+        style={{ flexShrink: 0, width: LINE_SWATCH.w, height: LINE_SWATCH.h }}>
         {ys.map((yy) => (
           <line
             key={yy}

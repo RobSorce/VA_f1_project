@@ -1,4 +1,4 @@
-Repair contrast check (WCAG 2.1), 37 pairs read from the working tree, 2026-10-22
+Repair contrast check (WCAG 2.1), 37 pairs read from the working tree, 2026-10-26
 OK   5.67:1 (needs 4.5)  dock fixed buttons Layouts / Cmd K / Settings (label text), opacity 1  fg #A3A7B7 on #2C2C3F  [dashboard.css .bottom-tab-bar__tab--fixed (opacity none)]
 OK   5.67:1 (needs 3)  dock overflow button ⋯ (the only way to the hidden items), opacity 1  fg #A3A7B7 on #2C2C3F  [dashboard.css .bottom-tab-bar__tab--overflow (opacity none)]
 OK   6.54:1 (needs 4.5)  shortcut hint key (shown; after 5 s hidden whole: opacity 0, visibility hidden)  fg #A6A6A6 on #222222  [ShortcutHints.css .shortcut-hint-key]

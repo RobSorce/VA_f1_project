@@ -22,8 +22,12 @@
  * Measured (CSS px, getBoundingClientRect):
  *  - biplot: every loading label drawn; overlap of two labels = the area of
  *    their intersection over the smaller label's area; a label over a point
- *    = any intersection with the point's mark; labels shown only on hover /
- *    keyboard focus (no room), and the leader lines;
+ *    = any intersection with the point's mark; a label over another text
+ *    of the plot (axis ticks and titles, "avg", "N selected", the hint) or
+ *    the Clear button = any intersection with its box; a clipped label = the
+ *    part of its box outside the plot's container; labels shown only on
+ *    hover / keyboard focus (no room), the leader lines, and the face the
+ *    labels are drawn in;
  *  - Differences: the share of each row's "above random", no-interval and
  *    random-|g| lines inside the row; the g axis of the head against every
  *    row's strip (left edge and width); the pager.
@@ -116,10 +120,16 @@ function launch(chromePath) {
     pending.set(id, { resolve, reject });
     toChrome.write(`${JSON.stringify({ id, method, params, sessionId })}\0`);
   });
+  const exited = new Promise((resolve) => {
+    if (proc.exitCode != null || proc.signalCode != null) resolve(); else proc.once('exit', resolve);
+  });
   const close = async () => {
     try { await send('Browser.close'); } catch { /* gone */ }
     proc.kill();
-    fs.rmSync(profile, { recursive: true, force: true });
+    // Chrome writes to its profile until it has exited: removed earlier, the
+    // removal can fail on a file written meanwhile (ENOTEMPTY)
+    await Promise.race([exited, new Promise((resolve) => { setTimeout(resolve, 5000); })]);
+    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   };
   return { send, close };
 }
@@ -220,7 +230,28 @@ function measureBiplot() {
   const points = [...svg.querySelectorAll('.pca-point')].map((p) => ({ driver: p.__data__?.driver, ...R(p) }));
   const onPoints = [];
   for (const b of boxes) for (const p of points) if (inter(b, p) > 0) onPoints.push({ label: b.label, driver: p.driver, pct: (100 * inter(b, p)) / (p.w * p.h) });
+  // the plot's other texts and the Clear button over it
+  const others = [...svg.querySelectorAll('text')]
+    .filter((t) => !all.includes(t) && getComputedStyle(t).display !== 'none' && t.textContent.trim())
+    .map((t) => ({ text: t.textContent.trim(), ...R(t) }));
+  const clear = [...document.querySelectorAll('.analytics-tab__scatterplot .viz-container > button')]
+    .map((b) => ({ text: b.textContent.trim(), ...R(b) }));
+  const onTexts = [];
+  for (const b of boxes) for (const o of [...others, ...clear]) if (inter(b, o) > 0) onTexts.push({ label: b.label, text: o.text });
+  // clipped: the part of a label's box outside the plot's container
+  const box = R(svg.parentElement);
+  const clipped = boxes.map((b) => ({
+    label: b.label,
+    out: Math.max(0, box.x - b.x, b.x + b.w - (box.x + box.w), box.y - b.y, b.y + b.h - (box.y + box.h)),
+  })).filter((c) => c.out > 0.5);
+  const face = shown[0] ? getComputedStyle(shown[0]) : null;
   return {
+    face: face ? `${face.fontFamily.split(',')[0].replace(/["']/g, '').trim()} ${face.fontWeight} ${face.fontSize}` : null,
+    faceLoaded: face ? document.fonts.check(`${face.fontWeight} ${face.fontSize} ${face.fontFamily}`) : null,
+    onTexts,
+    otherTexts: others.length,
+    buttons: clear.length,
+    clipped,
     labels: boxes.length,
     hoverOnly: all.filter((t) => !shown.includes(t)).map((t) => t.textContent),
     leaders: svg.querySelectorAll('.pca-arrow-leader').length,
@@ -334,8 +365,14 @@ function reportBiplot(tag, b) {
   log(`  biplot: ${b.labels} labels drawn, ${b.hoverOnly.length} on hover / focus only${b.hoverOnly.length ? ` (${b.hoverOnly.join(', ')})` : ''}, ${b.leaders} leader lines, ${b.points} points`);
   log(`    label / label overlaps: ${b.pairs.length ? b.pairs.map((p) => `${p.a} / ${p.b} ${p.pct.toFixed(0)} %`).join('; ') : 'none'}`);
   log(`    label / point overlaps: ${b.onPoints.length ? b.onPoints.map((p) => `${p.label} / ${p.driver} ${p.pct.toFixed(0)} % of the mark`).join('; ') : 'none'}`);
+  log(`    label / text and Clear button overlaps (${b.otherTexts} texts, ${b.buttons} button${b.buttons === 1 ? '' : 's'}): ${b.onTexts.length ? b.onTexts.map((p) => `${p.label} / "${p.text}"`).join('; ') : 'none'}`);
+  log(`    clipped labels: ${b.clipped.length ? b.clipped.map((c) => `${c.label} ${c.out.toFixed(1)} px out`).join('; ') : 'none'}`);
+  log(`    label face: ${b.face ?? '—'}${b.faceLoaded == null ? '' : `, ${b.faceLoaded ? 'loaded' : 'NOT loaded'}`}`);
   check(b.pairs.length === 0, `${tag}: labels overlap`);
   check(b.onPoints.length === 0, `${tag}: a label covers a point`);
+  check(b.onTexts.length === 0, `${tag}: a label covers a text or the Clear button`);
+  check(b.clipped.length === 0, `${tag}: a label is clipped`);
+  check(b.faceLoaded !== false, `${tag}: the labels' face is not loaded`);
 }
 
 function reportDifferences(tag, d) {

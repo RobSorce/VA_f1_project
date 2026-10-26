@@ -10,7 +10,7 @@
  * TRADEMARK_NOTICE is shown on the start screen and in Settings > About;
  * README.md quotes it word for word (brand.test.js).
  */
-export const APP_NAME = 'Lapwise';
+export const APP_NAME = 'Race Strategy Dashboard';
 
 export const TRADEMARK_NOTICE = 'Unofficial project, not associated in any way with the Formula 1 companies. '
   + 'F1, FORMULA ONE, FORMULA 1, FIA FORMULA ONE WORLD CHAMPIONSHIP, GRAND PRIX and related marks '

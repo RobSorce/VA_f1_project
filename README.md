@@ -1,4 +1,4 @@
-# Lapwise
+# Race Strategy Dashboard
 
 Interactive visual analytics platform for Formula 1 race strategy analysis.
 

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Lapwise - Dashboard Layout
+   Race Strategy Dashboard - Dashboard Layout
    Fixed-viewport design: no page scroll at any supported size
    (1366x768, 1536x750, 1920x1080, 2048x1100; V13)
    ========================================================================== */
@@ -2009,7 +2009,7 @@
   margin: 0 auto var(--dock-margin);
   padding: 0 6px;
   gap: 2px;
-  /* both side gutters stay free: the assistant button sits in the right one */
+  /* a free gutter on each side of the pill (--dock-side-gutter) */
   max-width: calc(100vw - 2 * var(--dock-side-gutter));
   /* Never scrolls: BottomTabBar measures its buttons and moves the ones that
      do not fit into the overflow (⋯) popover (utils/dockCapacity.js). */

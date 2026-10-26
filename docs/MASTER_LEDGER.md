@@ -1,4 +1,4 @@
-# Lapwise — Master Ledger
+# Race Strategy Dashboard — Master Ledger
 
 > Single-source, exhaustive entry point for the final Visual Analytics report.
 > Every subsequent document (INSIGHTS, RELATED_WORK, PCA_METHODOLOGY, etc.) is a deeper dive on a section that already appears here.
@@ -38,7 +38,7 @@ Repository: [github.com/RobSorce/VA_f1_project](https://github.com/RobSorce/VA_f
 
 ## 1 · What the system is and why
 
-**Lapwise** is a full-stack visual-analytics platform for Formula 1 race-strategy decision making.
+**Race Strategy Dashboard** is a full-stack visual-analytics platform for Formula 1 race-strategy decision making.
 It is *not* an F1 information dashboard. It is a decision-support tool that closes the loop
 
 ```
@@ -875,7 +875,7 @@ The layout is checked at 1536 × 750, 1366 × 768, 1920 × 1080 and 2048 × 1100
 
 ## Appendix A · One-line elevator pitch
 
-> A pit-wall decision-support dashboard that couples 28 coordinated F1 race visualizations to four analytics pipelines (PCA biplot with loadings + lasso-to-descriptive comparison (Hedges' g), lap-time + pit-probability forecast (the method selected on the validation races, the LSTM), Monte Carlo race-outcome simulation, brush-to-degradation regression), wrapped in a JetBrains-style docked workspace with a customizable bottom dock, a VS-Code-style fuzzy command palette and the 43 keyboard shortcuts of the cheatsheet (`docs/evidence/cheatsheet_fit.txt`) — all themed on the official F1 TV broadcast language (team colors, tyre compound codes, purple/green sector timing, Formula1 + JetBrains Mono typography, iOS-26 glassmorphism).
+> A pit-wall decision-support dashboard that couples 28 coordinated F1 race visualizations to four analytics pipelines (PCA biplot with loadings + lasso-to-descriptive comparison (Hedges' g), lap-time + pit-probability forecast (the method selected on the validation races, the LSTM), Monte Carlo race-outcome simulation, brush-to-degradation regression), wrapped in a JetBrains-style docked workspace with a customizable bottom dock, a VS-Code-style fuzzy command palette and the 43 keyboard shortcuts of the cheatsheet (`docs/evidence/cheatsheet_fit.txt`) — all themed on the official F1 TV broadcast language (team colors, tyre compound codes, purple/green sector timing, Inter + JetBrains Mono typography, iOS-26 glassmorphism).
 
 ---
 
