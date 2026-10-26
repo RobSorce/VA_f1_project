@@ -30,6 +30,7 @@ from utils.json_helpers import clean_dataframe_for_json
 from api.params import (
     DriverCode, LapNumber, PointId, RoundNumber, Season, SessionType, session_type_code,
 )
+from api.settings import cors_origins
 
 # Import routers with graceful fallback so that a broken optional dependency
 # (e.g. missing tensorflow) does not prevent the whole app from starting.
@@ -83,13 +84,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS for frontend
+# CORS: only the origins of VA_CORS_ORIGINS (default the Vite dev and preview
+# servers, api/settings.py) may call the API from a browser. No credentials:
+# the frontend sends no cookie and no HTTP authentication.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify frontend origin
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 # Initialize data extractor
@@ -1303,4 +1306,6 @@ async def disconnect_live_signalr():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    from api.settings import server_host, server_port
+    # 127.0.0.1 unless VA_API_HOST says otherwise: not reachable from the network
+    uvicorn.run(app, host=server_host(), port=server_port())

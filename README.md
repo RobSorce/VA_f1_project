@@ -110,6 +110,7 @@ The variables the code reads are listed, with what each one does, in [.env.examp
 - backend (`backend/.env`, loaded by `backend/api/main.py`, or the shell): `GEMINI_API_KEY` (Gemini answers), `OPENF1_API_KEY` (OpenF1 access during a live session), `VA_WHISPER_MODEL` (team-radio transcription model);
 - frontend (`frontend/.env`): `VITE_DEMO=1` makes a normal build the static demo;
 - demo build (the shell running `npm run build:demo`): `DEMO_BASE`, the path the site is served under (the deploy workflow sets it from the repository name).
+- backend server (`backend/.env` or the shell): `VA_API_HOST` and `VA_API_PORT`, where it listens (default `127.0.0.1:8000`, this computer only), and `VA_CORS_ORIGINS`, the origins a browser may call the API from (default the Vite dev and preview servers; no credentials).
 
 ## Layout
 
