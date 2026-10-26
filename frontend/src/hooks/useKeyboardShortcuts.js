@@ -188,7 +188,6 @@ export function useKeyboardShortcuts() {
         '4': 'sectors',
         '5': 'prediction',
         '6': 'analytics',
-        '7': 'ai',
         '8': 'compare',
         '9': 'consistency',
         '0': 'championship',
@@ -377,12 +376,7 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // G — toggle Gemini floating panel
-      if (e.key === 'g') {
-        e.preventDefault();
-        window.dispatchEvent(new CustomEvent('toggle-gemini-panel'));
-        return;
-      }
+      // Shift+G — Driver Comparison (two drivers in compare mode)
       if (e.key === 'G' && e.shiftKey && state.compareMode && state.compareDrivers?.length === 2) {
         e.preventDefault();
         state.setActiveTab('compare');

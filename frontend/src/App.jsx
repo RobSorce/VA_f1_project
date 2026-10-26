@@ -10,7 +10,6 @@ import DriverMFDCard from './components/ui/DriverMFDCard';
 import WelcomeToast from './components/ui/WelcomeToast';
 import ToastStack from './components/ui/ToastStack';
 import HelpOverlay from './components/ui/HelpOverlay';
-import GeminiFloatingButton from './components/ui/GeminiFloatingButton';
 import RadioPipToast from './components/ui/RadioPipToast';
 import { CHART_HELP, DOCS_BASE } from './utils/chartHelp';
 
@@ -30,7 +29,6 @@ import TrackMap from './components/visualizations/TrackMap';
 // Tab content
 import ChartsTabContent from './components/tabs/ChartsTabContent';
 import LapTimesTabContent from './components/tabs/LapTimesTabContent';
-import AITabContent from './components/tabs/AITabContent';
 import TyresTabContent from './components/tabs/TyresTabContent';
 import SettingsTabContent from './components/tabs/SettingsTabContent';
 import ChampionshipTabContent from './components/tabs/ChampionshipTabContent';
@@ -75,16 +73,15 @@ const OVERLAY_TABS = {
   tyrehealth:   { title: 'Tyre Health',          Component: TyreHealth,            helpText: 'Estimated tyre life of the focus driver, lap by lap: one curve per stint in the compound colour, from tyre age (exponent 1.6 of age over the compound\'s max life) and pace (80 × the fraction slower than the stint\'s best lap), CRITICAL / WORN zones.' },
   tyremgmt:     { title: 'Pace Retention',       Component: TyreManagement,        helpText: 'Pace retention of the focus driver, lap by lap: each lap as a share of its stint\'s opening pace (median of the stint\'s laps 2 to 4), one line per stint in the compound colour.' },
   consistency:  { title: 'Consistency',          Component: ConsistencyPanel,      helpText: 'Residual σ: the scatter of the clean laps around each stint\'s tyre-wear fit (lap 1, pit in/out and non-green laps left out), so wear, fuel burn and stops are not inconsistency. "LOW DATA" = σ from a small sample, not comparable.' },
-  ai:           { title: 'AI Assistant',         Component: AITabContent,          helpText: 'Gemini-backed strategy engineer. A MOCK chip marks the heuristic fallback (no API key, the google-genai package missing or the API unavailable): a rule-based answer built from the race context.' },
   analytics:    { title: 'Analytics',            Component: AnalyticsTabContent,   helpText: 'PCA biplot of per-(driver, race) feature vectors: a point is one driver in one race; loading arrows show feature contributions. A lasso selection is compared with the other rows (Hedges\' g, random baseline) in the Cross-Race Analysis panel.', helpHref: `${DOCS_BASE}PCA_METHODOLOGY.md` },
   prediction:   { title: 'Race Prediction',      Component: RacePredictionPanel,   helpText: 'Lap-time forecast of the focus driver by the method with the best validation error (named on the chip, with its held-out error), pit-stop probability and Monte Carlo position projections.', helpHref: `${DOCS_BASE}analytics_provenance.md` },
   simulator:    { title: 'Strategy Simulator',   Component: StrategySimulator,     helpText: `Monte Carlo (${DEFAULT_NUM_SIMULATIONS.toLocaleString('en-US')} runs, the same random numbers for both strategies) race projection given a hypothetical strategy. Shows position distribution and podium/points probabilities.` },
-  strategy:     { title: 'Strategy Timeline',    Component: StrategyTimeline,      helpText: 'Gantt of each driver\'s stints (one bar per tyre set, from FastF1\'s Stint column), pit stops, and compound transitions. Each stop is labelled with its pit loss: measured, race median ("est"), or "fallback". Overlay buttons inject predicted / ghost / Gemini scenarios.' },
+  strategy:     { title: 'Strategy Timeline',    Component: StrategyTimeline,      helpText: 'Gantt of each driver\'s stints (one bar per tyre set, from FastF1\'s Stint column), pit stops, and compound transitions. Each stop is labelled with its pit loss: measured, race median ("est"), or "fallback". Drawn over it: the focus driver\'s forecast stints (hatched), the Strategy Simulator\'s plan (dashed) and, under the drivers, the strategies of a PCA lasso selection.' },
   analysis:     { title: 'Strategy Analysis',    Component: StrategyAnalysis,      helpText: 'Race Analysis: insights from the analytical outputs, the field overview, and for drivers lassoed on the Race Situation map the features that separate them from the field (Cohen\'s d).' },
   racesituation:{ title: 'Race Situation',       Component: RaceSituationMap,      helpText: 'Live PCA of each driver\'s race state, refitted every lap and turned onto the previous lap\'s axes (orthogonal Procrustes). Lasso-select a subset to select those drivers in the other panels.' },
   racepace:     { title: 'Race Pace Grid',       Component: RacePaceGrid,          helpText: 'Pace grid, rows = laps, columns = drivers. Cells coloured by Δ to the driver\'s median clean lap (blue fast, white, yellow, orange slow; ◆ / ● bests, P / O pit laps) so fast/slow stints are visible at a glance.' },
   telemetry:    { title: 'Telemetry',            Component: TelemetryStrip,        helpText: 'Telemetry of a lap: speed, gap, throttle and brake, gear and RPM, for the focus and selected drivers or for the laps of the lap range.' },
-  championship: { title: 'Championship',         Component: ChampionshipTabContent,helpText: 'Season standings + weighted-moving-average projection. "Standings" and "Prediction & AI" subtabs.' },
+  championship: { title: 'Championship',         Component: ChampionshipTabContent,helpText: 'Season standings + weighted-moving-average projection (the chart\'s Predictions button).' },
   settings:     { title: 'Settings',             Component: SettingsTabContent,    helpText: 'App-level preferences. The Dock accordion lets you toggle any panel in or out of the bottom bar.' },
   compare:      { title: 'Driver Comparison',    Component: DriverComparePanel,    helpText: 'Head-to-head on two drivers: lap-time delta, sectors, consistency. Select two drivers first.' },
   positionlaps: { title: 'Position Tracker',     Component: PositionByLap,         helpText: 'Position-per-lap lines for all drivers. Click a line to set the focus (the others turn to context); hover for the driver\'s position and tyre. Drag to brush a lap range, the same range as the Lap Times bar\'s.' },
@@ -183,7 +180,6 @@ export default function App() {
       <TimelinePlayer />
       <BottomTabBar />
       <DriverMFDCard />
-      <GeminiFloatingButton />
       {/* Command Palette & Keyboard Overlays */}
       <CommandPalette />
       <ShortcutCheatsheet />

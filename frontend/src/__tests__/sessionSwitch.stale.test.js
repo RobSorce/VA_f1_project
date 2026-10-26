@@ -21,7 +21,7 @@ vi.mock('../utils/apiClient', async (importOriginal) => {
   mocked.predictLSTM = vi.fn((p) => fx().predictLSTM(p));
   mocked.getTelemetry = vi.fn((y, r, d, l, t) => fx().getTelemetry(y, r, d, l, t));
   mocked.getPositions = vi.fn((y, r) => fx().getPositions(y, r));
-  for (const k of ['getSchedule', 'getDrivers', 'getChampionship', 'getSeasons', 'queryGemini', 'startMockReplay']) {
+  for (const k of ['getSchedule', 'getDrivers', 'getChampionship', 'getSeasons', 'startMockReplay']) {
     mocked[k] = vi.fn((...a) => (fx()[k] ? fx()[k](...a) : Promise.resolve({})));
   }
   return mocked;
@@ -78,7 +78,7 @@ beforeEach(() => {
     getTelemetry: async () => ({ telemetry: [] }),
     getPositions: async () => ({ positions: [] }),
     getSchedule: undefined, getDrivers: undefined, getChampionship: undefined,
-    getSeasons: undefined, queryGemini: undefined,
+    getSeasons: undefined,
   });
   store().resetSession();
   useF1Store.setState({
@@ -247,25 +247,6 @@ describe('answers of an earlier session never land on the session on screen', ()
     fx.getSeasons = async () => { throw new Error('offline'); };
     await store().fetchSeasons();
     expect(store().seasons).toEqual([2026, 2025, 2024, 2018]);
-  });
-
-  it('a Gemini answer asked on one session and answered after another landed is dropped', async () => {
-    await store().loadSession();
-    await settle();
-    const g = deferred();
-    let body = null;
-    fx.queryGemini = (b) => { body = b; return g.promise; };
-    useF1Store.setState({ round: 50 }); // the pill only
-    const pg = store().sendGeminiQuery('pit now?');
-    expect([body.year, body.round, body.session_type]).toEqual([2024, 99, 'R']);
-    useF1Store.setState({ round: 98 });
-    await store().loadSession();
-    await settle();
-    g.resolve({ response: 'answer about R99' });
-    await pg;
-    // R98's commit cleared R99's chat (the question too: no assistant is left
-    // waiting), and R99's answer never lands
-    expect(store().geminiMessages).toEqual([]);
   });
 
   it('LSTM answers and positions asked before a replay -> replay switch are dropped', async () => {

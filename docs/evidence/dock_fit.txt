@@ -1,19 +1,19 @@
-Dock fit at the V13 target viewports (dashboard.css .bottom-tab-bar rules, Inter SemiBold metrics), 2026-10-22
+Dock fit at the V13 target viewports (dashboard.css .bottom-tab-bar rules, Inter SemiBold metrics), 2026-10-26
 
 == 1536x750 == bar max-width 1400.0 px; label 10.00 px, button padding 14 px, fixed labels shown; gap 2, bar padding 6 + border 0.5 each side, divider 1 + 6 + 6
-  default dock (10 items): all buttons 1335.8 px -> 10 of 10 on the bar, row 1335.8 px <= 1400.0 fits
-  every view (25 items): all buttons 3180.2 px -> 10 of 25 on the bar + ⋯, row 1375.8 px <= 1400.0 fits
+  default dock (9 items): all buttons 1223.8 px -> 9 of 9 on the bar, row 1223.8 px <= 1400.0 fits
+  every view (24 items): all buttons 3068.2 px -> 10 of 24 on the bar + ⋯, row 1358.6 px <= 1400.0 fits
 
 == 1366x768 == bar max-width 1230.0 px; label 10.08 px, button padding 10 px, fixed labels hidden; gap 2, bar padding 6 + border 0.5 each side, divider 1 + 6 + 6
-  default dock (10 items): all buttons 1168.1 px -> 10 of 10 on the bar, row 1168.1 px <= 1230.0 fits
-  every view (25 items): all buttons 2903.3 px -> 10 of 25 on the bar + ⋯, row 1208.1 px <= 1230.0 fits
+  default dock (9 items): all buttons 1063.5 px -> 9 of 9 on the bar, row 1063.5 px <= 1230.0 fits
+  every view (24 items): all buttons 2798.7 px -> 10 of 24 on the bar + ⋯, row 1190.8 px <= 1230.0 fits
 
 == 1920x1080 == bar max-width 1784.0 px; label 11.41 px, button padding 14 px, fixed labels shown; gap 2, bar padding 6 + border 0.5 each side, divider 1 + 6 + 6
-  default dock (10 items): all buttons 1465.7 px -> 10 of 10 on the bar, row 1465.7 px <= 1784.0 fits
-  every view (25 items): all buttons 3507.3 px -> 12 of 25 on the bar + ⋯, row 1713.1 px <= 1784.0 fits
+  default dock (9 items): all buttons 1342.1 px -> 9 of 9 on the bar, row 1342.1 px <= 1784.0 fits
+  every view (24 items): all buttons 3383.7 px -> 12 of 24 on the bar + ⋯, row 1687.1 px <= 1784.0 fits
 
 == 2048x1100 == bar max-width 1912.0 px; label 11.50 px, button padding 14 px, fixed labels shown; gap 2, bar padding 6 + border 0.5 each side, divider 1 + 6 + 6
-  default dock (10 items): all buttons 1473.5 px -> 10 of 10 on the bar, row 1473.5 px <= 1912.0 fits
-  every view (25 items): all buttons 3527.0 px -> 13 of 25 on the bar + ⋯, row 1820.2 px <= 1912.0 fits
+  default dock (9 items): all buttons 1349.2 px -> 9 of 9 on the bar, row 1349.2 px <= 1912.0 fits
+  every view (24 items): all buttons 3402.7 px -> 13 of 24 on the bar + ⋯, row 1847.4 px <= 1912.0 fits
 
 The dock row fits its bar at the four viewports (default dock and every view).

@@ -10,7 +10,6 @@ import CircleOfDoom from '../visualizations/CircleOfDoom';
 import SessionInfoBar from '../ui/SessionInfoBar';
 import WeatherMini from '../ui/WeatherMini';
 import RaceControlFeed from '../ui/RaceControlFeed';
-import GeminiQuickQuery from '../ui/GeminiQuickQuery';
 
 // Fixed viewport (V13): the layout is exactly the app body (100 % of a
 // 100vh shell, no page scroll). Every grid cell below has overflow hidden and
@@ -67,11 +66,8 @@ const bottomRowStyle = {
   minHeight: 0,
 };
 
-// Weather and the Ask box keep their height, Race Control takes the rest
-// (newest messages first); the quick answer is a card laid over the column
-// (position relative), so nothing pushes the Ask box out of the cell
+// Weather keeps its height, Race Control takes the rest (newest messages first)
 const sideColumnStyle = {
-  position: 'relative',
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
@@ -130,7 +126,6 @@ export default function PitWallLayout() {
           <div style={sideColumnStyle}>
             <WeatherMini />
             <RaceControlFeed />
-            <GeminiQuickQuery />
           </div>
         </div>
       </div>

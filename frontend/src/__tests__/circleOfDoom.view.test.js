@@ -540,13 +540,16 @@ describe.skipIf(!haveMonza)('pit window closes at the flag', () => {
 
 describe('dock and docked layout', () => {
   it('a dock saved before the circle existed gets it once, after Strategy; removing it sticks', async () => {
+    // saved when the dock still held the AI Strategist ('ai'), a view that no
+    // longer exists: the load drops it
     const OLD = ['pitwall', 'laptimes', 'tyres', 'strategy', 'analytics', 'prediction', 'racecontrol', 'ai', 'championship'];
+    const kept = OLD.filter((id) => id !== 'ai');
     localStorage.clear();
     localStorage.setItem('va-dock-items-v1', JSON.stringify(OLD));
     vi.resetModules();
     let store = (await import('../store/useF1Store.js')).useF1Store;
     const items = store.getState().dockItems;
-    expect(items).toEqual(['pitwall', 'laptimes', 'tyres', 'strategy', 'circle', 'analytics', 'prediction', 'racecontrol', 'ai', 'championship']);
+    expect(items).toEqual(['pitwall', 'laptimes', 'tyres', 'strategy', 'circle', 'analytics', 'prediction', 'racecontrol', 'championship']);
     // saved at once with the list of defaults offered, so the two never disagree
     expect(JSON.parse(localStorage.getItem('va-dock-items-v1'))).toEqual(items);
     expect(JSON.parse(localStorage.getItem('va-dock-offered-v1'))).toContain('circle');
@@ -554,7 +557,7 @@ describe('dock and docked layout', () => {
     localStorage.setItem('va-dock-items-v1', JSON.stringify(OLD));
     vi.resetModules();
     store = (await import('../store/useF1Store.js')).useF1Store;
-    expect(store.getState().dockItems).toEqual(OLD);
+    expect(store.getState().dockItems).toEqual(kept);
     // a first visit gets the defaults
     localStorage.clear();
     vi.resetModules();

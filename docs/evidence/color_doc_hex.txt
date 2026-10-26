@@ -35,7 +35,7 @@ code: literals of frontend/src/utils/colors.js and the dark-theme tokens (:root)
 #5DA5E8  line  93  x2  DIVERGING.better, --color-better
 #E5E7EB  line  94  x1  STATUS_COLORS.normal
 #F472B6  line  95  x2  STATUS_COLORS.pit, --status-pit
-#F5A623  line  97  x2  STATUS_COLORS.predicted, --status-predicted, --color-gemini
+#F5A623  line  97  x2  STATUS_COLORS.predicted, --status-predicted
 #A855F7  line 114  x1  UI_COLORS.pitWindow, --color-pit-window
 #B56FF8  line 114  x1  UI_COLORS.pitWindowText, --color-pit-window-text
 #8AB4F8  line 115  x1  UI_COLORS.brush, --color-brush

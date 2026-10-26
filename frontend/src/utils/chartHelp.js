@@ -272,25 +272,6 @@ export const CHART_HELP = {
     docsHref: `${DOCS_BASE}DEGRADATION_METHODOLOGY.md`,
   },
 
-  ai: {
-    title: 'AI Assistant',
-    summary: 'Gemini-backed race-strategy engineer — asks your free-form question with the live session context.',
-    howToRead: [
-      'Type a question; prompt is enriched server-side with driver features, recent laps, weather, and stints.',
-      'Responses may include coloured "scenario buttons" — click to project that strategy on the Strategy Timeline.',
-      'An amber "MOCK" chip on a reply means it is the heuristic fallback, not Gemini (no API key configured, the google-genai package missing, or the API unavailable): a rule-based answer built from the race context, whose first line names the reason.',
-      'Strategy tab: each scenario card draws its stints as a strip (compound colour and letter) and its risk with a glyph (!! high, ! medium, i low) and the word; cards that do not fit are paged; the analysis box shows the start of the answer and "Full answer in Radio" opens the whole answer in the chat. The briefing\'s "→ P" is the Monte Carlo median finishing position (the Race Prediction P label).',
-    ],
-    limitations: [
-      'The model is general-purpose — will occasionally hallucinate team-radio phrases. Verify any concrete claim.',
-      'Does not see telemetry directly — reasons from lap times and stint summaries.',
-    ],
-    seeAlso: [
-      { tabId: 'strategy', label: 'Strategy Timeline' },
-      { tabId: 'simulator', label: 'Strategy Simulator' },
-    ],
-  },
-
   analytics: {
     title: 'Analytics',
     summary: 'PCA biplot of per-(driver, race) feature vectors — lasso a group to compare it with the other rows.',
@@ -365,13 +346,13 @@ export const CHART_HELP = {
 
   strategy: {
     title: 'Strategy Timeline',
-    summary: 'Strategy timeline (Gantt) — stints, pit stops, predicted / ghost / Gemini overlays.',
+    summary: 'Strategy timeline (Gantt) — stints, pit stops, predicted stints, PCA pattern rows and the Simulator\'s plan.',
     howToRead: [
       'One row per driver; horizontal bars are stints coloured by compound, one bar per tyre set (FastF1 Stint column; a pit-lane pass without a tyre change, such as a drive-through or the field led through the pits under SC, keeps the set), so two stints on the same compound stay separate.',
       'During replay only what has happened is drawn: a bar covers the laps completed so far, and a new bar appears at the pit exit, when the new set goes on, then grows as its laps complete. STOPS counts tyre changes so far: always the number of bars minus one.',
       'Diamonds mark pit stops (tyre changes), from the pit exit; a dashed outline diamond marks a car in the pit lane right now. The label is that stop\'s pit loss: a plain number when measured (in-lap + out-lap minus twice the driver\'s green-flag median lap), "≈" and the race median when the stop cannot be measured ("est", an estimate), "*" on the fallback ("fallback", before any measured green-flag stop), no number while the stop is being measured. The line under the chart repeats this legend; hover a diamond for details.',
       'Qualifying and practice: the bars are the runs\' tyre sets and stops carry no pit-loss label (pit loss is a race quantity).',
-      'Hatched bars: the predicted remaining stints of the focus driver\'s forecast (Race Prediction). A dashed line: the Strategy Simulator\'s plan; a scenario button of an AI answer draws that scenario. Under the drivers, the tyre strategies of a lasso selection on the PCA biplot.',
+      'Hatched bars: the predicted remaining stints of the focus driver\'s forecast (Race Prediction). A dashed line: the Strategy Simulator\'s plan. Under the drivers, the tyre strategies of a lasso selection on the PCA biplot.',
       'Click a stint: the driver is selected and the stint\'s laps become the lap range of every view; double-click it: the Strategy Simulator starts from that driver\'s strategy so far.',
     ],
     limitations: [
@@ -380,7 +361,7 @@ export const CHART_HELP = {
     ],
     seeAlso: [
       { tabId: 'simulator', label: 'Strategy Simulator' },
-      { tabId: 'ai', label: 'AI Assistant' },
+      { tabId: 'prediction', label: 'Race Prediction' },
     ],
   },
 
@@ -491,10 +472,10 @@ export const CHART_HELP = {
 
   championship: {
     title: 'Championship',
-    summary: 'Season standings + weighted-moving-average projection — Standings and Prediction & AI subtabs.',
+    summary: 'Season standings + weighted-moving-average projection to the season end.',
     howToRead: [
-      '**Standings:** a D3 chart of the cumulative points by round and a D3 bar chart of the points so far at the loaded round (team colours; the bar of a teammate carries the teammate dash; the legend above the bars names the teams).',
-      '**Prediction & AI:** the same chart extended with a projection to the season end, and the AI assistant beside it.',
+      'A D3 chart of the cumulative points by round and a D3 bar chart of the points so far at the loaded round (team colours; the bar of a teammate carries the teammate dash; the legend above the bars names the teams).',
+      'The Predictions button of the chart extends it with a projection to the season end.',
       'Projection (backend, from round 3): the points so far plus the weighted mean of the last 5 rounds\' points (weights 1 to 5, the latest the heaviest) times the rounds left.',
       'Lines in the team colour; the second driver of a team in a tint of it and dashed, a third driver (a reserve) in another tint and dash-dot; a driver of the loaded session keeps the style he has in the other views when he drives for the same team in the championship (a driver who changed team mid-season is coloured by his team at the latest round, and the tooltip of his Standings bar names the change); the projection to season-end is dotted.',
     ],

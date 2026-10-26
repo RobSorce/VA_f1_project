@@ -5,7 +5,6 @@ import TrackMap from '../visualizations/TrackMap';
 import SessionInfoBar from '../ui/SessionInfoBar';
 import WeatherMini from '../ui/WeatherMini';
 import RaceControlFeed from '../ui/RaceControlFeed';
-import GeminiQuickQuery from '../ui/GeminiQuickQuery';
 import { TEXT_COLORS, CHART_FONT } from '../../utils/colors';
 
 export default function PitWallHome() {
@@ -59,7 +58,6 @@ export default function PitWallHome() {
         }}>
           <WeatherMini />
           <RaceControlFeed />
-          <GeminiQuickQuery />
         </div>
       </div>
     </div>

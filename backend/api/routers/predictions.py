@@ -109,8 +109,7 @@ router = APIRouter(prefix="/api/predict", tags=["predictions"])
 DEFAULT_SESSION_TYPE = "R"
 
 # Session types with race strategy (pit stops, pit loss): race and sprint,
-# the rule of api/routers/gemini.py RACE_SESSION_TYPES and isRaceSession in
-# frontend/src/utils/pitLoss.js
+# the rule of isRaceSession in frontend/src/utils/pitLoss.js
 RACE_SESSION_TYPES = ("R", "S")
 
 

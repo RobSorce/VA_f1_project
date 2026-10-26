@@ -27,7 +27,7 @@ const TELEM_CHANNELS = [
 
 const TECH_STACK = [
   'React 18', 'D3.js', 'Zustand', 'Vite', 'FastAPI', 'FastF1',
-  'TensorFlow / LSTM', 'Google Gemini AI', 'PCA',
+  'TensorFlow / LSTM', 'PCA',
 ];
 
 function SectionHeader({ title, isOpen, onClick }) {
@@ -397,7 +397,6 @@ export default function SettingsTabContent() {
               <span className="settings-tab__about-key">Data Sources</span>
               <p className="settings-tab__about-text">
                 Telemetry data provided by <strong>FastF1</strong> (open-source F1 data library).
-                AI-powered strategy analysis by <strong>Google Gemini</strong>.
               </p>
             </div>
 

@@ -120,10 +120,9 @@ describe('help texts (chartHelp.js)', () => {
 });
 
 describe('docs that name views, keys and sections', () => {
-  it('SCROLL_JUSTIFICATIONS: the Strategy Engineer is listed with its chat-log scroll, not as scroll-free', () => {
-    expect(read('frontend/src/components/visualizations/GeminiAssistant.jsx')).toContain('className="chat-messages"');
+  it('SCROLL_JUSTIFICATIONS: the strategy views are listed as scroll-free, with the inventory as the source', () => {
     const row = read('docs/SCROLL_JUSTIFICATIONS.md').split('\n').find((l) => l.startsWith('| Strategy views ('));
-    expect(row).toMatch(/Apart from the Strategy Engineer's chat log in its Radio tab \(row "Strategy assistant chat log" above\), no scroll area is left in these views/);
+    expect(row).toMatch(/No scroll area is left in these views \(`docs\/evidence\/overflow_inventory\.txt`\)/);
     expect(row).not.toMatch(/No scroll area is left in these files/);
   });
 

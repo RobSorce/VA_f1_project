@@ -333,6 +333,7 @@ describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, 
     moveTo(at('1536x750'));
     const v = await mount(DOCK);
     const before = v.items().length;
+    expect(v.overflow()).not.toBeNull();
     const row = renderedRow(v.nav);
     await act(async () => { notifyResize(v.nav, row); });
     expect(v.items()).toHaveLength(before);

@@ -3,7 +3,6 @@ D3   ChampionshipStandings.jsx (draws with d3)
 D3   CircleOfDoom.jsx (draws with d3)
 HTML ConsistencyPanel.jsx
 D3   DriverComparePanel.jsx (draws with d3) (D3 drawing helpers: stintStripChart)
-D3   GeminiAssistant.jsx (D3 drawing helpers: stintStripChart)
 D3   LapDeltaChart.jsx (draws with d3)
 D3   LapTimeChart.jsx (draws with d3)
 HTML Leaderboard.jsx
@@ -30,5 +29,5 @@ D3   TyreHealth.jsx (draws with d3)
 D3   TyreManagement.jsx (draws with d3)
 D3   UndercutCalculator.jsx (D3 drawing helpers: undercutSweepChart)
 
-31 view files in components/visualizations: 23 draw with D3, 8 are HTML only (ConsistencyPanel, Leaderboard, RaceControlPanel, RacePaceGrid, SectorsBestTab, SectorsPanel, TimingTower, TireSilhouette)
+30 view files in components/visualizations: 22 draw with D3, 8 are HTML only (ConsistencyPanel, Leaderboard, RaceControlPanel, RacePaceGrid, SectorsBestTab, SectorsPanel, TimingTower, TireSilhouette)
 SpeedPanel.jsx exists: false

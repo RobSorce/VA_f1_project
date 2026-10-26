@@ -76,8 +76,7 @@ The LSTM (`model/train.py`): two LSTM layers (64 and 32 units, dropout 0.2 after
 | 26 | Tyre Health | `TyreHealth.jsx` | Tyre age over a fixed life per compound and the pace loss within the stint | HEURISTIC | Constants in its help (`chartHelp.js` `tyrehealth`) |
 | 27 | Pace Retention | `TyreManagement.jsx` | Each lap against the median of the stint's laps 2 to 4 | HEURISTIC | Raw lap times (fuel burn included) |
 | 28 | Position Tracker "PIT WINDOW" band | `PositionByLap.jsx` `computeUndercutWindow` | Drawn when the car ahead's tyres are at least 3 laps older than the focus driver's, over that many laps (at most 8) | HEURISTIC | |
-| 29 | AI assistant answers | `POST /api/gemini/strategy` (`backend/api/routers/gemini.py`, model `gemini-2.0-flash` via `google-genai`) | The race context the store sends (the projection with its battles and risks, the race-state features, the forecast, the degradation fit, the PCA patterns, the simulator result, recent laps, weather) | MODEL (external) | Without an API key, without the SDK or when the API fails: a rule-based answer from the race context, marked `is_mock` / `is_heuristic` with the reason, shown with a MOCK chip |
-| 30 | Insights feed | `utils/insightsGenerator.js` (Strategy Analysis) | Text built from rows 7-9, 17, 18 and 23 | DERIVED | Its degradation insight reads fields the degradation endpoint does not return (`regressions`, `r_squared`), so it is never shown (`docs/DEGRADATION_METHODOLOGY.md`, "Consumers") |
+| 29 | Insights feed | `utils/insightsGenerator.js` (Strategy Analysis) | Text built from rows 7-9, 17, 18 and 23 | DERIVED | Its degradation insight reads fields the degradation endpoint does not return (`regressions`, `r_squared`), so it is never shown (`docs/DEGRADATION_METHODOLOGY.md`, "Consumers") |
 
 ## Analytics triggered by visual interaction
 
@@ -96,5 +95,4 @@ Recomputed with the replay clock rather than by an interaction: the race project
 
 - No number of the UI is an unlabelled constant: a value that is not measured on the race is a prior measured over the cached races (shown as "prior"), the pit-loss fallback (shown as "fallback"), or an assumption named in the code and in the help (the fuel effect, the minimum fit length, the traffic gap).
 - The forecast names the method that made it and quotes the held-out error of every method; the LSTM is served only while it has the best validation error.
-- The AI assistant's fallback is labelled as a heuristic answer, with the reason, and never presented as model output.
 - Statistics of a selection (rows 17, 20) are descriptive differences, not significance tests.

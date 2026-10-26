@@ -11,7 +11,7 @@
 //     with no focus driver and with the focus cards in their default and
 //     on-demand states (row height from TimingTower.jsx; card heights
 //     estimated from the CSS), the tower and Race Pace Grid table widths
-//     against their cells; the side column (Weather, Race Control, Ask);
+//     against their cells; the side column (Weather, Race Control);
 //  4. every pane of every window preset (utils/windowPresets.js), content box;
 //  5. the floating-overlay room against OverlayPanel's minimum size.
 //
@@ -142,22 +142,18 @@ for (const vp of M.VIEWPORTS) {
     console.log(`  Timing Tower, ${state} (est. ${f(h)} px): ${f(room)} px for rows -> ${fit.paged ? `${fit.perPage} of 20 rows at ${towerRowMin} px, the body scrolls (justified)` : `20 of 20 rows at ${fit.rowH} px`}`);
     if (state.includes('default') && fit.paged) fail(`Timing Tower: 20 rows of ${towerRowMin} px do not fit with the ${state}`);
   }
-  // Side column of the map row (WeatherMini, RaceControlFeed, GeminiQuickQuery):
-  // Weather and Ask keep their height, Race Control takes the rest and shows
-  // the newest messages that fit (one line each); the quick answer is a card
-  // laid over the column. ESTIMATES from the components' style objects:
+  // Side column of the map row (WeatherMini, RaceControlFeed): Weather keeps
+  // its height, Race Control takes the rest and shows the newest messages
+  // that fit (one line each). ESTIMATES from the components' style objects:
   //  Weather: 8 + 8 padding, title line (DRY chip 1 + 1 + label 1.25 + 2) + 6,
   //   2 lines of max(16 px icon, data 1.25) + 4 gap, 1 px rule
-  //  Ask: 8 + 8, title label 1.25 + 6, field 5 + 5 + label 1.25 + 2 + 6, chips
-  //   2 + 2 + label 1.25 + 2, 1 px rule
   //  Race Control at least: 8 + 8, title label 1.25 + 6, one line ceil(data 1.3) + 5
   const weatherH = 16 + (4 + 1.25 * labelPx) + 6 + 2 * Math.max(16, 1.25 * dataPx) + 4 + 1;
-  const askH = 16 + 1.25 * labelPx + 6 + (12 + 1.25 * labelPx) + 6 + (6 + 1.25 * labelPx) + 1;
   const rcLine = Math.ceil(dataPx * 1.3) + 5;
   const rcMin = 16 + 1.25 * labelPx + 6 + rcLine;
-  const rcRoom = pw.bottom - weatherH - askH;
+  const rcRoom = pw.bottom - weatherH;
   const rcRows = Math.max(0, Math.floor((rcRoom - 16 - 1.25 * labelPx - 6 + 2) / (rcLine + 2)));
-  console.log(`  Pit Wall side column 280 x ${f(pw.bottom)}: Weather ${f(weatherH)} + Ask ${f(askH)} (est.) leave Race Control ${f(rcRoom)} px -> ${rcRows} newest message lines of ${rcLine} px (needs >= ${f(rcMin)} for one)`);
+  console.log(`  Pit Wall side column 280 x ${f(pw.bottom)}: Weather ${f(weatherH)} (est.) leaves Race Control ${f(rcRoom)} px -> ${rcRows} newest message lines of ${rcLine} px (needs >= ${f(rcMin)} for one)`);
   if (rcRoom < rcMin) fail(`Pit Wall side column: Race Control has ${f(rcRoom)} px, one message needs ${f(rcMin)}`);
 
   const pc = PG.paceColumns(pw.mainW, 20, dataPx);

@@ -19,7 +19,7 @@ Repository: [github.com/RobSorce/VA_f1_project](https://github.com/RobSorce/VA_f
 5. [Frontend](#5--frontend)
 6. [State: the Zustand store](#6--state-the-zustand-store)
 7. [Analytics pipelines](#7--analytics-pipelines)
-8. [Visualizations catalogue (29 views in 31 files: 23 draw with D3, 8 HTML only)](#8--visualizations-catalogue-29-views-in-31-files-23-draw-with-d3-8-html-only)
+8. [Visualizations catalogue (28 views in 30 files: 22 draw with D3, 8 HTML only)](#8--visualizations-catalogue-28-views-in-30-files-22-draw-with-d3-8-html-only)
 9. [Bidirectional coordination graph](#9--bidirectional-coordination-graph)
 10. [Three rendering modes + docked layout engine](#10--three-rendering-modes--docked-layout-engine)
 11. [Customizable bottom dock](#11--customizable-bottom-dock)
@@ -28,12 +28,11 @@ Repository: [github.com/RobSorce/VA_f1_project](https://github.com/RobSorce/VA_f
 14. [Design system](#14--design-system)
 15. [Color encoding](#15--color-encoding)
 16. [Legends and annotation conventions](#16--legends-and-annotation-conventions)
-17. [Gemini AI integration](#17--gemini-ai-integration)
-18. [Live timing subsystem](#18--live-timing-subsystem)
-19. [Replay engine](#19--replay-engine)
-20. [VA framework mapping](#20--va-framework-mapping)
-21. [Performance / caching](#21--performance--caching)
-22. [Development workflow](#22--development-workflow)
+17. [Live timing subsystem](#17--live-timing-subsystem)
+18. [Replay engine](#18--replay-engine)
+19. [VA framework mapping](#19--va-framework-mapping)
+20. [Performance / caching](#20--performance--caching)
+21. [Development workflow](#21--development-workflow)
 
 ---
 
@@ -64,7 +63,7 @@ A performance engineer seated on the F1 pit wall during a Grand Prix. Real-time 
 
 ### Two modes of work
 
-**Monitor mode (live-session).** Pit Wall (`PitWallLayout.jsx`), full screen: the Timing Tower with the focus driver's cards (sector panel, focus widget) on the left; the Race Pace Grid, then the Track Map, the Circle of Doom and a side column (weather, race-control feed, the assistant's Ask box). Optimized for glance-ability.
+**Monitor mode (live-session).** Pit Wall (`PitWallLayout.jsx`), full screen: the Timing Tower with the focus driver's cards (sector panel, focus widget) on the left; the Race Pace Grid, then the Track Map, the Circle of Doom and a side column (weather, race-control feed). Optimized for glance-ability.
 
 **Analyze mode (post-session / replay).** Every other view opens as a tab of the docked split-pane workspace (`DockedLayout`) beside the Leaderboard sidebar; with no view open, the base screen is the Track Map beside the Leaderboard. Brushing and linking across the views (§9). Settings is the one view that opens as a floating window, over any mode.
 
@@ -86,7 +85,7 @@ The full persona, goals, and tasks are in [`INTENDED_USER.md`](INTENDED_USER.md)
 │  React 18 + Vite 5 + Zustand 4 + D3.js 7                              │
 │                                                                       │
 │   Pit Wall | docked workspace (base: Track Map) | Settings window     │
-│   29 views in 31 files (23 draw with D3, 8 HTML only), one store      │
+│   28 views in 30 files (22 draw with D3, 8 HTML only), one store      │
 │   Command palette · Keyboard shortcuts · Auto-hide dock               │
 └───────────────┬──────────────────────────────────────────────────────┘
                 │   axios (REST)  +  WebSocket (live timing)
@@ -94,7 +93,7 @@ The full persona, goals, and tasks are in [`INTENDED_USER.md`](INTENDED_USER.md)
 ┌──────────────────────────────────────────────────────────────────────┐
 │                          BACKEND (FastAPI :8000)                      │
 │                                                                       │
-│  Routers: predictions, gemini, analytics, live, replay                │
+│  Routers: predictions, analytics, live, replay                        │
 │  Extractors: FastF1Extractor (thread-locked, disk + memory cache)    │
 │  Processors: feature_engineering, pca_compute, degradation, stints    │
 │  Model: PyTorch LSTM 64→32→Dense (lap time + pit probability)        │
@@ -106,7 +105,6 @@ The full persona, goals, and tasks are in [`INTENDED_USER.md`](INTENDED_USER.md)
 │ DATA SOURCES                                                          │
 │  • FastF1 (2018 onwards: laps, telemetry, weather, track status)     │
 │  • OpenF1 REST (live car data + positions, SignalR paywalled 2025)   │
-│  • Google Gemini API (optional — heuristic fallback otherwise)        │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -117,13 +115,13 @@ Vite dev server proxies `/api` to `http://localhost:8000`. CORS allows all origi
 ## 4 · Backend
 
 ### 4.1 Stack
-`FastAPI` for the HTTP API, `uvicorn` as the ASGI server, `FastF1` for authoritative F1 session data, `scikit-learn >= 1.4` (`requirements.txt`) for scaling / PCA, `PyTorch` for the LSTM, `numpy` + `pandas` for everything in between. `google-genai` (in `requirements.txt`) is optional at run time — the app degrades gracefully if it is missing.
+`FastAPI` for the HTTP API, `uvicorn` as the ASGI server, `FastF1` for authoritative F1 session data, `scikit-learn >= 1.4` (`requirements.txt`) for scaling / PCA, `PyTorch` for the LSTM, `numpy` + `pandas` for everything in between.
 
 ### 4.2 Entry point: `backend/api/main.py`
 
 Key design decisions:
 
-- **Graceful router loading.** Each router is imported inside a `try/except`. If `predictions` fails because PyTorch isn't installed, or `gemini` fails because `google-genai` isn't, the rest of the app still boots. The loaded set is printed as `_routers_loaded`.
+- **Graceful router loading.** Each router is imported inside a `try/except`. If `predictions` fails because PyTorch isn't installed, the rest of the app still boots. The loaded set is printed as `_routers_loaded`.
 - **Three-tier session cache.** Memory dict → disk JSON (`backend/data/processed_cache/session_{year}_{round}_R.json`) → FastF1 extraction. A disk-cached session loads without FastF1.
 - **Thread-locked FastF1 access.** FastF1 is not thread-safe, so every call is guarded by `_fastf1_lock = threading.Lock()`. The lock is exposed on `app.state.fastf1_lock` so routers can use the same one.
 - **Background raw-session prefetch.** When a disk-cached session is served, a daemon thread pre-loads the raw FastF1 session with `telemetry=True` so the first telemetry request is instant.
@@ -153,7 +151,6 @@ Key design decisions:
 | `/api/tsne/point-features/{id}` | GET | Former route name: alias of `/api/pca/point-features/{id}`, the raw features of a biplot point |
 | `/api/predict/lstm` | POST | Lap-time forecast of the next 5 laps and the probability of a stop within them, by the methods selected on the validation races (§7.4) |
 | `/api/predict/degradation` | POST | Linear regression on brushed lap range |
-| `/api/gemini/strategy` | POST | Gemini AI call with structured race context |
 | `/api/analytics/sectors/{year}/{round}` | GET | Best sector rankings per driver |
 | `/api/analytics/consistency/{year}/{round}` | GET | Consistency σ per driver: the pooled residual σ of the per-stint degradation fits (`docs/DEGRADATION_METHODOLOGY.md`) |
 | `/api/live/connect-signalr` | GET | Start SignalR + OpenF1 poller |
@@ -165,7 +162,6 @@ Key design decisions:
 ### 4.4 Routers
 
 - **`api/routers/predictions.py`** — hosts `/api/predict/lstm` and `/api/predict/degradation`. The forecast endpoint calls `model/predict.py`, which serves the methods chosen on the validation races in `model/saved/forecast_selection.json` (written by `scripts/evaluate_forecast.py`) and skips a method that cannot run (no torch, no model) for the next one in the ranking; the router's built-in heuristic answers only when `model/predict.py` cannot be imported or fails (§7.4). The degradation endpoint fits the clean laps of each stint in an arbitrary lap range, for arbitrary driver(s) (`docs/DEGRADATION_METHODOLOGY.md`).
-- **`api/routers/gemini.py`** — builds a structured prompt (*"You are a senior F1 race strategy engineer..."* with CRITICAL RULES + full race context) and calls the `google-genai` SDK. Without an API key, without the SDK or when the Gemini call fails, it answers with a heuristic built from the race context (`_heuristic_fallback`: three strategies from the current state), flagged `is_mock` and `is_heuristic` so the UI labels it.
 - **`api/routers/analytics.py`** — sector rankings (best S1 / S2 / S3 per driver with SB/PB classification), speed-trap rankings and consistency (the pooled residual σ of each driver's per-stint degradation fits, on the laps completed at `session_now`).
 - **`api/routers/live.py`** — WebSocket endpoint `/api/live/ws`, REST lifecycle endpoints, and hooks into `live.session_manager.LiveSessionManager` + `live.mock_replay.MockReplay`.
 - **`api/routers/replay.py`** — race/qualifying frame endpoints for the timeline scrubber.
@@ -237,7 +233,7 @@ frontend/src/
 │   │   └── AnalysisLayout.jsx, AnalysisSlot.jsx, DetailPanel.jsx,
 │   │       PanelToggleBar.jsx ── earlier layout, not rendered by App.jsx
 │   │
-│   ├── visualizations/        ── 29 views in 31 files (see §8)
+│   ├── visualizations/        ── 28 views in 30 files (see §8)
 │   │
 │   ├── ui/                    ── generic UI components, among them:
 │   │   ├── BottomTabBar.jsx       ── The customizable dock
@@ -256,12 +252,11 @@ frontend/src/
 │   │   ├── DriverMFDCard.jsx
 │   │   ├── FocusDriverWidget.jsx
 │   │   ├── RaceControlFeed.jsx
-│   │   ├── GeminiFloatingButton.jsx
 │   │   ├── WelcomeToast.jsx
 │   │   ├── PitWallSectorPanel.jsx
 │   │   └── Panel.jsx              ── Shared title + controls shell
 │   │
-│   ├── tabs/                  ── 8 tab content containers
+│   ├── tabs/                  ── 7 tab content containers
 │   ├── CommandPalette/        ── Cmd+K palette (see §12)
 │   ├── ShortcutCheatsheet/    ── ? overlay
 │   └── ShortcutHints/         ── Contextual hint strip
@@ -370,7 +365,6 @@ When the user lassos a region of the PCA biplot:
 - `DEFAULT_NUM_SIMULATIONS` (1,000) seeded simulations of the remaining race per call, run in a Web Worker; runtimes for 100 / 1,000 / 10,000 runs and badge stability in `docs/evidence/mc_benchmark.txt` (section 5, `frontend/scripts/mc_benchmark.mjs`).
 - Every mark the views draw from a projection changes only on evidence beyond the Monte Carlo error (`utils/simulationClient.js` `projectionBadges`, chained by the store): the badges, the finishing position shown (P label: the median simulated position, `shownPositions` / `modePosition`, moved only when the median has moved beyond the error of the whole column), the battle list (the pairs surely among the six most likely, no fill by a point estimate: `docs/evidence/battle_list_rules.txt`) and its order (badge level, then race order) and the risk rows (`raceSimulation.js` `evaluateRisks`: the range ends and the mean stops to come judged beyond their sampling interval); measured on a same-state recompute with a new seed, mark by mark, in `docs/evidence/mc_stability.txt` (`frontend/scripts/mc_stability.mjs`, lead decision D5).
 - The Strategy Simulator's marks follow the same rule (`whatIfMarks`, chained over the recomputes of the same plan): the verdict PLACES GAINED / LOST and the colour of each difference only when the interval of the run-by-run difference of the two runs (common random numbers) excludes 0, otherwise NO CLEAR CHANGE; each card's P label is its median finishing position, and with the model's stops as the baseline the baseline card is the Race Prediction panel's P label of that driver (the same run: `whatIfMarks` `stopModel` / `panelMode`); a mark kept only within the error yields to one beyond it when they contradict each other (`whatIfContradiction`: the plan's card, then a saved plan's card, moves within its error, `shownPositionRange`; a verdict held only by hysteresis becomes NO CLEAR CHANGE); measured, with the contradictions left and the baseline-card / panel agreement, in `docs/evidence/whatif_stability.txt` (`frontend/scripts/whatif_stability.mjs`).
-- The assistant's strategy cards (`backend/api/routers/gemini.py` heuristic fallback, `_projected_position`) read the panel's P label (`medianPos` in the store's context), not the rounded Monte Carlo mean, so they hold on a reseed of the same state: `docs/evidence/s4_assistant_cards.txt` (`backend/scripts/s4_assistant_cards.py` on the contexts of `frontend/scripts/s4_assistant_contexts.mjs`).
 - `extractRaceParams` measures pit loss (`utils/pitLoss.js`), tyre degradation per compound (`raceDegradation`: fits long enough, combined with the cached races' prior) and race-pace noise (`lapNoiseFromFits`: the pooled residual sigma of the race's per-stint fits at the clock, no floor and no prior mixed in, lead decision D1; the cached races' dry / wet value only before the first fit); see `docs/evidence/degradation_in_race.txt` (degradation) and `docs/evidence/s2_lap_noise_monza.txt` (lap noise).
 - Output fed to Leaderboard → overtake probability badge (on the car ahead of an adjacent pair: the chance that the car behind passes it before the flag), coloured by the battle badge level of the store (grey below 30 %, yellow at least 30 %, orange at least 60 %, with the ⇅ glyph and the percentage, each changing only when the 95 % Wilson interval clears the threshold; never green / red, `docs/COLOR_ENCODING.md`).
 
@@ -383,9 +377,9 @@ When the user lassos a region of the PCA biplot:
 
 ---
 
-## 8 · Visualizations catalogue (29 views in 31 files: 23 draw with D3, 8 HTML only)
+## 8 · Visualizations catalogue (28 views in 30 files: 22 draw with D3, 8 HTML only)
 
-Every view is a React component in `src/components/visualizations/` that reads and writes the Zustand store inside a title-bearing `<Panel>` shell with a legend of its marks. The 29 views below are drawn by 31 files: the Sectors panel's Best tab has two files of its own, `SectorsBestTab.jsx` and its D3 chart `SectorsBestChart.jsx`. Twenty-three of the files draw SVG with D3 (`d3.select` in the component, or a drawing helper of `src/utils/views/`: `stintStripChart`, `positionRangeChart`, `sectorDeltaWaterfallChart`, `undercutSweepChart`, `effectBarsChart`, `pcaForestChart`, `pcaBiplot`, `d3Legend`); eight are HTML only (tables, grids or cards) and are described as such below: Leaderboard, Timing Tower, Race Pace Grid (its cell colour comes from a d3 threshold scale), the Sectors panel and its Best tab's frame (`SectorsPanel.jsx`, `SectorsBestTab.jsx`), Consistency panel, Race Control and Tyre Silhouette (`node frontend/scripts/audit/view_catalogue.mjs`, output `docs/evidence/view_catalogue.txt`). Charts read their box (`utils/views/chartBox.js` useBoxSize) and tables fit or page their rows (`docs/SCROLL_JUSTIFICATIONS.md`).
+Every view is a React component in `src/components/visualizations/` that reads and writes the Zustand store inside a title-bearing `<Panel>` shell with a legend of its marks. The 28 views below are drawn by 30 files: the Sectors panel's Best tab has two files of its own, `SectorsBestTab.jsx` and its D3 chart `SectorsBestChart.jsx`. Twenty-two of the files draw SVG with D3 (`d3.select` in the component, or a drawing helper of `src/utils/views/`: `stintStripChart`, `positionRangeChart`, `sectorDeltaWaterfallChart`, `undercutSweepChart`, `effectBarsChart`, `pcaForestChart`, `pcaBiplot`, `d3Legend`); eight are HTML only (tables, grids or cards) and are described as such below: Leaderboard, Timing Tower, Race Pace Grid (its cell colour comes from a d3 threshold scale), the Sectors panel and its Best tab's frame (`SectorsPanel.jsx`, `SectorsBestTab.jsx`), Consistency panel, Race Control and Tyre Silhouette (`node frontend/scripts/audit/view_catalogue.mjs`, output `docs/evidence/view_catalogue.txt`). Charts read their box (`utils/views/chartBox.js` useBoxSize) and tables fit or page their rows (`docs/SCROLL_JUSTIFICATIONS.md`).
 
 ### 8.1 Position & timing
 | View | File | Drawn as | Encoding | Analytics coupling |
@@ -410,7 +404,7 @@ Every view is a React component in `src/components/visualizations/` that reads a
 ### 8.3 Strategy
 | View | File | Drawn as | Encoding | Analytics |
 |---|---|---|---|---|
-| Strategy Timeline | `StrategyTimeline.jsx` | D3 | Gantt: each driver row = stint segments in the tyre compound colour with the compound letter, pit-stop glyphs, predicted / ghost / assistant overlays; the lap range as a band. | A stint click sets the one lap range. |
+| Strategy Timeline | `StrategyTimeline.jsx` | D3 | Gantt: each driver row = stint segments in the tyre compound colour with the compound letter, pit-stop glyphs, the focus driver's predicted stints (hatched), the PCA selection's strategies as extra rows and the Strategy Simulator's plan (dashed); the lap range as a band. | A stint click sets the one lap range. |
 | Tyre Degradation | `TireDegradation.jsx` | D3 | Scatter of tyre life vs lap time + per-stint linear regression line. | Lap range → regression fetch. |
 | Tyre Health | `TyreHealth.jsx` | D3 | For the focus driver (else the first selected driver): one health line and area per stint on a race lap × health (0-100 %) axis, with a compound strip below. Age decay: `100·(1 - (age/maxLife)^1.6)`. Pace penalty: `deviation·80`. The constants are the component's assumptions (`TyreHealth.jsx`). | — |
 | Tyre Management (dock label: Pace Retention) | `TyreManagement.jsx` | D3 | Pace retention per stint (100 % = the driver's opening pace of the stint) against the race lap. | — |
@@ -439,11 +433,6 @@ Every view is a React component in `src/components/visualizations/` that reads a
 |---|---|---|---|
 | Championship Chart | `ChampionshipChart.jsx` | D3 | Cumulative points line per driver / constructor (teammates tinted and dashed, a third driver dash-dot), round dots, dotted predicted-total continuation when `showPredictions`, legend. |
 | Championship Standings | `ChampionshipStandings.jsx` | D3 | Horizontal bars of the points so far at the loaded round in the team colours of the chart (a teammate's bar carries the teammate dash), the gap to the leader in the label, a legend of the teams and patterns. No predicted total. |
-
-### 8.7 AI
-| Chart | File | Encoding |
-|---|---|---|
-| Gemini Assistant | `GeminiAssistant.jsx` | Chat panel, amber accent `#f5a623`, scenario buttons (*"What if we pit now?"*), ghost strategy overlay on Strategy Timeline. `is_mock` labeling. |
 
 ---
 
@@ -515,7 +504,7 @@ This single action sets the focus and the rival of Sector Delta and Undercut, an
 
 Decided by `App.jsx` in a strict order:
 
-1. **Pit Wall (Monitor mode)** — `activeTab === 'pitwall'` (the store's initial tab). Full-screen `PitWallLayout`: `TimingTower` with the focus cards (`PitWallSectorPanel`, `FocusDriverWidget`) on the left; `SessionInfoBar`, `RacePaceGrid`, then `TrackMap`, `CircleOfDoom` and a side column (`WeatherMini`, `RaceControlFeed`, `GeminiQuickQuery`).
+1. **Pit Wall (Monitor mode)** — `activeTab === 'pitwall'` (the store's initial tab). Full-screen `PitWallLayout`: `TimingTower` with the focus cards (`PitWallSectorPanel`, `FocusDriverWidget`) on the left; `SessionInfoBar`, `RacePaceGrid`, then `TrackMap`, `CircleOfDoom` and a side column (`WeatherMini`, `RaceControlFeed`).
 2. **Docked (Analyze mode)** — `dockedLayout && !isPitWall`. `DockedLayout` in the center, sidebar on the left (`Leaderboard` + `SidebarFocusCards`: `PitWallSectorPanel` + `FocusDriverWidget`).
 3. **Base (no view open)** — `ChartsTabContent` (the Track Map) beside the Leaderboard sidebar.
 
@@ -533,17 +522,17 @@ Every view other than the Pit Wall opens as a tab of the docked layout (`setActi
 
 | Preset | Layout |
 |---|---|
-| **Strategy** | Analytics + AI on top (55/45), Lap Times below — vertical 60/40 |
+| **Strategy** | Analytics + Strategy Timeline on top (55/45), Lap Times below — vertical 60/40 |
 | **Tyres** | Lap Times + Tyres side by side (55/45) |
 | **Pace** | Lap Times + Sectors on top, Consistency below |
-| **Prediction** | Position Tracker + Lap Times left column, Prediction + AI right column |
+| **Prediction** | Position Tracker + Lap Times left column, Prediction + Strategy Timeline right column |
 | **Overview** | Sectors + Consistency on top, Compare below |
 | **Pit Window** | Track Map + Circle of Doom on top (50/50), Strategy Timeline below — vertical 50/50 |
 | **Simulator** | Simulator + Strategy Timeline on top, Prediction below |
 
 ### 10.3 OverlayPanel
 - Only Settings opens in it (the utility tabs of `setActiveTab`).
-- Per-type default sizes (`PANEL_SIZES`): settings 820×580, AI 880×600, championship 880×600, default 700×520; below 1440 × 900 a window opens at most at 82 % of its container (`pickDefaultSize`).
+- Per-type default sizes (`PANEL_SIZES`): settings 820×580, championship 880×600, default 700×520; below 1440 × 900 a window opens at most at 82 % of its container (`pickDefaultSize`).
 - Cascade offset based on position in `openOverlays` (each new overlay offsets +24 px).
 - `ResizeObserver` + `MutationObserver` for the `autoFit` prop (used by Settings accordion): panel height tracks content, stops once user manually resizes; off below 1440 × 900.
 - 8 px edge padding, minimum 420 × 320 (`MIN_W`, `MIN_H`).
@@ -592,7 +581,7 @@ The dock never scrolls: `.bottom-tab-bar` has `overflow: hidden` and `max-width:
 - Filter + sort by `_score` ascending. Groups: Navigation · Actions · Drivers · Laps · Replay · Analytics · Track Map · Layout · Help.
 
 ### 12.2 Command categories
-**Navigation (number keys):** Lap Times (1), Tyres (2), Strategy Timeline (3), Sectors (4), Prediction (5), Analytics/PCA (6), AI Strategist (7), Compare (8), Consistency (9), Championship (0).
+**Navigation (number keys):** Lap Times (1), Tyres (2), Strategy Timeline (3), Sectors (4), Prediction (5), Analytics/PCA (6), Compare (8), Consistency (9), Championship (0).
 
 **Actions:** Select Driver (D → sub-menu of all drivers), Focus Driver, Compare Drivers (C → toggle), Jump to Lap (a sub-menu, no key; the `L` key toggles the Leaderboard).
 
@@ -600,7 +589,7 @@ The dock never scrolls: `.bottom-tab-bar` has `overflow: hidden` and `max-width:
 
 **Replay:** Play/Pause (Space), First / Last Lap (Home / End), Speed Up / Down (> / <).
 
-**Analytics:** Run lap-time forecast + Race Prediction view (⇧P), Tyres (T: Tyre Health and Pace Retention), Strategy & AI (7, the AI Strategist; the `S` key opens the Strategy Timeline), Analytics PCA (A), Gemini floating panel (G), Driver Comparison (⇧G — only available when `compareDrivers.length === 2`), Cycle Leaderboard View (V).
+**Analytics:** Run lap-time forecast + Race Prediction view (⇧P), Tyres (T: Tyre Health and Pace Retention), Analytics PCA (A), Driver Comparison (⇧G — only available when `compareDrivers.length === 2`), Cycle Leaderboard View (V).
 
 **Track Map:** Toggle Sectors (⇧S), Toggle DRS (⇧D, seasons before 2026), Rotate CW / CCW (R / ⇧R), Reset Orientation.
 
@@ -624,13 +613,13 @@ Keyboard shortcut `D` opens the palette already in "Select Driver" sub-menu via 
 Defined in `hooks/useKeyboardShortcuts.js` and mirrored in `ShortcutCheatsheet/ShortcutCheatsheet.jsx` (press `?` to open).
 
 ### 13.1 Number keys (aligned with pit-wall workflow)
-`1` Lap Times · `2` Tyres · `3` Strategy Timeline · `4` Sectors · `5` Prediction · `6` Analytics/PCA · `7` AI · `8` Compare · `9` Consistency · `0` Championship.
+`1` Lap Times · `2` Tyres · `3` Strategy Timeline · `4` Sectors · `5` Prediction · `6` Analytics/PCA · `8` Compare · `9` Consistency · `0` Championship (`7` opens no view).
 
 ### 13.2 Layout & modes
 `P` Toggle Pit Wall ↔ Analysis · `⇧P` Lap-time forecast of the focus driver + open Race Prediction · `W` Close last tab/window · `X` Close all / exit layout · `Escape` Close overlays/docked · `⇧H` Toggle bottom bar auto-hide · `Ctrl+G` Cycle arrangements · `Ctrl+Alt+D` Reset dock · `Ctrl+←/→/↑/↓` Tile / maximize / restore window.
 
 ### 13.3 Selection & focus
-`D` Open driver selector (palette sub-menu) · `F` Focus / unfocus driver · `C` Toggle compare mode · `L` Toggle leaderboard · `V` Cycle leaderboard column · `G` Toggle Gemini floating panel · `⇧G` Driver comparison (compare mode with two drivers chosen).
+`D` Open driver selector (palette sub-menu) · `F` Focus / unfocus driver · `C` Toggle compare mode · `L` Toggle leaderboard · `V` Cycle leaderboard column · `⇧G` Driver comparison (compare mode with two drivers chosen).
 
 ### 13.4 Replay
 `Space` Play/pause · `←/→` Navigate laps · `Home/End` First/last lap · `>/<` Playback speed.
@@ -751,7 +740,6 @@ Timeline player band tints: SC, VSC and red flag 0.14 · yellow flag 0.08 (`Time
 
 ### 15.5 Accent
 - F1 red: `#e10600` (brand), `#b80500` (dark).
-- Gemini / AI: amber `#f5a623` + ghost `rgba(245,166,35,0.25)`.
 - Robinhood-Legend palette accent (command palette): `#D5FD51`.
 
 ### 15.6 Country flags
@@ -778,45 +766,23 @@ Negative = focus faster = blue `#5DA5E8` with ▼ and −. Positive = focus slow
 
 ---
 
-## 17 · Gemini AI integration
+## 17 · Live timing subsystem
 
-### 17.1 Prompt construction (`backend/api/routers/gemini.py`)
-Structured prompt with:
-- **Role preamble** — "Senior F1 race strategy engineer with access to live analytical data." CRITICAL RULES forbid inventing data and require citing numbers.
-- **Race header** — year, round, current lap / max lap, focus driver, selected drivers.
-- **Session + weather** — event name, session type, air/track temp, rain, humidity.
-- **Driver state (live PCA-derived)** — one line per driver: `P{pos}, pace {s}s, tyre {compound} (age {laps}), trend {±x.xx}s/lap, est. {n} laps to pit`.
-- **Recent laps** — last N laps with compound, sector breakdown.
-- **Lap-time forecast** of the focus driver, when one has been asked, named by the method that made it, with its held-out error.
-
-### 17.2 Heuristic fallback
-When the API key is missing, `google-genai` isn't installed or the Gemini call fails, the router returns a heuristic answer built from the race context (`_heuristic_fallback`), tagged `is_mock: true` and `is_heuristic: true`. The UI marks each such answer with a MOCK chip.
-
-### 17.3 Scenario overlays
-The AI panel can emit `ghost strategy` overlays onto `StrategyTimeline` — amber bands (the predicted colour at 0.25) showing Gemini's proposed stints on the driver's row (the Strategy Simulator's plan is the dashed outline).
-
-### 17.4 Floating button
-`GeminiFloatingButton.jsx` toggles a floating chat window via `CustomEvent('toggle-gemini-panel')` — dispatched by the `G` key and the command palette. The docked assistant is the AI Strategist view (`AITabContent`: `GeminiAssistant` with the Strategy Timeline).
-
----
-
-## 18 · Live timing subsystem
-
-### 18.1 Stack
+### 17.1 Stack
 - `F1SignalRClient` — async, auto-reconnect. Subscribes to `LIVE_TOPICS`, among them `TimingData`, `TimingAppData`, `LapCount`, `TrackStatus`, `RaceControlMessages`, `SessionInfo`, `DriverList`, `WeatherData`, `TeamRadio`, and `CarData.z` / `Position.z` (paywalled since 2025, so in practice not received).
 - `OpenF1Client` — polls `https://api.openf1.org/v1/car_data` and `.../location` every 2 s (`TELEMETRY_POLL_INTERVAL`); without an OpenF1 API key the live data are blocked while a session runs.
 - `LiveSessionManager` — accumulates both streams into a single snapshot (`session_info`, `drivers`, `timing`, `positions`, `messages`). Emits WebSocket updates on change.
 - `MockReplay` — replays cached sessions as if they were live so the whole pipeline can be tested off-season.
 
-### 18.2 WebSocket protocol (`/api/live/ws`)
+### 17.2 WebSocket protocol (`/api/live/ws`)
 Messages tagged by `type` (`live/session_manager.py`, `api/routers/live.py`): among them `session_init`, `driver_list`, `lap_update`, `driver_status`, `position_update`, `strategy_update`, `lap_count`, `weather_update`, `track_status`, `race_control`, `team_radio`, `session_info`, `session_status`, `session_end`, `frame`, `heartbeat`, `resync`. Frontend `liveWebSocket.js` dispatches to store slices. UI indicators: a pulsing `LIVE` badge on the `WeatherBar` (faded while disconnected) and a `LIVE` badge on the Timeline Player.
 
-### 18.3 Load-full-session
+### 17.3 Load-full-session
 Connecting after a session finishes only gives a state snapshot — no lap history. `/api/live/load-full-session` resolves `session_info.event_name` against the FastF1 schedule, then calls `load_session` for the full lap history.
 
 ---
 
-## 19 · Replay engine
+## 18 · Replay engine
 
 `hooks/useReplayEngine.js` runs a `requestAnimationFrame` loop.
 
@@ -828,22 +794,21 @@ Connecting after a session finishes only gives a state snapshot — no lap histo
 
 ---
 
-## 20 · VA framework mapping
+## 19 · VA framework mapping
 
 | VA principle | How this project satisfies it |
 |---|---|
 | **Overview first, zoom / filter, details on demand** (Shneiderman 1996) | SessionSelectorScreen → Pit Wall / Analysis overview → docked workspace → brush / lasso / click → tooltip and the Cross-Race Analysis / Strategy Analysis detail panels. |
 | **Coupled visualization + analytics** | Lasso triggers a descriptive comparison (Hedges' g, random baseline); a lap range triggers the degradation fit; double-click triggers the lap-time forecast. (A battle click only selects the pair, `selectPair`: a selection, not an analytic.) |
-| **Multiple coordinated views** | 29 views in 31 files (23 draw with D3, 8 HTML only), one store, bidirectional routing (§9). |
+| **Multiple coordinated views** | 28 views in 30 files (22 draw with D3, 8 HTML only), one store, bidirectional routing (§9). |
 | **Interpretable dimensionality reduction** | PCA with loadings arrows + auto-labeled axes (the one projection; t-SNE was removed, `docs/PCA_METHODOLOGY.md`). |
 | **Prediction with uncertainty** | Lap-time point forecasts with the method's held-out error + Monte Carlo distribution bands + Strategy Simulator cards with the median position, the average, the range and the podium / points shares. |
 | **Preservation of domain conventions** | F1 TV broadcast colors (purple = overall best, green = personal best, each with its glyph; tyre compound colors with their letter), team colors for 2024 grid, the pit colour with P / O, race-control flag states with their label. |
-| **Explanatory AI** | Gemini prompt cites numbers; CRITICAL RULES forbid hallucination; every suggestion carries `is_mock` transparency. |
 | **No-scroll, glanceable layout** | Fixed-viewport layout: the page never scrolls at the supported window sizes (`docs/SCROLL_JUSTIFICATIONS.md`), auto-hide dock, JetBrains-style splits with a strict 4-pane cap. |
 
 ---
 
-## 21 · Performance / caching
+## 20 · Performance / caching
 
 - **Memory + disk + FastF1** triple cache on the backend: a disk-cached session is read without FastF1.
 - **Background raw-session prefetch** — disk-hit triggers a daemon thread to load the raw FastF1 session so telemetry is ready without a user-visible pause.
@@ -857,9 +822,9 @@ Connecting after a session finishes only gives a state snapshot — no lap histo
 
 ---
 
-## 22 · Development workflow
+## 21 · Development workflow
 
-### 22.1 Running
+### 21.1 Running
 ```bash
 # Backend
 cd backend
@@ -871,27 +836,27 @@ npm install
 npm run dev            # :5173, HMR, /api proxied to :8000
 ```
 
-### 22.2 Pre-computing data (optional but recommended)
+### 21.2 Pre-computing data (optional but recommended)
 ```bash
 python -m scripts.pca_rebuild        # PCA feature matrix + embeddings
 python -m model.prepare_data
 python -m model.train
 ```
 
-### 22.3 Env
-`backend/.env` holds `GEMINI_API_KEY`. Without it, the Gemini router answers with its heuristic fallback (§17.2).
+### 21.3 Env
+`backend/.env` (a copy of the repository's `.env.example`) holds the optional backend variables: `OPENF1_API_KEY` for a live session, `VA_WHISPER_MODEL` for the team-radio transcription.
 
-### 22.4 Code conventions
+### 21.4 Code conventions
 - React components: SVG via `useRef`, D3 inside `useEffect`, Zustand via selectors.
 - Inline styles are fine for one-off decisions; `styles/*.css` for anything reused.
 - No emojis in code; only when the domain uses them (flag badges, FL, ⇅ battles).
 - Avoid inventing `// TODO` — if something is incomplete, either finish it or open an issue.
 - Comments: only when the WHY is non-obvious (see `TyreHealth.jsx` for the 1.6-exponent calibration note).
 
-### 22.5 Tested viewport
+### 21.5 Tested viewport
 The layout is checked at 1536 × 750, 1366 × 768, 1920 × 1080 and 2048 × 1100 (`frontend/scripts/audit/layout_fit.mjs`, `docs/evidence/layout_fit.txt`; `docs/SCROLL_JUSTIFICATIONS.md`). The bottom bar never scrolls: the items that do not fit go into its `⋯` popover.
 
-### 22.6 Companion docs
+### 21.6 Companion docs
 | File | Scope |
 |---|---|
 | [`INSIGHTS.md`](INSIGHTS.md) | Analytical insights discovered through the system |
@@ -910,7 +875,7 @@ The layout is checked at 1536 × 750, 1366 × 768, 1920 × 1080 and 2048 × 1100
 
 ## Appendix A · One-line elevator pitch
 
-> A pit-wall decision-support dashboard that couples 29 coordinated F1 race visualizations to four analytics pipelines (PCA biplot with loadings + lasso-to-descriptive comparison (Hedges' g), lap-time + pit-probability forecast (the method selected on the validation races, the LSTM), Monte Carlo race-outcome simulation, brush-to-degradation regression), wrapped in a JetBrains-style docked workspace with a customizable bottom dock, a VS-Code-style fuzzy command palette, a Gemini AI strategist, and the 45 keyboard shortcuts of the cheatsheet (`docs/evidence/cheatsheet_fit.txt`) — all themed on the official F1 TV broadcast language (team colors, tyre compound codes, purple/green sector timing, Formula1 + JetBrains Mono typography, iOS-26 glassmorphism).
+> A pit-wall decision-support dashboard that couples 28 coordinated F1 race visualizations to four analytics pipelines (PCA biplot with loadings + lasso-to-descriptive comparison (Hedges' g), lap-time + pit-probability forecast (the method selected on the validation races, the LSTM), Monte Carlo race-outcome simulation, brush-to-degradation regression), wrapped in a JetBrains-style docked workspace with a customizable bottom dock, a VS-Code-style fuzzy command palette and the 43 keyboard shortcuts of the cheatsheet (`docs/evidence/cheatsheet_fit.txt`) — all themed on the official F1 TV broadcast language (team colors, tyre compound codes, purple/green sector timing, Formula1 + JetBrains Mono typography, iOS-26 glassmorphism).
 
 ---
 

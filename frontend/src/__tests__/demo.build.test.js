@@ -46,7 +46,6 @@ describe.skipIf(!HAS_DATA)('demo build', () => {
     const res = await api.analyzePCASelection(own.slice(0, 4).map((p) => p.id), { year: race.year, round: race.round, session_now: null });
     expect(res.n_selected).toBe(4);
     await expect(api.predictLSTM({ year: race.year, round: race.round, driver: own[0].driver })).rejects.toThrow(BACKEND_ONLY_TEXT);
-    await expect(api.queryGemini({})).rejects.toThrow(BACKEND_ONLY_TEXT);
     deactivateDemo();                    // a demo build stays a demo
     expect(useDemoMode.getState().active).toBe(true);
     expect(axiosCalls).toEqual([]);

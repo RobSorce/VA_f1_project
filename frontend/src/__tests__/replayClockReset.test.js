@@ -22,7 +22,6 @@ vi.mock('../utils/apiClient', async (importOriginal) => {
   });
   mocked.predictLSTM = vi.fn(async () => (fx().lstm ? fx().lstm() : {}));
   mocked.predictDegradation = vi.fn(async (req) => ({ slope: 0.05, lap_start: req.lap_start, lap_end: req.lap_end }));
-  mocked.queryGemini = vi.fn(async () => ({ response: 'ok', scenarios: [] }));
   return mocked;
 });
 vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
@@ -438,7 +437,7 @@ describe.skipIf(!(hasCachedSession(2026, 1, 'FP2') && have(2024, 16)))('the sess
     expect(t).not.toContain(PIT_LOSS_LEGEND);
   });
 
-  it('FP2 in the store: no race projection, simulator run or Gemini pit loss (R7 in the store)', async () => {
+  it('FP2 in the store: no race projection or simulator run (R7 in the store)', async () => {
     vi.useFakeTimers();
     fixtures.sessions['2026_1_FP2'] = loadCachedSession(2026, 1, 'FP2');
     useF1Store.setState({ year: 2026, round: 1, sessionType: 'FP2', isLiveMode: false });
@@ -458,14 +457,6 @@ describe.skipIf(!(hasCachedSession(2026, 1, 'FP2') && have(2024, 16)))('the sess
     });
     store().runSimulation();
     expect(store().simulatorResult).toBeNull();
-    api.queryGemini.mockClear();
-    const sent = store().sendGeminiQuery('when should I pit?');
-    await vi.runAllTimersAsync();
-    await sent;
-    expect(api.queryGemini).toHaveBeenCalledTimes(1);
-    const ctx = api.queryGemini.mock.calls[0][0].race_context;
-    expect(ctx).toBeTruthy();
-    expect(ctx.raceParams?.pitLoss ?? null).toBeNull();
   });
 
   it('race loaded, then the Qualifying pill (no load): the race keeps its pit-loss legend', async () => {
@@ -721,20 +712,12 @@ describe.skipIf(!have(2024, 16))('clock-derived analytics follow every clock jum
     expect(at10.raceParams.pitLoss.n).toBeLessThan(n51);
     expect(store().raceSituationData.computedAtLap).toBe(10);
 
-    // The Gemini context carries the lap-10 values
-    await store().sendGeminiQuery('pit now?');
-    const ctx = api.queryGemini.mock.calls.at(-1)[0].race_context;
-    expect(ctx.raceParams.pitLoss).toEqual(at10.raceParams.pitLoss);
-    expect(ctx.currentLap).toBe(10);
-
     // Lap 3 through setCurrentLap: no projection is possible there
     store().setCurrentLap(3);
     expect(store().raceProjection).toBeNull();
     settle();
     expect(store().raceProjection).toBeNull();
     assertNothingFromLaterClock();
-    await store().sendGeminiQuery('and now?');
-    expect(api.queryGemini.mock.calls.at(-1)[0].race_context.raceParams).toBeUndefined();
   });
 
   it('a backward seek inside the same lap drops what was computed later in that lap', () => {

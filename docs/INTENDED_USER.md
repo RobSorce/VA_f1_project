@@ -21,7 +21,7 @@ The current use cases, with step-by-step walkthroughs in the static demo and eve
 - The Leaderboard and Track Map provide position overview (who is where, gaps).
 - The Tyre Degradation chart fits each stint's fuel-corrected lap times (clean laps only) against tyre life and labels the stint with its fuel-corrected and its raw slope, in s/lap: the rate at which the stint loses pace (`docs/DEGRADATION_METHODOLOGY.md`).
 - Double-clicking a driver (Leaderboard, Timing Sheet, Race Pace Grid) focuses it and asks its lap-time forecast: the next five lap times and the probability of a stop within them, from the method selected on the validation races (the LSTM for both, `docs/evidence/evaluate_forecast.txt`). The forecast rows show in the Timing Sheet and in Race Prediction.
-- The Strategy Timeline shows every driver's stints and pit stops, the focus driver's forecast stints (hatched), the strategies of a PCA selection as extra rows, and the Strategy Simulator's plan and the assistant's suggestion over their driver's row.
+- The Strategy Timeline shows every driver's stints and pit stops, the focus driver's forecast stints (hatched), the strategies of a PCA selection as extra rows, and the Strategy Simulator's plan over its driver's row.
 - Setting a lap range (the Position Tracker brush, the Timing Sheet's lap-range bar, a stint on the Strategy Timeline) triggers a degradation regression to quantify the rate of pace loss.
 
 (Corrected on 2026-10-15: the Tyre Degradation chart was said to show when performance "drops off", which a straight-line fit cannot show; the double-click was said to run "LSTM prediction", while the served method is the one selected on the validation races; and the Strategy Timeline was said to show undercut windows, which it does not draw.)
@@ -54,7 +54,7 @@ The system is designed for expert users who:
 - Understand F1-specific terminology without explanation (no glossary needed).
 - Can interpret PCA loading vectors and linear regression slopes.
 - Value data density over visual simplicity: the dashboard fills a fixed viewport and the page never scrolls at the four supported window sizes, 1536 × 750, 1366 × 768, 1920 × 1080 and 2048 × 1100 (`docs/evidence/layout_fit.txt`); the few areas that scroll inside their panel are listed and justified in `docs/SCROLL_JUSTIFICATIONS.md`.
-- Need keyboard shortcuts for speed (the shortcut cheatsheet lists 45, `docs/evidence/cheatsheet_fit.txt`).
+- Need keyboard shortcuts for speed (the shortcut cheatsheet lists 43, `docs/evidence/cheatsheet_fit.txt`).
 - Trust quantitative metrics (lap time to 3 decimal places, degradation slope in s/lap) over qualitative summaries.
 
 (Corrected on 2026-10-15: the layout was described as a 1920x1080 no-scroll layout, and the shortcut count was given as 30+ without a source.)

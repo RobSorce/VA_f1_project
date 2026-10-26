@@ -20,11 +20,7 @@
  *  - Strategy Analysis: the drivers tab mark ("->P{n}" shown / colour), the
  *    insight battle cards and variance cards (insightsGenerator), its battle
  *    rows (the listed battles);
- *  - Leaderboard: the overtake badge colour of the adjacent pairs (battleLevel);
- *  - assistant: the quick-query battle (first listed), the battle query of
- *    each driver (first listed battle with that driver), the context the
- *    store sends (first 10 rows with their position shown, first 5 battles,
- *    first 5 risk rows).
+ *  - Leaderboard: the overtake badge colour of the adjacent pairs (battleLevel).
  * For comparison, the same recomputes under the rules of the checkpoint
  * (2193a6b): the most frequent position with hysteresis on the shares, the
  * arrow from the expected position (|delta| >= 0.5), rows by expected
@@ -100,10 +96,6 @@ const MARKS = [
   'Leaderboard overtake badge colour (adjacent pairs)',
   'risk rows (as shown)',
   'Risks (N) tab label',
-  'assistant quick-query battle',
-  'assistant battle query (any driver)',
-  'assistant context: first 10 rows + position shown',
-  'assistant context: first 5 battles',
 ];
 const OLD_MARKS = [
   'P label (any row)',
@@ -140,13 +132,6 @@ function view(proj, oldState) {
     'Leaderboard overtake badge colour (adjacent pairs)': adjacent.map((b) => `${battleKey(b)}:${battleLevel(proj, b)}`).sort().join('|'),
     'risk rows (as shown)': risks.map((x) => `${x.driver}:${x.type}:${x.severity}`).join('|'),
     'Risks (N) tab label': String(risks.length),
-    'assistant quick-query battle': listed[0] ? battleKey(listed[0]) : '',
-    'assistant battle query (any driver)': drivers.map((d) => {
-      const b = listed.find((x) => x.behind === d || x.ahead === d);
-      return `${d}:${b ? battleKey(b) : ''}`;
-    }).join('|'),
-    'assistant context: first 10 rows + position shown': proj.projections.slice(0, 10).map((p) => `${p.driver}:${modePosition(proj, p)}`).join(','),
-    'assistant context: first 5 battles': listed.slice(0, 5).map(battleKey).join('|'),
     old: {
       'P label (any row)': drivers.map((d) => `${d}:${oldState.mode[d]}`).join(','),
       'gold P label (any row)': drivers.map((d) => `${d}:${oldState.mode[d] <= 3}`).join(','),

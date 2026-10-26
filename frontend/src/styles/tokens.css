@@ -184,10 +184,6 @@
   --track-drs: #FFFFFF;
   --medal-gold: #FFD700;
 
-  /* Gemini / AI accent */
-  --color-gemini: #f5a623;
-  --color-gemini-ghost: rgba(245, 166, 35, 0.25);
-
   /* Typography */
   --font-primary: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -293,11 +289,9 @@
   --bottom-tab-height: clamp(46px, 6.2vh, 52px);
   --dock-margin: clamp(6px, 0.8vh, 8px);
   --chrome-bottom: calc(var(--timeline-height) + var(--bottom-tab-height) + var(--dock-margin));
-  /* The assistant button (GeminiFloatingButton.jsx) sits in the dock row, in
-     the gutter right of the dock pill: never over the timeline row or a
-     panel. The dock keeps both gutters free (.bottom-tab-bar). */
-  --assistant-button-size: 44px;
-  --dock-side-gutter: calc(var(--assistant-button-size) + 24px);
+  /* Room the dock pill leaves free on each side of the dock row
+     (.bottom-tab-bar max-width; docs/evidence/dock_fit.txt) */
+  --dock-side-gutter: 68px;
   /* Floating overlays sit between the weather bar and the bottom chrome
      (re-declared on .app-container while the timeline is expanded) */
   --overlay-inset-top: calc(var(--weather-bar-height) + 8px);

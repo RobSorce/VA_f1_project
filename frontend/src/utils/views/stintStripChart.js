@@ -1,8 +1,7 @@
 /**
  * Stint strips as a D3 chart: one row per plan (the Strategy Simulator's
- * custom plan and the actual strategy, the PCA strategy patterns, the
- * Strategy Engineer's scenarios) or per group (the field's tyre mix in
- * Strategy Analysis), each a sequence of segments on one linear axis (laps,
+ * custom plan and the actual strategy, the PCA strategy patterns) or per
+ * group (the field's tyre mix in Strategy Analysis), each a sequence of segments on one linear axis (laps,
  * or cars for the tyre mix) drawn under the rows.
  *
  * Every segment is filled with its FIA compound colour and carries the

@@ -25,7 +25,6 @@ const ConsistencyPanel   = lazy(() => import('../components/visualizations/Consi
 const SectorsPanel       = lazy(() => import('../components/visualizations/SectorsPanel'));
 const RacePredictionPanel= lazy(() => import('../components/visualizations/RacePredictionPanel'));
 const DriverComparePanel = lazy(() => import('../components/visualizations/DriverComparePanel'));
-const AITabContent       = lazy(() => import('../components/tabs/AITabContent'));
 const RaceSituationMap   = lazy(() => import('../components/visualizations/RaceSituationMap'));
 const TelemetryStrip     = lazy(() => import('../components/visualizations/TelemetryStrip'));
 const StrategyAnalysis   = lazy(() => import('../components/visualizations/StrategyAnalysis'));
@@ -55,7 +54,6 @@ const ICONS = {
   speed:         'M13 2L3 14h9l-1 8 10-12h-9l1-8',
   prediction:    'M12 3a8 8 0 1 0 7.7 10M12 3v6l4 4M15 3h6v6',
   compare:       'M7 7h10M7 17h10M7 7L4 4M7 7L4 10M17 17l3-3M17 17l3 3',
-  gemini:        'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z',
   racesituation:'M4 18c2-2 4-2 6 0s4 2 6 0 4-2 4-2M6 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM14 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM19 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   telemetry:     'M3 3v18h18M6 15l4-6 4 4 5-9',
   analysis:      'M11 17a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM21 21l-5.4-5.4',
@@ -106,7 +104,6 @@ export const SLOT_OPTIONS = [
 
   // ── Prediction ─────────────────────────────────────────────────────────
   { id: 'prediction',    label: 'Race Prediction',     component: RacePredictionPanel, category: 'prediction', icon: ICONS.prediction, hint: '5' },
-  { id: 'ai',            label: 'AI Strategist',       component: AITabContent,        category: 'prediction', icon: ICONS.gemini,     hint: '7' },
 
   // ── System ─────────────────────────────────────────────────────────────
   { id: 'championship',  label: 'Championship',        component: ChampionshipTabContent, category: 'system', icon: ICONS.championship, hint: '0' },
@@ -132,7 +129,7 @@ export const PRESETS = {
   strategy: { label: 'Strategy',   slotA: 'analytics',  slotB: 'strategy',  slotC: 'analysis',  splitV: 0.55, splitH: 0.6 },
   tyres:    { label: 'Tyres',      slotA: 'laptimes',   slotB: 'tiredeg',   slotC: 'tyrehealth', splitV: 0.55, splitH: 0.65 },
   pace:     { label: 'Pace',       slotA: 'laptimes',   slotB: 'trackmap',  slotC: 'lapdelta',   splitV: 0.5,  splitH: 0.65 },
-  predict:  { label: 'Prediction', slotA: 'prediction', slotB: 'strategy',  slotC: 'ai',         splitV: 0.5,  splitH: 0.55 },
+  predict:  { label: 'Prediction', slotA: 'prediction', slotB: 'strategy',  slotC: 'analysis',   splitV: 0.5,  splitH: 0.55 },
   overview:   { label: 'Overview',   slotA: 'trackmap',   slotB: 'sectors',   slotC: 'racepace',   splitV: 0.5,  splitH: 0.5 },
   simulator:  { label: 'Simulator', slotA: 'simulator',  slotB: 'strategy',  slotC: 'prediction', splitV: 0.4,  splitH: 0.55 },
 };

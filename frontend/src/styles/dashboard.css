@@ -3221,8 +3221,6 @@
 .laptimes-tab__delta > .panel,
 .tyres-tab__health > .panel,
 .tyres-tab__management > .panel,
-.ai-tab__strategy > .panel,
-.ai-tab__chat > .panel,
 .championship-tab__chart > .panel,
 .championship-tab__standings > .panel {
   height: 100%;
@@ -3361,29 +3359,6 @@
 
 .tyres-tab__management {
   flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* ==========================================================================
-   AI Tab
-   ========================================================================== */
-.ai-tab {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  gap: 4px;
-  overflow: hidden;
-}
-
-.ai-tab__strategy {
-  flex: 3;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.ai-tab__chat {
-  flex: 2;
   min-height: 0;
   overflow: hidden;
 }
@@ -7728,50 +7703,6 @@
 }
 
 .pitwall-layout__focus-toggle:hover { color: var(--color-text-primary); background: rgba(255, 255, 255, 0.08); }
-
-/* Pit Wall side column (PitWallLayout.jsx): Weather, Race Control (takes the
-   room left, newest messages first) and the Ask box at the bottom; the
-   answer card is laid over the column above the Ask box (GeminiQuickQuery) */
-.pitwall-quick__input {
-  flex: 1;
-  min-width: 0;
-  background: rgba(255, 255, 255, 0.04);
-  /* the field's boundary >= 3:1 (UI_COLORS.controlBorder), V13 */
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 6px;
-  padding: 5px 8px;
-  color: var(--color-text-primary);
-  font-family: 'JetBrains Mono', monospace;
-}
-.pitwall-quick__input::placeholder { color: var(--color-text-muted); opacity: 1; }
-.pitwall-quick__input:focus { outline: none; }
-.pitwall-quick__input:focus-visible,
-.pitwall-quick__chip:focus-visible,
-.pitwall-quick__close:focus-visible {
-  outline: 2px solid #FFFFFF;
-  outline-offset: 1px;
-}
-.pitwall-quick__chip {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 12px;
-  padding: 2px 10px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.pitwall-quick__chip:hover { background: rgba(255, 255, 255, 0.10); color: var(--color-text-primary); }
-.pitwall-quick__close {
-  width: 22px;
-  height: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-data);
-  line-height: 1;
-  cursor: pointer;
-}
 
 .pitwall-layout__focus-cards {
   display: grid;

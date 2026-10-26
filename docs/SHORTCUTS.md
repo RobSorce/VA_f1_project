@@ -24,7 +24,6 @@ Each key was sent to the handler during a replay of a 2024 race at lap 10 of 53,
 | `4` | open Sectors & Speeds |
 | `5` | open Race Prediction |
 | `6`, `A`, `Shift+A` | open Analytics (PCA) |
-| `7` | open AI Strategist |
 | `8`, `Shift+G` | open Driver Compare |
 | `9` | open Consistency |
 | `0`, `Shift+C` | open Championship |
@@ -32,7 +31,6 @@ Each key was sent to the handler during a replay of a 2024 race at lap 10 of 53,
 | `D` | open the command palette on "select-driver" |
 | `Shift+D` | show / hide the DRS zones on the Track Map |
 | `F`, `Shift+F` | focus the driver under the pointer |
-| `G` | open / close the floating AI assistant |
 | `H` | show / hide the shortcut hints |
 | `Shift+H` | show / hide the bottom bar (auto-hide) |
 | `L`, `Shift+L` | show / hide the leaderboard sidebar |
@@ -112,7 +110,6 @@ Playback speeds (`<` and `>` step through them, no wrap): 0.5x, 1x, 2x, 5x, 10x,
 | Layout & Views | `4` | Sectors | open Sectors & Speeds |
 | Layout & Views | `5` | Prediction | open Race Prediction |
 | Layout & Views | `6` | Analytics (PCA) | open Analytics (PCA) |
-| Layout & Views | `7` | AI Strategist | open AI Strategist |
 | Layout & Views | `8` | Compare | open Driver Compare |
 | Layout & Views | `9` | Consistency | open Consistency |
 | Layout & Views | `0` | Championship | open Championship |
@@ -140,7 +137,6 @@ Playback speeds (`<` and `>` step through them, no wrap): 0.5x, 1x, 2x, 5x, 10x,
 | Driver & Analytics | `S` | Strategy Timeline | open Strategy Timeline |
 | Driver & Analytics | `T` | Tyres (Health / Pace Retention) | open Tyres |
 | Driver & Analytics | `A` | Analytics (PCA) | open Analytics (PCA) |
-| Driver & Analytics | `G` | Gemini AI Panel | open / close the floating AI assistant |
 | Driver & Analytics | `⇧ G` | Driver Comparison (2 selected) | open Driver Compare |
 | Driver & Analytics | `M` | Strategy Simulator | open Strategy Simulator |
 | Driver & Analytics | `V` | Cycle Leaderboard view | cycle the leaderboard column (interval / gap / tyre) |
@@ -161,7 +157,6 @@ The palette (Ctrl/Cmd+K) shows a key label next to some commands; running the co
 | Sectors (`open-sectors`) | `4` | open Sectors & Speeds | open Sectors & Speeds | yes |
 | Prediction (`open-prediction`) | `5` | open Race Prediction | open Race Prediction | yes |
 | Analytics (PCA) (`open-analytics`) | `6` | open Analytics (PCA) | open Analytics (PCA) | yes |
-| AI Strategist (`open-ai`) | `7` | open AI Strategist | open AI Strategist | yes |
 | Compare (`open-compare`) | `8` | open Driver Compare | open Driver Compare | yes |
 | Consistency (`open-consistency`) | `9` | open Consistency | open Consistency | yes |
 | Championship (`open-championship`) | `0` | open Championship | open Championship | yes |
@@ -175,9 +170,7 @@ The palette (Ctrl/Cmd+K) shows a key label next to some commands; running the co
 | Decrease Playback Speed (`speed-down`) | `<` | slower playback (1x to 0.5x) | slower playback (1x to 0.5x) | yes |
 | Run lap-time forecast (`predict-pit`) | `⇧P` | ask the lap-time forecast of the focus driver at the replay lap; open Race Prediction | ask the lap-time forecast of the focus driver at the replay lap; open Race Prediction | yes |
 | Open Tyres (Tyre Health & Pace Retention) (`open-tyres-shortcut`) | `T` | open Tyres | open Tyres | yes |
-| Strategy & AI Assistant (`open-strategy-ai`) | `7` | open AI Strategist | open AI Strategist | yes |
 | Analytics (PCA) (`open-analytics-pca`) | `A` | open Analytics (PCA) | open Analytics (PCA) | yes |
-| Toggle Gemini Floating Panel (`toggle-gemini-panel`) | `G` | open / close the floating AI assistant | open / close the floating AI assistant | yes |
 | Driver Comparison (Head-to-Head) (`driver-comparison`) | `⇧G` | open Driver Compare | open Driver Compare | yes |
 | Cycle Leaderboard View (INT / GAP / TYRE) (`cycle-leaderboard-view`) | `V` | cycle the leaderboard column (interval / gap / tyre) | cycle the leaderboard column (interval / gap / tyre) | yes |
 | Toggle Track Sectors (`toggle-sectors`) | `⇧S` | show / hide the sectors on the Track Map | show / hide the sectors on the Track Map | yes |
@@ -187,6 +180,6 @@ The palette (Ctrl/Cmd+K) shows a key label next to some commands; running the co
 | Toggle Bottom Bar (`toggle-dashboard`) | `⇧H` | show / hide the bottom bar (auto-hide) | show / hide the bottom bar (auto-hide) | yes |
 | Show Keyboard Shortcuts (`show-shortcuts`) | `?` | open the shortcut cheatsheet | open / close the shortcut cheatsheet | yes |
 
-31 labelled commands, 0 whose label names a key that does something else.
+28 labelled commands, 0 whose label names a key that does something else.
 
 <!-- shortcuts:end -->

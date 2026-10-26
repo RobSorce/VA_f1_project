@@ -8,7 +8,8 @@ store, and running the app against several cached sessions.
 ## Status on 2026-10-15: statements of the record that are no longer true
 
 The evaluation below is the record of the first review and is kept as
-written; the line numbers it cites have moved since. These are the
+written, except that it names the strategy assistant, removed on
+2026-10-22, by its role only; the line numbers it cites have moved since. These are the
 statements it makes about the system that the code now contradicts (the
 other findings were not found to be contradicted by the code):
 
@@ -28,7 +29,7 @@ other findings were not found to be contradicted by the code):
 | V8.2 | The dock capacity is computed in `BottomTabBar.jsx` from fixed widths | The dock measures its buttons and moves the items that do not fit into the ⋯ popover (`utils/dockCapacity.js`); it never scrolls (`SCROLL_HEURISTIC_EVALUATION.md`, S2). |
 | V9.1 | The heuristic fallback is logged to the server console only and shown as if it were the model's answer | The forecast response names the method that made it (`method`, `method_label`, `is_heuristic` in `backend/model/predict.py`), and Race Prediction shows the method on a chip with its held-out error. |
 | V9.2 | Fetch errors have no retry | The backend-down toast has a Retry action. Panels still have no inline retry: `RetryPanel.jsx` exists, but no view renders it. |
-| V9.3 | `is_mock` is not shown as a chip | Every assistant answer with `is_mock` carries a MOCK chip (`GeminiAssistant.jsx`). |
+| V9.3 | `is_mock` is not shown as a chip | The strategy assistant, and with it its answers and their `is_mock` flag, was removed on 2026-10-22. |
 | V10.1 | The only in-product help is the `?` cheatsheet | Each analytical view has a help panel (`utils/chartHelp.js`), some with a link to the methodology documents. |
 | V10.2 | The lasso triggers a Cohen's-d analysis panel | The Cross-Race Analysis panel reports Hedges' g with its interval and a random-selection baseline (`docs/PCA_METHODOLOGY.md`, section 5). |
 | Positive findings | "brush on lap-time chart → degradation re-fits"; "lasso on PCA → strategy-analysis panel fills" | The lap-time chart is now the Timing Sheet, whose lap-range bar sets the range Tyre Degradation fits; the lasso fills the Cross-Race Analysis panel (`PCAAnalysisPanel.jsx`). |
@@ -343,7 +344,7 @@ with 2–3× higher error.
 
 **Fix:** `/api/predict/lstm` already returns model metadata; surface
 an `is_heuristic=true` flag in the response (parallel to
-`is_mock` already added to the Gemini router) and render a "heuristic
+`is_mock` already added to the assistant's route) and render a "heuristic
 fallback" chip in the prediction pill.
 
 ### V9.2 — Fetch errors have no retry **[severity 3]**
@@ -354,13 +355,13 @@ on panels that consume the failed endpoint; the user must reload.
 **Fix:** panels with a failed dependency render a "Couldn't fetch —
 Retry" inline action.
 
-### V9.3 — Mock Gemini responses marked only via text prefix **[severity 2]**
+### V9.3 — Mock assistant responses marked only via text prefix **[severity 2]**
 
-Recent commit added `is_mock` to the Gemini response, but the UI is
+Recent commit added `is_mock` to the assistant's response, but the UI is
 not yet displaying this flag prominently (we added a note in
 mock-path user-facing text, but not a visual chip).
 
-**Fix:** amber "MOCK" badge on every Gemini bubble when
+**Fix:** amber "MOCK" badge on every assistant bubble when
 `is_mock === true`.
 
 ---

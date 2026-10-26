@@ -5,12 +5,12 @@
  *
  * A load (store loadSession) keeps the open panels, the PCA selection (its
  * analysis is asked again for the new session, refetchDroppedPCA) and the
- * focus driver. It clears the assistant's chat and its scenario overlays and
- * the lap range (the Timing Sheet's brush bar and the Position Tracker's
- * brush: laps of one race never filter the next, D8; screenSwitchState), the
- * Strategy Simulator plan and result, the lap-time forecast (forecastReset)
- * and the telemetry compare laps. __tests__/sessionMenu.warning.test.js runs a real load and checks
- * both lists against it.
+ * focus driver. It clears the lap range (the Timing Sheet's brush bar and the
+ * Position Tracker's brush: laps of one race never filter the next, D8;
+ * screenSwitchState), the Strategy Simulator plan and result, the lap-time
+ * forecast (forecastReset) and the telemetry compare laps.
+ * __tests__/sessionMenu.warning.test.js runs a real load and checks both lists
+ * against it.
  *
  * Pure module: no React, no store access (the state is passed in).
  */
@@ -35,10 +35,6 @@ export function sessionSwitchSummary(s) {
 
   if (isRange(s?.selectedLapRange)) cleared.push(`lap range ${s.selectedLapRange[0]}–${s.selectedLapRange[1]}`);
   if (isRange(s?.brushLapRange)) cleared.push(`brushed laps ${s.brushLapRange[0]}–${s.brushLapRange[1]}`);
-  const messages = s?.geminiMessages?.length || 0;
-  if (messages > 0) cleared.push(`the assistant chat (${plural(messages, 'message', 'messages')})`);
-  const scenarios = s?.geminiOverlays?.length || 0;
-  if (scenarios > 0) cleared.push(`${plural(scenarios, 'assistant scenario', 'assistant scenarios')} on the Strategy Timeline`);
   if (s?.simulatorStrategy || s?.simulatorResult) cleared.push('the Strategy Simulator plan');
   if (s?.lstmPredictions && Object.keys(s.lstmPredictions).length > 0) cleared.push('the lap-time forecast');
   const compareLaps = s?.telemetryCompareLaps?.length || 0;

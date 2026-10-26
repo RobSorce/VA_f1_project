@@ -1,7 +1,6 @@
 // Cleanup: dead code gone, t-SNE leftovers reduced to commented aliases,
 // help texts that match the code (the undercut help, DRS for 2026, the
-// Shift+P label, the MOCK chip, stale App.jsx summaries, the Race Situation
-// wording).
+// Shift+P label, stale App.jsx summaries, the Race Situation wording).
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -72,13 +71,6 @@ describe('help texts that match the code', () => {
     expect(sheet).not.toMatch(/Run LSTM Prediction/);
     // the label the cheatsheet shows for Shift+P
     expect(sheet).toMatch(/keys: \['\\u21E7', 'P'\], desc: 'Run lap-time forecast'/);
-  });
-
-  it('the MOCK chip is the labelled heuristic fallback, not hand-written examples', () => {
-    const ai = all(CHART_HELP.ai);
-    expect(ai).toMatch(/heuristic fallback, not Gemini/);
-    expect(ai).not.toMatch(/hand-written/);
-    expect(read('App.jsx')).not.toMatch(/hand-written/);
   });
 
   it('the LSTM calibration limit names the LSTM', () => {

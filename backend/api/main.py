@@ -39,13 +39,6 @@ except Exception as _e:
     logging.getLogger(__name__).warning(f"predictions router not loaded: {_e}")
 
 try:
-    from api.routers.gemini import router as gemini_router
-    _routers_loaded.append(gemini_router)
-except Exception as _e:
-    gemini_router = None
-    logging.getLogger(__name__).warning(f"gemini router not loaded: {_e}")
-
-try:
     from api.routers.replay import router as replay_router
     _routers_loaded.append(replay_router)
 except Exception as _e:

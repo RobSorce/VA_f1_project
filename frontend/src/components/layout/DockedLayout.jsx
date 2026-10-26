@@ -31,7 +31,6 @@ const VIZ_TABS = [
   { id: 'racesituation', label: 'Race Situation' },
   { id: 'racepace', label: 'Race Pace Grid' },
   { id: 'telemetry', label: 'Telemetry' },
-  { id: 'ai', label: 'AI Assistant' },
   { id: 'compare', label: 'Compare' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'championship', label: 'Championship' },

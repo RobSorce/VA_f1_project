@@ -125,7 +125,7 @@ out(`answer now held: n_selected ${a2?.n_selected}, pit windows ${JSON.stringify
 const sum = await panelText(null);
 const det = await panelText('Details');
 out(`panel (Summary) mentions the post-race strategy "MEDIUM -> HARD": ${sum.t.includes('MEDIUM -> HARD')}; (Details) shows the post-race pit windows "L5–L23": ${det.t.includes('L5–L23')}`);
-out(`pattern consumers (Strategy Timeline ghost rows, Gemini pcaPatterns) read strategies: ${JSON.stringify((S().pcaStrategyAnalysis?.strategies || []).slice(0, 3))}`);
+out(`pattern consumers (Strategy Timeline ghost rows) read strategies: ${JSON.stringify((S().pcaStrategyAnalysis?.strategies || []).slice(0, 3))}`);
 
 // ── B ──
 out('');

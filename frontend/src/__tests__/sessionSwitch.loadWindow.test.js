@@ -16,7 +16,7 @@ vi.mock('../utils/apiClient', async (importOriginal) => {
   const fx = () => globalThis.__loadWindowFx;
   mocked.setHealthReporter = vi.fn();
   for (const k of ['getSession', 'getFrames', 'predictDegradation', 'predictLSTM', 'getTelemetry', 'getPositions',
-    'queryGemini', 'startMockReplay', 'getLiveStatus', 'getLiveSnapshot', 'loadLiveFullSession', 'stopMockReplay']) {
+    'startMockReplay', 'getLiveStatus', 'getLiveSnapshot', 'loadLiveFullSession', 'stopMockReplay']) {
     mocked[k] = vi.fn((...a) => (fx()[k] ? fx()[k](...a) : Promise.resolve({})));
   }
   return mocked;
@@ -69,7 +69,7 @@ beforeEach(async () => {
   store().resetSession();
   useF1Store.setState({
     isLiveMode: false, liveSessionInfo: null, liveConnected: false, year: 2024, round: 91, sessionType: 'R',
-    telemetryLoading: false, positionData: null, geminiMessages: [], predictionLoading: false,
+    telemetryLoading: false, positionData: null, predictionLoading: false,
   });
   fx.getSession = async () => A;
   await store().loadSession();
@@ -118,19 +118,16 @@ describe('a request sent for the session on screen while the next one loads', ()
     expect(store().degradationRegression).toBeNull();
   }, 20000);
 
-  it('the lap-time forecast (its one trigger), Gemini, telemetry and positions of A never land on B', async () => {
+  it('the lap-time forecast (its one trigger), telemetry and positions of A never land on B', async () => {
     const loadB = startLoadB();
     const lstm = deferred();
-    const gem = deferred();
     const tel = deferred();
     const pos = deferred();
     fx.predictLSTM = () => lstm.promise;
-    fx.queryGemini = () => gem.promise;
     fx.getTelemetry = () => tel.promise;
     fx.getPositions = () => pos.promise;
     const pending = [
       store().triggerPrediction('AAA', 20),
-      store().sendGeminiQuery('pit now?'),
       store().fetchDriverTelemetry('AAA', 12),
       store().loadPositions(),
     ];
@@ -139,7 +136,6 @@ describe('a request sent for the session on screen while the next one loads', ()
     expect(api.getTelemetry.mock.calls[0].slice(0, 2)).toEqual([2024, 91]);
     await loadB.land();
     lstm.resolve({ driver: 'AAA', optimal_pit_lap: 31, pit_probability: 0.7, predicted_times: [96] });
-    gem.resolve({ response: 'answer about A' });
     tel.resolve({ telemetry: [{ Distance: 0, Speed: 100 }] });
     pos.resolve({ positions: ['A'] });
     await Promise.all(pending);
@@ -147,10 +143,6 @@ describe('a request sent for the session on screen while the next one loads', ()
     expect(store().lstmPredictions).toBeNull();
     expect(store()._lstmAt).toBeNull();
     expect(store().predictionLoading).toBe(false);
-    // B's commit cleared the chat about A (question included): nothing is
-    // left waiting for an answer, and A's answer never lands
-    expect(store().geminiMessages).toEqual([]);
-    expect(store().geminiOverlays).toEqual([]);
     expect(store().telemetryCache).toEqual({});
     expect(store().telemetryLoading).toBe(false);
     expect(store().positionData).toBeNull();

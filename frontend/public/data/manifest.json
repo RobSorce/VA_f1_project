@@ -95,7 +95,6 @@
  "frame_dt_s": 0.8,
  "backend_only": [
   "forecast",
-  "gemini",
   "telemetry",
   "live",
   "other_sessions"

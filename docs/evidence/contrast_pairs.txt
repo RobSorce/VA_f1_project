@@ -1,11 +1,10 @@
-Repair contrast check (WCAG 2.1), 40 pairs read from the working tree, 2026-10-16
+Repair contrast check (WCAG 2.1), 37 pairs read from the working tree, 2026-10-22
 OK   5.67:1 (needs 4.5)  dock fixed buttons Layouts / Cmd K / Settings (label text), opacity 1  fg #A3A7B7 on #2C2C3F  [dashboard.css .bottom-tab-bar__tab--fixed (opacity none)]
 OK   5.67:1 (needs 3)  dock overflow button ⋯ (the only way to the hidden items), opacity 1  fg #A3A7B7 on #2C2C3F  [dashboard.css .bottom-tab-bar__tab--overflow (opacity none)]
 OK   6.54:1 (needs 4.5)  shortcut hint key (shown; after 5 s hidden whole: opacity 0, visibility hidden)  fg #A6A6A6 on #222222  [ShortcutHints.css .shortcut-hint-key]
 OK   6.00:1 (needs 4.5)  shortcut hint label (shown)  fg #939393 on #141414  [ShortcutHints.css .shortcut-hint-label]
 OK   7.80:1 (needs 3)  Panel export icon (var(--color-text-muted)), non-text  fg #A3A7B7 on #111122  [components.css .panel-export-btn]
 OK   11.64:1 (needs 3)  Panel export icon, hover / focus (var(--color-text-secondary)), non-text  fg #C9CCD6 on #111122  [components.css .panel-export-btn:hover, :focus-visible]
-OK   7.86:1 (needs 4.5)  Championship sub-tab, inactive (TEXT_COLORS.muted)  fg #A3A7B7 on #101020  [components/tabs/ChampionshipTabContent.jsx]
 OK   7.86:1 (needs 4.5)  Championship standings empty state (TEXT_COLORS.muted)  fg #A3A7B7 on #101020  [components/visualizations/ChampionshipStandings.jsx]
 OK   6.05:1 (needs 4.5)  RacePaceGrid context header, secondary text on the team tint at 0.25 (worst of 15 teams and their tints: Mercedes)  fg #C9CCD6 on #184B51  [RacePaceGrid.jsx dimmedHeaderBg]
 OK   7.63:1 (needs 4.5)  RacePaceGrid context cell (muted text, no opacity)  fg #A3A7B7 on #131326  [RacePaceGrid.jsx PaceCell]
@@ -16,8 +15,6 @@ OK   3.27:1 (needs 3)  TrackMap throttle / brake ramp low end CHANNEL_RAMP_LOW #
 OK   3.18:1 (needs 3)  TrackMap speed ramp low end cividis(0.37) rgb(97, 99, 111) on page  fg #61636F on #0F0F1E  [utils/colors.js SPEED_RAMP_START]
 OK   3.15:1 (needs 3)  TrackMap throttle / brake ramp low end CHANNEL_RAMP_LOW #5C6677 on panel  fg #5C6677 on #131326  [utils/colors.js CHANNEL_RAMP_LOW]
 OK   3.07:1 (needs 3)  TrackMap speed ramp low end cividis(0.37) rgb(97, 99, 111) on panel  fg #61636F on #131326  [utils/colors.js SPEED_RAMP_START]
-OK   4.49:1 (needs 3)  Ask box input boundary (rgba(255, 255, 255, 0.45))  fg #7F7F87 on #161626  [dashboard.css .pitwall-quick__input]
-OK   19.26:1 (needs 3)  Ask box input focus ring  fg #FFFFFF on #0D0D1D  [dashboard.css .pitwall-quick__input:focus-visible]
 OK   7.63:1 (needs 4.5)  LapTimeChart retired row text (STATUS_COLORS.retired, no opacity)  fg #A3A7B7 on #131326  [LapTimeChart.jsx]
 OK   7.63:1 (needs 4.5)  Leaderboard retired position text (--status-retired, no opacity)  fg #A3A7B7 on #131326  [visualizations.css .tower-row--retired / .tower-row__pos--retired]
 OK   6.22:1 (needs 3)  delta area hatch line (better #5DA5E8) on the raised surface  fg #5DA5E8 on #1A1F33  [utils/views/deltaHatch.js]
@@ -43,4 +40,4 @@ INFO (before the repair, not gated) tower PIT value text at the former pit-blink
 INFO (before the repair, not gated) delta area as the former 22 % tint (better) on the raised surface: 1.48:1
 INFO (before the repair, not gated) delta area as the former 22 % tint (worse) on the raised surface: 1.45:1
 
-0 of 40 pairs under their threshold
+0 of 37 pairs under their threshold

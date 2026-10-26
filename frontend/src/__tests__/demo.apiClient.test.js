@@ -214,7 +214,6 @@ describe.skipIf(!HAS_DATA)('no backend -> the static demo answers', () => {
     backend.calls.length = 0;
     const cases = [
       [() => api.predictLSTM({ year: 2024, round: 16, driver: 'LEC' }), 'forecast'],
-      [() => api.queryGemini({ question: 'x' }), 'gemini'],
       [() => api.getTelemetry(2024, 16, 'LEC', 10), 'telemetry'],
       [() => api.getLiveStatus(), 'live'],
       [() => api.startMockReplay(2024, 16), 'live'],

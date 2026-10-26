@@ -18,12 +18,13 @@ describe('the shortcuts document is generated from the handler', () => {
     expect(block).toBe(renderMarkdown(report).trim());
   });
 
-  it('the number keys open the ten views of the handler, in this order', () => {
+  it('the number keys open the nine views of the handler, in this order; 7 opens none', () => {
     const effectOf = (name) => report.rows.find((r) => r.keys.includes(name))?.effect;
-    expect(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(effectOf)).toEqual([
+    expect(['1', '2', '3', '4', '5', '6', '8', '9', '0'].map(effectOf)).toEqual([
       'open Lap Times', 'open Tyres', 'open Strategy Timeline', 'open Sectors & Speeds', 'open Race Prediction',
-      'open Analytics (PCA)', 'open AI Strategist', 'open Driver Compare', 'open Consistency', 'open Championship',
+      'open Analytics (PCA)', 'open Driver Compare', 'open Consistency', 'open Championship',
     ]);
+    expect(effectOf('7')).toBeUndefined();
   });
 
   it('the keys the old document left out are in the table: Shift+H, Ctrl+Alt+D, /, [ and ], Shift+P', () => {

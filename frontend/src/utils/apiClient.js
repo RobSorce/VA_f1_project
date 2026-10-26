@@ -152,10 +152,6 @@ export const predictLSTM = demoable('predictLSTM', (data) =>
 export const predictDegradation = demoable('predictDegradation', (data) =>
   client.post('/predict/degradation', { session_type: 'R', session_now: null, ...data }).then((r) => r.data));
 
-// ── Gemini ──────────────────────────────────────────────────────────
-export const queryGemini = demoable('queryGemini', (data) =>
-  client.post('/gemini/strategy', data).then((r) => r.data));
-
 // ── Analytics ────────────────────────────────────────────────────────
 // Every analytics / prediction call names the type of the session on screen
 // (D16): session_type as a query parameter for GET, a body field for POST

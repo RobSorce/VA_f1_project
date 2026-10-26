@@ -33,8 +33,8 @@ backend's answer to the same request:
   projects the race's rows at any replay clock
   (frontend/src/utils/pcaSelectionStats.js).
 
-The model features (LSTM forecast, Gemini), telemetry, live timing and the
-other sessions of a weekend are not exported: the demo says they need the
+The lap-time forecast, telemetry, live timing and the other sessions of a
+weekend are not exported: the demo says they need the
 local backend. Gzip files are written with mtime 0, so an unchanged export is
 byte-identical (no repository growth on a re-run). NaN / inf (Python's json
 writes bare NaN, which JSON.parse rejects) are written as null; the count is
@@ -309,7 +309,7 @@ def _export(main, out_dir, races, frame_step, log):
         'races': manifest_races,
         'frame_step': frame_step,
         'frame_dt_s': None,
-        'backend_only': ['forecast', 'gemini', 'telemetry', 'live', 'other_sessions'],
+        'backend_only': ['forecast', 'telemetry', 'live', 'other_sessions'],
         'nan_written_as_null': nan_count[0],
         'files': dict(sorted(files.items())),
         'total_bytes': total,

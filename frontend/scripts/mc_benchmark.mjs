@@ -509,7 +509,7 @@ r('Badge stability: the same race state recomputed with a new seed each time, th
 r('  rule (now): podium >= 50 %, battle >= 30 % (gold) / >= 60 % (green), each state kept unless the 95 % Wilson');
 r('       interval of the share lies entirely on the other side of the threshold (simulationClient.js badgeOn),');
 r('       chained recompute after recompute with projectionBadges as the store does (computeRaceProjection);');
-r(`       battles listed (listedBattles: RacePredictionPanel, StrategyAnalysis, insights, Gemini) = the pairs that are, beyond`);
+r(`       battles listed (listedBattles: RacePredictionPanel, StrategyAnalysis, insights) = the pairs that are, beyond`);
 r(`       the Monte Carlo error, among the ${BATTLE_LIST_SIZE} most likely: one not listed enters when fewer than ${BATTLE_LIST_SIZE} other pairs`);
 r(`       reach its Wilson interval, a listed one stays until ${BATTLE_LIST_SIZE} others are surely more likely; no fill`);
 r('       (scripts/battle_list_rules.mjs compares it with the cut + fill rule).');

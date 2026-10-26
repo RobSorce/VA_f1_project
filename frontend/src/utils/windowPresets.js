@@ -14,7 +14,7 @@
 export const WINDOW_PRESETS = {
   strategy: {
     label: 'Strategy',
-    description: 'Analytics (PCA) + AI Strategist + Lap Times',
+    description: 'Analytics (PCA) + Strategy Timeline + Lap Times',
     dockedLayout: {
       direction: 'vertical', ratio: 0.6,
       children: [
@@ -22,7 +22,7 @@ export const WINDOW_PRESETS = {
           direction: 'horizontal', ratio: 0.55,
           children: [
             { tabs: ['analytics'], activeTab: 'analytics' },
-            { tabs: ['ai'], activeTab: 'ai' },
+            { tabs: ['strategy'], activeTab: 'strategy' },
           ],
         },
         { tabs: ['laptimes'], activeTab: 'laptimes' },
@@ -30,7 +30,7 @@ export const WINDOW_PRESETS = {
     },
     windows: [
       { id: 'analytics', position: { left: '0%', top: '0%', width: '55%', height: '60%' } },
-      { id: 'ai',        position: { left: '55%', top: '0%', width: '45%', height: '60%' } },
+      { id: 'strategy',  position: { left: '55%', top: '0%', width: '45%', height: '60%' } },
       { id: 'laptimes',  position: { left: '0%', top: '60%', width: '100%', height: '40%' } },
     ],
   },
@@ -73,7 +73,7 @@ export const WINDOW_PRESETS = {
   },
   prediction: {
     label: 'Prediction',
-    description: 'Position Tracker + Lap Times + Race Prediction + AI Strategist',
+    description: 'Position Tracker + Lap Times + Race Prediction + Strategy Timeline',
     dockedLayout: {
       direction: 'horizontal', ratio: 0.55,
       children: [
@@ -88,7 +88,7 @@ export const WINDOW_PRESETS = {
           direction: 'vertical', ratio: 0.5,
           children: [
             { tabs: ['prediction'], activeTab: 'prediction' },
-            { tabs: ['ai'], activeTab: 'ai' },
+            { tabs: ['strategy'], activeTab: 'strategy' },
           ],
         },
       ],
@@ -97,7 +97,7 @@ export const WINDOW_PRESETS = {
       { id: 'positionlaps', position: { left: '0%', top: '0%', width: '55%', height: '55%' } },
       { id: 'laptimes',     position: { left: '0%', top: '55%', width: '55%', height: '45%' } },
       { id: 'prediction',   position: { left: '55%', top: '0%', width: '45%', height: '50%' } },
-      { id: 'ai',           position: { left: '55%', top: '50%', width: '45%', height: '50%' } },
+      { id: 'strategy',     position: { left: '55%', top: '50%', width: '45%', height: '50%' } },
     ],
   },
   overview: {

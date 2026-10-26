@@ -261,7 +261,7 @@ Badge stability: the same race state recomputed with a new seed each time, the b
   rule (now): podium >= 50 %, battle >= 30 % (gold) / >= 60 % (green), each state kept unless the 95 % Wilson
        interval of the share lies entirely on the other side of the threshold (simulationClient.js badgeOn),
        chained recompute after recompute with projectionBadges as the store does (computeRaceProjection);
-       battles listed (listedBattles: RacePredictionPanel, StrategyAnalysis, insights, Gemini) = the pairs that are, beyond
+       battles listed (listedBattles: RacePredictionPanel, StrategyAnalysis, insights) = the pairs that are, beyond
        the Monte Carlo error, among the 6 most likely: one not listed enters when fewer than 6 other pairs
        reach its Wilson interval, a listed one stays until 6 others are surely more likely; no fill
        (scripts/battle_list_rules.mjs compares it with the cut + fill rule).
