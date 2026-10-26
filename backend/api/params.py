@@ -27,6 +27,11 @@ MAX_LAP = 200
 SESSION_TYPES = ("R", "S", "Q", "SQ", "SS", "FP1", "FP2", "FP3")
 # Session type of a request that names none (D16): the race
 DEFAULT_SESSION_TYPE = "R"
+# The frontend's session type for any practice session of a live feed
+# (frontend/src/utils/strategyViews.js viewSessionType): a label for the
+# race-only logic of a request that loads no cached session, never a
+# session to load
+LIVE_PRACTICE_LABEL = "FP"
 
 _DRIVER_CODE = re.compile(r"[A-Z]{3}")
 # A PCA biplot point: driver code, season, round (data/processors/pca_compute.py)
@@ -41,6 +46,14 @@ def session_type_code(value) -> str:
     if code not in SESSION_TYPES:
         raise ValueError(f"session_type must be one of {', '.join(SESSION_TYPES)}")
     return code
+
+
+def session_label(value) -> str:
+    """The session type of a request that may load no cached session (the
+    forecast of a live feed): a SESSION_TYPES code or LIVE_PRACTICE_LABEL,
+    normalised as session_type_code. ValueError for any other value."""
+    code = str(value or "").strip().upper() or DEFAULT_SESSION_TYPE
+    return code if code == LIVE_PRACTICE_LABEL else session_type_code(code)
 
 
 def driver_code(value) -> str:
@@ -69,5 +82,6 @@ Season = Annotated[int, _between("year", FIRST_SEASON, LAST_SEASON)]
 RoundNumber = Annotated[int, _between("round", 1, MAX_ROUND)]
 LapNumber = Annotated[int, _between("lap", 1, MAX_LAP)]
 SessionType = Annotated[str, AfterValidator(session_type_code)]
+SessionLabel = Annotated[str, AfterValidator(session_label)]
 DriverCode = Annotated[str, AfterValidator(driver_code)]
 PointId = Annotated[str, AfterValidator(point_id)]

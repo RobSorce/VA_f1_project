@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from api import params
 from api.errors import server_error
-from api.params import RoundNumber, Season, SessionType
+from api.params import RoundNumber, Season, SessionLabel, SessionType
 
 # Pure modules (no torch): always importable
 from model.pit_timing import optimal_pit_lap as _pit_lap_from_probability
@@ -119,10 +119,12 @@ RACE_SESSION_TYPES = ("R", "S")
 
 
 def session_type_code(session_type) -> str:
-    """The session-type code to load ('R', 'S', 'Q', 'SQ', 'SS', 'FP1'-'FP3'):
-    upper-cased, DEFAULT_SESSION_TYPE when empty (api/params.py; ValueError
-    for any other value)."""
-    return params.session_type_code(session_type)
+    """The session-type code of a request ('R', 'S', 'Q', 'SQ', 'SS',
+    'FP1'-'FP3', or 'FP' for a live practice feed): upper-cased,
+    DEFAULT_SESSION_TYPE when empty (api/params.py session_label; ValueError
+    for any other value). A session is loaded with params.session_type_code,
+    which refuses 'FP'."""
+    return params.session_label(session_type)
 
 
 def is_race_session(session_type) -> bool:
@@ -165,7 +167,9 @@ class LSTMRequest(BaseModel):
         default=None, validation_alias=AliasChoices('context_races', 'tsne_context'))
     # Type of the session the laps come from (D16; default the race). Outside
     # a race ('R') or sprint ('S') no pit stop is projected (race-only logic).
-    session_type: Optional[SessionType] = DEFAULT_SESSION_TYPE
+    # A live feed's rows may come with 'FP' (any practice); a cached session
+    # is loaded only for a session type of api/params.py SESSION_TYPES.
+    session_type: Optional[SessionLabel] = DEFAULT_SESSION_TYPE
 
 
 class DegradationRequest(BaseModel):
@@ -215,6 +219,14 @@ async def predict_lstm(request: LSTMRequest):
     predicted_times and a reason. Falls back to a heuristic only when
     model/predict.py cannot be imported or fails.
     """
+    if request.year is not None and request.round is not None and request.driver:
+        # The cached session is loaded: a type to load, else 422 (not the
+        # heuristic fallback below)
+        try:
+            params.session_type_code(request.session_type)
+        except ValueError:
+            raise HTTPException(status_code=422, detail=(
+                f"session_type must be one of {', '.join(params.SESSION_TYPES)} to load a cached session"))
     if PREDICT_AVAILABLE:
         try:
             result = await asyncio.to_thread(_lstm_for_request, request)
@@ -255,7 +267,7 @@ def _lstm_for_request(request: LSTMRequest) -> Dict[str, Any]:
     """Blocking part of /lstm (runs in a worker thread): the lap rows of the
     request's source, then model/predict.py predict_from_rows."""
     if request.year is not None and request.round is not None and request.driver:
-        data = _get_load_session()(request.year, request.round, session_type_code(request.session_type))
+        data = _get_load_session()(request.year, request.round, params.session_type_code(request.session_type))
         rows = data.get("lap_times") or []
         lap = request.lap
         if lap is None and request.session_now is None:
@@ -341,7 +353,7 @@ def _get_load_session():
 def _degradation_for_request(request: DegradationRequest) -> Dict[str, Any]:
     """Blocking part of /degradation (runs in a worker thread): cached lap rows
     of the race, then degradation_response."""
-    data = _get_load_session()(request.year, request.round, session_type_code(request.session_type))
+    data = _get_load_session()(request.year, request.round, params.session_type_code(request.session_type))
     return degradation_response(
         data.get("lap_times") or [], request.drivers, request.lap_start, request.lap_end,
         session_now=request.session_now, session_type=request.session_type,

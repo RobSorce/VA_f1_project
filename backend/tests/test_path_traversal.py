@@ -121,6 +121,28 @@ def test_post_bodies_check_their_session_type(jail, attempt):
     assert jail[1] == []
 
 
+def test_the_live_practice_label_is_a_label_never_a_file(jail, monkeypatch):
+    """'FP' (frontend viewSessionType for any practice of a live feed) is
+    accepted by the forecast of live rows, which load no session; with year
+    and round, where a cached session is loaded, it is refused."""
+    from api.routers import predictions
+    monkeypatch.setattr(predictions, "PREDICT_AVAILABLE", False)  # the heuristic answers
+    live = dict(driver="LEC", session_type="fp", last_10_laps=[{"lap_number": 5, "lap_time": 90.1}])
+    r = call(main.app, "POST", "/api/predict/lstm", live)
+    assert r.status_code == 200, r.text
+    cached = dict(year=2024, round=16, driver="LEC", session_type="FP")
+    r = call(main.app, "POST", "/api/predict/lstm", cached)
+    assert r.status_code == 422 and "to load a cached session" in r.json()["detail"]
+    body = dict(year=2024, round=16, drivers=["LEC"], lap_start=1, lap_end=50, session_type="FP")
+    assert call(main.app, "POST", "/api/predict/degradation", body).status_code == 422
+    with pytest.raises(ValueError):
+        main._disk_cache_path("session", 2024, 16, "FP")
+    assert params.session_label("fp") == "FP" and params.session_label("q") == "Q"
+    with pytest.raises(ValueError):
+        params.session_label("../FP")
+    assert jail[1] == []
+
+
 @pytest.mark.parametrize("target", [
     "/api/session/2017/16", "/api/session/2101/16", "/api/session/-1/16", "/api/session/2024/0",
     "/api/session/2024/31", "/api/session/..%2F2024/16", "/api/schedule/1900", "/api/schedule/..",
