@@ -27,8 +27,9 @@ if __name__ == "__main__":
     uvicorn.run("api.main:app", host=server_host(), port=server_port())
     sys.exit(0)
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -49,6 +50,7 @@ from api.params import (
 )
 from api.settings import cors_origins
 from api.commands import json_command
+from api.errors import GENERIC_DETAIL, server_error
 
 # Import routers with graceful fallback so that a broken optional dependency
 # (e.g. missing tensorflow) does not prevent the whole app from starting.
@@ -112,6 +114,15 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
+
+@app.exception_handler(Exception)
+async def _unhandled_error(request: Request, exc: Exception):
+    """An exception no route caught: a 500 with a generic message, never the
+    exception's text (api/errors.py). Starlette raises the exception again
+    once this answer is sent, and the server (uvicorn) logs it with its
+    traceback."""
+    return JSONResponse(status_code=500, content={"detail": GENERIC_DETAIL})
+
 
 # Initialize data extractor
 extractor = FastF1Extractor()
@@ -362,9 +373,8 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
         _save_to_disk(disk_path, data)
         logger.info(f"Session loaded successfully with {len(data['lap_times'])} laps")
         return data
-    except Exception as e:
-        logger.error(f"Failed to load session: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, f"Loading session {year} round {round_num} {session_type}")
 
 
 # ============= API Routes =============
@@ -499,8 +509,8 @@ async def get_schedule(year: Season):
     except asyncio.TimeoutError:
         logger.error(f"FastF1 schedule fetch timed out for {year}")
         raise HTTPException(status_code=504, detail=f"Schedule fetch timed out for {year}. Try again.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, f"Fetching the {year} schedule")
 
 
 @app.get("/api/session/{year}/{round_num}")
@@ -559,9 +569,8 @@ async def get_telemetry(year: Season, round_num: RoundNumber, driver: DriverCode
 
         _save_to_disk(cache_path, result)
         return result
-    except Exception as e:
-        logger.error(f"Error fetching telemetry: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, "Loading the telemetry")
 
 
 @app.get("/api/circuit/{year}/{round_num}")
@@ -607,9 +616,8 @@ async def get_positions(year: Season, round_num: RoundNumber, session_type: Sess
                 return extractor.extract_position_data(session)
 
         return await asyncio.to_thread(_fetch)
-    except Exception as e:
-        logger.error(f"Error fetching positions: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, "Loading the positions")
 
 
 @app.get("/api/frames/{year}/{round_num}")
@@ -635,9 +643,8 @@ async def get_race_frames(year: Season, round_num: RoundNumber, session_type: Se
             return frames_data
 
         return await asyncio.to_thread(_extract_frames)
-    except Exception as e:
-        logger.error(f"Error fetching race frames: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, "Loading the replay frames")
 
 
 @app.get("/api/weather/{year}/{round_num}")
@@ -967,9 +974,8 @@ async def get_championship(year: Season, load_all: bool = False):
             disk_path = _cache_file("championship", year)
             _save_to_disk(disk_path, result)
             return result
-        except Exception as e:
-            logger.error(f"Failed to compute full championship for {year}: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+        except Exception:
+            raise server_error(logger, f"Computing the full {year} championship")
 
     if year in championship_cache:
         return championship_cache[year]
@@ -990,9 +996,8 @@ async def get_championship(year: Season, load_all: bool = False):
         if not result.get('missing_rounds'):
             _save_to_disk(disk_path, result)
         return result
-    except Exception as e:
-        logger.error(f"Failed to compute championship for {year}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, f"Computing the {year} championship")
 
 
 # ============= PCA Endpoints =============
@@ -1168,7 +1173,7 @@ async def connect_live_signalr(command: SignalRConnectCommand):
     reset = command.reset
     global _live_signalr_task, _live_session_manager
     if _live_session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail="Live timing is not initialized.")
     if _live_signalr_task and not _live_signalr_task.done():
         return {"status": "already_connected"}
 
@@ -1201,9 +1206,8 @@ async def connect_live_signalr(command: SignalRConnectCommand):
             logger.warning(f"OpenF1 telemetry not available: {oe}")
 
         return {"status": "connecting", "message": "SignalR client started (with OpenF1 telemetry)"}
-    except Exception as e:
-        logger.error(f"SignalR connect failed: {e}")
-        return {"error": str(e)}
+    except Exception:
+        raise server_error(logger, "Connecting to F1 live timing")
 
 
 @app.get("/api/live/load-full-session")
@@ -1215,11 +1219,11 @@ async def load_live_full_session():
     loads the complete data through FastF1.
     """
     if _live_session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail="Live timing is not initialized.")
 
     info = _live_session_manager.session_info
     if not info:
-        return {"error": "No session info available"}
+        raise HTTPException(status_code=409, detail="No live session info yet: connect to live timing first.")
 
     # Extract year from start_date or fallback to current year
     import datetime
@@ -1245,7 +1249,7 @@ async def load_live_full_session():
     try:
         session_type = session_type_code(session_type_map.get(session_type_raw, session_type_raw))
     except ValueError:
-        return {"error": f"Unsupported session type: {session_type_raw!r}"}
+        raise HTTPException(status_code=422, detail="The live session is of a type the app does not load.")
 
     logger.info(f"Loading full session via FastF1: {year} '{event_name}' {session_type}")
 
@@ -1264,7 +1268,7 @@ async def load_live_full_session():
                 break
 
         if round_num is None:
-            return {"error": f"Could not find round for '{event_name}' in {year} schedule"}
+            raise HTTPException(status_code=404, detail=f"No round of the {year} schedule matches the live event.")
 
         data = await asyncio.to_thread(load_session, year, round_num, session_type)
         logger.info(f"Full session loaded: {len(data.get('lap_times', []))} lap entries")
@@ -1279,9 +1283,10 @@ async def load_live_full_session():
                 return [_sanitize(v) for v in obj]
             return obj
         return _sanitize(data)
-    except Exception as e:
-        logger.error(f"Failed to load full session: {e}", exc_info=True)
-        return {"error": str(e)}
+    except HTTPException:
+        raise
+    except Exception:
+        raise server_error(logger, "Loading the full live session")
 
 
 @app.post("/api/live/load-team-radios", dependencies=[Depends(json_command)])
@@ -1293,7 +1298,7 @@ async def load_team_radios():
     sessions, so during a running race this returns ``status: paywalled``.
     """
     if _live_session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail="Live timing is not initialized.")
     return await _live_session_manager.fetch_static_team_radios()
 
 
@@ -1306,7 +1311,7 @@ async def reset_live_session():
     is what makes data persist across viewer reconnects.
     """
     if _live_session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail="Live timing is not initialized.")
     _live_session_manager.reset()
     return {"status": "reset"}
 

@@ -8,14 +8,18 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from api.commands import json_command
+from api.errors import server_error
 from api.params import RoundNumber, Season
 
 router = APIRouter(prefix="/api/live", tags=["live"])
 logger = logging.getLogger(__name__)
+
+# Answer of a control or a read while they are unset (startup failed)
+NOT_INITIALIZED = "Live timing is not initialized."
 
 # These are set by main.py on startup
 _session_manager = None
@@ -44,7 +48,7 @@ async def live_status():
 async def live_snapshot():
     """Get full accumulated session data (same format as /api/session)."""
     if _session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail=NOT_INITIALIZED)
     return _session_manager.get_snapshot()
 
 
@@ -185,7 +189,7 @@ async def start_mock_replay(command: MockStartCommand):
     """Start a mock live replay from cached session data."""
     year, round, speed = command.year, command.round, command.speed
     if _mock_replay is None:
-        return {"error": "Mock replay not initialized"}
+        raise HTTPException(status_code=503, detail="The mock replay is not initialized.")
 
     if _mock_replay.is_running:
         await _mock_replay.stop()
@@ -199,11 +203,11 @@ async def start_mock_replay(command: MockStartCommand):
             "speed": speed,
             "message": f"Mock replay started at {speed}x speed",
         }
-    except FileNotFoundError as e:
-        return {"error": str(e)}
-    except Exception as e:
-        logger.error(f"Mock replay start error: {e}")
-        return {"error": str(e)}
+    except FileNotFoundError:
+        logger.warning("Mock replay: no cached session %s round %s", year, round, exc_info=True)
+        raise HTTPException(status_code=404, detail=f"No cached session for {year} round {round}: load it once first.")
+    except Exception:
+        raise server_error(logger, "Starting the mock replay")
 
 
 @router.post("/mock/stop", dependencies=[Depends(json_command)])
@@ -226,7 +230,7 @@ async def start_openf1_telemetry(command: OpenF1StartCommand):
     """
     session_key = command.session_key
     if _session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail=NOT_INITIALIZED)
 
     try:
         await _session_manager.start_openf1(session_key=session_key)
@@ -235,16 +239,15 @@ async def start_openf1_telemetry(command: OpenF1StartCommand):
             "session_key": session_key,
             "message": "OpenF1 telemetry polling started",
         }
-    except Exception as e:
-        logger.error(f"OpenF1 start error: {e}")
-        return {"error": str(e)}
+    except Exception:
+        raise server_error(logger, "Starting OpenF1 telemetry")
 
 
 @router.post("/openf1/stop", dependencies=[Depends(json_command)])
 async def stop_openf1_telemetry():
     """Stop polling OpenF1 API."""
     if _session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail=NOT_INITIALIZED)
     await _session_manager.stop_openf1()
     return {"status": "stopped"}
 

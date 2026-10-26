@@ -485,9 +485,10 @@ class LiveSessionManager:
                         logger.warning(f"TeamRadio.json fetch {resp.status}: {url}")
                         return {"status": f"http_{resp.status}", "added": 0, "url": url}
                     raw = await resp.text()
-        except Exception as e:
-            logger.warning(f"TeamRadio.json fetch failed: {e}")
-            return {"status": "fetch_failed", "added": 0, "error": str(e)}
+        except Exception:
+            # The exception's text stays in the log: this answer reaches the client
+            logger.warning("TeamRadio.json fetch failed: %s", url, exc_info=True)
+            return {"status": "fetch_failed", "added": 0}
 
         # F1 prefixes a UTF-8 BOM on these files
         raw = raw.lstrip("﻿")

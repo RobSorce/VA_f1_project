@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from api import params
+from api.errors import server_error
 from api.params import RoundNumber, Season, SessionType
 
 # Pure modules (no torch): always importable
@@ -327,9 +328,8 @@ async def predict_degradation(request: DegradationRequest):
         return await asyncio.to_thread(_degradation_for_request, request)
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Degradation prediction failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, "The degradation fit")
 
 
 def _get_load_session():

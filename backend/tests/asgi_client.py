@@ -12,10 +12,13 @@ from urllib.parse import unquote
 
 
 class Response:
-    def __init__(self, status, headers, body):
+    def __init__(self, status, headers, body, exception=None):
         self.status_code = status
         self.headers = headers
         self.body = body
+        # An exception the app raised after answering (Starlette hands an
+        # unhandled one on to the server, which logs it)
+        self.exception = exception
 
     @property
     def text(self):
@@ -72,15 +75,17 @@ async def request(app, method, target, body=None, headers=None):
             if not message.get("more_body"):
                 done.set()
 
+    raised = None
     try:
         await app(scope, receive, send)
-    except Exception:
+    except Exception as exc:
         # Starlette re-raises an unhandled exception after its 500 answer
         # (uvicorn then logs it); without an answer it is the test's failure
         if not start:
             raise
+        raised = exc
     headers = {k.decode("latin-1"): v.decode("latin-1") for k, v in start.get("headers", [])}
-    return Response(start.get("status"), headers, b"".join(chunks))
+    return Response(start.get("status"), headers, b"".join(chunks), raised)
 
 
 def call(app, method, target, body=None, headers=None):

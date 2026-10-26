@@ -1954,7 +1954,10 @@ export const useF1Store = create(persist((set, get) => ({
       set({ isLoading: false });
     } catch (e) {
       if (superseded()) return;
-      set({ isLoading: false, error: e.message });
+      // The backend's message when it sent one (a status code with a generic
+      // text, e.g. no cached session for the mock replay), else axios's
+      const detail = e.response?.data?.detail;
+      set({ isLoading: false, error: typeof detail === 'string' ? detail : e.message });
       console.error('Failed to enter live mode', e);
     }
   },
