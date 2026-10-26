@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import * as api from '../../utils/apiClient';
 import { yearOptions } from '../../utils/seasons';
 import { sessionSwitchMessage } from '../../utils/sessionSwitchWarning';
 import { useBackendOnlyText } from '../../utils/demoMode';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 
 const SESSION_TYPES = [
   { value: 'FP1', label: 'FP1' },
@@ -112,20 +113,9 @@ export default function SessionMenu({ isOpen, onClose }) {
     onClose();
   };
 
-  // Close on Escape key
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    },
-    [isOpen, onClose]
-  );
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  // Close on Escape key (when the menu is the topmost transient element,
+  // utils/escapeStack.js)
+  useEscapeLayer(isOpen, onClose);
 
   // Prevent body scroll when menu is open
   useEffect(() => {

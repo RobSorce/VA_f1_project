@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
 import { SLOT_OPTIONS } from '../../utils/slotOptions';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 
 const MENU_WIDTH = 220;
 const MENU_MAX_HEIGHT = 320;
@@ -36,13 +37,14 @@ export default function DockContextMenu({ target, position, onClose, onCustomize
     setPos({ x: left, bottom });
   }, [position]);
 
-  // Dismiss on outside click / Esc / scroll
+  // Dismiss on outside click / Esc / scroll (Esc: the topmost transient
+  // element only, utils/escapeStack.js)
+  useEscapeLayer(true, onClose);
   useEffect(() => {
     const onClick = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) onClose();
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
       if (e.key === 'ArrowDown') { e.preventDefault(); setFocused((f) => Math.min(items.length - 1, f + 1)); }
       if (e.key === 'ArrowUp')   { e.preventDefault(); setFocused((f) => Math.max(0, f - 1)); }
       if (e.key === 'Enter' && focused >= 0) { e.preventDefault(); items[focused]?.onActivate?.(); }

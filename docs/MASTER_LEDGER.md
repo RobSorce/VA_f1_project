@@ -499,7 +499,7 @@ Full graph with every arrow and trigger, and the complete subscriber lists gener
 Double-click a driver (Leaderboard, Timing Sheet, Timing Tower, Race Pace Grid, Race Situation map), or press `F` on the highlighted (else the first selected) driver:
 - Each view that follows `focusDriver` marks it its own way (the Track Map draws its dot 1.5 × larger, `TrackMap.jsx`); the focus driver is also the Lap Delta base driver.
 - A double-click in the Leaderboard, the Timing Sheet or the Race Pace Grid also asks its lap-time forecast.
-- Pressing `F` on the focus driver, or "Clear All Selections" in the command palette, clears it (Escape closes windows, not the focus).
+- Pressing `F` on the focus driver, or "Clear All Selections" in the command palette, clears it (Escape closes the topmost popup or the windows, not the focus).
 
 ### 9.2 Battle-click pair selection (`selectPair`)
 Defined in `StrategyAnalysis.jsx` and called from its battle rows (the Monte Carlo battles):
@@ -628,7 +628,7 @@ Defined in `hooks/useKeyboardShortcuts.js` and mirrored in `ShortcutCheatsheet/S
 `1` Lap Times · `2` Tyres · `3` Strategy Timeline · `4` Sectors · `5` Prediction · `6` Analytics/PCA · `7` AI · `8` Compare · `9` Consistency · `0` Championship.
 
 ### 13.2 Layout & modes
-`P` Toggle Pit Wall ↔ Analysis · `⇧P` Lap-time forecast of the focus driver + open Race Prediction · `W` Close last tab/window · `X` Close all / exit layout · `Escape` Close overlays/docked · `⇧H` Toggle bottom bar auto-hide · `Ctrl+G` Cycle arrangements · `Ctrl+Alt+D` Reset dock · `Ctrl+←/→/↑/↓` Tile / maximize / restore window.
+`P` Toggle Pit Wall ↔ Analysis · `⇧P` Lap-time forecast of the focus driver + open Race Prediction · `W` Close last tab/window · `X` Close all / exit layout · `Escape` Close the topmost menu, popover, dropdown, help or cheatsheet only; with none open, close all / exit layout · `Ctrl/Cmd+Z` Undo a close-all (or a dock change) while its Undo toast is shown · `⇧H` Toggle bottom bar auto-hide · `Ctrl+G` Cycle arrangements · `Ctrl+Alt+D` Reset dock · `Ctrl+←/→/↑/↓` Tile / maximize / restore window.
 
 ### 13.3 Selection & focus
 `D` Open driver selector (palette sub-menu) · `F` Focus / unfocus driver · `C` Toggle compare mode · `L` Toggle leaderboard · `V` Cycle leaderboard column · `G` Toggle Gemini floating panel · `⇧G` Driver comparison (compare mode with two drivers chosen).

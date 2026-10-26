@@ -2,6 +2,7 @@ import React from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { modKey } from '../CommandPalette/commandRegistry';
 import { FIRST_SEASON_WITHOUT_DRS } from '../../utils/seasons';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 import './ShortcutCheatsheet.css';
 
 const SHORTCUT_SECTIONS = [
@@ -10,7 +11,7 @@ const SHORTCUT_SECTIONS = [
     shortcuts: [
       { keys: [`${modKey}+K`], desc: 'Open Command Palette' },
       { keys: ['/'], desc: 'Focus Command Bar' },
-      { keys: ['Esc'], desc: 'Close all windows / exit layout' },
+      { keys: ['Esc'], desc: 'Close the top popup, else all windows' },
       { keys: ['?'], desc: 'Toggle this cheatsheet' },
       { keys: ['H'], desc: 'Toggle shortcut hints' },
     ],
@@ -32,7 +33,7 @@ const SHORTCUT_SECTIONS = [
       { keys: ['P'], desc: 'Toggle Pit Wall / Analysis' },
       { keys: ['W'], desc: 'Close last tab / window' },
       { keys: ['X'], desc: 'Close all windows / exit layout' },
-      { keys: ['Esc'], desc: 'Close all windows / exit layout' },
+      { keys: [`${modKey}+Z`], desc: 'Undo close-all / a dock change' },
       { keys: [`Ctrl+G`], desc: 'Cycle layout arrangements' },
       // Ctrl only (not Cmd): useKeyboardShortcuts tiles on e.ctrlKey
       { keys: ['Ctrl+←', 'Ctrl+→'], desc: 'Tile window left / right' },
@@ -88,6 +89,9 @@ const SHORTCUT_SECTIONS = [
 export default function ShortcutCheatsheet() {
   const isOpen = useF1Store((s) => s.cheatsheetOpen);
   const closeCheatsheet = useF1Store((s) => s.closeCheatsheet);
+  // Escape closes the cheatsheet when it is the topmost transient element
+  // (utils/escapeStack.js: opened over a menu, it closes first)
+  useEscapeLayer(isOpen, closeCheatsheet);
 
   if (!isOpen) return null;
 

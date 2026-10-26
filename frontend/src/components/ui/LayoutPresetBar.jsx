@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { WINDOW_PRESETS } from '../../utils/windowPresets';
 import { useF1Store } from '../../store/useF1Store';
 import LayoutBuilder from './LayoutBuilder';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 
 /**
  * Layout preset picker of the weather bar. A single compact button names the
@@ -38,20 +39,19 @@ export default function LayoutPresetBar() {
     if (triggerRef.current) setMenuRect(triggerRef.current.getBoundingClientRect());
   };
 
-  // Close the menu on an outside click or Escape
+  // Close the menu on an outside click or Escape (the topmost transient
+  // element only, utils/escapeStack.js)
+  useEscapeLayer(!!menuRect, () => setMenuRect(null));
   useEffect(() => {
     if (!menuRect) return undefined;
     const onDown = (e) => {
       if (menuRef.current?.contains(e.target) || triggerRef.current?.contains(e.target)) return;
       setMenuRect(null);
     };
-    const onKey = (e) => { if (e.key === 'Escape') setMenuRect(null); };
     const t = setTimeout(() => document.addEventListener('mousedown', onDown), 0);
-    document.addEventListener('keydown', onKey);
     return () => {
       clearTimeout(t);
       document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
     };
   }, [menuRect]);
 

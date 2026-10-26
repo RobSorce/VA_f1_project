@@ -1,7 +1,8 @@
-import React, { useEffect, useCallback } from 'react';
+import React from 'react';
 import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
 import { getChartHelp, CHART_HELP } from '../../utils/chartHelp';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 
 /**
  * Modal help overlay — single source of in-app help, driven by
@@ -23,15 +24,9 @@ export default function HelpOverlay() {
   const focusOverlay = useF1Store((s) => s.focusOverlay);
   const openOverlays = useF1Store((s) => s.openOverlays);
 
-  const handleKey = useCallback((e) => {
-    if (e.key === 'Escape') { e.preventDefault(); closeHelp(); }
-  }, [closeHelp]);
-
-  useEffect(() => {
-    if (!helpTabId) return;
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [helpTabId, handleKey]);
+  // Escape closes the help when it is the topmost transient element
+  // (utils/escapeStack.js)
+  useEscapeLayer(!!helpTabId, closeHelp);
 
   if (!helpTabId) return null;
   const help = getChartHelp(helpTabId);

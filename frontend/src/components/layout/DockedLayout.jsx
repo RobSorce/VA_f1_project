@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
 import { CHART_HELP } from '../../utils/chartHelp';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 
 /**
  * DockedLayout — JetBrains-style split pane layout with draggable splitters
@@ -122,6 +123,10 @@ function TabPickerDropdown({ availableTabs, onAddTab, onClose, anchorRef }) {
     }
     setPos({ top, left, cols });
   }, [anchorRef, availableTabs.length]);
+
+  // Escape closes the dropdown, when it is the topmost transient element
+  // (utils/escapeStack.js), and leaves the layout as it is
+  useEscapeLayer(true, onClose);
 
   // Close on outside click — but NOT if clicking inside the dropdown itself
   React.useEffect(() => {

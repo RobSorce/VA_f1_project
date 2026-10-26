@@ -518,6 +518,12 @@ export function installMiniDom() {
       target.dispatchEvent(ev);
       return ev;
     },
+    /** Dispatch a keyboard event (init.key, the modifiers) on target. */
+    keyboard(target, type, init = {}) {
+      const ev = Object.assign(makeEvent(type, init, window), { key: init.key ?? '', repeat: false });
+      target.dispatchEvent(ev);
+      return ev;
+    },
     /** Client coordinates of a point given in el's user space. */
     toClient(el, x, y) {
       const m = el.getScreenCTM();

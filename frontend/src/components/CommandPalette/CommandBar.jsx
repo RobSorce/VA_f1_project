@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
 import { createCommandRegistry, fuzzyMatch } from './commandRegistry';
 import CommandIcon from './CommandIcons';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 import './CommandBar.css';
 
 export default function CommandBar() {
@@ -114,19 +115,29 @@ export default function CommandBar() {
     inputRef.current?.blur();
   }, [activeSubMenu]);
 
+  // Escape: back out of a sub-list (the bar stays open: false), else close
+  // the bar. While the bar is open it is an Escape layer
+  // (utils/escapeStack.js): the global key handler calls this before anything
+  // else, so the Escape never reaches the layout below
+  const escape = useCallback(() => {
+    if (activeSubMenu) {
+      setActiveSubMenu(null);
+      setQuery('');
+      setSelectedIndex(0);
+      return false;
+    }
+    setFocused(false);
+    setQuery('');
+    inputRef.current?.blur();
+    return true;
+  }, [activeSubMenu]);
+  useEscapeLayer(focused, escape);
+
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      if (activeSubMenu) {
-        setActiveSubMenu(null);
-        setQuery('');
-        setSelectedIndex(0);
-      } else {
-        setFocused(false);
-        setQuery('');
-        inputRef.current?.blur();
-      }
+      escape();
       return;
     }
     if (e.key === 'ArrowDown') {
@@ -149,7 +160,7 @@ export default function CommandBar() {
       setActiveSubMenu(null);
       setSelectedIndex(0);
     }
-  }, [filteredResults, selectedIndex, activeSubMenu, query, executeCommand]);
+  }, [filteredResults, selectedIndex, activeSubMenu, query, executeCommand, escape]);
 
   const showDropdown = focused && filteredResults.length > 0;
 

@@ -56,6 +56,15 @@ const {
 } = await import('../utils/views/trackMapLayout.js');
 const { textWidth } = await import('./helpers/fontWidths.js');
 const { default: TrackMap } = await import('../components/visualizations/TrackMap.jsx');
+// Escape reaches a popover through the global key handler (the Escape stack,
+// utils/escapeStack.js), mounted once as App.jsx mounts it
+const { useKeyboardShortcuts } = await import('../hooks/useKeyboardShortcuts.js');
+{
+  const keysHost = dom.document.createElement('div');
+  dom.document.body.appendChild(keysHost);
+  const Keys = () => { useKeyboardShortcuts(); return null; };
+  await act(async () => { createRoot(keysHost).render(React.createElement(Keys)); });
+}
 
 const ro = installResizeObserverMock();
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

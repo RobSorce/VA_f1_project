@@ -15,6 +15,7 @@ import { estimateFromFramePositions } from '../../utils/trackPositionEstimator';
 import { leaderLapEndTime } from '../../utils/raceTime';
 import { causalKey, viewSessionType, isRaceSession } from '../../utils/strategyViews';
 import { trackMapDriverStatus, trackMapSessionNow } from '../../utils/views/trackMap';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 import {
   useChartBox, chartSize, svgScreenScale, layoutReady,
 } from '../../utils/views/chartBox';
@@ -2127,17 +2128,16 @@ function TrackLayersPopover({ anchorRef, onClose, children }) {
     return () => window.removeEventListener('resize', place);
   }, [anchorRef]);
 
+  // Escape: the topmost transient element only (utils/escapeStack.js)
+  useEscapeLayer(true, onClose);
   useEffect(() => {
     const onDown = (e) => {
       const inside = ref.current?.contains(e.target) || anchorRef.current?.contains(e.target);
       if (!inside) onClose();
     };
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
     };
   }, [onClose, anchorRef]);
 

@@ -36,6 +36,7 @@ import { useKeyboardShortcuts, pitInLapsKeyStep } from '../src/hooks/useKeyboard
 import { createCommandRegistry } from '../src/components/CommandPalette/commandRegistry.js';
 import { SLOT_OPTIONS } from '../src/utils/slotOptions.js';
 import { FIRST_SEASON_WITHOUT_DRS } from '../src/utils/seasons.js';
+import { openEscapeLayer } from '../src/utils/escapeStack.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const FRONTEND = path.resolve(HERE, '..');
@@ -178,13 +179,15 @@ export function installHandler() {
 
   function probe(combo, state = {}, activeElement = null) {
     let prevented = false;
+    let stopped = false;
     const ev = {
       ...combo,
       preventDefault: () => { prevented = true; },
+      stopPropagation: () => { stopped = true; },
       getModifierState: () => false,
     };
     const r = record(() => handler(ev), state, activeElement);
-    return { ...r, prevented };
+    return { ...r, prevented, stopped };
   }
 
   function restore() {
@@ -210,6 +213,7 @@ const ACTION_TEXT = {
     ? `switch to ${viewName(tab)}` : `open ${viewName(tab)}`),
   closeLastTab: () => 'close the last opened window or tab',
   closeAllOverlays: () => 'close every floating window and the docked layout',
+  undoLastChange: () => 'undo the change of the newest Undo toast on screen (every window closed, a dock change)',
   tileActiveOverlay: (where) => (where === 'maximize' ? 'maximise the active floating window' : `tile the active floating window ${where}`),
   clearTile: () => 'restore the active floating window (untile)',
   arrangeOverlays: () => 'arrange the open floating windows (next arrangement)',
@@ -347,9 +351,24 @@ export function shortcutsReport() {
     const k = (key, mods = {}) => ({ shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, key, ...mods });
     const input = { tagName: 'INPUT' };
     const cond = (name, combo, state, el, note) => ({ name, when: note, effect: describe(h.probe(combo, state, el)) || 'nothing' });
+    // Esc with two transient elements open (utils/escapeStack.js), a menu and
+    // then a popover over it: what closes, and whether the layout stays
+    const escStack = () => {
+      const closed = [];
+      const removes = [openEscapeLayer(() => { closed.push('menu'); }), openEscapeLayer(() => { closed.push('popover'); })];
+      const r = h.probe(k('Escape'));
+      removes.forEach((remove) => remove());
+      const rest = describe(r);
+      return {
+        name: 'Esc',
+        when: 'a menu, popover, dropdown, the help panel, the cheatsheet or the command bar list is open (here a menu, then a popover over it)',
+        effect: `close ${closed.length === 1 && closed[0] === 'popover' ? 'the one opened last only (the popover)' : closed.join(', ') || 'nothing'}${rest ? `; ${rest}` : '; the windows and the docked layout stay'}${r.stopped ? '; the key goes no further' : ''}`,
+      };
+    };
     const conditions = [
+      escStack(),
       cond('Esc', k('Escape'), { cheatsheetOpen: true }, null, 'the cheatsheet is open'),
-      cond('Esc', k('Escape'), {}, null, 'a floating window or a docked layout is open'),
+      cond('Esc', k('Escape'), {}, null, 'a floating window or a docked layout is open, no menu, popover, dropdown, help or cheatsheet open'),
       cond('Esc', k('Escape'), { openOverlays: [], dockedLayout: null }, { tagName: 'BUTTON' }, 'no window open, a control has the focus'),
       cond('P', k('p'), { activeTab: 'pitwall' }, null, 'the Pit Wall is on screen'),
       cond('P', k('p'), {}, null, 'any other view is on screen'),
