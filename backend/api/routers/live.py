@@ -8,8 +8,10 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, Field
 
+from api.commands import json_command
 from api.params import RoundNumber, Season
 
 router = APIRouter(prefix="/api/live", tags=["live"])
@@ -163,13 +165,25 @@ async def list_mock_sessions():
     return {"sessions": MockReplay.list_available_sessions()}
 
 
-@router.get("/mock/start")
-async def start_mock_replay(
-    year: Season = Query(2024),
-    round: RoundNumber = Query(7),
-    speed: float = Query(10.0),
-):
+class MockStartCommand(BaseModel):
+    year: Season = 2024
+    round: RoundNumber = 7
+    # Playback multiplier (10 = ten times real time)
+    speed: float = Field(10.0, gt=0, le=100)
+
+
+class OpenF1StartCommand(BaseModel):
+    # OpenF1 session key; None = the latest / active session
+    session_key: Optional[int] = None
+
+
+# The controls below change the live session: POST with a JSON body
+# (api/commands.py json_command), never GET
+
+@router.post("/mock/start", dependencies=[Depends(json_command)])
+async def start_mock_replay(command: MockStartCommand):
     """Start a mock live replay from cached session data."""
+    year, round, speed = command.year, command.round, command.speed
     if _mock_replay is None:
         return {"error": "Mock replay not initialized"}
 
@@ -192,7 +206,7 @@ async def start_mock_replay(
         return {"error": str(e)}
 
 
-@router.get("/mock/stop")
+@router.post("/mock/stop", dependencies=[Depends(json_command)])
 async def stop_mock_replay():
     """Stop the running mock replay."""
     if _mock_replay and _mock_replay.is_running:
@@ -203,13 +217,14 @@ async def stop_mock_replay():
 
 # ── OpenF1 telemetry endpoints ───────────────────────────────────
 
-@router.get("/openf1/start")
-async def start_openf1_telemetry(session_key: int = Query(None)):
+@router.post("/openf1/start", dependencies=[Depends(json_command)])
+async def start_openf1_telemetry(command: OpenF1StartCommand):
     """Start polling OpenF1 API for live telemetry and car positions.
 
     Optionally provide a session_key. If omitted, the client will
     auto-detect the latest/active session on OpenF1.
     """
+    session_key = command.session_key
     if _session_manager is None:
         return {"error": "Live timing not initialized"}
 
@@ -225,7 +240,7 @@ async def start_openf1_telemetry(session_key: int = Query(None)):
         return {"error": str(e)}
 
 
-@router.get("/openf1/stop")
+@router.post("/openf1/stop", dependencies=[Depends(json_command)])
 async def stop_openf1_telemetry():
     """Stop polling OpenF1 API."""
     if _session_manager is None:

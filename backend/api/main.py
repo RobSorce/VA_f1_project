@@ -27,7 +27,7 @@ if __name__ == "__main__":
     uvicorn.run("api.main:app", host=server_host(), port=server_port())
     sys.exit(0)
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -48,6 +48,7 @@ from api.params import (
     DriverCode, LapNumber, PointId, RoundNumber, Season, SessionType, session_type_code,
 )
 from api.settings import cors_origins
+from api.commands import json_command
 
 # Import routers with graceful fallback so that a broken optional dependency
 # (e.g. missing tensorflow) does not prevent the whole app from starting.
@@ -1145,18 +1146,26 @@ async def _shutdown_live_timing():
     logger.info("Live timing system shut down")
 
 
-@app.get("/api/live/connect-signalr")
-async def connect_live_signalr(reset: bool = False):
+class SignalRConnectCommand(BaseModel):
+    # Wipe the accumulated session state before connecting (a fresh session)
+    reset: bool = False
+
+
+# The live-timing controls change the server's state: POST with a JSON body
+# (api/commands.py json_command), never GET
+@app.post("/api/live/connect-signalr", dependencies=[Depends(json_command)])
+async def connect_live_signalr(command: SignalRConnectCommand):
     """Manually start the SignalR connection to F1 live timing.
 
     Call this when an F1 session is about to start. The connection will
     auto-reconnect if dropped.
 
-    Pass ``?reset=true`` to wipe accumulated session state before reconnecting
-    (e.g. when starting a fresh session). Default is to PRESERVE accumulated
-    data so a viewer who exits and re-enters mid-race keeps their timing
-    grid, lap history, and race-control feed.
+    Send ``{"reset": true}`` to wipe accumulated session state before
+    reconnecting (e.g. when starting a fresh session). Default is to PRESERVE
+    accumulated data so a viewer who exits and re-enters mid-race keeps their
+    timing grid, lap history, and race-control feed.
     """
+    reset = command.reset
     global _live_signalr_task, _live_session_manager
     if _live_session_manager is None:
         return {"error": "Live timing not initialized"}
@@ -1171,7 +1180,7 @@ async def connect_live_signalr(reset: bool = False):
         else:
             logger.info(
                 "Reconnecting SignalR — preserving %d laps, %d drivers, "
-                "%d retirements (pass ?reset=true to clear)",
+                "%d retirements (send reset: true to clear)",
                 len(_live_session_manager.lap_times),
                 len(_live_session_manager.driver_info),
                 len(_live_session_manager.driver_statuses),
@@ -1275,7 +1284,7 @@ async def load_live_full_session():
         return {"error": str(e)}
 
 
-@app.post("/api/live/load-team-radios")
+@app.post("/api/live/load-team-radios", dependencies=[Depends(json_command)])
 async def load_team_radios():
     """Pull TeamRadio.json from F1's static CDN and ingest every capture.
 
@@ -1288,7 +1297,7 @@ async def load_team_radios():
     return await _live_session_manager.fetch_static_team_radios()
 
 
-@app.post("/api/live/reset")
+@app.post("/api/live/reset", dependencies=[Depends(json_command)])
 async def reset_live_session():
     """Explicitly wipe accumulated live-session state.
 
@@ -1302,7 +1311,7 @@ async def reset_live_session():
     return {"status": "reset"}
 
 
-@app.get("/api/live/disconnect-signalr")
+@app.post("/api/live/disconnect-signalr", dependencies=[Depends(json_command)])
 async def disconnect_live_signalr():
     """Stop the SignalR connection and OpenF1 telemetry."""
     global _live_signalr_task

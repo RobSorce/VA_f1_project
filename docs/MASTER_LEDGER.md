@@ -156,8 +156,9 @@ Key design decisions:
 | `/api/gemini/strategy` | POST | Gemini AI call with structured race context |
 | `/api/analytics/sectors/{year}/{round}` | GET | Best sector rankings per driver |
 | `/api/analytics/consistency/{year}/{round}` | GET | Consistency σ per driver: the pooled residual σ of the per-stint degradation fits (`docs/DEGRADATION_METHODOLOGY.md`) |
-| `/api/live/connect-signalr` | GET | Start SignalR + OpenF1 poller |
-| `/api/live/disconnect-signalr` | GET | Stop live stream |
+| `/api/live/connect-signalr` | POST | Start SignalR + OpenF1 poller (JSON body `{"reset": false}`) |
+| `/api/live/disconnect-signalr` | POST | Stop live stream |
+| `/api/live/reset`, `/api/live/load-team-radios`, `/api/live/mock/start`, `/api/live/mock/stop`, `/api/live/openf1/start`, `/api/live/openf1/stop` | POST | The other live controls (mock replay `{"year", "round", "speed"}`, OpenF1 `{"session_key"}`). Every control is a POST with a JSON body (`{}` without parameters): a GET answers 405, a form or plain-text POST 415 (`api/commands.py`), so a page on another origin cannot send one without the CORS preflight the allow-list refuses |
 | `/api/live/load-full-session` | GET | Resolve live session → load via FastF1 |
 | `/api/live/ws` | WS | Live timing stream to frontend |
 | `/api/session/{year}/{round}/{session_type}/replay` | GET | Replay data of a session (race or qualifying), `api/routers/replay.py` |
