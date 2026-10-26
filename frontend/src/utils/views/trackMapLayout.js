@@ -170,12 +170,12 @@ export const COMPASS_PLACES = Object.freeze(['br', 'tr', 'bl', 'tl']);
 
 /**
  * The car code labels (TrackMap.jsx .car-label): `dx` px right of the dot,
- * at most `width` px wide: three capitals of Titillium Web Bold / Black at
- * --font-size-data (at most 12.5 px; the focused car's at least 12 px), an
- * estimated 0.75 em each at most (M and W the widest; the mono fallback
- * 0.61 em): 3 x 0.75 x 12.5 = 28.1 px.
+ * at most `width` px wide: three capitals of Inter Bold (the focused car's
+ * Black) at --font-size-data (at most 12.5 px; the focused car's at least
+ * 12 px). The widest code of the demo races (MAG and HAM in Inter Black)
+ * fits (__tests__/trackmap.overlays.test.jsx, real widths).
  */
-export const CAR_LABEL = Object.freeze({ dx: 12, width: 29 });
+export const CAR_LABEL = Object.freeze({ dx: 12, width: 32 });
 
 /**
  * How far (CSS px) a car's code label reaches right of the outline's centre
@@ -251,7 +251,7 @@ export function hudCardHeight({ drs = true } = {}) {
  * The HUD table (.track-hud): border, padding, header and row heights, the
  * gap between two columns, and the columns, each as wide as its header
  * (mono, --font-size-label, at most 11.5 px) and its widest value (mono,
- * --font-size-data, at most 12.5 px; the driver code in Formula1 Bold, the
+ * --font-size-data, at most 12.5 px; the driver code in Inter Bold, the
  * tyre letter in a 16 px badge) at 0.61 em per mono character.
  * Phase 10b B7: the columns in their order of use to a strategist, the
  * driver, the tyre (compound and laps on the set) and the speed always
@@ -361,10 +361,10 @@ export function hudHiddenColumns(shown, { drs = true } = {}) {
 
 /**
  * The hint of the columns left out, in the header of the driver column:
- * "+k cols" ('' for none). Drawn in Formula1 Regular at --font-size-label
- * ("+4 cols": 45 px at 11.5 px), it runs past the driver column into the
- * left of the tyre column's header, whose label is right-aligned
- * (__tests__/trackmap.hud.test.jsx: it never reaches the label).
+ * "+k cols" ('' for none). Drawn in Inter Regular at --font-size-label, it
+ * runs past the driver column into the left of the tyre column's header,
+ * whose label is right-aligned (__tests__/trackmap.hud.test.jsx: it never
+ * reaches the label).
  *
  * @param {number} hidden - how many columns are left out
  * @returns {string}

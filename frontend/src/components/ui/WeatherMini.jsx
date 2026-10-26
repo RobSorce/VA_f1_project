@@ -48,7 +48,7 @@ const panelStyle = {
 };
 
 const titleStyle = {
-  fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+  fontFamily: 'var(--font-primary)',
   fontSize: CHART_FONT.label, fontWeight: 700, color: TEXT_COLORS.muted,
   textTransform: 'uppercase', letterSpacing: '0.08em',
   marginBottom: 6,

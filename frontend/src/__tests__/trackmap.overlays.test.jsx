@@ -77,7 +77,7 @@ const { computeSessionTimeOffset } = await import('../utils/raceTime.js');
 const { installResizeObserverMock } = await import('./helpers/chartFixtures.js');
 const { loadCss, px, VIEWPORTS } = await import('./helpers/layoutModel.js');
 const { trackMapPanelAt, declAt, lengthAt, sidesAt } = await import('./helpers/pitWallMaps.js');
-const { textWidth, haveFormula1 } = await import('./helpers/fontWidths.js');
+const { textWidth, haveWebFont } = await import('./helpers/fontWidths.js');
 const { compositeOver, contrastRatio } = await import('../utils/colors.js');
 const L = await import('../utils/views/trackMapLayout.js');
 const { default: TrackMap } = await import('../components/visualizations/TrackMap.jsx');
@@ -117,7 +117,7 @@ const disjoint = (a, b) => a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 
 
 // Width of the corner key's line as the browser lays it out (Legend.jsx,
 // components.css .legend-item, visualizations.css .track-map-key): each item
-// 2 x --spacing-xs + swatch + 4 px + label (Formula1 Regular at
+// 2 x --spacing-xs + swatch + 4 px + label (Inter Regular at
 // --font-size-label), --spacing-xs between items, 4 px padding each side
 const SWATCH_W = { line: 18, band: 14, square: 9 };
 function keyLineWidth(items, vp) {
@@ -210,13 +210,21 @@ describe('the boxes the track is fitted around are the boxes the CSS draws', () 
     expect(d('.car-label--focused', 'font-size')).toBe('calc(max(12px, var(--font-size-data)) / var(--map-zoom, 1))');
     const big = VIEWPORTS.find((v) => v.name === '2048x1100');
     const size = Math.max(12, px(css, '--font-size-data', big));
-    // three capitals at <= 0.75 em (Titillium Web Bold / Black)
-    expect(3 * 0.75 * size).toBeLessThanOrEqual(L.CAR_LABEL.width);
+    // every code of the three races in Inter Black (the focused car's 900;
+    // the others draw at 700), real widths when the font files are there
+    expect(d('.car-label', 'font-weight')).toBe('700');
+    expect(d('.car-label--focused', 'font-weight')).toBe('900');
+    if (haveWebFont) {
+      const codes = [...new Set(Object.values(SESSIONS).flatMap((s) => s.driver_info.map((x) => x.Abbreviation)))];
+      const widest = Math.max(...codes.map((c) => textWidth(c, size, 900)));
+      console.log(`car labels: widest code ${widest.toFixed(1)} px at ${size} px (900), CAR_LABEL.width ${L.CAR_LABEL.width}`);
+      expect(widest).toBeLessThanOrEqual(L.CAR_LABEL.width);
+    }
     expect(L.CAR_LABEL_REACH_PX).toBe(L.CAR_LABEL.dx + L.CAR_LABEL.width - L.OVERLAY_GAP_PX);
   });
 });
 
-describe.skipIf(!haveFormula1)('the HUD table columns hold their text at the largest type (12.5 / 11.5 px)', () => {
+describe.skipIf(!haveWebFont)('the HUD table columns hold their text at the largest type (12.5 / 11.5 px)', () => {
   const DATA_PX = 12.5;
   const LABEL_PX = 11.5;
   const MONO_EM = 0.61; // JetBrains Mono, Consolas, DejaVu Sans Mono, Courier: <= 0.61 em
@@ -229,7 +237,7 @@ describe.skipIf(!haveFormula1)('the HUD table columns hold their text at the lar
     thr: () => mono('100', DATA_PX),
     brk: () => mono('100', DATA_PX),
     drs: () => Math.max(...['OFF', 'AVAIL', 'OPEN'].map((t) => mono(t, DATA_PX))),
-    // badge: 16 px min, or the widest letter in Formula1 Bold + 1 px each side; 3 px; the laps
+    // badge: 16 px min, or the widest letter in Inter Bold + 1 px each side; 3 px; the laps
     tyre: () => Math.max(16, Math.max(...'SMHIW?'.split('').map((t) => textWidth(t, LABEL_PX, 700))) + 2) + 3 + mono('45', DATA_PX),
   };
   for (const c of L.HUD_TABLE.columns) {
@@ -382,7 +390,7 @@ describe('the furniture of the four Pit Wall maps (trackMapLayout.js mapPlan): t
     console.log(`${name}: ${out.join('; ')}`);
   });
 
-  it.skipIf(!haveFormula1).each(MAPS.map((r) => [r.vp.name, r]))('%s: the corner key is one line in every state (sectors, the speed / throttle / brake ramps)', (name, { map, vp }) => {
+  it.skipIf(!haveWebFont).each(MAPS.map((r) => [r.vp.name, r]))('%s: the corner key is one line in every state (sectors, the speed / throttle / brake ramps)', (name, { map, vp }) => {
     const room = map.width - 2 * L.MAP_KEY.edge;
     for (const [state, items] of Object.entries(KEY_STATES)) {
       const w = keyLineWidth(items, vp);

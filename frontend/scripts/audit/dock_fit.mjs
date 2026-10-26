@@ -3,7 +3,7 @@
 // .bottom-tab-bar rules at each viewport's media) and the real font metrics
 // (frontend/public/fonts, fontMetrics.mjs): every button is its padding plus
 // the wider of its 18 px icon and its label (uppercase, letter-spacing
-// 0.05em, --font-size-label, weight 600 -> the Formula1 Bold face); the bar
+// 0.05em, --font-size-label, weight 600 -> the Inter SemiBold face); the bar
 // adds its padding, its 0.5 px borders, a gap between every two children and
 // the divider with its margins. The capacity is decided as BottomTabBar does
 // (utils/dockCapacity.js dockCapacity + dockRow) and the rendered row is
@@ -11,8 +11,8 @@
 //
 // It also replays the measure of the code before Phase 9c: the buttons
 // measured once at mount with the fallback font (system-ui = Segoe UI Bold on
-// Windows, the Titillium Web fallback is not local) and the divider's margins
-// and the border left out, then the Formula1 labels once the web font is in.
+// Windows; only where that file is) and the divider's margins and the border
+// left out, then the web font's labels once it is in.
 //
 // Exit code 1 when the row is wider than the bar at a target viewport. Run:
 //   node frontend/scripts/audit/dock_fit.mjs
@@ -29,9 +29,9 @@ const { mediaMatches, resolveVars, evalLength } = await import(pathToFileURL(pat
 const { dockCapacity, dockRow } = await import(pathToFileURL(path.join(SRC, 'utils/dockCapacity.js')).href);
 
 const css = M.loadCss(SRC);
-const F1 = loadFaces();
+const WEB = loadFaces('Inter');
 const SEGOE = loadSystemFace('C:/Windows/Fonts/segoeuib.ttf');
-if (!F1) { console.log('Formula1 font files missing: frontend/public/fonts'); process.exit(1); }
+if (!WEB) { console.log('Inter font files missing: frontend/public/fonts'); process.exit(1); }
 
 // The default dock (store DOCK_DEFAULTS) and every view the dock can hold
 // (utils/slotOptions.js labels; settings and charts are never dock items)
@@ -108,12 +108,12 @@ export function layOut(d, labels) {
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   teeToEvidence('dock_fit.txt');
-  const f1 = (t, size) => F1.width(t, size, 600, { letterSpacingEm: 0.05, upper: true });
+  const web = (t, size) => WEB.width(t, size, 600, { letterSpacingEm: 0.05, upper: true });
   const sg = SEGOE ? (t, size) => SEGOE.width(t, size, { letterSpacingEm: 0.05, upper: true }) : null;
   let failures = 0;
-  console.log(`Dock fit at the V13 target viewports (dashboard.css .bottom-tab-bar rules, Formula1 Bold metrics), ${new Date().toLocaleDateString('sv-SE')}`);
+  console.log(`Dock fit at the V13 target viewports (dashboard.css .bottom-tab-bar rules, Inter SemiBold metrics), ${new Date().toLocaleDateString('sv-SE')}`);
   for (const vp of M.VIEWPORTS) {
-    const d = dockAt(vp, f1);
+    const d = dockAt(vp, web);
     console.log(`\n== ${vp.name} == bar max-width ${d.maxWidth.toFixed(1)} px; label ${d.label.toFixed(2)} px${d.labelHidden ? ' (hidden)' : ''}, button padding ${d.tabPad} px, fixed labels ${d.fixedLabelHidden ? 'hidden' : 'shown'}; gap ${d.box.gap}, bar padding ${d.box.paddingLeft} + border 0.5 each side, divider ${d.divider.width} + ${d.divider.marginLeft} + ${d.divider.marginRight}`);
     for (const [name, labels] of [['default dock (10 items)', DEFAULT_LABELS], [`every view (${ALL_LABELS.length} items)`, ALL_LABELS]]) {
       const r = layOut(d, labels);
@@ -130,7 +130,7 @@ if (isMain) {
         + dFallback.fixedGroup.reduce((a, c) => a + c.width + dFallback.box.gap, 0);
       const oldCap = dockCapacity(items.map((c) => c.width), { available: d.maxWidth, fixedWidth: oldFixed, overflowWidth: OVERFLOW_BUTTON_W, gap: d.box.gap });
       const after = dockRow([...d.items(DEFAULT_LABELS).slice(0, oldCap), ...(oldCap < 10 ? [d.overflow] : []), ...d.fixedGroup], d.box);
-      console.log(`  before 9c (measured once with the fallback font): ${oldCap} of 10 shown (fallback row ${dockRow([...items, ...dFallback.fixedGroup], dFallback.box).toFixed(1)} px); with the Formula1 labels that row is ${after.toFixed(1)} px${after > d.maxWidth + 0.5 ? `, ${(after - d.maxWidth).toFixed(1)} px wider than the bar: the first and last buttons cut (centred row)` : ', fits'}`);
+      console.log(`  before 9c (measured once with the fallback font): ${oldCap} of 10 shown (fallback row ${dockRow([...items, ...dFallback.fixedGroup], dFallback.box).toFixed(1)} px); with the web font's labels that row is ${after.toFixed(1)} px${after > d.maxWidth + 0.5 ? `, ${(after - d.maxWidth).toFixed(1)} px wider than the bar: the first and last buttons cut (centred row)` : ', fits'}`);
     }
   }
   console.log(failures ? `\n${failures} failure(s)` : '\nThe dock row fits its bar at the four viewports (default dock and every view).');

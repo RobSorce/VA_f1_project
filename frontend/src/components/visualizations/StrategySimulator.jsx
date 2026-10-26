@@ -321,7 +321,7 @@ export default function StrategySimulator() {
                   fontWeight: 900, fontSize: CHART_FONT.data,
                   cursor: canRun ? 'pointer' : 'default',
                   textTransform: 'uppercase', letterSpacing: '0.1em',
-                  fontFamily: "'Titillium Web', sans-serif",
+                  fontFamily: 'var(--font-primary)',
                 }}
               >
                 {!canRun

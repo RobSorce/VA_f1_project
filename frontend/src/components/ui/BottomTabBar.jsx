@@ -118,7 +118,7 @@ export default function BottomTabBar() {
   // (padding, border, gaps, the divider with its margins, the fixed group)
   // are measured, and dockCapacity says how many items fit next to the ⋯
   // button. A resize, a change of the items or the web fonts finishing to
-  // load (the Formula1 labels are wider than the fallback's) renders them all
+  // load (the web font's labels differ in width from the fallback's) renders them all
   // again and re-measures; after every render the row is checked once more
   // and one more item goes to the ⋯ popover while it overflows (D2).
   //

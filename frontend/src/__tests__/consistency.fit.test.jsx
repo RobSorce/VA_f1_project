@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installMiniDom } from './helpers/miniDom.js';
 import { parseCss } from './helpers/layoutCss.js';
+import { haveWebFont, faceWidths } from './helpers/fontWidths.js';
 
 vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
 if (typeof globalThis.localStorage === 'undefined') {
@@ -56,7 +57,6 @@ const {
 } = await import('../utils/views/consistencyLayout.js');
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FONTS = path.resolve(SRC, '../public/fonts');
 const INITIAL = useF1Store.getState();
 const text = (el) => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
 
@@ -332,44 +332,12 @@ describe('CSS: the cards never scroll', () => {
 
 // The collapsed line's parts (team bar, code in Bold, σ, the badge in Bold,
 // CV, the chevron's room, padding, border) fit CONSISTENCY_CARD_EM data-type
-// ems at the real font widths (JetBrains Mono: 0.6 em a character)
-function faceWidths(file) {
-  const b = fs.readFileSync(file);
-  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
-  const tables = {};
-  for (let i = 0; i < dv.getUint16(4); i++) {
-    const o = 12 + i * 16;
-    tables[String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3])] = dv.getUint32(o + 8);
-  }
-  const upm = dv.getUint16(tables.head + 18);
-  const nh = dv.getUint16(tables.hhea + 34);
-  const adv = (g) => dv.getUint16(tables.hmtx + 4 * Math.min(g, nh - 1));
-  let sub = null;
-  for (let i = 0; i < dv.getUint16(tables.cmap + 2); i++) {
-    const pid = dv.getUint16(tables.cmap + 4 + i * 8);
-    const off = dv.getUint32(tables.cmap + 8 + i * 8);
-    if (dv.getUint16(tables.cmap + off) === 4 && (pid === 3 || pid === 0)) sub = tables.cmap + off;
-  }
-  const segX2 = dv.getUint16(sub + 6);
-  const ends = sub + 14; const starts = ends + segX2 + 2; const deltas = starts + segX2; const ranges = deltas + segX2;
-  const glyph = (code) => {
-    for (let i = 0; i < segX2 / 2; i++) {
-      if (code > dv.getUint16(ends + 2 * i)) continue;
-      const start = dv.getUint16(starts + 2 * i);
-      if (code < start) return 0;
-      const ro = dv.getUint16(ranges + 2 * i);
-      if (!ro) return (code + dv.getInt16(deltas + 2 * i)) & 0xffff;
-      const g = dv.getUint16(ranges + 2 * i + ro + 2 * (code - start));
-      return g ? (g + dv.getInt16(deltas + 2 * i)) & 0xffff : 0;
-    }
-    return 0;
-  };
-  return (t, size) => [...t].reduce((a, ch) => { const g = glyph(ch.codePointAt(0)); return a + (g ? adv(g) : upm); }, 0) / upm * size;
-}
-const haveFont = fs.existsSync(path.join(FONTS, 'Formula1-Bold-4.ttf'));
+// ems at the real font widths (Inter Bold, 700 on a collapsed card;
+// JetBrains Mono: 0.6 em a character)
+const haveFont = haveWebFont;
 
 describe.skipIf(!haveFont)('the collapsed line fits its card (real font widths)', () => {
-  const bold = haveFont ? faceWidths(path.join(FONTS, 'Formula1-Bold-4.ttf')) : null;
+  const bold = haveFont ? faceWidths(700) : null;
   const mono = (t, s) => [...t].length * 0.6 * s;
   // data / label / sm sizes at 1536 x 750, 1366 x 768 (floors) and 1920 x 1080 (tokens.css)
   for (const [vp, data, label, sm] of [['1536x750', 11, 10, 11.44], ['1366x768', 11.08, 10.08, 11], ['1920x1080', 12.41, 11.41, 13]]) {

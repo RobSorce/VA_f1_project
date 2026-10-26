@@ -113,7 +113,7 @@ export default function TyreManagement() {
   const driverBadge = driver ? (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6,
-      fontSize: CHART_FONT.data, fontWeight: 800, fontFamily: "'Titillium Web', sans-serif",
+      fontSize: CHART_FONT.data, fontWeight: 800, fontFamily: 'var(--font-primary)',
       textTransform: 'uppercase', letterSpacing: '0.06em',
     }}>
       <span style={{
@@ -143,7 +143,7 @@ export default function TyreManagement() {
         .attr('x', width / 2).attr('y', height / 2)
         .attr('text-anchor', 'middle')
         .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data)
-        .attr('font-family', "'Titillium Web', sans-serif")
+        .attr('font-family', 'var(--font-primary)')
         .text('Focus a driver to view pace retention');
       return;
     }
@@ -177,7 +177,7 @@ export default function TyreManagement() {
 
     g.append('text').attr('x', -4).attr('y', innerH + 20)
       .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label).attr('font-weight', 700)
-      .attr('font-family', "'Titillium Web', sans-serif").attr('text-anchor', 'end').text('LAP');
+      .attr('font-family', 'var(--font-primary)').attr('text-anchor', 'end').text('LAP');
 
     // Y-axis
     const yAxisG = g.append('g')
@@ -268,7 +268,7 @@ export default function TyreManagement() {
         .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
         .attr('fill', contrastText(compoundColor))
         .style('font-size', CHART_FONT.label).attr('font-weight', 900)
-        .attr('font-family', "'Titillium Web', sans-serif").text(label);
+        .attr('font-family', 'var(--font-primary)').text(label);
     });
 
     // Tooltip interaction

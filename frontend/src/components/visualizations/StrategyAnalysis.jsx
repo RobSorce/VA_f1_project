@@ -365,7 +365,7 @@ export default function StrategyAnalysis() {
       borderBottom: `1px solid ${GRID_COLORS.grid}`,
     }}>
       {tabs.map((s) => (
-        <button key={s.id} type="button" onClick={() => onPick(s.id)} style={tabPillStyle(active === s.id)}>
+        <button key={s.id} type="button" onClick={() => onPick(s.id)} style={{ ...tabPillStyle(active === s.id), fontVariantNumeric: 'tabular-nums' }}>
           {s.label}
         </button>
       ))}
@@ -762,7 +762,7 @@ function PagedList({ items, rowH, what, renderItem }) {
         }}
         >
           <button type="button" aria-label={`Previous ${what}`} disabled={pg.page === 0} onClick={() => setPage(pg.page - 1)} style={btn}>{'◀'}</button>
-          <span>{what} {pg.first}{'–'}{pg.last} of {items.length}</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{what} {pg.first}{'–'}{pg.last} of {items.length}</span>
           <button type="button" aria-label={`Next ${what}`} disabled={pg.page >= pg.pages - 1} onClick={() => setPage(pg.page + 1)} style={btn}>{'▶'}</button>
         </div>
       )}

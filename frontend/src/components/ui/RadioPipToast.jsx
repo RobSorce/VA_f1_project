@@ -200,7 +200,7 @@ export default function RadioPipToast() {
             borderRadius: 8,
             boxShadow: '0 18px 36px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)',
             color: TEXT_COLORS.primary,
-            fontFamily: "'Titillium Web', 'Inter', sans-serif",
+            fontFamily: 'var(--font-primary)',
             overflow: 'hidden',
           }}
         >

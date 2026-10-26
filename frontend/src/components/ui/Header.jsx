@@ -3,7 +3,7 @@ import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
 import SessionSelector from './SessionSelector';
 import SessionMenu from './SessionMenu';
 import PanelToggleBar from '../layout/PanelToggleBar';
-import { publicAsset } from '../../utils/publicAsset';
+import { APP_NAME } from '../../utils/brand';
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -38,14 +38,7 @@ export default function Header() {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <div className="logo">
-            <img
-              src={publicAsset('f1-logo.png')}
-              alt="F1"
-              className="logo-f1-img"
-            />
-            <span className="logo-text">Race Control</span>
-          </div>
+          <span className="wordmark header-wordmark">{APP_NAME}</span>
         </div>
 
         <div className="header-center">

@@ -1,27 +1,94 @@
 /* ==========================================================================
-   F1 Race Control - Design Tokens
-   Official F1 TV Broadcast Graphics Style
+   Lapwise - Design Tokens
    ========================================================================== */
 
+/* Fonts, self-hosted from public/fonts (no request leaves the origin): Inter
+   4.1 (https://github.com/rsms/inter) for text and titles, JetBrains Mono
+   2.304 (https://github.com/JetBrains/JetBrainsMono) for times and numbers,
+   both under the SIL Open Font License 1.1 (the OFL.txt next to each). One
+   static face per weight the CSS uses: Inter 400-900; JetBrains Mono
+   400-700, the faces the app loaded before (a heavier mono weight draws with
+   the 700 face). The fit tests and frontend/scripts/audit/fontMetrics.mjs
+   read these rules for the faces they measure. */
+
 @font-face {
-  font-family: 'Formula1';
-  src: url('/fonts/Formula1-Regular-1.ttf') format('truetype');
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-Regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
-  font-family: 'Formula1';
-  src: url('/fonts/Formula1-Bold-4.ttf') format('truetype');
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-Bold.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
-  font-family: 'Formula1';
-  src: url('/fonts/Formula1-Wide.ttf') format('truetype');
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter/Inter-Black.woff2') format('woff2');
   font-weight: 900;
   font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono/JetBrainsMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono/JetBrainsMono-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono/JetBrainsMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
 :root {
@@ -122,9 +189,9 @@
   --color-gemini-ghost: rgba(245, 166, 35, 0.25);
 
   /* Typography */
-  --font-primary: 'Formula1', 'Titillium Web', system-ui, sans-serif;
+  --font-primary: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-display: 'Formula1', 'Titillium Web', system-ui, sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
 
   /* Type floors (V13). Text never renders under them at any supported
      viewport (1366x768 .. 2048x1100): data labels, axis ticks, numbers and
@@ -266,7 +333,7 @@
   --rh-text-faint:       #9A9A9A;
   --rh-text-dimmed:      #939393;
 
-  --rh-font-sans:        'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+  --rh-font-sans:        'Inter', system-ui, -apple-system, sans-serif;
   --rh-font-mono:        'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
 
   --rh-text-xs:          11px;

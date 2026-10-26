@@ -665,7 +665,7 @@ export default function Leaderboard({ collapsed }) {
               fontWeight: 900,
               fontSize: '12px',
               color: chip.color,
-              fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+              fontFamily: 'var(--font-primary)',
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
             }}>

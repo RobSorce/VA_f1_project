@@ -289,7 +289,7 @@ function RacePaceGrid() {
                   style={{
                     width: cellW, minWidth: cellW, maxWidth: cellW,
                     height: HEADER_H,
-                    fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+                    fontFamily: 'var(--font-primary)',
                     fontSize: CHART_FONT.data, fontWeight: 700, textAlign: 'center',
                     cursor: 'pointer',
                     borderRight: '1px solid rgba(255,255,255,0.08)',

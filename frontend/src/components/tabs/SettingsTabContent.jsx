@@ -3,7 +3,7 @@ import { useF1Store } from '../../store/useF1Store';
 import { yearOptions } from '../../utils/seasons';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 import { CHART_HELP_LIST } from '../../utils/chartHelp';
-import { publicAsset } from '../../utils/publicAsset';
+import { APP_NAME, TRADEMARK_NOTICE } from '../../utils/brand';
 import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeed';
 
 const SESSION_TYPES = [
@@ -355,10 +355,9 @@ export default function SettingsTabContent() {
         {openSection === 'about' && (
           <div className="settings-tab__section-body">
             <div className="settings-tab__about-header">
-              <img src={publicAsset('f1-logo.png')} alt="F1" className="settings-tab__about-logo" />
               <div>
-                <h2 className="settings-tab__about-title">F1 Race Control</h2>
-                <p className="settings-tab__about-subtitle">F1 Grand-Prix Analysis</p>
+                <h2 className="wordmark settings-tab__about-title">{APP_NAME}</h2>
+                <p className="settings-tab__about-subtitle">Race strategy visual analytics</p>
               </div>
             </div>
 
@@ -402,11 +401,7 @@ export default function SettingsTabContent() {
               </p>
             </div>
 
-            <p className="settings-tab__disclaimer">
-              This project is for academic purposes only.
-              Not affiliated with Formula 1, FIA, or any F1 team.
-              All trademarks belong to their respective owners.
-            </p>
+            <p className="settings-tab__disclaimer">{TRADEMARK_NOTICE}</p>
           </div>
         )}
       </section>

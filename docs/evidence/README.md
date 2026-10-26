@@ -1,6 +1,6 @@
 # Evidence: script outputs
 
-This folder holds the outputs of the measurement scripts that the documentation, the in-app help, code comments and tests cite. A number quoted in `docs/` comes with the file here that prints it and the script that writes that file. Each file is the output of its script's last run: every script was re-run on the code of 2026-10-16, except the three noted under their tables that stop with an error before they write (`mc_benchmark.mjs`, `pca_session_switch_check.mjs`, `pca_views_probe.mjs`). Running a script again rewrites its file in place; a run on another day can differ in the date and the run times it prints.
+This folder holds the outputs of the measurement scripts that the documentation, the in-app help, code comments and tests cite. A number quoted in `docs/` comes with the file here that prints it and the script that writes that file. Each file is the output of its script's last run: every script was re-run on the code of 2026-10-16, except the three noted under their tables that stop with an error before they write (`mc_benchmark.mjs`, `pca_session_switch_check.mjs`, `pca_views_probe.mjs`); the five whose output depends on the fonts or on the stylesheets changed with them (`dock_fit`, `panel_fit`, `font_floor`, `timing_floors`, `tower_columns`) were re-run on 2026-10-22, when the app moved to the self-hosted Inter and JetBrains Mono. Running a script again rewrites its file in place; a run on another day can differ in the date and the run times it prints.
 
 How to run the scripts:
 

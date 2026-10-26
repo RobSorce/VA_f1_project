@@ -10,10 +10,9 @@
  * border, the divider with its margins and the fixed group (Layouts, ⌘K,
  * Settings) — dockRow. The browser pass found 1439 px of buttons in the
  * 1400 px bar at 1536 x 750. The buttons were measured once, when the dock
- * mounted; with the fallback font's labels the default dock is 1292 px wide
- * at 1536 x 750 and fits, with the Formula1 labels (the web font, loaded
- * later) it is 1490 px (font metrics: frontend/scripts/audit/dock_fit.mjs),
- * and the divider's 12 px of margin and the bar's border were not counted.
+ * mounted, with the fallback font's labels, narrower than those of the web
+ * font of the time (loaded later), and the divider's 12 px of margin and the
+ * bar's border were not counted.
  * BottomTabBar now measures again when the fonts finish loading and checks
  * the row after every render.
  *

@@ -1,36 +1,36 @@
-Font-size floors, 2026-10-16: data / default 11 px, --font-size-label text 10 px
+Font-size floors, 2026-10-22: data / default 11 px, --font-size-label text 10 px
 Root font-size (base.css html): 1536x750 14.08px, 1366x768 13.23px, 1920x1080 16.00px, 2048x1100 16.00px
 --font-size-label = clamp(10px, calc(6.786px + 0.4286vh), 11.5px) -> 1536x750 10.00, 1366x768 10.08, 1920x1080 11.41, 2048x1100 11.50
 --font-size-data = clamp(11px, calc(7.786px + 0.4286vh), 12.5px) -> 1536x750 11.00, 1366x768 11.08, 1920x1080 12.41, 2048x1100 12.50
 --font-size-xs = max(var(--font-size-data), 0.6875rem) -> 1536x750 11.00, 1366x768 11.08, 1920x1080 12.41, 2048x1100 12.50
 --font-size-sm = max(var(--font-size-data), 0.8125rem) -> 1536x750 11.44, 1366x768 11.08, 1920x1080 13.00, 2048x1100 13.00
 
-CSS: 394 font-size declarations; FAIL 0; UNEVALUATED 0; INHERIT 0; INACTIVE 0
+CSS: 396 font-size declarations; FAIL 0; UNEVALUATED 0; INHERIT 0; INACTIVE 0
 
 JS/JSX literal font sizes: 517; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN 431
   components/visualizations/CircleOfDoom.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 6
-     DYNAMIC  :1241  fs0
-     DYNAMIC  :1270  fs0
-     DYNAMIC  :1703  gapMark.size
-     DYNAMIC  :1803  fs
-     DYNAMIC  :1828  fs
-     DYNAMIC  :1848  l.size
+     DYNAMIC  :1265  fs0
+     DYNAMIC  :1294  fs0
+     DYNAMIC  :1727  gapMark.size
+     DYNAMIC  :1827  fs
+     DYNAMIC  :1852  fs
+     DYNAMIC  :1872  l.size
   components/visualizations/LapTimeChart.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 3
-     DYNAMIC  :305  rowFontSize
-     DYNAMIC  :465  rowLapFontSize
-     DYNAMIC  :580  rowLapFontSize
+     DYNAMIC  :278  rowFontSize
+     DYNAMIC  :438  rowLapFontSize
+     DYNAMIC  :532  rowLapFontSize
   components/visualizations/TimingTower.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 11
      DYNAMIC  :79  TOWER_FONT
-     DYNAMIC  :173  TOWER_FONT
-     DYNAMIC  :210  TOWER_FONT
-     DYNAMIC  :222  TOWER_FONT
-     DYNAMIC  :234  TOWER_FONT
-     DYNAMIC  :247  TOWER_FONT
-     DYNAMIC  :307  TOWER_FONT
-     DYNAMIC  :315  TOWER_FONT
-     DYNAMIC  :439  TOWER_FONT
-     DYNAMIC  :465  TOWER_FONT
-     DYNAMIC  :477  TOWER_FONT
+     DYNAMIC  :174  TOWER_FONT
+     DYNAMIC  :211  TOWER_FONT
+     DYNAMIC  :223  TOWER_FONT
+     DYNAMIC  :235  TOWER_FONT
+     DYNAMIC  :248  TOWER_FONT
+     DYNAMIC  :308  TOWER_FONT
+     DYNAMIC  :316  TOWER_FONT
+     DYNAMIC  :440  TOWER_FONT
+     DYNAMIC  :466  TOWER_FONT
+     DYNAMIC  :478  TOWER_FONT
   components/visualizations/TrackMap.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 3
      DYNAMIC  :731  ZOOMED_FONT.label
      DYNAMIC  :1026  ZOOMED_FONT.data
@@ -75,12 +75,12 @@ JS/JSX literal font sizes: 517; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN
 Floors of the computed (DYNAMIC) sizes: 2 font-like bounds; FAIL (<10) 0; CHECK (10-11) 0
 
 DYNAMIC sizes resolved: 51; UNSET 8, TOKEN 17, CALLER 18, FLOOR 8, UNRESOLVED 0; floor under 10 px 0
-  FLOOR      components/visualizations/CircleOfDoom.jsx:1241  fs0 >= 11 px  (ring label size = chartFontPx("data"), the data token never under 11 px)
-  FLOOR      components/visualizations/CircleOfDoom.jsx:1270  fs0 >= 11 px  (ring label size = chartFontPx("data"), the data token never under 11 px)
-  FLOOR      components/visualizations/CircleOfDoom.jsx:1703  gapMark.size >= 11 px  (hover gap readout = Math.max(MIN_CENTRE_FONT, fs + 1), MIN_CENTRE_FONT = 11)
-  FLOOR      components/visualizations/CircleOfDoom.jsx:1803  fs >= 11 px  (layout.fontSize of layoutLabels, called with fontSize and minFontSize fs0; layoutLabels never goes under minFontSize)
-  FLOOR      components/visualizations/CircleOfDoom.jsx:1828  fs >= 11 px  (layout.fontSize of layoutLabels, called with fontSize and minFontSize fs0; layoutLabels never goes under minFontSize)
-  FLOOR      components/visualizations/CircleOfDoom.jsx:1848  l.size >= 10 px  (centre lines: values at clamp(R x k, MIN_CENTRE_FONT = 11, ...); the caption notes at MIN_CENTRE_NOTE = 10 (label text))
+  FLOOR      components/visualizations/CircleOfDoom.jsx:1265  fs0 >= 11 px  (ring label size = chartFontPx("data"), the data token never under 11 px)
+  FLOOR      components/visualizations/CircleOfDoom.jsx:1294  fs0 >= 11 px  (ring label size = chartFontPx("data"), the data token never under 11 px)
+  FLOOR      components/visualizations/CircleOfDoom.jsx:1727  gapMark.size >= 11 px  (hover gap readout = Math.max(MIN_CENTRE_FONT, fs + 1), MIN_CENTRE_FONT = 11)
+  FLOOR      components/visualizations/CircleOfDoom.jsx:1827  fs >= 11 px  (layout.fontSize of layoutLabels, called with fontSize and minFontSize fs0; layoutLabels never goes under minFontSize)
+  FLOOR      components/visualizations/CircleOfDoom.jsx:1852  fs >= 11 px  (layout.fontSize of layoutLabels, called with fontSize and minFontSize fs0; layoutLabels never goes under minFontSize)
+  FLOOR      components/visualizations/CircleOfDoom.jsx:1872  l.size >= 10 px  (centre lines: values at clamp(R x k, MIN_CENTRE_FONT = 11, ...); the caption notes at MIN_CENTRE_NOTE = 10 (label text))
   FLOOR      utils/circleLabelLayout.js:280  fs >= 11 px  (Math.max(minFontSize, ...) and the only caller (CircleOfDoom.jsx) passes minFontSize fs0 = chartFontPx("data"))
   FLOOR      utils/circleLabelLayout.js:334  fs >= 11 px  (Math.max(minFontSize, ...) and the only caller (CircleOfDoom.jsx) passes minFontSize fs0 = chartFontPx("data"))
 

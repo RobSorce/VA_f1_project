@@ -4,25 +4,25 @@
 //
 // The browser pass found 1439 px of buttons in the 1400 px bar at 1536 x 750,
 // the first (Pit Wall) and last (Settings) buttons cut (the row is centred).
-// BottomTabBar measured its buttons once, when it mounted, before the
-// Formula1 web font was in: with the fallback font's labels the default dock
-// fits (1292 px at 1536 x 750 with Segoe UI Bold, the system-ui of Windows),
-// with the Formula1 Bold labels it is 1490 px (frontend/scripts/audit/
-// dock_fit.mjs); the divider's 12 px of margin and the bar's border were not
-// counted either. Now the bar measures again when the fonts finish loading
-// and checks the rendered row after every render.
+// BottomTabBar measured its buttons once, when it mounted, before the web
+// font of the time was in (its labels were wider than the fallback's); the
+// divider's 12 px of margin and the bar's border were not counted either.
+// Now the bar measures again when the fonts finish loading and checks the
+// rendered row after every render.
 //
 // The buttons' widths here are the real CSS ones: each is its padding (the
 // .bottom-tab-bar__tab rule live at the viewport) plus the wider of the 18 px
 // icon and its label (uppercase, letter-spacing 0.05em, --font-size-label, the
-// Formula1 Bold face from public/fonts), the fixed labels hidden up to 1440 px.
+// Inter SemiBold face of weight 600, helpers/fontWidths.js), the fixed labels
+// hidden up to 1440 px. Before the web font, the fallback's labels: narrower
+// or wider than Inter's (system-ui differs by platform), both checked.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installMiniDom } from './helpers/miniDom.js';
 import { loadCss, px, shellAt, VIEWPORTS } from './helpers/layoutModel.js';
 import { mediaMatches, resolveVars, evalLength } from './helpers/layoutCss.js';
+import { haveWebFont, faceWidths } from './helpers/fontWidths.js';
 
 vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
 if (typeof globalThis.localStorage === 'undefined') {
@@ -71,46 +71,11 @@ const { dockCapacity, dockRow } = await import('../utils/dockCapacity.js');
 const { SLOT_OPTIONS } = await import('../utils/slotOptions.js');
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FONTS = path.resolve(SRC, '../public/fonts');
 const INITIAL = useF1Store.getState();
 const css = loadCss(SRC);
 
-/** Advance widths of a TTF (cmap format 4 + hmtx); a glyph the face lacks counts 1 em. */
-function faceWidths(file) {
-  const b = fs.readFileSync(file);
-  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
-  const tables = {};
-  for (let i = 0; i < dv.getUint16(4); i++) {
-    const o = 12 + i * 16;
-    tables[String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3])] = dv.getUint32(o + 8);
-  }
-  const upm = dv.getUint16(tables.head + 18);
-  const nh = dv.getUint16(tables.hhea + 34);
-  const adv = (g) => dv.getUint16(tables.hmtx + 4 * Math.min(g, nh - 1));
-  let sub = null;
-  for (let i = 0; i < dv.getUint16(tables.cmap + 2); i++) {
-    const pid = dv.getUint16(tables.cmap + 4 + i * 8);
-    const off = dv.getUint32(tables.cmap + 8 + i * 8);
-    if (dv.getUint16(tables.cmap + off) === 4 && (pid === 3 || pid === 0)) sub = tables.cmap + off;
-  }
-  const segX2 = dv.getUint16(sub + 6);
-  const ends = sub + 14; const starts = ends + segX2 + 2; const deltas = starts + segX2; const ranges = deltas + segX2;
-  const glyph = (code) => {
-    for (let i = 0; i < segX2 / 2; i++) {
-      if (code > dv.getUint16(ends + 2 * i)) continue;
-      const start = dv.getUint16(starts + 2 * i);
-      if (code < start) return 0;
-      const ro = dv.getUint16(ranges + 2 * i);
-      if (!ro) return (code + dv.getInt16(deltas + 2 * i)) & 0xffff;
-      const g = dv.getUint16(ranges + 2 * i + ro + 2 * (code - start));
-      return g ? (g + dv.getInt16(deltas + 2 * i)) & 0xffff : 0;
-    }
-    return 0;
-  };
-  return (t, size) => [...t].reduce((a, ch) => { const g = glyph(ch.codePointAt(0)); return a + (g ? adv(g) : upm); }, 0) / upm * size;
-}
-const haveFont = fs.existsSync(path.join(FONTS, 'Formula1-Bold-4.ttf'));
-const bold = haveFont ? faceWidths(path.join(FONTS, 'Formula1-Bold-4.ttf')) : null;
+const haveFont = haveWebFont;
+const label600 = haveFont ? faceWidths(600) : null;
 
 /** Last declaration of `prop` for an exact selector live at vp (dashboard.css order). */
 function declAt(selector, prop, vp) {
@@ -157,12 +122,12 @@ function dockCssOf(vp) {
 }
 
 // The mini DOM's layout: widths from dockCss + the label font of the moment
-const env = { vp: VIEWPORTS[0], fontScale: 1, fontLoaded: true };
+const env = { vp: VIEWPORTS[0], fontScale: 1, fontLoaded: true, fallbackScale: 0.87 };
 const has = (el, c) => (el.getAttribute?.('class') || '').split(/\s+/).includes(c);
 function labelWidth(t, size) {
-  const w = bold(t, size) + [...t].length * 0.05 * size;
-  // before the web font: a narrower fallback (the Segoe UI Bold row is 0.87 of the Formula1 one)
-  return env.fontLoaded ? w : 0.87 * w;
+  const w = label600(t, size) + [...t].length * 0.05 * size;
+  // before the web font: the fallback's labels, env.fallbackScale of Inter's
+  return env.fontLoaded ? w : env.fallbackScale * w;
 }
 function buttonWidth(el) {
   const c = dockCss(env.vp);
@@ -229,7 +194,7 @@ async function mount(items = DOCK_DEFAULTS) {
   };
 }
 
-beforeEach(() => { env.fontScale = 1; env.fontLoaded = true; });
+beforeEach(() => { env.fontScale = 1; env.fontLoaded = true; env.fallbackScale = 0.87; });
 
 describe('dockRow / dockCapacity (utils/dockCapacity.js)', () => {
   it('dockRow counts the widths, the margins, a gap between every two children, padding and border', () => {
@@ -250,13 +215,14 @@ describe('dockRow / dockCapacity (utils/dockCapacity.js)', () => {
 });
 
 describe.skipIf(!haveFont)('the dock at the four viewports, with the real CSS widths', () => {
-  for (const vp of VIEWPORTS) {
-    it(`${vp.name}: nothing cut, before and after the Formula1 font loads; the fixed group always on the bar`, async () => {
+  for (const vp of VIEWPORTS) for (const fallback of [0.87, 1.15]) {
+    it(`${vp.name}: nothing cut, before (fallback labels x ${fallback}) and after the Inter font loads; the fixed group always on the bar`, async () => {
       env.vp = vp;
       dom.window.innerWidth = vp.W;
       const c = dockCss(vp);
       // before the web font: the fallback labels
       env.fontLoaded = false;
+      env.fallbackScale = fallback;
       const v = await mount();
       const before = renderedRow(v.nav);
       expect(before, 'fallback font').toBeLessThanOrEqual(c.maxWidth + 0.5);
@@ -266,30 +232,13 @@ describe.skipIf(!haveFont)('the dock at the four viewports, with the real CSS wi
       await act(async () => { for (const fn of fontListeners) fn(); });
       const after = renderedRow(v.nav);
       const shown = v.items().length;
-      console.log(`${vp.name}: bar ${c.maxWidth} px; fallback row ${before.toFixed(1)} px; Formula1 row ${after.toFixed(1)} px with ${shown} of ${DOCK_DEFAULTS.length} items${v.overflow() ? ` + ⋯ (${v.overflow().getAttribute('title')})` : ''}`);
-      expect(after, 'Formula1 font').toBeLessThanOrEqual(c.maxWidth + 0.5);
+      console.log(`${vp.name}: bar ${c.maxWidth} px; fallback row ${before.toFixed(1)} px; Inter row ${after.toFixed(1)} px with ${shown} of ${DOCK_DEFAULTS.length} items${v.overflow() ? ` + ⋯ (${v.overflow().getAttribute('title')})` : ''}`);
+      expect(after, 'Inter font').toBeLessThanOrEqual(c.maxWidth + 0.5);
       expect(v.fixed()).toHaveLength(3);
       expect(shown + (v.overflow() ? Number(/^(\d+)/.exec(v.overflow().getAttribute('title'))[1]) : 0)).toBe(DOCK_DEFAULTS.length);
       await v.unmount();
     });
   }
-
-  it('1536x750: the former measure (once, fallback font, no divider margin, no border) shows all 10 and the Formula1 row is wider than the bar', () => {
-    const vp = VIEWPORTS.find((x) => x.name === '1536x750');
-    env.vp = vp;
-    const c = dockCss(vp);
-    const labels = SLOT_OPTIONS.filter((o) => DOCK_DEFAULTS.includes(o.id)).map((o) => o.label.toUpperCase());
-    const width = (t, loaded) => { env.fontLoaded = loaded; return 2 * c.tabPad + Math.max(18, labelWidth(t, c.label)); };
-    const fixedW = (t, loaded) => { env.fontLoaded = loaded; return 2 * c.fixedPad + Math.max(18, c.fixedLabelHidden ? 0 : labelWidth(t, c.label)); };
-    const oldFixed = 2 * c.navPad + c.divider.width + c.gap + ['LAYOUTS', '⌘K', 'SETTINGS'].reduce((a, t) => a + fixedW(t, false) + c.gap, 0);
-    const oldCap = dockCapacity(labels.map((t) => width(t, false)), { available: c.maxWidth, fixedWidth: oldFixed, overflowWidth: 44, gap: c.gap });
-    expect(oldCap).toBe(10);
-    const real = dockRow([...labels.map((t) => ({ width: width(t, true) })), { width: c.divider.width, marginLeft: c.divider.margin, marginRight: c.divider.margin },
-      ...['LAYOUTS', '⌘K', 'SETTINGS'].map((t) => ({ width: fixedW(t, true) }))],
-    { gap: c.gap, paddingLeft: c.navPad, paddingRight: c.navPad, borderLeft: c.border, borderRight: c.border });
-    console.log(`1536x750 before 9c: 10 of 10 kept; Formula1 row ${real.toFixed(1)} px in the ${c.maxWidth} px bar (the browser measured 1439)`);
-    expect(real).toBeGreaterThan(c.maxWidth);
-  });
 
   it('every view in the dock (25 items): the bar keeps what fits and the ⋯ popover the rest, at every viewport', async () => {
     const all = SLOT_OPTIONS.map((o) => o.id).filter((id) => id !== 'settings' && id !== 'charts');
@@ -309,11 +258,11 @@ describe.skipIf(!haveFont)('the dock at the four viewports, with the real CSS wi
     env.vp = vp;
     dom.window.innerWidth = vp.W;
     const v = await mount();
-    expect(v.items()).toHaveLength(10);
-    env.fontScale = 1.25; // e.g. a user font setting
+    expect(v.items()).toHaveLength(DOCK_DEFAULTS.length);
+    env.fontScale = 1.5; // e.g. a user font setting
     await act(async () => { useF1Store.setState({ activeTab: 'laptimes' }); });
     expect(renderedRow(v.nav)).toBeLessThanOrEqual(dockCss(vp).maxWidth + 0.5);
-    expect(v.items().length).toBeLessThan(10);
+    expect(v.items().length).toBeLessThan(DOCK_DEFAULTS.length);
     await v.unmount();
   });
 });
@@ -327,11 +276,14 @@ describe.skipIf(!haveFont)('the dock at the four viewports, with the real CSS wi
 describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, before the paint', () => {
   const at = (name) => VIEWPORTS.find((x) => x.name === name);
   const moveTo = (vp) => { env.vp = vp; dom.window.innerWidth = vp.W; };
+  // A dock that fits the 2048 px bar and not the 1536 px one (the default
+  // dock fits both in Inter): the defaults and three more views
+  const DOCK = [...DOCK_DEFAULTS, 'trackmap', 'telemetry', 'lapdelta'];
 
   it('the bar shrinks (2048 -> 1536 px window): its observer refits the row within the callback', async () => {
     moveTo(at('2048x1100'));
-    const v = await mount();
-    expect(v.items()).toHaveLength(10);
+    const v = await mount(DOCK);
+    expect(v.items()).toHaveLength(DOCK.length);
     // moved to the 1536 px screen: the bar's max-width shrinks; nothing renders but the observer
     moveTo(at('1536x750'));
     const max = dockCss(env.vp).maxWidth;
@@ -342,7 +294,7 @@ describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, 
       inCallback = { row: renderedRow(v.nav), items: v.items().length, overflow: !!v.overflow() };
     });
     expect(inCallback.row).toBeLessThanOrEqual(max + 0.5);
-    expect(inCallback.items).toBeLessThan(10);
+    expect(inCallback.items).toBeLessThan(DOCK.length);
     expect(inCallback.overflow).toBe(true);
     expect(v.fixed()).toHaveLength(3);
     await v.unmount();
@@ -350,15 +302,15 @@ describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, 
 
   it('the container grows (1536 -> 2048 px window): every item back on the bar within the callback', async () => {
     moveTo(at('1536x750'));
-    const v = await mount();
-    expect(v.items().length).toBeLessThan(10);
+    const v = await mount(DOCK);
+    expect(v.items().length).toBeLessThan(DOCK.length);
     moveTo(at('2048x1100'));
     let inCallback = null;
     await act(async () => {
       expect(notifyResize(v.nav.parentElement, at('2048x1100').W)).toBe(1);
       inCallback = { items: v.items().length, overflow: !!v.overflow(), row: renderedRow(v.nav) };
     });
-    expect(inCallback.items).toBe(10);
+    expect(inCallback.items).toBe(DOCK.length);
     expect(inCallback.overflow).toBe(false);
     expect(inCallback.row).toBeLessThanOrEqual(dockCss(env.vp).maxWidth + 0.5);
     await v.unmount();
@@ -366,7 +318,7 @@ describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, 
 
   it('a window resize alone (no observer notification): refitted within the event', async () => {
     moveTo(at('2048x1100'));
-    const v = await mount();
+    const v = await mount(DOCK);
     moveTo(at('1366x768'));
     let inEvent = null;
     await act(async () => {
@@ -379,7 +331,7 @@ describe.skipIf(!haveFont)('the bar measures again as soon as its room changes, 
 
   it('the bar\'s own change (an item moved to the ⋯ popover): the observer measures nothing more', async () => {
     moveTo(at('1536x750'));
-    const v = await mount();
+    const v = await mount(DOCK);
     const before = v.items().length;
     const row = renderedRow(v.nav);
     await act(async () => { notifyResize(v.nav, row); });

@@ -246,7 +246,6 @@ describe('every opacity left in the views of focus + context has a reason', () =
     ['CircleOfDoom.jsx', /\.style\('opacity', [01]\)/, 'tooltip shown / hidden'],
     ['CircleOfDoom.jsx', /kind === 'lapped'.*fillOpacity="0\.45"/, 'legend swatch of the lapped-car encoding'],
     ['CircleOfDoom.jsx', /fillOpacity=\{c\.lappedByLeader \? 0\.45 : 1\}/, 'lapped by the leader: an encoding with its legend row, not context'],
-    ['LapTimeChart.jsx', /teamLogo\} alt="" style=.*opacity: 0\.5/, 'decorative logo image (alt="") of a forecast row'],
     ['LapTimeChart.jsx', /\.attr\('opacity', 0\.18\)/, 'forecast uncertainty band (an area, not context)'],
     ['LapTimeChart.jsx', /tooltip\.style\.opacity = '[01]'/, 'tooltip shown / hidden'],
     ['LapTimeChart.jsx', /pointerEvents: 'none', opacity: 0,/, 'tooltip hidden until hovered'],

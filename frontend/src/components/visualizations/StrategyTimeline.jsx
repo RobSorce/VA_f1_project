@@ -555,6 +555,7 @@ export default function StrategyTimeline({ showOverlays = false }) {
           .attr('text-anchor', 'middle')
           .attr('fill', TEXT_COLORS.muted)
           .style('font-size', CHART_FONT.label)
+          .style('font-variant-numeric', 'tabular-nums')
           .attr('font-weight', 600)
           .text(`L${currentLap}`);
       }

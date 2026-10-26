@@ -17,7 +17,7 @@
 //
 // Mounted in the mini DOM in the four Pit Wall cells (helpers/pitWallMaps.js:
 // the CSS as written), Monza 2024, the focus driver and four selected
-// drivers; the hint's width from the Formula1 metrics of public/fonts.
+// drivers; the hint's width from the Inter metrics of public/fonts.
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
@@ -53,7 +53,7 @@ const { computeSessionTimeOffset } = await import('../utils/raceTime.js');
 const { installResizeObserverMock } = await import('./helpers/chartFixtures.js');
 const { loadCss, px, VIEWPORTS } = await import('./helpers/layoutModel.js');
 const { trackMapPanelAt, declAt } = await import('./helpers/pitWallMaps.js');
-const { textWidth, haveFormula1 } = await import('./helpers/fontWidths.js');
+const { textWidth, haveWebFont } = await import('./helpers/fontWidths.js');
 const L = await import('../utils/views/trackMapLayout.js');
 const { CHART_HELP } = await import('../utils/chartHelp.js');
 const { default: TrackMap } = await import('../components/visualizations/TrackMap.jsx');
@@ -165,9 +165,10 @@ describe('The HUD columns, their priority, the hint and the count (trackMapLayou
     expect(L.hudColumnsHint(3)).toBe('+3 cols');
   });
 
-  it.skipIf(!haveFormula1)('the hint fits the driver column and the free left of the tyre header, at the largest type (11.5 px)', () => {
-    // the CSS: the hint in Formula1 Regular, the driver header lets it run on; the tyre label right-aligned
-    expect(declAt(css, '.track-hud__cols', 'font-family', VIEWPORTS[0])).toMatch(/^'Formula1'/);
+  it.skipIf(!haveWebFont)('the hint fits the driver column and the free left of the tyre header, at the largest type (11.5 px)', () => {
+    // the CSS: the hint in Inter Regular, the driver header lets it run on; the tyre label right-aligned
+    expect(declAt(css, '.track-hud__cols', 'font-family', VIEWPORTS[0])).toBe('var(--font-primary)');
+    expect(css.tokens.get('--font-primary')).toMatch(/^'Inter'/);
     expect(declAt(css, '.track-hud__cols', 'font-weight', VIEWPORTS[0])).toBe('400');
     expect(declAt(css, '.track-hud__h--drv', 'overflow', VIEWPORTS[0])).toBe('visible');
     expect(declAt(css, '.track-hud__h', 'text-align', VIEWPORTS[0])).toBe('right');

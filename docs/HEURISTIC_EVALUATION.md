@@ -1,4 +1,4 @@
-# Heuristic Evaluation — F1 Race Strategy Dashboard
+# Heuristic Evaluation — Race Strategy Dashboard
 
 Nielsen's ten usability heuristics applied to the current frontend
 (branch `v4`, commit state `324bb9f` + live edits). Conducted by
@@ -307,8 +307,9 @@ popover, storing full tree + per-panel settings in localStorage.
 ## H8 — Aesthetic and minimalist design
 
 Critique: the iOS/macOS liquid-glass dock (recently refined),
-broadcast-TV Leaderboard, Formula1 typography, and careful dark-theme
-tokens all support a minimalist aesthetic. Two concerns:
+broadcast-TV Leaderboard, the broadcast-style typeface of the time
+(since replaced by Inter), and careful dark-theme tokens all support a
+minimalist aesthetic. Two concerns:
 
 ### V8.1 — Panel tooltips expose every internal field **[severity 2]**
 

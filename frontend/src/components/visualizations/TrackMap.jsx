@@ -730,7 +730,7 @@ export default function TrackMap({ compact = false }) {
               .attr('fill', TRACK_COLORS.drs)
               .style('font-size', ZOOMED_FONT.label)
               .attr('font-weight', '700')
-              .attr('font-family', "'Space Grotesk', sans-serif")
+              .attr('font-family', 'var(--rh-font-sans)')
               .attr('text-anchor', 'middle')
               .attr('dominant-baseline', 'central')
               .text('DRS');
@@ -1025,7 +1025,7 @@ export default function TrackMap({ compact = false }) {
         .attr('fill', textColor(FLAG_LABEL_COLORS[currentFlagStatus] || TEXT_COLORS.primary, SURFACES.page))
         .style('font-size', ZOOMED_FONT.data)
         .attr('font-weight', '700')
-        .attr('font-family', "'Titillium Web', sans-serif")
+        .attr('font-family', 'var(--font-primary)')
         .text(label);
     }
     // box: the label is centred in the new viewBox (D4)
@@ -1510,7 +1510,7 @@ export default function TrackMap({ compact = false }) {
     color: active ? textColor(color, SURFACES.panel) : TEXT_COLORS.muted,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
-    fontFamily: "'Titillium Web', sans-serif",
+    fontFamily: 'var(--font-primary)',
     letterSpacing: '0.04em',
     lineHeight: '18px',
   });
@@ -1874,7 +1874,7 @@ export default function TrackMap({ compact = false }) {
               background: markColor(winnerColor, SURFACES.page),
             }} />
             <span style={{
-              fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+              fontFamily: 'var(--font-primary)',
               fontWeight: 900,
               fontSize: '13px',
               letterSpacing: '0.15em',
@@ -1883,7 +1883,7 @@ export default function TrackMap({ compact = false }) {
               CHEQUERED FLAG
             </span>
             <span style={{
-              fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+              fontFamily: 'var(--font-primary)',
               fontWeight: 900,
               fontSize: '14px',
               color: textColor(winnerColor, SURFACES.page),

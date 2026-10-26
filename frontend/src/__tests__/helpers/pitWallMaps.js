@@ -1,7 +1,7 @@
 // Test helper: the room of the two maps of the Pit Wall
 // row (Track Map, Circle of Doom) at a viewport, from the CSS as written,
 // PitWallLayout.jsx's grid (layoutModel.js pitWallAt), the Track Map's
-// controls (utils/views/trackMapLayout.js) and the Formula1 font metrics
+// controls (utils/views/trackMapLayout.js) and the Inter font metrics
 // (fontWidths.js). Shared by __tests__/trackmap.toolbar.test.jsx,
 // __tests__/circleOfDoom.fill.test.jsx and
 // the static layout report (layout_fit.mjs, Pit Wall maps).
@@ -18,12 +18,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { px, pitWallSpec, pitWallAt } from './layoutModel.js';
 import { mediaMatches, resolveVars } from './layoutCss.js';
-import { textWidth, haveFormula1 } from './fontWidths.js';
+import { textWidth, haveWebFont } from './fontWidths.js';
 import {
   trackMapControls, toolbarLayout, TOOL_PX, LAYERS_INLINE_MIN_H, ROTATE_TOOLS_MIN_W,
 } from '../../utils/views/trackMapLayout.js';
 
-export { haveFormula1 };
+export { haveWebFont };
 
 /** Last declaration of `prop` on a rule naming exactly `selector`, live at vp. */
 export function declAt(css, selector, prop, vp) {
@@ -73,9 +73,9 @@ export function titleBlockWidth(css, vp, title = 'Track Map', key = '1') {
   const size = px(css, '--font-size-sm', vp);
   const label = px(css, '--font-size-label', vp);
   const gap = lengthAt(css, declAt(css, '.panel-title', 'gap', vp), vp);
-  const text = haveFormula1
+  const text = haveWebFont
     ? textWidth(title, size, 700, { letterSpacingEm: 0.05, upper: true })
-    : title.length * 0.75 * size; // Formula1 Bold upper bound when the font files are missing
+    : title.length * 0.75 * size; // an upper bound of Bold capitals when the font files are missing
   const kbd = key ? 6 + 2 * 6 + 2 + key.length * 0.6 * label : 0;
   return text + (key ? gap + kbd : 0);
 }

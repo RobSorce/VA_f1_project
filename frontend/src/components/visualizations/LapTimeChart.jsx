@@ -20,31 +20,6 @@ import {
 import Panel from '../ui/Panel';
 import { useChartBox, chartSize, useBoxSize } from '../../utils/views/chartBox';
 import Legend from '../ui/Legend';
-import { publicAsset } from '../../utils/publicAsset';
-
-
-/* ── Team name → logo file mapping (handles FastF1 name variations); files of
-   public/team-logos under the build's base (utils/publicAsset.js) */
-const TEAM_LOGO_MAP = {
-  'McLaren': publicAsset('team-logos/mclaren.png'),
-  'Ferrari': publicAsset('team-logos/ferrari.png'),
-  'Red Bull Racing': publicAsset('team-logos/red-bull.png'),
-  'Red Bull': publicAsset('team-logos/red-bull.png'),
-  'Mercedes': publicAsset('team-logos/mercedes.png'),
-  'Aston Martin': publicAsset('team-logos/aston-martin.jpg'),
-  'Alpine': publicAsset('team-logos/alpine.png'),
-  'Alpine F1 Team': publicAsset('team-logos/alpine.png'),
-  'Williams': publicAsset('team-logos/williams.png'),
-  'Haas F1 Team': publicAsset('team-logos/haas.png'),
-  'Haas': publicAsset('team-logos/haas.png'),
-  'RB': publicAsset('team-logos/rb.png'),
-  'Racing Bulls': publicAsset('team-logos/rb.png'),
-  'AlphaTauri': publicAsset('team-logos/rb.png'),
-  'Kick Sauber': publicAsset('team-logos/kick-sauber.png'),
-  'Stake F1 Team Kick Sauber': publicAsset('team-logos/kick-sauber.png'),
-  'Alfa Romeo': publicAsset('team-logos/kick-sauber.png'),
-  'Sauber': publicAsset('team-logos/kick-sauber.png'),
-};
 
 /* ── Column definitions for the resizable grid: TIMING_COLUMNS
    (utils/views/lapTimeChart.js), each header label fitted to its width ── */
@@ -126,7 +101,7 @@ export default function LapTimeChart() {
     return map;
   }, [sessionData]);
 
-  /* ── Driver info lookup: abbreviation → { fullName, firstName, surname, teamName, teamLogo } */
+  /* ── Driver info lookup: abbreviation → { fullName, firstName, surname, teamName } */
   const driverInfoMap = useMemo(() => {
     const map = {};
     (drivers || []).forEach((d) => {
@@ -139,7 +114,6 @@ export default function LapTimeChart() {
         firstName,
         surname,
         teamName: d.TeamName || '',
-        teamLogo: TEAM_LOGO_MAP[d.TeamName] || null,
       };
     });
     return map;
@@ -187,7 +161,7 @@ export default function LapTimeChart() {
       ...row,
       firstName: info.firstName || '',
       surname: info.surname || row.driver,
-      teamLogo: info.teamLogo || null,
+      teamName: info.teamName || '',
       color: getDriverColor(row.driver),
       qualiSegment: qualiSegmentMap[row.driver] || null,
     };
@@ -274,9 +248,8 @@ export default function LapTimeChart() {
   const rowBudget = rowCount > 0 ? timingHeight / rowCount : 28;
   // Row padding: shrink from 2px to 0px as space gets tight
   const rowPadV = Math.max(0, Math.min(2, Math.floor((rowBudget - 18) / 2)));
-  // Rows tighten their padding and logos when space is short; the text keeps
-  // the data floor (CHART_FONT.data, >= 11 px) at every size
-  const compactTiming = rowBudget < 22;
+  // Rows tighten their padding when space is short; the text keeps the data
+  // floor (CHART_FONT.data, >= 11 px) at every size
   const rowFontSize = CHART_FONT.data;
   const rowLapFontSize = CHART_FONT.data;
 
@@ -477,39 +450,18 @@ export default function LapTimeChart() {
                 background: markColor(row.color),
               }} />
 
-              {/* Team logo */}
-              {show.team && <span style={{
-                ...cellStyle,
-                justifyContent: 'center',
-              }}>
-                {row.teamLogo && (
-                  <img
-                    src={row.teamLogo}
-                    alt=""
-                    style={{
-                      width: compactTiming ? 16 : 20,
-                      height: compactTiming ? 16 : 20,
-                      objectFit: 'contain',
-                      filter: 'brightness(1.1)',
-                    }}
-                  />
-                )}
-              </span>}
-
-              {/* Driver name: flag (race end) + firstName (light) + SURNAME (bold).
-                  A narrow column ends the first name, then the surname, in an
-                  ellipsis (the first name gives way first); the full name is
-                  the cell's title. The surname in Formula1 Bold, not the Wide
-                  face that weight 800 picks (HULKENBERG 92.9 px at 11 px, not
-                  170.4: the Wide surname alone filled the 170 px column) */}
+              {/* Driver name: flag (race end) + firstName (light) + SURNAME (bold,
+                  700). A narrow column ends the first name, then the surname,
+                  in an ellipsis (the first name gives way first); the full name
+                  and the team are the cell's title (the team's colour is the bar) */}
               <span
-                title={[row.firstName, row.surname].filter(Boolean).join(' ')}
+                title={[[row.firstName, row.surname].filter(Boolean).join(' '), row.teamName].filter(Boolean).join(', ')}
                 style={{
                   ...cellStyle,
                   justifyContent: 'flex-start',
                   fontSize: CHART_FONT.data,
                   color: TEXT_COLORS.primary,
-                  fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+                  fontFamily: 'var(--font-primary)',
                   overflow: 'hidden',
                   minWidth: 0,
                   gap: 3,
@@ -717,13 +669,6 @@ export default function LapTimeChart() {
                       background: marks.bar,
                     }} />
 
-                    {/* Team logo */}
-                    {show.team && <span style={{ ...cellStyle, justifyContent: 'center' }}>
-                      {focusRow.teamLogo && (
-                        <img src={focusRow.teamLogo} alt="" style={{ width: 16, height: 16, objectFit: 'contain', opacity: 0.5 }} />
-                      )}
-                    </span>}
-
                     {/* Driver name ("predicted" gives way first, in an ellipsis) */}
                     <span
                       title={`${focusRow.surname} predicted`}
@@ -731,7 +676,7 @@ export default function LapTimeChart() {
                         ...cellStyle, justifyContent: 'flex-start',
                         fontSize: CHART_FONT.data, fontStyle: 'italic',
                         color: STATUS_COLORS.predicted,
-                        fontFamily: "'Formula1', 'Titillium Web', sans-serif",
+                        fontFamily: 'var(--font-primary)',
                         overflow: 'hidden', minWidth: 0,
                       }}
                     >

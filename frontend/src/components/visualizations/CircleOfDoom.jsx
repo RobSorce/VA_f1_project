@@ -153,8 +153,8 @@ const MIN_CENTRE_FONT = 11;
 const MIN_CENTRE_NOTE = 10;
 // px: a ring held at exactly the radius the centre lines need still holds them
 const FIT_EPS = 1e-6;
-// Width of a character of the Wide face (weight 900) in em, where the text
-// cannot be measured (Formula1-Wide: 1.2-1.4 em per character)
+// Width of a character at weight 900 in em, where the text cannot be
+// measured (an upper bound: no letter of Inter Black is as wide)
 const WIDE_EM = 1.3;
 // Ring radius tried, as fractions of the largest that fits, until the labels fit
 const RING_SCALES = [1, 0.9, 0.8, 0.7];
@@ -391,7 +391,7 @@ function centreItems(R, {
   items.push({
     key: 'lap',
     lines: [line('lap', lapText, 'cod-centre__lap', big)],
-    // the Wide face takes about twice the room of the Bold one
+    // the Bold weight, a little narrower than the Black one, in a small ring
     narrow: [line('lap', lapText, 'cod-centre__lap cod-centre__lap--bold', big)],
     status: { key: 'lap', text: lapText, cls: 'cod-status__lap' },
   });
@@ -503,8 +503,8 @@ function secondTeamCars(driversInfo, lapTimes) {
 
 /**
  * Width in px of a text as drawn: measured in the real font (measure(text,
- * size, weight, italic)) or, without a canvas, CHAR_EM per character (WIDE_EM
- * for weight 900, the Wide face); plus the letter-spacing.
+ * size, weight, italic)) or, where text is not laid out, CHAR_EM per
+ * character (WIDE_EM for weight 900); plus the letter-spacing.
  */
 function textWidth(measure, text, size, {
   weight = 700, italic = false, spacing = 0, upper = false,
@@ -819,12 +819,32 @@ function row(label, value) {
     + `<span class="tooltip-value">${value}</span></div>`;
 }
 
+// One hidden SVG text in the page measures the labels as the plot draws
+// them, with its family and its font-variant-numeric (.cod: tabular-nums); a
+// canvas ignores the tabular figures. null where SVG text is not laid out
+// (server rendering, the tests' DOM).
+let measureNode = null;
+function svgMeasureNode() {
+  if (measureNode?.isConnected) return measureNode;
+  if (typeof document === 'undefined' || !document.body || typeof document.createElementNS !== 'function') return null;
+  const NS = 'http://www.w3.org/2000/svg';
+  const node = document.createElementNS(NS, 'text');
+  if (typeof node.getComputedTextLength !== 'function') return null;
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.cssText = 'position:absolute;left:-10000px;top:0;width:0;height:0;overflow:hidden;visibility:hidden;letter-spacing:0';
+  svg.appendChild(node);
+  document.body.appendChild(svg);
+  measureNode = node;
+  return node;
+}
+
 /**
- * Width in px of a text in the font it is drawn with (canvas measureText, the
- * family the element inherits; weight 700, the labels', unless given; italic
- * when asked), or null without a canvas (server rendering: the layout then
- * estimates CHAR_EM per character). Measured again once the web fonts have
- * loaded.
+ * Width in px of a text in the font it is drawn with (an SVG text with the
+ * family and the numeric forms the element inherits; weight 700, the
+ * labels', unless given; italic when asked), or null where text is not laid
+ * out (server rendering: the layout then estimates CHAR_EM per character).
+ * Measured again once the web fonts have loaded.
  */
 function useTextMeasure(el) {
   const [fontsVersion, setFontsVersion] = useState(0);
@@ -841,16 +861,20 @@ function useTextMeasure(el) {
     };
   }, []);
   return useMemo(() => {
-    if (!el || typeof document === 'undefined') return null;
-    const ctx = document.createElement('canvas').getContext?.('2d');
-    if (!ctx) return null;
-    const family = getComputedStyle(el).fontFamily || 'sans-serif';
+    if (!el) return null;
+    const node = svgMeasureNode();
+    if (!node) return null;
+    const cs = getComputedStyle(el);
+    const family = cs.fontFamily || 'sans-serif';
+    const numeric = cs.fontVariantNumeric || 'normal';
     const cache = new Map();
     return (text, fontSize, weight = 700, italic = false) => {
       const key = `${fontSize}|${weight}|${italic ? 1 : 0}|${text}`;
       if (!cache.has(key)) {
-        ctx.font = `${italic ? 'italic ' : ''}${weight} ${fontSize}px ${family}`;
-        cache.set(key, ctx.measureText(text).width);
+        node.style.font = `${italic ? 'italic ' : ''}${weight} ${fontSize}px ${family}`;
+        node.style.fontVariantNumeric = numeric; // after the shorthand, which resets it
+        node.textContent = text;
+        cache.set(key, node.getComputedTextLength());
       }
       return cache.get(key);
     };
@@ -950,7 +974,7 @@ function HatchPattern({ id }) {
  * @param {{width: number, height: number}} [props.slotSize] - size of the slot in px
  *   (tests: the Pit Wall cell at a given viewport); measured otherwise
  * @param {function(string, number, number=, boolean=): number} [props.measureText] -
- *   text width in px (text, font size, weight, italic) instead of the canvas
+ *   text width in px (text, font size, weight, italic) instead of the page's
  *   measurement (tests with the real font metrics)
  * @param {number} [props.pitInK=0] - initial k of the "pit in k laps" stepper (tests, exports)
  */
@@ -993,8 +1017,8 @@ export default function CircleOfDoom({
   // wrap element itself is measured (parent: false). null until measured.
   const wrapBox = useChartBox(useMemo(() => ({ current: wrapEl }), [wrapEl]), { parent: false });
   const wrapSize = wrapBox.width > 0 && wrapBox.height > 0 ? wrapBox : null;
-  const canvasMeasure = useTextMeasure(plotEl);
-  const measure = measureText || canvasMeasure;
+  const domMeasure = useTextMeasure(plotEl);
+  const measure = measureText || domMeasure;
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
   const trackStatus = useMemo(

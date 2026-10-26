@@ -13,7 +13,7 @@
 // is drawn on the map's corner, half the content padding (.panel--dense).
 //
 // The fit is the static model of the cell (helpers/pitWallMaps.js: the CSS
-// as written, PitWallLayout.jsx's grid, the Formula1 metrics of the title);
+// as written, PitWallLayout.jsx's grid, the Inter metrics of the title);
 // the mounted view (mini DOM) is checked to be that model: one header row of
 // the modelled buttons, nothing but the map in the panel's content.
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -49,7 +49,7 @@ const { computeSessionTimeOffset } = await import('../utils/raceTime.js');
 const { installResizeObserverMock, syntheticSession } = await import('./helpers/chartFixtures.js');
 const { loadCss, px, VIEWPORTS } = await import('./helpers/layoutModel.js');
 const {
-  trackMapPanelAt, trackMapIsDense, haveFormula1,
+  trackMapPanelAt, trackMapIsDense, haveWebFont,
 } = await import('./helpers/pitWallMaps.js');
 const {
   trackMapControls, toolbarLayout, toolbarWidth, mapDrawPadding, TOOL_PX, LAYERS_INLINE_MIN_H, ROTATE_TOOLS_MIN_W,
@@ -136,7 +136,7 @@ describe('the model: the Pit Wall Track Map at the four viewports (CSS as writte
     if (name === '1536x750') expect(m.map.height).toBeGreaterThanOrEqual(180);
   });
 
-  it.skipIf(!haveFormula1).each(rows.map((r) => [r.vp.name, r]))('%s: the header is one row: title, key, toolbar and export fit the panel width', (name, { m }) => {
+  it.skipIf(!haveWebFont).each(rows.map((r) => [r.vp.name, r]))('%s: the header is one row: title, key, toolbar and export fit the panel width', (name, { m }) => {
     expect(m.headerRow.needed).toBeLessThanOrEqual(m.headerRow.available);
   });
 
@@ -197,7 +197,7 @@ describe('the mounted Track Map in its Pit Wall cell (mini DOM): the model\'s la
         // the key of what is drawn: S1-S3 and the DRS zone, on one line of the map's width
         const keyItems = [...v.key().querySelectorAll('.legend-item')].map(text);
         expect(keyItems).toEqual(['S1', 'S2', 'S3', 'DRS zone']);
-        if (haveFormula1) {
+        if (haveWebFont) {
           const label = px(css, '--font-size-label', vp);
           const xs = px(css, '--spacing-xs', vp);
           const swatch = { S1: 18, S2: 18, S3: 18, 'DRS zone': 14 };

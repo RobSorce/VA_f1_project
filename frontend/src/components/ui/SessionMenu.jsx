@@ -4,6 +4,7 @@ import * as api from '../../utils/apiClient';
 import { yearOptions } from '../../utils/seasons';
 import { sessionSwitchMessage } from '../../utils/sessionSwitchWarning';
 import { useBackendOnlyText } from '../../utils/demoMode';
+import { APP_NAME } from '../../utils/brand';
 
 const SESSION_TYPES = [
   { value: 'FP1', label: 'FP1' },
@@ -213,7 +214,7 @@ export default function SessionMenu({ isOpen, onClose }) {
         <div className="session-menu__header">
           <div className="session-menu__title">
             <span className="session-menu__title-accent" />
-            <span className="session-menu__title-text">Race Control</span>
+            <span className="wordmark session-menu__title-text">{APP_NAME}</span>
           </div>
           <button
             className="session-menu__close-btn"
