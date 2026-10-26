@@ -344,7 +344,10 @@ const ASYNC_ACTIONS = Object.entries(useF1Store.getState())
 
 beforeEach(async () => {
   for (const k of Object.keys(fx)) delete fx[k];
-  heldJobs.length = 0;
+  // A job the previous test left held is answered, not dropped: dropped, its
+  // channel stays busy in the simulation client and the next job on it waits
+  // forever (computeRaceProjection then never reached the worker)
+  releaseWorker();
   sessionFixtures();
   await onA();
   for (const f of Object.values(api)) if (f?.mockClear) f.mockClear();
