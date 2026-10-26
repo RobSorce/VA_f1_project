@@ -105,16 +105,16 @@ Distinguishable: smallest CIEDE2000 pair >= 10 (Machado 2009 severity 1.0 simula
    smallest pair over all vision types: 14.1 -> PASS (distinguishable on colour alone)
    mark contrast >= 3: PASS
 
-## PCA outcome classes (cividis)
+## PCA outcome classes (cividis ends, cyan middle)
    cue: ordered by lightness; must also stand alone
    podium           #fdea45  sim P/D/T #FFE326 #FFEB51 #FFDACA  contrast page 15.38, panel 14.83, raised 13.23, elevated 11.75
-   points           #a9a177  sim P/D/T #A99E74 #ACA278 #B19B96  contrast page 7.27, panel 7.01, raised 6.25, elevated 5.56
+   points           #13b1ce  sim P/D/T #9DABD0 #869BCE #00BBBA  contrast page 7.41, panel 7.14, raised 6.37, elevated 5.66
    none             #61636f  sim P/D/T #606470 #5F636F #5E6567  contrast page 3.18, panel 3.07, raised 2.74, elevated 2.43
-   normal        closest pair podium / points                dE2000 24.6
-   protanopia    closest pair podium / points                dE2000 25.1
-   deuteranopia  closest pair podium / points                dE2000 24.0
-   tritanopia    closest pair podium / points                dE2000 17.8
-   smallest pair over all vision types: 17.8 -> PASS (distinguishable on colour alone)
+   normal        closest pair points / none                  dE2000 33.7
+   protanopia    closest pair points / none                  dE2000 27.0
+   deuteranopia  closest pair points / none                  dE2000 24.6
+   tritanopia    closest pair points / none                  dE2000 32.8
+   smallest pair over all vision types: 24.6 -> PASS (distinguishable on colour alone)
    mark contrast >= 3: PASS
 
 ## Ordered three-level scales (tyre-health zones / health %, battle levels)

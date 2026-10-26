@@ -126,6 +126,11 @@ describe('the panel, a short box (420 x 300)', () => {
     const first = rows();
     expect(first.length).toBeGreaterThan(0);
     expect(first.length).toBeLessThan(12);
+    // the rows of the other pages are laid out in the same grid, hidden, so
+    // the columns never change from page to page
+    const off = [...view.host.querySelectorAll('.pca-forest-row-offpage')];
+    expect(first.length + off.length).toBe(ANSWER.feature_importance.length);
+    expect(off.every((r) => r.style.visibility === 'hidden' && r.getAttribute('aria-hidden') === 'true' && !r.getAttribute('role'))).toBe(true);
     // the pager walks every feature
     const seen = [...first];
     for (let guard = 0; guard < 12; guard++) {
