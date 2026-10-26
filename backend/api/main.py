@@ -479,9 +479,9 @@ async def get_schedule(year: Season):
     if year in schedule_cache:
         return schedule_cache[year]
 
-    # 2. Disk cache
+    # 2. Disk cache (read off the event loop, as every file and FastF1 call)
     disk_path = _cache_file("schedule", year)
-    disk_data = _load_from_disk(disk_path)
+    disk_data = await asyncio.to_thread(_load_from_disk, disk_path)
     if disk_data is not None:
         logger.info(f"Loaded schedule from disk cache: {disk_path.name}")
         schedule_cache[year] = disk_data
@@ -504,7 +504,7 @@ async def get_schedule(year: Season):
             )
         }
         schedule_cache[year] = result
-        _save_to_disk(disk_path, result)
+        await asyncio.to_thread(_save_to_disk, disk_path, result)
         return result
     except asyncio.TimeoutError:
         logger.error(f"FastF1 schedule fetch timed out for {year}")
@@ -537,22 +537,22 @@ async def get_lap_times(year: Season, round_num: RoundNumber, driver: Optional[s
 async def get_telemetry(year: Season, round_num: RoundNumber, driver: DriverCode, lap: Optional[LapNumber] = None,
                         session_type: SessionType = "R"):
     """Get telemetry data for a specific driver."""
-    try:
-        # Disk cache for telemetry (keyed by driver + lap)
-        lap_key = lap if lap else "fastest"
+    # Disk cache for telemetry (keyed by driver + lap)
+    lap_key = lap if lap else "fastest"
+
+    def _telemetry():
+        # In a worker thread: the disk cache, FastF1 and the JSON conversion
+        # never hold the event loop
         cache_path = _cache_file("telemetry", year, round_num, session_type, driver, lap_key)
         cached = _load_from_disk(cache_path)
         if cached is not None:
             logger.info(f"Telemetry from disk cache: {driver} lap {lap_key}")
             return cached
 
-        def _fetch():
-            with _fastf1_lock:
-                session = get_raw_session(year, round_num, session_type, offline=True,
-                                          laps=True, telemetry=True, weather=False, messages=False)
-                return extractor.extract_telemetry(session, driver, lap)
-
-        telemetry = await asyncio.to_thread(_fetch)
+        with _fastf1_lock:
+            session = get_raw_session(year, round_num, session_type, offline=True,
+                                      laps=True, telemetry=True, weather=False, messages=False)
+            telemetry = extractor.extract_telemetry(session, driver, lap)
 
         if telemetry is None or (hasattr(telemetry, 'empty') and telemetry.empty):
             result = {
@@ -569,6 +569,9 @@ async def get_telemetry(year: Season, round_num: RoundNumber, driver: DriverCode
 
         _save_to_disk(cache_path, result)
         return result
+
+    try:
+        return await asyncio.to_thread(_telemetry)
     except Exception:
         raise server_error(logger, "Loading the telemetry")
 
@@ -624,9 +627,9 @@ async def get_positions(year: Season, round_num: RoundNumber, session_type: Sess
 async def get_race_frames(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get race replay frames."""
     try:
-        # Check disk cache first (instant)
+        # Check disk cache first (a file of several MB: read in a thread)
         disk_path = _disk_cache_path("frames", year, round_num, session_type)
-        disk_data = _load_from_disk(disk_path)
+        disk_data = await asyncio.to_thread(_load_from_disk, disk_path)
         if disk_data is not None:
             logger.info(f"Loaded frames from disk cache: {disk_path.name}")
             return disk_data
@@ -965,11 +968,18 @@ async def get_championship(year: Season, load_all: bool = False):
 
     By default, only uses disk-cached sessions (instant).
     Set load_all=true to fetch ALL rounds from FastF1 (slow first time).
+    The work (FastF1 schedule and sessions, cache files) runs in a worker
+    thread: the server answers other requests meanwhile.
     """
+    return await asyncio.to_thread(_championship, year, load_all)
+
+
+def _championship(year: int, load_all: bool) -> Dict[str, Any]:
+    """Blocking part of /api/championship (runs in a worker thread)."""
     # If load_all requested, bypass caches and recompute
     if load_all:
         try:
-            result = await asyncio.to_thread(_compute_championship, year, fast_only=False)
+            result = _compute_championship(year, fast_only=False)
             championship_cache[year] = result
             disk_path = _cache_file("championship", year)
             _save_to_disk(disk_path, result)
@@ -1084,7 +1094,7 @@ async def get_point_features(point_id: PointId):
         raise HTTPException(status_code=400, detail="Invalid point_id format")
 
     driver, year_str, round_str = parts[0], parts[1], parts[2]
-    df = pd.read_csv(csv_path)
+    df = await asyncio.to_thread(pd.read_csv, csv_path)  # file work off the event loop
     match = df[(df['driver'] == driver) & (df['year'] == int(year_str)) & (df['round'] == int(round_str))]
     if match.empty:
         raise HTTPException(status_code=404, detail="Point not found")
@@ -1253,10 +1263,13 @@ async def load_live_full_session():
 
     logger.info(f"Loading full session via FastF1: {year} '{event_name}' {session_type}")
 
-    try:
+    def _full_session():
+        # In a worker thread: the FastF1 schedule (network), the session load
+        # and the walk over its payload never hold the event loop
         import fastf1
         # Use event name to find the round
-        schedule = fastf1.get_event_schedule(year, include_testing=False)
+        with _fastf1_lock:
+            schedule = fastf1.get_event_schedule(year, include_testing=False)
         round_num = None
         for _, row in schedule.iterrows():
             if event_name and (
@@ -1270,7 +1283,7 @@ async def load_live_full_session():
         if round_num is None:
             raise HTTPException(status_code=404, detail=f"No round of the {year} schedule matches the live event.")
 
-        data = await asyncio.to_thread(load_session, year, round_num, session_type)
+        data = load_session(year, round_num, session_type)
         logger.info(f"Full session loaded: {len(data.get('lap_times', []))} lap entries")
         # Sanitize any remaining NaN/Inf before JSON serialization
         import math as _math
@@ -1283,6 +1296,9 @@ async def load_live_full_session():
                 return [_sanitize(v) for v in obj]
             return obj
         return _sanitize(data)
+
+    try:
+        return await asyncio.to_thread(_full_session)
     except HTTPException:
         raise
     except Exception:

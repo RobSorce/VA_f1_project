@@ -146,6 +146,20 @@ def _lap_fraction(session_time, window):
     return min(1.0, max(0.0, (session_time - start) / (end - start)))
 
 
+def _read_cached(session_path: Path, frames_path: Path):
+    """The cached session payload and its frames (None without a frames file).
+    FileNotFoundError without the session file."""
+    if not session_path.exists():
+        raise FileNotFoundError(f"No cached session: {session_path.name}")
+    with open(session_path) as f:
+        session_data = json.load(f)
+    frames_data = None
+    if frames_path.exists():
+        with open(frames_path) as f:
+            frames_data = json.load(f)
+    return session_data, frames_data
+
+
 class MockReplay:
     """Simulates a live F1 session from cached historical data."""
 
@@ -170,16 +184,8 @@ class MockReplay:
         session_path = CACHE_DIR / f"session_{year}_{round_num}_{session_type}.json"
         frames_path = CACHE_DIR / f"frames_{year}_{round_num}_{session_type}.json"
 
-        if not session_path.exists():
-            raise FileNotFoundError(f"No cached session: {session_path.name}")
-
-        with open(session_path) as f:
-            session_data = json.load(f)
-
-        frames_data = None
-        if frames_path.exists():
-            with open(frames_path) as f:
-                frames_data = json.load(f)
+        # Files of several MB: read in a worker thread, not on the event loop
+        session_data, frames_data = await asyncio.to_thread(_read_cached, session_path, frames_path)
 
         logger.info(f"Starting mock replay: {year} R{round_num} at {speed}x speed")
 
