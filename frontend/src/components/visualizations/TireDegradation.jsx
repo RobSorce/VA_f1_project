@@ -26,7 +26,6 @@ export default function TireDegradation() {
   // The box the chart fills (.deg-plot, the svg's parent): it lays out again
   // at each new size (D4)
   const box = useChartBox(svgRef);
-  const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const focusDriver = useF1Store((s) => s.focusDriver);
@@ -545,8 +544,6 @@ export default function TireDegradation() {
       title="Tyre Degradation"
       className="panel-degradation"
       controls={<>{driverBadge}<Legend items={legendItems} /></>}
-      focused={focusedView === 'tires'}
-      shortcutKey="4"
     >
       {brushBanner}
       <div className="viz-container deg-manager">

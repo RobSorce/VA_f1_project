@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
 import { useEscapeLayer } from '../../hooks/useEscapeLayer';
+import { viewKeyHint } from '../../hooks/useKeyboardShortcuts';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 
 const POPOVER_WIDTH = 360;
@@ -135,6 +136,7 @@ export default function DockCustomizePopover({ anchorRect, onClose }) {
             {entries.map((opt) => {
               const inDock = dockItems.includes(opt.id);
               const disableUntoggle = inDock && !canRemove;
+              const hint = viewKeyHint(opt.id);
               return (
                 <label
                   key={opt.id}
@@ -146,7 +148,7 @@ export default function DockCustomizePopover({ anchorRect, onClose }) {
                     <path d={opt.icon} />
                   </svg>
                   <span className="dock-customize-popover__label">{opt.label}</span>
-                  {opt.hint && <kbd className="dock-customize-popover__kbd">{opt.hint}</kbd>}
+                  {hint && <kbd className="dock-customize-popover__kbd">{hint}</kbd>}
                   <input
                     type="checkbox"
                     className="dock-customize-popover__checkbox"

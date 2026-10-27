@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
 import { useEscapeLayer } from '../../hooks/useEscapeLayer';
+import { viewKeyHint } from '../../hooks/useKeyboardShortcuts';
 
 const POPOVER_WIDTH = 260;
 const EDGE_PAD = 12;
@@ -69,7 +70,7 @@ export default function DockOverflowPopover({ items, anchorRect, onClose, onItem
               <path d={opt.icon} />
             </svg>
             <span className="dock-overflow-popover__label">{opt.label}</span>
-            {opt.hint && <kbd className="dock-overflow-popover__kbd">{opt.hint}</kbd>}
+            {viewKeyHint(opt.id) && <kbd className="dock-overflow-popover__kbd">{viewKeyHint(opt.id)}</kbd>}
           </button>
         ))}
       </div>

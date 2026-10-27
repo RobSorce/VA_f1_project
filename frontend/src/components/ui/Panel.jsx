@@ -18,7 +18,7 @@ export default function Panel({ title, icon, controls, children, className = '',
             {icon && <span className="panel-icon">{icon}</span>}
             {title}
             {shortcutKey && (
-              <kbd className="panel-shortcut-hint" title={`Press ${shortcutKey} to focus`}>{shortcutKey}</kbd>
+              <kbd className="panel-shortcut-hint" title={`Key ${shortcutKey} opens this view, or closes it when it is open`}>{shortcutKey}</kbd>
             )}
           </div>
           <div className="panel-controls" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

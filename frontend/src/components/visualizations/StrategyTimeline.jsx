@@ -6,6 +6,7 @@ import {
   STATUS_COLORS, TEXT_COLORS, GRID_COLORS, UI_COLORS, SURFACES, CHART_FONT, chartFontPx,
 } from '../../utils/colors';
 import { useSessionNow, useStintsRunning } from '../../hooks/useSessionNow';
+import { viewKeyHint } from '../../hooks/useKeyboardShortcuts';
 import { deriveStints } from '../../utils/stints';
 import { focusForecast } from '../../utils/forecast';
 import {
@@ -38,7 +39,6 @@ export default function StrategyTimeline() {
   // The box the chart fills (the svg's container): rows and layout follow it (D4)
   const box = useChartBox(boxRef, { parent: false });
   const [page, setPage] = useState(0);
-  const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
@@ -612,8 +612,7 @@ export default function StrategyTimeline() {
           <Legend items={legendItems} />
         </>
       )}
-      focused={focusedView === 'strategy'}
-      shortcutKey="3"
+      shortcutKey={viewKeyHint('strategy')}
     >
       <div ref={boxRef} className="viz-container">
         <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />

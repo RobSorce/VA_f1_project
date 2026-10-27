@@ -2307,7 +2307,6 @@ export const useF1Store = create(persist((set, get) => ({
 
   // ── Command Palette & Keyboard ────────────────────────────────
   commandPaletteOpen: false,
-  focusedView: null,         // 'trackmap' | 'leaderboard' | 'laptimes' | 'strategy' | 'tires' | null
   compareMode: false,
   compareDrivers: [],        // max 2 driver abbreviations
   comparisonDriver: null,    // shared focus-vs-comparison target for Sector Delta / Undercut Calculator
@@ -2318,8 +2317,6 @@ export const useF1Store = create(persist((set, get) => ({
   toggleCommandPalette: () => set(s => ({ commandPaletteOpen: !s.commandPaletteOpen })),
   openCommandPalette: () => set({ commandPaletteOpen: true }),
   closeCommandPalette: () => set({ commandPaletteOpen: false }),
-  setFocusedView: (view) => set(s => ({ focusedView: s.focusedView === view ? null : view })),
-  clearFocusedView: () => set({ focusedView: null }),
   toggleCompareMode: () => set(s => ({
     compareMode: !s.compareMode,
     compareDrivers: s.compareMode ? [] : s.compareDrivers,
@@ -2739,7 +2736,6 @@ export const useF1Store = create(persist((set, get) => ({
       previewDriversLoading: false,
       preSelectedDrivers: [],
       commandPaletteOpen: false,
-      focusedView: null,
       compareMode: false,
       compareDrivers: [],
       comparisonDriver: null,

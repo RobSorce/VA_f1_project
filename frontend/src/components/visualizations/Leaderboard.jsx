@@ -92,7 +92,6 @@ const TYRE_DISPLAY_NAMES = {
 
 export default function Leaderboard({ collapsed }) {
   const toggleLeaderboard = useF1Store((s) => s.toggleLeaderboard);
-  const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
   const maxLap = useF1Store((s) => s.maxLap);
@@ -566,7 +565,6 @@ export default function Leaderboard({ collapsed }) {
       <div className="tower-broadcast-header__left">
         <div className="tower-broadcast-header__accent" />
         <span className="tower-broadcast-header__title">{isQualifyingReplay ? qualiSegment || 'QUALIFYING' : 'RACE'}</span>
-        <kbd className="panel-shortcut-hint" title="Press 2 to focus" style={{ opacity: focusedView === 'leaderboard' ? 1 : undefined }}>2</kbd>
       </div>
       <div className="tower-broadcast-header__right">
         {legendAsPopover && (
@@ -640,7 +638,7 @@ export default function Leaderboard({ collapsed }) {
 
   /* ── Main render ──────────────────────────────────────────────────── */
   return (
-    <Panel className={`panel--leaderboard${bezelActive ? ' panel--bezel-active' : ''}`} style={{ padding: 0, ...panelBorderStyle }} focused={focusedView === 'leaderboard'}>
+    <Panel className={`panel--leaderboard${bezelActive ? ' panel--bezel-active' : ''}`} style={{ padding: 0, ...panelBorderStyle }}>
       {header}
       {modeBar}
 

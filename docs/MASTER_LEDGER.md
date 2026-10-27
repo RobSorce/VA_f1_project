@@ -564,7 +564,7 @@ Native HTML5 drag & drop. `onDragStart` sets `dragId`; `onDragOver` sets `dropTa
 - **Keyboard:** `Cmd/Ctrl+Alt+D` resets the dock (no confirmation).
 
 ### 11.5 Categories (from `slotOptions.js`)
-`monitor` · `timing` · `tyres` · `strategy` · `analysis` · `prediction` · `system` (`CATEGORY_ORDER`). Each slot carries a Feather-style SVG `icon`, `category` and `hint` letter (single-key shortcut); only Pit Wall carries the `isMode` flag (a mode switch, not a view). The dock's toggle lists leave out Pit Wall (`isMode`) and Settings (by its id).
+`monitor` · `timing` · `tyres` · `strategy` · `analysis` · `prediction` · `system` (`CATEGORY_ORDER`). Each slot carries a Feather-style SVG `icon` and a `category`; its key hint (the dock, its popovers, the panel headers) is read from the key handler's binding table (`hooks/useKeyboardShortcuts.js` `VIEW_KEYS`, `viewKeyHint`), not written in the slot; only Pit Wall carries the `isMode` flag (a mode switch, not a view). The dock's toggle lists leave out Pit Wall (`isMode`) and Settings (by its id).
 
 ### 11.6 No scroll
 The dock never scrolls: `.bottom-tab-bar` has `overflow: hidden` and `max-width: calc(100vw - 2 * var(--dock-side-gutter))`, and the items that do not fit go into the `⋯` popover (§11.1; `docs/SCROLL_HEURISTIC_EVALUATION.md`, S2).

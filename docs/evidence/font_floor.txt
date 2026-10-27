@@ -32,9 +32,9 @@ JS/JSX literal font sizes: 495; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN
      DYNAMIC  :466  TOWER_FONT
      DYNAMIC  :478  TOWER_FONT
   components/visualizations/TrackMap.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 3
-     DYNAMIC  :732  ZOOMED_FONT.label
-     DYNAMIC  :1027  ZOOMED_FONT.data
-     DYNAMIC  :1290  ZOOMED_FONT.label
+     DYNAMIC  :731  ZOOMED_FONT.label
+     DYNAMIC  :1026  ZOOMED_FONT.data
+     DYNAMIC  :1289  ZOOMED_FONT.label
   utils/circleLabelLayout.js [other lane]: FAIL 0, CHECK 0, DYNAMIC 2
      DYNAMIC  :280  fs
      DYNAMIC  :334  fs

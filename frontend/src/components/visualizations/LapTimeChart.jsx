@@ -7,6 +7,7 @@ import {
   GRID_COLORS, withAlpha, chartFontPx,
 } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
+import { viewKeyHint } from '../../hooks/useKeyboardShortcuts';
 import { completedLaps, isLapCompleted, leaderLapEndTime } from '../../utils/raceTime';
 import {
   TIME_COLORS, qualiSegmentBadges, lapTimingSheet, timingSheetLegend, forecastChartLegend, lapBrushUpdate,
@@ -61,7 +62,6 @@ const RUNNING_STYLE = { color: STATUS_COLORS.running, fontStyle: 'italic', fontV
 export default function LapTimeChart() {
   const timingContainerRef = useRef(null);
 
-  const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const currentLap = useF1Store((s) => s.currentLap);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -311,7 +311,7 @@ export default function LapTimeChart() {
     : 'Timing Sheet';
 
   return (
-    <Panel title={brushTitle} controls={controls} focused={focusedView === 'laptimes'} shortcutKey="2" style={titleRange ? { borderColor: UI_COLORS.brush } : undefined}>
+    <Panel title={brushTitle} controls={controls} shortcutKey={viewKeyHint('laptimes')} style={titleRange ? { borderColor: UI_COLORS.brush } : undefined}>
       {/* Column headers with drag-to-resize handles */}
       <div style={headerStyle}>
         {COLUMN_DEFS.map((col, i) => (fit.shown[i] ? (
