@@ -49,6 +49,7 @@ export default function FieldPace() {
   const brushLapRange = useF1Store((s) => s.brushLapRange);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const focusDriver = useF1Store((s) => s.focusDriver);
+  const highlightedDriver = useF1Store((s) => s.highlightedDriver);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
@@ -227,17 +228,18 @@ export default function FieldPace() {
   }, [pace, pg.rows, width, height, axisH, answerOnly, selectedDrivers, focusDriver,
     setHighlightedDriver, setSelectedDrivers, setFocusDriver]);
 
-  // The hovered row: both of its marks ringed, without a redraw
+  // Rings without a redraw: both marks of the hovered row, and the mark of
+  // the driver highlighted in any view
   useEffect(() => {
     if (!svgRef.current) return;
     d3.select(svgRef.current).selectAll('.fp-row').each(function ring() {
-      const on = this.getAttribute('data-team') === hoverTeam;
+      const rowOn = this.getAttribute('data-team') === hoverTeam;
       d3.select(this).selectAll('.fp-dot').attr('stroke', function stroke() {
-        return on ? TEXT_COLORS.primary : this.getAttribute('fill') === SURFACES.panel
-          ? markColor(getDriverColor(this.parentNode.getAttribute('data-driver'))) : this.getAttribute('fill');
+        const driver = this.parentNode.getAttribute('data-driver');
+        return rowOn || driver === highlightedDriver ? TEXT_COLORS.primary : markColor(getDriverColor(driver));
       });
     });
-  }, [hoverTeam, pace, pg.rows, width, height]);
+  }, [hoverTeam, highlightedDriver, pace, pg.rows, width, height]);
 
   const controls = answerOnly ? null : (
     <>

@@ -37,6 +37,15 @@ import { LOW_DATA_FRACTION, LOW_DATA_MIN_LAPS } from './views/degradationViews';
 import { FORECAST_LAPS, FORECAST_EVALUATION as EVAL } from './forecast';
 import { FIRST_SEASON_WITHOUT_DRS } from './seasons';
 import { STATUS_GLYPHS, FONT_FLOOR_PX } from './colors';
+import {
+  PROVISIONAL_SHARE, NON_PIT_SHARE, WET_ROW_SHARE, TOP_WINDOW_CARS, FOCUS_WINDOW,
+} from './raceTrace';
+import { RACE_TRACE_FIT, LINE_WIDTHS } from './views/raceTraceChart';
+import {
+  PACE_MIN_LAP_FIELD, PACE_LOW_DATA_LAPS, PACE_BLOCK_LAPS, PACE_BOOTSTRAP_RUNS, PACE_INTERVAL, PACE_MAX_LAP_S,
+  RED_RESTART_LAPS,
+} from './fieldPace';
+import { FIELD_PACE_MIN, FIELD_PACE_ROW_PX, FIELD_PACE_MAX_ROWS } from './views/fieldPaceChart';
 
 const PIT_LOSS_METHOD = 'Pit loss is measured from this race\'s green-flag stops: '
   + 'in-lap + out-lap minus twice the driver\'s green-flag median lap; the median over stops is used.';
@@ -641,6 +650,59 @@ export const CHART_HELP = {
     seeAlso: [
       { tabId: 'trackmap', label: 'Track Map' },
       { tabId: 'strategy', label: 'Strategy Timeline' },
+    ],
+  },
+
+  racetrace: {
+    title: 'Race Trace',
+    summary: 'Who gained time on whom over the race so far, and what changed it (stops, SC / VSC / red flags, passes)?',
+    howToRead: [
+      'One line per driver through its lap ends: y = the reference\'s race time minus the car\'s at the end of each lap, up (+) = ahead of the reference. A car\'s race time is its lap row\'s end time (Time) since the common lap-1 start, never a sum of lap times, less any red-flag suspension (from the red flag to the first lap started after the race resumed).',
+      `Reference (the VS button): the field-median car (default: each lap the median lap of the cars with no pit-in or pit-out on it, every car's lap when fewer than ${Math.round(NON_PIT_SHARE * 100)} % of them have one), the leader (the first car across each lap: the timing's gap to the leader), or the focus car (the Lap Delta chart, its sign turned).`,
+      `A lap is provisional (hollow points) until ${Math.round(PROVISIONAL_SHARE * 100)} % of the cars running have completed it; until then the field reference carries the previous lap's median.`,
+      `Lines in team colour, the second car of a team dashed: the focus ${LINE_WIDTHS.focus} px, a selected or hovered car ${LINE_WIDTHS.selected} px, the others ${LINE_WIDTHS.other} px, mixed toward the panel while a car is emphasised.`,
+      'A chip on the out-lap of each tyre change, in the new compound\'s colour with its letter (S M H I W); a hollow P for a pit-lane visit on the same tyres. SC bands hatched, VSC dotted, red flags tinted, each named at its top. The dashed rule is now ("now · L…", "final" after the flag); the lap range is a tint.',
+      `Window (the second button): the top ${TOP_WINDOW_CARS} cars of the lead lap (the default without a focus), the focus car's gap ± the larger of ${FOCUS_WINDOW.minS} seconds and one stop plus ${FOCUS_WINDOW.pitMarginS} seconds (the default with a focus), or every car. Cars outside are counted at the edge (▲ n, ▼ n); a lapped car's label reads −1L.`,
+      'The bracket at the right margin hangs one pit loss below the focus car\'s gap (the leader\'s without a focus): the cars inside it are within one stop, they would be ahead if that car pitted now.',
+      PIT_LOSS_METHOD,
+      PIT_LOSS_FALLBACK,
+      'Hover a line to highlight the driver, click to select it, double-click to focus it; drag along the laps to set the lap range of every view; click an SC band for its laps; in a replay, click a stop chip to rewind to the lap before the in-lap (the decision).',
+      `From ${RACE_TRACE_FIT.full.width} x ${RACE_TRACE_FIT.full.height} px the end labels and the full legend; smaller, the labels on hover only; under ${RACE_TRACE_FIT.answer.width} x ${RACE_TRACE_FIT.answer.height} px the answer line only (the focus car's gap, lap and place). The provenance line under the chart names the source, the lap, the reference and its car count.`,
+    ],
+    limitations: [
+      `A wet race (more than ${Math.round(WET_ROW_SHARE * 100)} % of the laps on intermediates or wets): the field reference is unreliable while the field changes tyres together; the provenance line says so.`,
+      'A final lap\'s median keeps following the cars that complete that lap later, so the newest laps can still move a little; the race_trace_check script measures it on the cached races.',
+      'A retiring car\'s last row (no position, no lap time) is not a lap end: its line stops at its last crossing of the line.',
+      'Race and sprint sessions only.',
+    ],
+    seeAlso: [
+      { tabId: 'lapdelta', label: 'Lap Delta' },
+      { tabId: 'teampace', label: 'Race Pace' },
+      { tabId: 'strategy', label: 'Strategy Timeline' },
+    ],
+  },
+
+  teampace: {
+    title: 'Race Pace',
+    summary: 'Who had the race pace here, how sure is that, and who beat his team-mate?',
+    howToRead: [
+      `One row per team on a shared % axis: faster ◀ 0 = field median, same lap. Each comparable lap counts as its time over the median of the comparable laps of the same lap (at least ${PACE_MIN_LAP_FIELD} of them), minus 1, in %: negative = faster than the field on that lap.`,
+      `A comparable lap: lap 2 onwards, no pit-in or pit-out, green for the whole lap, under ${PACE_MAX_LAP_S} seconds, not deleted, on the tyre class (dry or wet) most laps of that lap number are on, and not a restart lap (from a red flag to ${RED_RESTART_LAPS} laps after it).`,
+      `Two marks a row in the team colour: a circle for the first driver, a diamond for the second (the shape tells team-mates apart), each at the driver's median with its ${Math.round(PACE_INTERVAL * 100)} % interval, the driver code and the laps counted (n). Hollow with LOW DATA under ${PACE_LOW_DATA_LAPS} laps. Rows sorted by the team median (both drivers' laps).`,
+      `The interval: a moving-block bootstrap, blocks of ${PACE_BLOCK_LAPS} consecutive laps of the driver, ${NUMBER(PACE_BOOTSTRAP_RUNS)} resamples with a fixed seed (the same laps always give the same interval). A car's laps are correlated (tyre age, traffic), so resampling single laps would give intervals too narrow.`,
+      `Right: the team-mate gap, the faster driver's median minus the slower's, with its interval: "decisive" only when the interval excludes 0, "not decisive" otherwise, "low data" when a driver has under ${PACE_LOW_DATA_LAPS} laps.`,
+      'The lap range (dragged on the Race Trace, the Position Tracker or the Lap Times bar) keeps its laps only; the chip "laps a–b ×" clears it. Hover a mark for its driver (a row elsewhere: the faster team-mate, as the store holds one highlighted driver), click a row to select both drivers, double-click a mark to focus the driver.',
+      `Rows of ${FIELD_PACE_ROW_PX} px, ${FIELD_PACE_MAX_ROWS} a page; a pager in the header for the rest (a box under ${FIELD_PACE_MIN.height} px high holds fewer); under ${FIELD_PACE_MIN.width} px wide the answer line only.`,
+    ],
+    limitations: [
+      'This race only: the season view needs an archive of the cached races.',
+      'Laps in traffic count: a free-air filter needs a gap threshold that is not calibrated yet.',
+      'Causal: only the laps completed at the replay clock.',
+    ],
+    seeAlso: [
+      { tabId: 'racetrace', label: 'Race Trace' },
+      { tabId: 'racepace', label: 'Race Pace Grid' },
+      { tabId: 'consistency', label: 'Consistency' },
     ],
   },
 };

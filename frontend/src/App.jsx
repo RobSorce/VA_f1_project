@@ -49,6 +49,8 @@ import SectorDeltaWaterfall from './components/visualizations/SectorDeltaWaterfa
 import UndercutCalculator from './components/visualizations/UndercutCalculator';
 import CircleOfDoom from './components/visualizations/CircleOfDoom';
 import RaceControlPanel from './components/visualizations/RaceControlPanel';
+import RaceTrace from './components/visualizations/RaceTrace';
+import FieldPace from './components/visualizations/FieldPace';
 
 // Command Palette & Keyboard
 import CommandPalette from './components/CommandPalette/CommandPalette';
@@ -90,6 +92,8 @@ const OVERLAY_TABS = {
   // Superseded by the Circle of Doom (not in the dock or the layouts); kept for direct opening
   undercut:     { title: 'Undercut Calculator',  Component: UndercutCalculator,    helpText: `For each lap the focus driver could pit on, the projected gap to the rival at the flag, both cars on their plans to the finish (+ = focus ahead; a stint longer than the tyres run is charged an extra stop); the rival stops on its likely lap (stint-life survival) or a chosen one. Lap model of the race simulation (degradation by compound and tyre age, fresh-tyre delta), no traffic. Pit loss is measured from this race's green-flag stops (in-lap + out-lap minus twice the driver's green-flag median lap; the median over stops is used). Before the first valid stop a ${FALLBACK_PIT_LOSS.median} s fallback is used, shown as "fallback".` },
   racecontrol:  { title: 'Race Control',          Component: RaceControlPanel,     helpText: 'Live race-control feed + retirements. Categorised messages (flags, DRS, safety car, penalties, stewards), filter chips, and an "out of session" sidebar populated from F1 SignalR Retired/Stopped flags.' },
+  racetrace:    { title: 'Race Trace',           Component: RaceTrace,             helpText: 'Who gained time on whom over the race so far: each car\'s race time against the field-median car (or the leader, or the focus car), up = ahead, with stops, SC / VSC / red bands and a one-stop bracket.' },
+  teampace:     { title: 'Race Pace',            Component: FieldPace,             helpText: 'Who had the race pace here: each team\'s comparable laps against the same lap\'s field median, in %, with an 80 % block-bootstrap interval and the team-mate gap (decisive when the interval excludes 0).' },
 };
 
 export default function App() {

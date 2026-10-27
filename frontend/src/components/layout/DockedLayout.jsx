@@ -37,6 +37,8 @@ const VIZ_TABS = [
   { id: 'championship', label: 'Championship' },
   { id: 'positionlaps', label: 'Position Tracker' },
   { id: 'settings', label: 'Settings' },
+  { id: 'racetrace', label: 'Race Trace' },
+  { id: 'teampace', label: 'Race Pace' },
 ];
 
 const SPLITTER_SIZE = 5;
