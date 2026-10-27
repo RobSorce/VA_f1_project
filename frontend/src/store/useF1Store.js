@@ -2489,6 +2489,23 @@ export const useF1Store = create(persist((set, get) => ({
     return { activeTab: tab };
   }),
 
+  // Open a view, or bring it forward when it is open, never close it
+  // (setActiveTab closes a docked tab already open): a floating window comes
+  // to the front, a docked tab becomes the active tab of its pane, any other
+  // view opens as the dock, the palette and the keys open it
+  showView: (tab) => {
+    const s = get();
+    if (s.openOverlays.includes(tab)) {
+      s.focusOverlay(tab);
+      return;
+    }
+    if (s.dockedLayout && s.activeTab !== 'pitwall' && _collectDockedTabs(s.dockedLayout).includes(tab)) {
+      set({ dockedLayout: _activateTabInTree(s.dockedLayout, tab) });
+      return;
+    }
+    s.setActiveTab(tab);
+  },
+
   closeOverlay: (tab) => set((s) => {
     // Utility overlays live in openOverlays — always check there first
     if (s.openOverlays.includes(tab)) {

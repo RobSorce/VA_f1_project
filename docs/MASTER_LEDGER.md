@@ -791,7 +791,7 @@ Connecting after a session finishes only gives a state snapshot — no lap histo
 - **External seek detection:** if `currentFrameIndex` changes from outside the loop (e.g., scrub on timeline), `wallStart` rebases.
 - **Session-swap safety:** frames are re-read from the store each tick so a session change mid-playback doesn't leave the loop indexing into a stale array.
 - **Speeds:** 0.25 / 0.5 / 1 / 2 / 4 / 8.
-- **Timeline Player (`ui/TimelinePlayer.jsx`)** — D3 scrubber with SC / VSC / Red Flag / Yellow Flag bands (tints 0.14 / 0.08), event marks (flags, chequered flag, pit window, fastest lap; the pit stops and position changes of the selected drivers), a tick per lap labelled every 1, 5 or 10 laps by race length, live mode degrades to a simple progress bar.
+- **Timeline Player (`ui/TimelinePlayer.jsx`)** — D3 scrubber with SC / VSC / Red Flag / Yellow Flag bands (tints 0.14 / 0.08), event marks (flags, chequered flag, pit window, fastest lap; the pit stops and position changes of the selected drivers; a pit mark opens Tyre Degradation, or brings it forward, with the lap range on the stint the stop ended), a tick per lap labelled every 1, 5 or 10 laps by race length, live mode degrades to a simple progress bar.
 
 ---
 
