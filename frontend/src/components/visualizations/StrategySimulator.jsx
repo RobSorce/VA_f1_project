@@ -13,7 +13,9 @@ import { planFromStints, whatIfMarksOf, pairedInterval } from '../../utils/simul
 import { drawStintStrips, stintSegments, lapTicks } from '../../utils/views/stintStripChart';
 import { drawPositionRanges, positionRangeRow, POSITION_AXIS_H } from '../../utils/views/positionRangeChart';
 import { drawLegend } from '../../utils/views/d3Legend';
-import { useBoxSize, useChartBox, fitRows, pageOf } from '../../utils/views/chartBox';
+import {
+  useBoxSize, useChartBox, fitRows, pageOf, fitBlocks,
+} from '../../utils/views/chartBox';
 import {
   CHART_COLORS, SEVERITY, PODIUM_COLOR, verdictMark, MINUS,
 } from '../../utils/views/strategyMarks';
@@ -333,61 +335,12 @@ export default function StrategySimulator() {
 
           {/* ── Simulation Results ── */}
           {shownTab === 'result' && simulatorResult && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                <span style={{ ...labelStyle, fontSize: CHART_FONT.data }}>Simulation Results</span>
-                <button type="button" onClick={handleSaveComparison} style={smallButton}>Save for Compare</button>
-              </div>
-
-              {/* Position comparison */}
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                <ResultCard
-                  label="Custom Strategy"
-                  pos={simulatorResult.simProjection.expectedPos}
-                  modePos={whatIfMarksOf(simulatorResult).shown.custom}
-                  range={simulatorResult.simProjection.posRange}
-                  podium={simulatorResult.simProjection.podiumProb}
-                  points={simulatorResult.simProjection.pointsProb}
-                  accent={UI_COLORS.brush}
-                />
-                <ResultCard
-                  label={simulatorResult.baselineLabel ? `Baseline: ${simulatorResult.baselineLabel}` : 'Baseline: model stops'}
-                  pos={simulatorResult.baselineProjection.expectedPos}
-                  modePos={whatIfMarksOf(simulatorResult).shown.baseline}
-                  range={simulatorResult.baselineProjection.posRange}
-                  podium={simulatorResult.baselineProjection.podiumProb}
-                  points={simulatorResult.baselineProjection.pointsProb}
-                  accent={TEXT_COLORS.muted}
-                />
-              </div>
-
-              {/* The two finishing distributions on one position axis (D3) */}
-              <ResultRanges result={simulatorResult} positions={driverList.length || 20} />
-
-              {/* Delta summary */}
-              <DeltaSummary
-                delta={simulatorResult.delta}
-                marks={whatIfMarksOf(simulatorResult)}
-                paired={simulatorResult.paired}
-              />
-              <div style={{ fontSize: CHART_FONT.label, ...muted, lineHeight: 1.4, flexShrink: 0 }}>
-                {simulatorResult.numSimulations?.toLocaleString('en-US')} sims at L{simulatorResult.computedAtLap},
-                {' '}both runs on the same random numbers: an identical plan differs by exactly 0.
-                {simulatorBaseline && (
-                  <button
-                    type="button"
-                    onClick={() => setSimulatorBaseline(null)}
-                    title="Compare with the model's own stops again"
-                    style={{
-                      marginLeft: 6, background: 'none', border: 'none', padding: 0,
-                      color: UI_COLORS.brush, cursor: 'pointer', fontSize: CHART_FONT.label, textDecoration: 'underline',
-                    }}
-                  >
-                    vs model stops
-                  </button>
-                )}
-              </div>
-            </>
+            <ResultTab
+              result={simulatorResult}
+              positions={driverList.length || 20}
+              onSave={handleSaveComparison}
+              onModelStops={simulatorBaseline ? () => setSimulatorBaseline(null) : null}
+            />
           )}
 
           {/* ── Saved Comparisons ── */}
@@ -574,6 +527,125 @@ function Pager({ page, total, onPage, what }) {
       <span>{what} {page.first}{'–'}{page.last} of {total}</span>
       <button type="button" aria-label={`Next ${what}`} disabled={page.page >= page.pages - 1} onClick={() => onPage(page.page + 1)} style={{ ...smallButton, padding: '0 6px' }}>{'▶'}</button>
     </div>
+  );
+}
+
+// Sections of the Result tab under its header line, in their order on screen:
+// the priority each keeps when the tab is too low for all of them (the
+// verdict first, never given up) and the words naming it when given up
+const RESULT_BLOCKS = [
+  { key: 'cards', priority: 1, name: 'the P label cards' },
+  { key: 'ranges', priority: 2, name: 'the finishing distributions' },
+  { key: 'verdict', priority: 0, name: 'the verdict' },
+  { key: 'note', priority: 3, name: 'the run note' },
+];
+const RESULT_GAP = 6;
+
+/**
+ * The Result tab: its header line, then the cards, the distributions, the
+ * verdict and the run note fitted to the height left (chartBox fitBlocks):
+ * each section whole or given up whole, the verdict always kept, the ones
+ * given up named in the "+N" of the header line. The sections' heights are
+ * measured on screen; a section given up keeps the height it had, measured
+ * again at each new width.
+ */
+function ResultTab({ result, positions, onSave, onModelStops }) {
+  const fitRef = useRef(null);
+  const box = useBoxSize(fitRef);
+  const blockRefs = useRef({});
+  const [measured, setMeasured] = useState({ width: -1, heights: {} });
+  const heights = measured.width === box.width ? measured.heights : {};
+  const fit = fitBlocks(box.height, RESULT_BLOCKS.map((b) => ({ ...b, height: heights[b.key] })), RESULT_GAP);
+  // After the D3 sections have drawn (their svg sizes): the heights of the
+  // sections on screen, kept with the width they were measured at
+  useEffect(() => {
+    const next = { ...heights };
+    for (const b of RESULT_BLOCKS) {
+      const el = blockRefs.current[b.key];
+      const h = el ? el.getBoundingClientRect().height : 0;
+      if (h > 0) next[b.key] = Math.ceil(h);
+    }
+    const same = measured.width === box.width
+      && RESULT_BLOCKS.every((b) => next[b.key] === measured.heights[b.key]);
+    if (!same) setMeasured({ width: box.width, heights: next });
+  });
+  const marks = whatIfMarksOf(result);
+  const refOf = (key) => (el) => { blockRefs.current[key] = el; };
+  const hiddenNames = fit.hidden.map((k) => RESULT_BLOCKS.find((b) => b.key === k).name);
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ ...labelStyle, fontSize: CHART_FONT.data }}>Simulation Results</span>
+        {hiddenNames.length > 0 && (
+          <span
+            className="sim-result__hidden"
+            title={`Hidden for the pane's height: ${hiddenNames.join(', ')}. Enlarge the pane to show them.`}
+            style={{ fontSize: CHART_FONT.label, fontWeight: 700, ...muted }}
+          >
+            +{hiddenNames.length}
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        {onModelStops && (
+          <button
+            type="button"
+            onClick={onModelStops}
+            title="Compare with the model's own stops again"
+            style={{
+              background: 'none', border: 'none', padding: 0,
+              color: UI_COLORS.brush, cursor: 'pointer', fontSize: CHART_FONT.label, textDecoration: 'underline',
+            }}
+          >
+            vs model stops
+          </button>
+        )}
+        <button type="button" onClick={onSave} style={smallButton}>Save for Compare</button>
+      </div>
+
+      <div ref={fitRef} className="sim-result" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: RESULT_GAP }}>
+        {/* Position comparison */}
+        {fit.shown.has('cards') && (
+          <div ref={refOf('cards')} className="sim-result__cards" style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <ResultCard
+              label="Custom Strategy"
+              pos={result.simProjection.expectedPos}
+              modePos={marks.shown.custom}
+              range={result.simProjection.posRange}
+              podium={result.simProjection.podiumProb}
+              points={result.simProjection.pointsProb}
+              accent={UI_COLORS.brush}
+            />
+            <ResultCard
+              label={result.baselineLabel ? `Baseline: ${result.baselineLabel}` : 'Baseline: model stops'}
+              pos={result.baselineProjection.expectedPos}
+              modePos={marks.shown.baseline}
+              range={result.baselineProjection.posRange}
+              podium={result.baselineProjection.podiumProb}
+              points={result.baselineProjection.pointsProb}
+              accent={TEXT_COLORS.muted}
+            />
+          </div>
+        )}
+
+        {/* The two finishing distributions on one position axis (D3) */}
+        {fit.shown.has('ranges') && (
+          <div ref={refOf('ranges')} className="sim-result__ranges" style={{ flexShrink: 0, minWidth: 0 }}>
+            <ResultRanges result={result} positions={positions} />
+          </div>
+        )}
+
+        {/* Delta summary: the verdict */}
+        <div ref={refOf('verdict')} className="sim-result__verdict" style={{ flexShrink: 0 }}>
+          <DeltaSummary delta={result.delta} marks={marks} paired={result.paired} />
+        </div>
+        {fit.shown.has('note') && (
+          <div ref={refOf('note')} className="sim-result__note" style={{ fontSize: CHART_FONT.label, ...muted, lineHeight: 1.4, flexShrink: 0 }}>
+            {result.numSimulations?.toLocaleString('en-US')} sims at L{result.computedAtLap},
+            {' '}both runs on the same random numbers: an identical plan differs by exactly 0.
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 

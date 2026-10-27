@@ -356,3 +356,38 @@ export function pageOf(items, page, perPage) {
     rows, page: p, pages, first: rows.length ? p * size + 1 : 0, last: rows.length ? p * size + rows.length : 0,
   };
 }
+
+/**
+ * Blocks stacked in a column (a panel's sections), fitted to its height:
+ * kept by priority, each whole or given up whole, so none is cut. The first
+ * of `blocks` in priority (lowest `priority`) is always kept; the others are
+ * kept while they fit, in priority order, a block too tall for the room left
+ * skipped for a smaller one after it. The ones kept stay in their order on
+ * screen. A block of unknown height (0, null: not measured yet) is kept, and
+ * so is every block when the column's height is unknown.
+ *
+ * @param {number|null} available - px of the column
+ * @param {Array<{key: string, height: number|null, priority: number}>} blocks
+ * @param {number} [gap] - px between two blocks
+ * @returns {{shown: Set<string>, hidden: string[]}} hidden: keys, in screen order
+ */
+export function fitBlocks(available, blocks, gap = 0) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  const h = Number(available);
+  if (!Number.isFinite(h) || h <= 0) return { shown: new Set(list.map((b) => b.key)), hidden: [] };
+  const shown = new Set();
+  let used = 0;
+  [...list].sort((a, b) => a.priority - b.priority).forEach((b, i) => {
+    const bh = Number(b.height);
+    if (!Number.isFinite(bh) || bh <= 0) {
+      shown.add(b.key);
+      return;
+    }
+    const need = (shown.size > 0 ? gap : 0) + bh;
+    if (i === 0 || used + need <= h) {
+      shown.add(b.key);
+      used += need;
+    }
+  });
+  return { shown, hidden: list.filter((b) => !shown.has(b.key)).map((b) => b.key) };
+}
