@@ -18,6 +18,7 @@ import {
 } from '../utils/raceTime';
 import { pitStops, stintsRunning } from '../utils/stints';
 import { driverStateAt, nonFinisherMap } from '../utils/driverState';
+import { rivalGapTrend } from '../utils/rivalTrend';
 import {
   viewSessionType, isRaceSession, causalKey, sessionScopeOf,
 } from '../utils/strategyViews';
@@ -3748,7 +3749,9 @@ export const useF1Store = create(persist((set, get) => ({
       if (drv === focusDriver || !lt.Position) continue;
       const posDiff = lt.Position - focusPos;
       if (Math.abs(posDiff) <= 2) {
-        // Gap trend: compare gap over last 3 laps
+        // Gap trend over the last 3 laps: the size of the gap on the side the
+        // rival is on now (utils/rivalTrend.js), closing = it shrinks
+        const side = posDiff > 0 ? 1 : -1;
         const recentGaps = [];
         for (let lap = Math.max(1, currentLap - 2); lap <= currentLap; lap++) {
           const fLap = lapTimes.find((l) => l.Driver === focusDriver && l.LapNumber === lap);
@@ -3757,12 +3760,7 @@ export const useF1Store = create(persist((set, get) => ({
             recentGaps.push(rLap.GapToLeader - fLap.GapToLeader);
           }
         }
-        let gapTrend = 'stable';
-        if (recentGaps.length >= 2) {
-          const delta = recentGaps[recentGaps.length - 1] - recentGaps[0];
-          if (delta < -0.3) gapTrend = 'closing';
-          else if (delta > 0.3) gapTrend = 'opening';
-        }
+        const gapTrend = rivalGapTrend(recentGaps, side);
 
         // Tyre in force at now (R3, utils/driverState.js): the new set only
         // from the pit exit. The replay frames switch to it at the out-lap
@@ -3795,6 +3793,7 @@ export const useF1Store = create(persist((set, get) => ({
           position: lt.Position,
           gap,
           gapTrend,
+          side: side > 0 ? 'behind' : 'ahead',
           compound,
           tyreAge,
           estPitIn,

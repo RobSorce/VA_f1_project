@@ -16,10 +16,15 @@ function fmtTime(s) {
   return min > 0 ? `${min}:${sec.padStart(6, '0')}` : sec;
 }
 
-// Gap trend: the arrow is the cue, the colour the diverging pair (V1: blue /
-// orange, never red / green): closing = worse, opening = better
+// Gap trend (utils/rivalTrend.js: closing = the gap shrinks, opening = it
+// grows): the arrow is the cue, the colour the diverging pair (V1: blue /
+// orange, never red / green) by what it means for the focus driver: a rival
+// behind closing in is worse, a rival ahead being caught is better
 const TREND_ARROWS = { closing: '\u2191', opening: '\u2193', stable: '\u2194' };
-const TREND_COLORS = { closing: DIVERGING.worse, opening: DIVERGING.better, stable: TEXT_COLORS.muted };
+const trendColor = (trend, side) => {
+  if (trend === 'stable' || !TREND_ARROWS[trend]) return TEXT_COLORS.muted;
+  return (trend === 'closing') === (side === 'ahead') ? DIVERGING.better : DIVERGING.worse;
+};
 
 // FIA compound badge: colour + letter, text black or white by contrast
 const tyreBadge = (compound) => ({ backgroundColor: tyreColor(compound), color: contrastText(tyreColor(compound)) });
@@ -160,7 +165,7 @@ export default function FocusDriverWidget() {
                   <span className="focus-widget__rival-gap" style={{ color: r.gap == null ? TEXT_COLORS.muted : r.gap > 0 ? DIVERGING.better : DIVERGING.worse }}>
                     {r.gap != null ? `${r.gap > 0 ? '+' : ''}${r.gap.toFixed(1)}s` : '—'}
                   </span>
-                  <span className="focus-widget__rival-trend" style={{ color: TREND_COLORS[r.gapTrend] }}>
+                  <span className="focus-widget__rival-trend" style={{ color: trendColor(r.gapTrend, r.side) }}>
                     {TREND_ARROWS[r.gapTrend]}
                   </span>
                   <span className="focus-widget__rival-tyre" style={tyreBadge(r.compound)}>
