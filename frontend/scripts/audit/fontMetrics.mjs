@@ -208,6 +208,9 @@ export function readFace(file) {
     has: (ch) => glyph(ch.codePointAt(0)) !== 0,
     /** CSS line-height: normal (hhea ascender - descender + lineGap), in em. */
     normalLineEm: (ascender - descender + lineGap) / unitsPerEm,
+    /** hhea ascender and descender (both positive), in em: a line's box above and below its baseline. */
+    ascentEm: ascender / unitsPerEm,
+    descentEm: -descender / unitsPerEm,
   };
 }
 
@@ -267,6 +270,9 @@ export function loadFaces(family = 'Inter') {
       return (f.units(t, { tabular }) / f.unitsPerEm) * size + [...t].length * letterSpacingEm * size;
     },
     lineHeight(size, weight = 400) { return face(weight).normalLineEm * size; },
+    /** Ascent and descent (CSS px) of the face of `weight` at `size` px. */
+    ascent(size, weight = 400) { return face(weight).ascentEm * size; },
+    descent(size, weight = 400) { return face(weight).descentEm * size; },
   };
 }
 

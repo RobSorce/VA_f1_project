@@ -7,7 +7,7 @@ Root font-size (base.css html): 1536x750 14.08px, 1366x768 13.23px, 1920x1080 16
 
 CSS: 374 font-size declarations; FAIL 0; UNEVALUATED 0; INHERIT 0; INACTIVE 0
 
-JS/JSX literal font sizes: 496; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN 415
+JS/JSX literal font sizes: 495; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN 414
   components/visualizations/CircleOfDoom.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 6
      DYNAMIC  :1265  fs0
      DYNAMIC  :1294  fs0
