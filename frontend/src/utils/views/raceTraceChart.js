@@ -77,8 +77,9 @@ export function traceLineStyle(driver, { focus = null, selected = [], highlighte
 
 /** Hatch of an SC band, dots of a VSC band, tint of a red flag (V1: never hue alone). */
 export const BAND_STYLE = Object.freeze({
-  SC: Object.freeze({ color: FLAG_COLORS.safetyCar, label: 'SC', tint: 0.1, spacing: 6, width: 1.2 }),
-  VSC: Object.freeze({ color: FLAG_COLORS.safetyCar, label: 'VSC', tint: 0.06, spacing: 5, dot: 1.1 }),
+  // the hatch lines and dots at `ink` alpha: a band behind the lines, not over them
+  SC: Object.freeze({ color: FLAG_COLORS.safetyCar, label: 'SC', tint: 0.06, ink: 0.45, spacing: 8, width: 1 }),
+  VSC: Object.freeze({ color: FLAG_COLORS.safetyCar, label: 'VSC', tint: 0.04, ink: 0.55, spacing: 6, dot: 1 }),
   RED: Object.freeze({ color: FLAG_COLORS.red, label: 'RED', tint: 0.16 }),
 });
 
@@ -97,14 +98,14 @@ export function defineBandPatterns(defs, id) {
   hatch.append('rect').attr('width', S).attr('height', S).attr('fill', withAlpha(sc.color, sc.tint));
   for (const [x1, y1, x2, y2] of [[0, S, S, 0], [-1, 1, 1, -1], [S - 1, S + 1, S + 1, S - 1]]) {
     hatch.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2)
-      .attr('stroke', sc.color).attr('stroke-width', sc.width);
+      .attr('stroke', withAlpha(sc.color, sc.ink)).attr('stroke-width', sc.width);
   }
   const vsc = BAND_STYLE.VSC;
   const D = vsc.spacing;
   const dots = defs.append('pattern').attr('id', `${id}-vsc`)
     .attr('patternUnits', 'userSpaceOnUse').attr('width', D).attr('height', D);
   dots.append('rect').attr('width', D).attr('height', D).attr('fill', withAlpha(vsc.color, vsc.tint));
-  dots.append('circle').attr('cx', D / 2).attr('cy', D / 2).attr('r', vsc.dot).attr('fill', vsc.color);
+  dots.append('circle').attr('cx', D / 2).attr('cy', D / 2).attr('r', vsc.dot).attr('fill', withAlpha(vsc.color, vsc.ink));
   return {
     SC: `url(#${id}-sc)`,
     VSC: `url(#${id}-vsc)`,
@@ -116,10 +117,10 @@ export function defineBandPatterns(defs, id) {
 export function bandCss(kind) {
   const s = BAND_STYLE[kind];
   if (kind === 'SC') {
-    return `repeating-linear-gradient(-45deg, ${s.color} 0 ${s.width}px, ${withAlpha(s.color, s.tint)} ${s.width}px ${s.spacing / Math.SQRT2}px)`;
+    return `repeating-linear-gradient(-45deg, ${withAlpha(s.color, s.ink)} 0 ${s.width}px, ${withAlpha(s.color, s.tint)} ${s.width}px ${s.spacing / Math.SQRT2}px)`;
   }
   if (kind === 'VSC') {
-    return `radial-gradient(${s.color} ${s.dot}px, ${withAlpha(s.color, s.tint)} ${s.dot + 0.5}px) 0 0 / ${s.spacing}px ${s.spacing}px`;
+    return `radial-gradient(${withAlpha(s.color, s.ink)} ${s.dot}px, ${withAlpha(s.color, s.tint)} ${s.dot + 0.5}px) 0 0 / ${s.spacing}px ${s.spacing}px`;
   }
   return withAlpha(s.color, s.tint);
 }
