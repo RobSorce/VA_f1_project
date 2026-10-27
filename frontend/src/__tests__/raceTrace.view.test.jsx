@@ -7,7 +7,7 @@
 // dockedPanesAt: a quarter pane is 609 x 257, a full one 1225 x 548): full
 // labels from 420 x 200, labels on hover under it, the answer line alone
 // under 300 x 150; every text at its floor (11 px data, 10 px labels).
-import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -79,8 +79,11 @@ const chartSvg = (host) => host.querySelectorAll('svg').find((s) => s.style.widt
 const shown = (els) => els.filter((e) => e.style.display !== 'none');
 const fire = async (el, type, init = {}) => { await act(async () => { dom.mouse(el, type, init); }); };
 
-afterAll(async () => {
+// the view of a test goes before the next test changes the store
+afterEach(async () => {
   if (view) await view.unmount();
+});
+afterAll(() => {
   useF1Store.setState({ ...INITIAL });
 });
 
@@ -250,6 +253,7 @@ describe('interactions', () => {
     await fire(chip, 'click');
     expect(useF1Store.getState().currentLap).toBe(stop.inLap - 1);
 
+    await view.unmount();
     state({ isLiveMode: true });
     const live = await mount({ width: 800, height: 400 });
     const chip2 = chartSvg(live.host).querySelector('.rt-chip--stop');
@@ -276,6 +280,7 @@ describe('store settings and helpers', () => {
     state({ focusDriver: 'NOR' });
     let { host } = await mount({ width: 800, height: 400 });
     expect(host.querySelector('.rt-provenance').textContent).toContain('window: NOR ± max(20 s, pit loss + 5 s)');
+    await view.unmount();
     state({ focusDriver: null });
     ({ host } = await mount({ width: 800, height: 400 }));
     expect(host.querySelector('.rt-provenance').textContent).toContain('window: top 10 of the lead lap');
