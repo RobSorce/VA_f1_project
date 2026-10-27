@@ -133,7 +133,7 @@ export const CHART_HELP = {
     title: 'Lap Delta',
     summary: 'Cumulative lap-time delta vs a baseline driver — reads undercut/overcut dynamics at a glance.',
     howToRead: [
-      'Y-axis = the driver\'s cumulative race time minus the base driver\'s, lap by lap: up (+) = behind the base driver, down (−) = ahead of him.',
+      'Y-axis = the driver\'s cumulative race time minus the base driver\'s, lap by lap: up (+) = behind the base driver, down (−) = ahead of him. The race time is read from each lap row\'s end time (never a sum of lap times), less any red-flag suspension: the Race Trace on the focus reference, its sign turned.',
       'A rising line = losing time to the base driver on those laps; a falling line = gaining.',
       'Pit stops appear as discrete jumps the size of the race\'s pit loss (see the per-stop labels in Strategy Timeline).',
       'The compared drivers are the selected ones (else five drivers of the session); hovering a driver in another view keeps his line in full colour, mixes the other lines toward the panel and hides their hatched areas.',

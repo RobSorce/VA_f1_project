@@ -39,7 +39,7 @@ import { positionPitMarkers } from '../utils/views/positionByLap.js';
 import {
   telemetryReferenceLap, telemetryTargets, telemetryCards, truncateToNow, recordedExtent, inDomain,
 } from '../utils/views/telemetryStrip.js';
-import { cumulativeLapTimes } from '../utils/views/lapDeltaChart.js';
+import { lapDeltaSeries } from '../utils/views/lapDeltaChart.js';
 import { pitWallSectorData } from '../utils/views/pitWallSectorPanel.js';
 import { mfdTyreInfo } from '../utils/views/driverMFDCard.js';
 import { focusDriverStatus } from '../utils/views/focusDriverWidget.js';
@@ -422,10 +422,10 @@ describe.skipIf(!HAVE)('per-driver timing views on cached Monza 2024 (R16)', () 
     expect(end.slice(0, 3)).toEqual(classified.slice(0, 3));
   });
 
-  it('LapDeltaChart: cumulative times from completed laps only (frame 3194)', () => {
+  it('LapDeltaChart: deltas from completed laps only (frame 3194)', () => {
     const now = 4628.094; // LEC 0.68 s before his pit entry; his lap 15 ends at 4632.468
-    const real = cumulativeLapTimes(lapTimes, now);
-    const changed = cumulativeLapTimes(perturbUnknown(lapTimes, now), now);
+    const real = lapDeltaSeries(lapTimes, { base: 'LEC', sessionNow: now });
+    const changed = lapDeltaSeries(perturbUnknown(lapTimes, now), { base: 'LEC', sessionNow: now });
     expect(changed).toEqual(real);
     expect(real.LEC.map((d) => d.lap)).not.toContain(15);
     expect(Math.max(...real.LEC.map((d) => d.lap))).toBe(14);

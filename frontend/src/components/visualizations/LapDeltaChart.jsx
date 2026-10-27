@@ -8,7 +8,7 @@ import {
 import { useSessionNow } from '../../hooks/useSessionNow';
 import { causalKey } from '../../utils/strategyViews';
 import {
-  cumulativeLapTimes, lapDeltaLegend, BASE_LINE, BASE_LABEL_COLOR, baseLineLabel,
+  lapDeltaSeries, lapDeltaLegend, BASE_LINE, BASE_LABEL_COLOR, baseLineLabel,
 } from '../../utils/views/lapDeltaChart';
 import { defineDeltaHatches } from '../../utils/views/deltaHatch';
 import Panel from '../ui/Panel';
@@ -32,20 +32,24 @@ export default function LapDeltaChart() {
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const focusDriver = useF1Store((s) => s.focusDriver);
-  const drivers = useF1Store((s) => s.drivers);
+  const trackStatus = useF1Store((s) => s.trackStatus);
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
-  // Causal "now" (session seconds) and a key that changes only when a lap or
-  // a pit event completes, so the chart is not rebuilt on every replay frame
+  // Causal "now" (session seconds) and a key that changes only when a lap, a
+  // pit event or a track-status period completes, so the chart is not rebuilt
+  // on every replay frame
   const sessionNow = useSessionNow();
-  const causal = useMemo(() => causalKey(lapTimes, sessionNow), [lapTimes, sessionNow]);
+  const causal = useMemo(() => causalKey(lapTimes, sessionNow, trackStatus), [lapTimes, sessionNow, trackStatus]);
+  const baseDriver = lapDeltaBaseDriver || focusDriver;
 
-  // Per-driver cumulative times over the laps completed at sessionNow
-  // (never `LapNumber <= currentLap`: the leader's lap is ahead of the others)
-  const driverCumTimes = useMemo(
-    () => cumulativeLapTimes(lapTimes, sessionNow),
+  // Each driver's delta to the base on the laps both completed at sessionNow:
+  // the race trace on the focus reference (utils/raceTrace.js), from the lap
+  // rows' Time (never `LapNumber <= currentLap`: the leader's lap is ahead of
+  // the others; never a sum of lap times)
+  const driverDeltas = useMemo(
+    () => lapDeltaSeries(lapTimes, { base: baseDriver, sessionNow, trackStatus }),
     // sessionNow enters through the causal key, which changes whenever the result does
-    [lapTimes, causal],
+    [lapTimes, causal, baseDriver, trackStatus],
   );
 
   // Drivers to compare
@@ -55,17 +59,15 @@ export default function LapDeltaChart() {
 
     let compare = selectedDrivers.filter((d) => d !== base);
     if (compare.length === 0) {
-      // Show top 5 drivers if none selected
-      const allDrivers = Object.keys(driverCumTimes);
+      // Show the first five drivers of the race order if none selected
+      const allDrivers = Object.keys(driverDeltas);
       compare = allDrivers.filter((d) => d !== base).slice(0, 5);
     }
     return compare;
-  }, [lapDeltaBaseDriver, focusDriver, selectedDrivers, driverCumTimes]);
-
-  const baseDriver = lapDeltaBaseDriver || focusDriver;
+  }, [lapDeltaBaseDriver, focusDriver, selectedDrivers, driverDeltas]);
 
   useEffect(() => {
-    if (!svgRef.current || !baseDriver || !driverCumTimes[baseDriver]) return;
+    if (!svgRef.current || !baseDriver || !driverDeltas[baseDriver]) return;
 
     // the box the chart fills, kept up to date (utils/views/chartBox.js useChartBox, D4)
     const { width, height } = chartSize(svgRef.current, box, { width: 500, height: 250 });
@@ -77,42 +79,26 @@ export default function LapDeltaChart() {
     // behind, falling for ahead (utils/views/deltaHatch.js, V1)
     const hatch = defineDeltaHatches(svg.append('defs'), hatchId);
 
-    const baseCum = driverCumTimes[baseDriver];
-    if (!baseCum?.length) return;
+    const baseLaps = driverDeltas[baseDriver];
+    if (!baseLaps?.length) return;
 
-    // Build base lookup
-    const baseLookup = {};
-    baseCum.forEach((d) => { baseLookup[d.lap] = d.cumTime; });
-
-    // Compute deltas for each display driver
+    // Deltas of each display driver (positive = driver behind base), on the
+    // laps both completed at sessionNow
     const deltaData = [];
     let minDelta = 0, maxDelta = 0;
-    // every lap in driverCumTimes is completed at sessionNow
-    const maxVisibleLap = baseCum[baseCum.length - 1].lap;
+    const maxVisibleLap = baseLaps[baseLaps.length - 1].lap;
 
     displayDrivers.forEach((driver) => {
-      const cum = driverCumTimes[driver];
-      if (!cum) return;
-      const driverDeltas = [];
-      let driverCumLookup = {};
-      cum.forEach((d) => { driverCumLookup[d.lap] = d.cumTime; });
-
-      for (let lap = 1; lap <= maxVisibleLap; lap++) {
-        const baseTime = baseLookup[lap];
-        const driverTime = driverCumLookup[lap];
-        if (baseTime != null && driverTime != null) {
-          const delta = driverTime - baseTime; // positive = driver behind base
-          driverDeltas.push({ lap, delta });
-          if (delta < minDelta) minDelta = delta;
-          if (delta > maxDelta) maxDelta = delta;
-        }
+      const deltas = driverDeltas[driver];
+      if (!deltas?.length) return;
+      for (const { delta } of deltas) {
+        if (delta < minDelta) minDelta = delta;
+        if (delta > maxDelta) maxDelta = delta;
       }
-      if (driverDeltas.length > 0) {
-        // mark >= 3:1 on the panel (markColor), teammate tint and dash (V3)
-        deltaData.push({
-          driver, deltas: driverDeltas, color: markColor(getDriverColor(driver)), dash: getDriverDash(driver),
-        });
-      }
+      // mark >= 3:1 on the panel (markColor), teammate tint and dash (V3)
+      deltaData.push({
+        driver, deltas, color: markColor(getDriverColor(driver)), dash: getDriverDash(driver),
+      });
     });
 
     if (deltaData.length === 0) {
@@ -332,7 +318,7 @@ export default function LapDeltaChart() {
       });
 
     return () => { d3.selectAll('.delta-tooltip').remove(); };
-  }, [baseDriver, displayDrivers, driverCumTimes, hatchId, box.width, box.height]);
+  }, [baseDriver, displayDrivers, driverDeltas, hatchId, box.width, box.height]);
 
   // Lightweight highlight effect — updates colour/stroke without full redraw:
   // the other lines are context, their colour mixed toward the panel
@@ -373,7 +359,7 @@ export default function LapDeltaChart() {
     <Panel title={`Lap Delta vs ${baseDriver}`}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         {/* Every mark of the chart: zero line, driver lines (teammate dashed), ± areas */}
-        <Legend items={lapDeltaLegend(baseDriver, displayDrivers.filter((d) => driverCumTimes[d]))} />
+        <Legend items={lapDeltaLegend(baseDriver, displayDrivers.filter((d) => driverDeltas[d]))} />
         <div className="viz-container" style={{ flex: 1, minHeight: 0 }}>
           <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />
         </div>
