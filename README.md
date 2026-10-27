@@ -84,11 +84,13 @@ pip install -r requirements.txt
 python api\main.py
 ```
 
+`python api/main.py` is the same as `uvicorn api.main:app` run from `backend/`: the app module is imported once, as `api.main`. It listens on `127.0.0.1:8000`, this computer only (`VA_API_HOST` and `VA_API_PORT`, below, change it). Do not start `uvicorn main:app` from `backend/api/`: the routers import `api.main`, which would load a second copy of the module (two caches, two FastF1 locks).
+
 Optional, with the virtual environment active and from `backend/`:
 - Team-radio transcription in live mode: `pip install faster-whisper` (model chosen by `VA_WHISPER_MODEL`).
 - Rebuild the PCA from the cached races: `python -m scripts.pca_rebuild` (it rewrites `data/processed/`).
 - Retrain the forecast: `python -m model.prepare_data`, then `python -m model.train`, then `python -m scripts.evaluate_forecast` (it chooses the method the app serves). These steps read the cached races.
-- Backend tests: `pip install pytest`, then `python -m pytest -q tests`. The tests that need cached races are skipped while the caches are empty (a fresh clone); the frontend tests follow the same rule.
+- Backend tests: `pip install pytest`, then `python -m pytest -q tests`. The tests that need cached races are skipped while the caches are empty (a fresh clone); the frontend tests follow the same rule. The Pages workflow (`.github/workflows/deploy.yml`) runs both suites, with PyTorch from its CPU wheel index, and deploys the demo only when they pass.
 
 ### Frontend (Vite, http://localhost:5173)
 
@@ -111,6 +113,7 @@ The variables the code reads are listed, with what each one does, in [.env.examp
 - backend (`backend/.env`, a copy of `.env.example` loaded by `backend/api/main.py`, or the shell): `OPENF1_API_KEY` (OpenF1 access during a live session), `VA_WHISPER_MODEL` (team-radio transcription model);
 - frontend (`frontend/.env`): `VITE_DEMO=1` makes a normal build the static demo;
 - demo build (the shell running `npm run build:demo`): `DEMO_BASE`, the path the site is served under (the deploy workflow sets it from the repository name).
+- backend server (`backend/.env` or the shell): `VA_API_HOST` and `VA_API_PORT`, where it listens (default `127.0.0.1:8000`, this computer only), and `VA_CORS_ORIGINS`, the origins a browser may call the API from (default the Vite dev and preview servers; no credentials).
 
 ## Layout
 

@@ -9,6 +9,7 @@ import asyncio
 import logging
 import math
 
+from api.params import RoundNumber, Season, SessionType, session_type_code
 from data.processors.degradation import clean_stint_laps, compound_degradation, consistency_sigma, fit_stint, median
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,10 @@ DEFAULT_SESSION_TYPE = "R"
 
 
 def _session_type(session_type) -> str:
-    """The session-type code to load ('R', 'S', 'Q', 'SQ', 'FP1'-'FP3'):
-    upper-cased, DEFAULT_SESSION_TYPE when empty."""
-    code = str(session_type or "").strip().upper()
-    return code or DEFAULT_SESSION_TYPE
+    """The session-type code to load ('R', 'S', 'Q', 'SQ', 'SS', 'FP1'-'FP3'):
+    upper-cased, DEFAULT_SESSION_TYPE when empty (api/params.py; ValueError
+    for any other value)."""
+    return session_type_code(session_type)
 
 
 def _get_load_session():
@@ -43,7 +44,7 @@ def _get_load_session():
 
 
 @router.get("/sectors/{year}/{round_num}")
-async def get_sector_rankings(year: int, round_num: int, session_type: str = DEFAULT_SESSION_TYPE):
+async def get_sector_rankings(year: Season, round_num: RoundNumber, session_type: SessionType = DEFAULT_SESSION_TYPE):
     """Rank drivers by best sector time for each sector, in the session of
     session_type (D16: the type of the session on screen; default the race)."""
     load_session = _get_load_session()
@@ -93,8 +94,8 @@ async def get_sector_rankings(year: int, round_num: int, session_type: str = DEF
 
 
 @router.get("/consistency/{year}/{round_num}")
-async def get_consistency(year: int, round_num: int, session_now: Optional[float] = None,
-                          session_type: str = DEFAULT_SESSION_TYPE):
+async def get_consistency(year: Season, round_num: RoundNumber, session_now: Optional[float] = None,
+                          session_type: SessionType = DEFAULT_SESSION_TYPE):
     """Consistency of each driver: the consistency sigma of
     data/processors/degradation.py (consistencySigma in
     frontend/src/utils/degradation.js), laps completed at session_now
@@ -239,7 +240,7 @@ def consistency_response(lap_times, driver_info_list=None, session_now=None):
 
 
 @router.get("/speed-rankings/{year}/{round_num}")
-async def get_speed_rankings(year: int, round_num: int, session_type: str = DEFAULT_SESSION_TYPE):
+async def get_speed_rankings(year: Season, round_num: RoundNumber, session_type: SessionType = DEFAULT_SESSION_TYPE):
     """Rank drivers by speed trap, finish line, and sector speeds, in the
     session of session_type (D16; default the race)."""
     load_session = _get_load_session()

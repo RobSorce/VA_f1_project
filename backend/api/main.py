@@ -1,18 +1,11 @@
 """
 FastAPI Main Application
 Race strategy analytics API
+
+Run from backend/: python api/main.py, the same as uvicorn api.main:app on
+VA_API_HOST:VA_API_PORT (api/settings.py, default 127.0.0.1:8000).
 """
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
-import asyncio
-import logging
-import os
 import sys
-import json
-import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -21,11 +14,43 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+if __name__ == "__main__":
+    # python api/main.py serves the app by its import path, as uvicorn
+    # api.main:app does, and the script stops here: this file is imported
+    # once, as api.main. Serving the script's own app object left two copies
+    # of the module (the script and the api.main the routers import
+    # load_session from): two session caches, two FastF1 locks, two FastF1
+    # loads of the same session at once.
+    import uvicorn
+    from api.settings import server_host, server_port
+    # 127.0.0.1 unless VA_API_HOST says otherwise: not reachable from the network
+    uvicorn.run("api.main:app", host=server_host(), port=server_port())
+    sys.exit(0)
+
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
+import asyncio
+import logging
+import os
+import json
+import re
+import numpy as np
+
 from data.extractors.fastf1_extractor import FastF1Extractor, get_sample_session_data
 from data.processors.feature_engineering import FeatureEngineer
 from data.processors.pca_compute import load_pca_embeddings, pca_embeddings_at, analyze_selection
 from data.processors.stints import build_tyre_strategy
 from utils.json_helpers import clean_dataframe_for_json
+from api.params import (
+    DriverCode, LapNumber, PointId, RoundNumber, Season, SessionType, session_type_code,
+)
+from api.settings import cors_origins
+from api.commands import json_command
+from api.errors import GENERIC_DETAIL, server_error
 
 # Import routers with graceful fallback so that a broken optional dependency
 # (e.g. missing tensorflow) does not prevent the whole app from starting.
@@ -72,14 +97,25 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS for frontend
+# CORS: only the origins of VA_CORS_ORIGINS (default the Vite dev and preview
+# servers, api/settings.py) may call the API from a browser. No credentials:
+# the frontend sends no cookie and no HTTP authentication.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify frontend origin
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
+
+@app.exception_handler(Exception)
+async def _unhandled_error(request: Request, exc: Exception):
+    """An exception no route caught: a 500 with a generic message, never the
+    exception's text (api/errors.py). Starlette raises the exception again
+    once this answer is sent, and the server (uvicorn) logs it with its
+    traceback."""
+    return JSONResponse(status_code=500, content={"detail": GENERIC_DETAIL})
+
 
 # Initialize data extractor
 extractor = FastF1Extractor()
@@ -114,8 +150,31 @@ DISK_CACHE_DIR = Path(__file__).parent.parent / "data" / "processed_cache"
 DISK_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
+# A disk-cache file name: words of letters and digits joined by underscores
+_CACHE_FILE_NAME = re.compile(r"[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*\.json")
+
+
+def _cache_file(*parts) -> Path:
+    """The disk-cache file named by parts: ('session', 2024, 16, 'R') is
+    session_2024_16_R.json in DISK_CACHE_DIR.
+
+    The parts come from validated request values (api/params.py); this is the
+    last check before a path is opened. ValueError unless the name is made of
+    letters, digits and underscores only and the resolved path is a file
+    directly inside DISK_CACHE_DIR, so no part can lead to another folder.
+    """
+    name = "_".join(str(p) for p in parts) + ".json"
+    if not _CACHE_FILE_NAME.fullmatch(name):
+        raise ValueError(f"unsafe cache file name: {name!r}")
+    folder = DISK_CACHE_DIR.resolve()
+    path = (folder / name).resolve()
+    if path.parent != folder:
+        raise ValueError(f"cache file outside {folder}: {name!r}")
+    return path
+
+
 def _disk_cache_path(prefix: str, year: int, round_num: int, session_type: str) -> Path:
-    return DISK_CACHE_DIR / f"{prefix}_{year}_{round_num}_{session_type}.json"
+    return _cache_file(prefix, int(year), int(round_num), session_type_code(session_type))
 
 
 def _load_from_disk(path: Path):
@@ -149,6 +208,7 @@ def get_raw_session(year: int, round_num: int, session_type: str = "R", offline=
     When offline=True, FastF1 uses only its local cache (no network requests).
     """
     import fastf1
+    session_type = session_type_code(session_type)
     cache_key = get_cache_key(year, round_num, session_type)
     if cache_key in raw_session_cache:
         return raw_session_cache[cache_key]
@@ -207,7 +267,9 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
 
     Every payload goes through _rebuild_tyre_strategy before entering the
     memory cache, so all three paths return stints split by the Stint column.
+    session_type is checked against api/params.py SESSION_TYPES (ValueError).
     """
+    session_type = session_type_code(session_type)
     cache_key = get_cache_key(year, round_num, session_type)
 
     # 1. In-memory cache (instant; tyre_strategy already rebuilt on insert)
@@ -304,9 +366,8 @@ def load_session(year: int, round_num: int, session_type: str = "R") -> Dict[str
         _save_to_disk(disk_path, data)
         logger.info(f"Session loaded successfully with {len(data['lap_times'])} laps")
         return data
-    except Exception as e:
-        logger.error(f"Failed to load session: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, f"Loading session {year} round {round_num} {session_type}")
 
 
 # ============= API Routes =============
@@ -356,7 +417,7 @@ def _season_published(year: int, lock_wait: float = _SEASON_LOCK_WAIT_S) -> Opti
     hit = _season_published_cache.get(year)
     if hit is not None and (hit[0] or time.monotonic() - hit[1] < _SEASON_RECHECK_S):
         return hit[0]
-    cached = schedule_cache.get(year) or _load_from_disk(DISK_CACHE_DIR / f"schedule_{year}.json")
+    cached = schedule_cache.get(year) or _load_from_disk(_cache_file("schedule", int(year)))
     if cached is not None and _has_rounds(cached.get('events')):
         published = True
     else:
@@ -405,15 +466,15 @@ async def get_seasons():
 
 
 @app.get("/api/schedule/{year}")
-async def get_schedule(year: int):
+async def get_schedule(year: Season):
     """Get event schedule for a season (disk + memory cached)."""
     # 1. Memory cache
     if year in schedule_cache:
         return schedule_cache[year]
 
-    # 2. Disk cache
-    disk_path = DISK_CACHE_DIR / f"schedule_{year}.json"
-    disk_data = _load_from_disk(disk_path)
+    # 2. Disk cache (read off the event loop, as every file and FastF1 call)
+    disk_path = _cache_file("schedule", year)
+    disk_data = await asyncio.to_thread(_load_from_disk, disk_path)
     if disk_data is not None:
         logger.info(f"Loaded schedule from disk cache: {disk_path.name}")
         schedule_cache[year] = disk_data
@@ -436,23 +497,24 @@ async def get_schedule(year: int):
             )
         }
         schedule_cache[year] = result
-        _save_to_disk(disk_path, result)
+        await asyncio.to_thread(_save_to_disk, disk_path, result)
         return result
     except asyncio.TimeoutError:
         logger.error(f"FastF1 schedule fetch timed out for {year}")
         raise HTTPException(status_code=504, detail=f"Schedule fetch timed out for {year}. Try again.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, f"Fetching the {year} schedule")
 
 
 @app.get("/api/session/{year}/{round_num}")
-async def get_session_data(year: int, round_num: int, session_type: str = "R"):
+async def get_session_data(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get comprehensive session data."""
     return await asyncio.to_thread(load_session, year, round_num, session_type)
 
 
 @app.get("/api/laptimes/{year}/{round_num}")
-async def get_lap_times(year: int, round_num: int, driver: Optional[str] = None, session_type: str = "R"):
+async def get_lap_times(year: Season, round_num: RoundNumber, driver: Optional[str] = None,
+                        session_type: SessionType = "R"):
     """Get lap times for a session (session_type, default the race; D16),
     optionally filtered by driver."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
@@ -465,24 +527,25 @@ async def get_lap_times(year: int, round_num: int, driver: Optional[str] = None,
 
 
 @app.get("/api/telemetry/{year}/{round_num}/{driver}")
-async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[int] = None, session_type: str = "R"):
+async def get_telemetry(year: Season, round_num: RoundNumber, driver: DriverCode, lap: Optional[LapNumber] = None,
+                        session_type: SessionType = "R"):
     """Get telemetry data for a specific driver."""
-    try:
-        # Disk cache for telemetry (keyed by driver + lap)
-        lap_key = lap if lap else "fastest"
-        cache_path = DISK_CACHE_DIR / f"telemetry_{year}_{round_num}_{session_type}_{driver}_{lap_key}.json"
+    # Disk cache for telemetry (keyed by driver + lap)
+    lap_key = lap if lap else "fastest"
+
+    def _telemetry():
+        # In a worker thread: the disk cache, FastF1 and the JSON conversion
+        # never hold the event loop
+        cache_path = _cache_file("telemetry", year, round_num, session_type, driver, lap_key)
         cached = _load_from_disk(cache_path)
         if cached is not None:
             logger.info(f"Telemetry from disk cache: {driver} lap {lap_key}")
             return cached
 
-        def _fetch():
-            with _fastf1_lock:
-                session = get_raw_session(year, round_num, session_type, offline=True,
-                                          laps=True, telemetry=True, weather=False, messages=False)
-                return extractor.extract_telemetry(session, driver, lap)
-
-        telemetry = await asyncio.to_thread(_fetch)
+        with _fastf1_lock:
+            session = get_raw_session(year, round_num, session_type, offline=True,
+                                      laps=True, telemetry=True, weather=False, messages=False)
+            telemetry = extractor.extract_telemetry(session, driver, lap)
 
         if telemetry is None or (hasattr(telemetry, 'empty') and telemetry.empty):
             result = {
@@ -499,13 +562,15 @@ async def get_telemetry(year: int, round_num: int, driver: str, lap: Optional[in
 
         _save_to_disk(cache_path, result)
         return result
-    except Exception as e:
-        logger.error(f"Error fetching telemetry: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+
+    try:
+        return await asyncio.to_thread(_telemetry)
+    except Exception:
+        raise server_error(logger, "Loading the telemetry")
 
 
 @app.get("/api/circuit/{year}/{round_num}")
-async def get_circuit_info(year: int, round_num: int, session_type: str = "R"):
+async def get_circuit_info(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get circuit information including track coordinates (session_type,
     default the race; D16)."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
@@ -513,7 +578,7 @@ async def get_circuit_info(year: int, round_num: int, session_type: str = "R"):
 
 
 @app.get("/api/strategy/{year}/{round_num}")
-async def get_tyre_strategy(year: int, round_num: int, session_type: str = "R"):
+async def get_tyre_strategy(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get tyre strategy data for all drivers (one stint per tyre set) of the
     session of session_type (default the race; D16: the frontend sends the
     session on screen)."""
@@ -523,21 +588,21 @@ async def get_tyre_strategy(year: int, round_num: int, session_type: str = "R"):
 
 
 @app.get("/api/drivers/{year}/{round_num}")
-async def get_drivers(year: int, round_num: int, session_type: str = "R"):
+async def get_drivers(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get driver information for a session (session_type, default the race)."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return {"drivers": data['driver_info']}
 
 
 @app.get("/api/results/{year}/{round_num}")
-async def get_results(year: int, round_num: int, session_type: str = "R"):
+async def get_results(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get the results of a session (session_type, default the race)."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return {"results": data['race_results']}
 
 
 @app.get("/api/positions/{year}/{round_num}")
-async def get_positions(year: int, round_num: int, session_type: str = "R"):
+async def get_positions(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get position telemetry data for all drivers throughout the session
     (session_type, default the race)."""
     try:
@@ -547,18 +612,17 @@ async def get_positions(year: int, round_num: int, session_type: str = "R"):
                 return extractor.extract_position_data(session)
 
         return await asyncio.to_thread(_fetch)
-    except Exception as e:
-        logger.error(f"Error fetching positions: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, "Loading the positions")
 
 
 @app.get("/api/frames/{year}/{round_num}")
-async def get_race_frames(year: int, round_num: int, session_type: str = "R"):
+async def get_race_frames(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get race replay frames."""
     try:
-        # Check disk cache first (instant)
+        # Check disk cache first (a file of several MB: read in a thread)
         disk_path = _disk_cache_path("frames", year, round_num, session_type)
-        disk_data = _load_from_disk(disk_path)
+        disk_data = await asyncio.to_thread(_load_from_disk, disk_path)
         if disk_data is not None:
             logger.info(f"Loaded frames from disk cache: {disk_path.name}")
             return disk_data
@@ -575,13 +639,12 @@ async def get_race_frames(year: int, round_num: int, session_type: str = "R"):
             return frames_data
 
         return await asyncio.to_thread(_extract_frames)
-    except Exception as e:
-        logger.error(f"Error fetching race frames: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, "Loading the replay frames")
 
 
 @app.get("/api/weather/{year}/{round_num}")
-async def get_weather(year: int, round_num: int, session_type: str = "R"):
+async def get_weather(year: Season, round_num: RoundNumber, session_type: SessionType = "R"):
     """Get weather data for a session (session_type, default the race)."""
     data = await asyncio.to_thread(load_session, year, round_num, session_type)
     return {"weather": data['weather_data']}
@@ -893,30 +956,36 @@ def _compute_championship(year: int, fast_only: bool = True) -> Dict[str, Any]:
 
 
 @app.get("/api/championship/{year}")
-async def get_championship(year: int, load_all: bool = False):
+async def get_championship(year: Season, load_all: bool = False):
     """Get championship standings progression for a season.
 
     By default, only uses disk-cached sessions (instant).
     Set load_all=true to fetch ALL rounds from FastF1 (slow first time).
+    The work (FastF1 schedule and sessions, cache files) runs in a worker
+    thread: the server answers other requests meanwhile.
     """
+    return await asyncio.to_thread(_championship, year, load_all)
+
+
+def _championship(year: int, load_all: bool) -> Dict[str, Any]:
+    """Blocking part of /api/championship (runs in a worker thread)."""
     # If load_all requested, bypass caches and recompute
     if load_all:
         try:
-            result = await asyncio.to_thread(_compute_championship, year, fast_only=False)
+            result = _compute_championship(year, fast_only=False)
             championship_cache[year] = result
-            disk_path = DISK_CACHE_DIR / f"championship_{year}.json"
+            disk_path = _cache_file("championship", year)
             _save_to_disk(disk_path, result)
             return result
-        except Exception as e:
-            logger.error(f"Failed to compute full championship for {year}: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+        except Exception:
+            raise server_error(logger, f"Computing the full {year} championship")
 
     if year in championship_cache:
         return championship_cache[year]
 
     # Check disk cache for championship (one written by an older points model,
     # e.g. without the sprint points, is recomputed)
-    disk_path = DISK_CACHE_DIR / f"championship_{year}.json"
+    disk_path = _cache_file("championship", year)
     disk_data = _load_from_disk(disk_path)
     if disk_data is not None and disk_data.get('cache_version') == CHAMPIONSHIP_CACHE_VERSION:
         championship_cache[year] = disk_data
@@ -930,9 +999,8 @@ async def get_championship(year: int, load_all: bool = False):
         if not result.get('missing_rounds'):
             _save_to_disk(disk_path, result)
         return result
-    except Exception as e:
-        logger.error(f"Failed to compute championship for {year}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, f"Computing the {year} championship")
 
 
 # ============= PCA Endpoints =============
@@ -942,7 +1010,7 @@ async def get_championship(year: int, load_all: bool = False):
 # clients; the t-SNE projection itself was removed.
 
 @app.get("/api/pca/embeddings")
-async def get_pca_embeddings(year: Optional[int] = None, round: Optional[int] = None,
+async def get_pca_embeddings(year: Optional[Season] = None, round: Optional[RoundNumber] = None,
                              session_now: Optional[float] = None):
     """Return PCA embeddings with loadings, auto-building if needed.
 
@@ -982,8 +1050,8 @@ class PCAAnalyzeRequest(BaseModel):
     point_ids: List[str]
     # The race being replayed and its clock: its rows, stints and stops are
     # taken at session_now (None = post-race)
-    year: Optional[int] = None
-    round: Optional[int] = None
+    year: Optional[Season] = None
+    round: Optional[RoundNumber] = None
     session_now: Optional[float] = None
 
 @app.post("/api/pca/analyze-selection")
@@ -1006,7 +1074,7 @@ async def analyze_tsne_selection(request: PCAAnalyzeRequest):
 
 
 @app.get("/api/pca/point-features/{point_id}")
-async def get_point_features(point_id: str):
+async def get_point_features(point_id: PointId):
     """Get the feature values of one biplot point (post-race row)."""
     import pandas as pd
     from data.processors.pca_compute import FEATURE_COLS, MATRIX_FILE, PROCESSED_DIR
@@ -1019,7 +1087,7 @@ async def get_point_features(point_id: str):
         raise HTTPException(status_code=400, detail="Invalid point_id format")
 
     driver, year_str, round_str = parts[0], parts[1], parts[2]
-    df = pd.read_csv(csv_path)
+    df = await asyncio.to_thread(pd.read_csv, csv_path)  # file work off the event loop
     match = df[(df['driver'] == driver) & (df['year'] == int(year_str)) & (df['round'] == int(round_str))]
     if match.empty:
         raise HTTPException(status_code=404, detail="Point not found")
@@ -1035,7 +1103,7 @@ async def get_point_features(point_id: str):
 
 # Alias (former route name, see above) of /api/pca/point-features/{point_id}
 @app.get("/api/tsne/point-features/{point_id}")
-async def get_point_features_former_route(point_id: str):
+async def get_point_features_former_route(point_id: PointId):
     """Alias of /api/pca/point-features/{point_id}."""
     return await get_point_features(point_id)
 
@@ -1086,21 +1154,29 @@ async def _shutdown_live_timing():
     logger.info("Live timing system shut down")
 
 
-@app.get("/api/live/connect-signalr")
-async def connect_live_signalr(reset: bool = False):
+class SignalRConnectCommand(BaseModel):
+    # Wipe the accumulated session state before connecting (a fresh session)
+    reset: bool = False
+
+
+# The live-timing controls change the server's state: POST with a JSON body
+# (api/commands.py json_command), never GET
+@app.post("/api/live/connect-signalr", dependencies=[Depends(json_command)])
+async def connect_live_signalr(command: SignalRConnectCommand):
     """Manually start the SignalR connection to F1 live timing.
 
     Call this when an F1 session is about to start. The connection will
     auto-reconnect if dropped.
 
-    Pass ``?reset=true`` to wipe accumulated session state before reconnecting
-    (e.g. when starting a fresh session). Default is to PRESERVE accumulated
-    data so a viewer who exits and re-enters mid-race keeps their timing
-    grid, lap history, and race-control feed.
+    Send ``{"reset": true}`` to wipe accumulated session state before
+    reconnecting (e.g. when starting a fresh session). Default is to PRESERVE
+    accumulated data so a viewer who exits and re-enters mid-race keeps their
+    timing grid, lap history, and race-control feed.
     """
+    reset = command.reset
     global _live_signalr_task, _live_session_manager
     if _live_session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail="Live timing is not initialized.")
     if _live_signalr_task and not _live_signalr_task.done():
         return {"status": "already_connected"}
 
@@ -1112,7 +1188,7 @@ async def connect_live_signalr(reset: bool = False):
         else:
             logger.info(
                 "Reconnecting SignalR — preserving %d laps, %d drivers, "
-                "%d retirements (pass ?reset=true to clear)",
+                "%d retirements (send reset: true to clear)",
                 len(_live_session_manager.lap_times),
                 len(_live_session_manager.driver_info),
                 len(_live_session_manager.driver_statuses),
@@ -1133,9 +1209,8 @@ async def connect_live_signalr(reset: bool = False):
             logger.warning(f"OpenF1 telemetry not available: {oe}")
 
         return {"status": "connecting", "message": "SignalR client started (with OpenF1 telemetry)"}
-    except Exception as e:
-        logger.error(f"SignalR connect failed: {e}")
-        return {"error": str(e)}
+    except Exception:
+        raise server_error(logger, "Connecting to F1 live timing")
 
 
 @app.get("/api/live/load-full-session")
@@ -1147,11 +1222,11 @@ async def load_live_full_session():
     loads the complete data through FastF1.
     """
     if _live_session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail="Live timing is not initialized.")
 
     info = _live_session_manager.session_info
     if not info:
-        return {"error": "No session info available"}
+        raise HTTPException(status_code=409, detail="No live session info yet: connect to live timing first.")
 
     # Extract year from start_date or fallback to current year
     import datetime
@@ -1174,16 +1249,20 @@ async def load_live_full_session():
         "Practice 1": "FP1", "Practice 2": "FP2", "Practice 3": "FP3",
         "Sprint Qualifying": "SQ", "Sprint Shootout": "SS",
     }
-    session_type = session_type_map.get(session_type_raw, session_type_raw)
-    if not session_type:
-        session_type = "R"
+    try:
+        session_type = session_type_code(session_type_map.get(session_type_raw, session_type_raw))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="The live session is of a type the app does not load.")
 
     logger.info(f"Loading full session via FastF1: {year} '{event_name}' {session_type}")
 
-    try:
+    def _full_session():
+        # In a worker thread: the FastF1 schedule (network), the session load
+        # and the walk over its payload never hold the event loop
         import fastf1
         # Use event name to find the round
-        schedule = fastf1.get_event_schedule(year, include_testing=False)
+        with _fastf1_lock:
+            schedule = fastf1.get_event_schedule(year, include_testing=False)
         round_num = None
         for _, row in schedule.iterrows():
             if event_name and (
@@ -1195,9 +1274,9 @@ async def load_live_full_session():
                 break
 
         if round_num is None:
-            return {"error": f"Could not find round for '{event_name}' in {year} schedule"}
+            raise HTTPException(status_code=404, detail=f"No round of the {year} schedule matches the live event.")
 
-        data = await asyncio.to_thread(load_session, year, round_num, session_type)
+        data = load_session(year, round_num, session_type)
         logger.info(f"Full session loaded: {len(data.get('lap_times', []))} lap entries")
         # Sanitize any remaining NaN/Inf before JSON serialization
         import math as _math
@@ -1210,12 +1289,16 @@ async def load_live_full_session():
                 return [_sanitize(v) for v in obj]
             return obj
         return _sanitize(data)
-    except Exception as e:
-        logger.error(f"Failed to load full session: {e}", exc_info=True)
-        return {"error": str(e)}
+
+    try:
+        return await asyncio.to_thread(_full_session)
+    except HTTPException:
+        raise
+    except Exception:
+        raise server_error(logger, "Loading the full live session")
 
 
-@app.post("/api/live/load-team-radios")
+@app.post("/api/live/load-team-radios", dependencies=[Depends(json_command)])
 async def load_team_radios():
     """Pull TeamRadio.json from F1's static CDN and ingest every capture.
 
@@ -1224,11 +1307,11 @@ async def load_team_radios():
     sessions, so during a running race this returns ``status: paywalled``.
     """
     if _live_session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail="Live timing is not initialized.")
     return await _live_session_manager.fetch_static_team_radios()
 
 
-@app.post("/api/live/reset")
+@app.post("/api/live/reset", dependencies=[Depends(json_command)])
 async def reset_live_session():
     """Explicitly wipe accumulated live-session state.
 
@@ -1237,12 +1320,12 @@ async def reset_live_session():
     is what makes data persist across viewer reconnects.
     """
     if _live_session_manager is None:
-        return {"error": "Live timing not initialized"}
+        raise HTTPException(status_code=503, detail="Live timing is not initialized.")
     _live_session_manager.reset()
     return {"status": "reset"}
 
 
-@app.get("/api/live/disconnect-signalr")
+@app.post("/api/live/disconnect-signalr", dependencies=[Depends(json_command)])
 async def disconnect_live_signalr():
     """Stop the SignalR connection and OpenF1 telemetry."""
     global _live_signalr_task
@@ -1257,10 +1340,3 @@ async def disconnect_live_signalr():
         _live_signalr_task = None
         return {"status": "disconnected"}
     return {"status": "not_connected"}
-
-
-# ============= Run Server =============
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 
 const POPOVER_WIDTH = 460;
@@ -79,17 +80,16 @@ export default function LayoutBuilder({ anchorRect, onClose }) {
     return { left, top, maxH };
   }, [anchorRect]);
 
+  // Escape closes the topmost transient element only (utils/escapeStack.js)
+  useEscapeLayer(true, onClose);
   useEffect(() => {
     const onClick = (e) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target)) onClose();
     };
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     const t = setTimeout(() => document.addEventListener('mousedown', onClick), 0);
-    document.addEventListener('keydown', onKey);
     return () => {
       clearTimeout(t);
       document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
 

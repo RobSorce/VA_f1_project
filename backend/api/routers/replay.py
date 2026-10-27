@@ -15,7 +15,7 @@ gap to leader, and interval to car ahead.  It also returns race events
 import asyncio
 import math
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from pathlib import Path
 import sys
 
@@ -24,6 +24,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from api.errors import server_error
+from api.params import RoundNumber, Season, SessionType
 from data.processors.stints import map_track_status_to_laps
 
 logger = logging.getLogger(__name__)
@@ -321,7 +323,7 @@ def _build_events(extractor, session, total_laps: int) -> list:
 # =========================================================================
 
 @router.get("/api/session/{year}/{round_num}/{session_type}/replay")
-async def get_replay_data(request: Request, year: int, round_num: int, session_type: str = "R"):
+async def get_replay_data(request: Request, year: Season, round_num: RoundNumber, session_type: SessionType):
     """
     Return structured replay data for a session.
 
@@ -378,6 +380,5 @@ async def get_replay_data(request: Request, year: int, round_num: int, session_t
 
     try:
         return await asyncio.to_thread(_blocking_replay)
-    except Exception as e:
-        logger.error(f"Failed to load session for replay: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise server_error(logger, "Loading the replay data")

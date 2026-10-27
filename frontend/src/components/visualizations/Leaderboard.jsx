@@ -7,6 +7,7 @@ import {
 } from '../../utils/colors';
 import Legend from '../ui/Legend';
 import { useSessionNow } from '../../hooks/useSessionNow';
+import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 import { isLapCompleted, leaderLapEndTime, activeSegmentWindow } from '../../utils/raceTime';
 import { pitStops } from '../../utils/stints';
 import { pitCountsByDriver, viewSessionType, isRaceSession } from '../../utils/strategyViews';
@@ -387,12 +388,9 @@ export default function Leaderboard({ collapsed }) {
   const legendAsPopover = useMediaQuery(LEGEND_POPOVER_VIEWPORT);
   const [legendOpen, setLegendOpen] = useState(false);
   useEffect(() => { if (!legendAsPopover) setLegendOpen(false); }, [legendAsPopover]);
-  useEffect(() => {
-    if (!legendOpen) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setLegendOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [legendOpen]);
+  // Escape closes the legend when it is the topmost transient element
+  // (utils/escapeStack.js)
+  useEscapeLayer(legendOpen, () => setLegendOpen(false));
 
   /* ── Position-change highlight flash (CSS transition handles the slide) */
   // One flash per change: the flash classes are in the row's className while

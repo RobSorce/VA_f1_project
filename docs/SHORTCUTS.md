@@ -3,6 +3,7 @@
 Where the keys are handled:
 
 - `frontend/src/hooks/useKeyboardShortcuts.js`: the global handler, one `keydown` listener on the window (capture phase). It never acts while a text field has the focus (input, textarea, select, editable element), except for `Esc` and the Ctrl/Cmd combinations; while the command palette is open it leaves every key but the Ctrl/Cmd combinations to the palette; while the cheatsheet is open only `Esc`, `?` (both close it) and the Ctrl/Cmd combinations act; with Alt held only Ctrl/Cmd+Alt+D acts.
+- `Esc` closes the topmost transient element only: the menu, popover, dropdown, help panel, cheatsheet or command-bar list opened last (`frontend/src/utils/escapeStack.js`; each one joins with `hooks/useEscapeLayer.js` while it is open), and the key goes no further. With none open, a text field loses the focus; otherwise every floating window and the docked layout close, as with `X`, and both are undone by the Undo toast or `Ctrl/Cmd+Z` while the toast is shown.
 - Two keys are handled by a view, not by the global handler: `[` and `]` by the Circle of Doom (`CircleOfDoom.jsx`, with the rule `pitInLapsKeyStep` of the same hook module), `/` by the command bar (`CommandBar.jsx`).
 - What the user is shown: the cheatsheet opened with `?` (`frontend/src/components/ShortcutCheatsheet/ShortcutCheatsheet.jsx`), the key labels next to the commands of the command palette (`frontend/src/components/CommandPalette/commandRegistry.js`) and the hint bar, a few keys shown for 5 s after a key press (`frontend/src/components/ShortcutHints/ShortcutHints.jsx`).
 
@@ -53,6 +54,7 @@ Each key was sent to the handler during a replay of a 2024 race at lap 10 of 53,
 | `End` | last lap |
 | `Ctrl+G` | arrange the open floating windows (next arrangement) |
 | `Ctrl+K`, `Cmd+K` | open / close the command palette |
+| `Ctrl+Z`, `Cmd+Z` | undo the change of the newest Undo toast on screen (every window closed, a dock change) |
 | `Ctrl+←` | tile the active floating window left |
 | `Ctrl+→` | tile the active floating window right |
 | `Ctrl+↑` | maximise the active floating window |
@@ -63,8 +65,9 @@ Each key was sent to the handler during a replay of a 2024 race at lap 10 of 53,
 
 | Key | When | Effect |
 |-----|------|--------|
+| `Esc` | a menu, popover, dropdown, the help panel, the cheatsheet or the command bar list is open (here a menu, then a popover over it) | close the one opened last only (the popover); the windows and the docked layout stay; the key goes no further |
 | `Esc` | the cheatsheet is open | close the cheatsheet |
-| `Esc` | a floating window or a docked layout is open | close every floating window and the docked layout |
+| `Esc` | a floating window or a docked layout is open, no menu, popover, dropdown, help or cheatsheet open | close every floating window and the docked layout |
 | `Esc` | no window open, a control has the focus | take the focus off the element that has it |
 | `P` | the Pit Wall is on screen | switch to Analysis home |
 | `P` | any other view is on screen | switch to Pit Wall |
@@ -82,7 +85,7 @@ Each key was sent to the handler during a replay of a 2024 race at lap 10 of 53,
 | `?` | the cheatsheet is open | close the cheatsheet |
 | `Ctrl+K` | the cheatsheet is open | open / close the command palette |
 | `any key but Esc, ? and the Ctrl/Cmd combinations` | the cheatsheet is open | nothing |
-| `Esc` | a text field has the focus and a window is open | close every floating window and the docked layout |
+| `Esc` | a text field has the focus and a window is open | take the focus off the element that has it |
 | `any key but Esc and the Ctrl/Cmd combinations` | a text field has the focus (input, textarea, select, editable) | nothing |
 | `Alt + any key but Ctrl/Cmd+Alt+D` | Alt is held | nothing |
 
@@ -101,7 +104,7 @@ Playback speeds (`<` and `>` step through them, no wrap): 0.5x, 1x, 2x, 5x, 10x,
 |---------|------|-----------------|------------------|
 | General | `Ctrl+K` | Open Command Palette | open / close the command palette |
 | General | `/` | Focus Command Bar | left to a view (below) |
-| General | `Esc` | Close all windows / exit layout | close every floating window and the docked layout |
+| General | `Esc` | Close the top popup, else all windows | close every floating window and the docked layout |
 | General | `?` | Toggle this cheatsheet | open / close the shortcut cheatsheet |
 | General | `H` | Toggle shortcut hints | show / hide the shortcut hints |
 | Layout & Views | `1` | Lap Times | open Lap Times |
@@ -117,7 +120,7 @@ Playback speeds (`<` and `>` step through them, no wrap): 0.5x, 1x, 2x, 5x, 10x,
 | Layout & Views | `P` | Toggle Pit Wall / Analysis | switch to Pit Wall |
 | Layout & Views | `W` | Close last tab / window | close the last opened window or tab |
 | Layout & Views | `X` | Close all windows / exit layout | close every floating window and the docked layout |
-| Layout & Views | `Esc` | Close all windows / exit layout | close every floating window and the docked layout |
+| Layout & Views | `Ctrl+Z` | Undo close-all / a dock change | undo the change of the newest Undo toast on screen (every window closed, a dock change) |
 | Layout & Views | `Ctrl+G` | Cycle layout arrangements | arrange the open floating windows (next arrangement) |
 | Layout & Views | `Ctrl+← Ctrl+→` | Tile window left / right | tile the active floating window left / tile the active floating window right |
 | Layout & Views | `Ctrl+↑ Ctrl+↓` | Maximise / restore window | maximise the active floating window / restore the active floating window (untile) |

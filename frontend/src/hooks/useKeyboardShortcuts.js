@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useF1Store } from '../store/useF1Store';
 import { seasonHasDrs, sessionSeasonOf } from '../utils/seasons';
 import { stepPlaybackSpeed } from '../utils/playbackSpeed';
+import { closeTopEscapeLayer } from '../utils/escapeStack';
 
 /**
  * One lap step of the arrow keys on the store state. In lap mode (no frames)
@@ -131,16 +132,38 @@ export function useKeyboardShortcuts() {
         }
       }
 
+      // Cmd/Ctrl+Z outside a text field: undo the change of the newest Undo
+      // toast on screen (every window closed by X / Escape, a dock change).
+      // In a text field it stays the field's own undo
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+        if (!isTypingTarget(document.activeElement) && state.undoLastChange()) e.preventDefault();
+        return;
+      }
+
       // Don't intercept other Cmd/Ctrl combos (browser shortcuts)
       if (e.metaKey || e.ctrlKey) return;
 
       // If command palette modal is open, let it handle its own keys
       if (state.commandPaletteOpen) return;
 
-      // Escape — close cheatsheet, close overlays/docked, blur inputs
+      // Escape closes the topmost transient element only: the menu, popover,
+      // dropdown, help panel, cheatsheet or command-bar list opened last
+      // (utils/escapeStack.js), and the event goes no further, so neither
+      // the element's own listener nor the layout below sees it. With none
+      // open: a text field loses the focus; else every window and the docked
+      // layout close (undoable: toast, Ctrl/Cmd+Z)
       if (e.key === 'Escape') {
+        if (closeTopEscapeLayer()) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         if (state.cheatsheetOpen) {
           state.closeCheatsheet();
+          return;
+        }
+        if (isTypingTarget(document.activeElement)) {
+          document.activeElement.blur();
           return;
         }
         if (state.dockedLayout || state.openOverlays.length > 0) {
@@ -205,7 +228,8 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // X — close all windows/tabs (exit docked layout or close all overlays)
+      // X — close all windows/tabs (exit docked layout or close all overlays;
+      // undoable from its toast or Ctrl/Cmd+Z)
       if (e.key === 'x' || e.key === 'X') {
         e.preventDefault();
         state.closeAllOverlays();

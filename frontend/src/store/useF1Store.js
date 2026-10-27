@@ -1479,6 +1479,15 @@ export const useF1Store = create(persist((set, get) => ({
     return id;
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  /** Ctrl/Cmd+Z: run the newest Undo toast still on screen (a closed layout,
+   *  a dock change) and dismiss it. False when none is shown. */
+  undoLastChange: () => {
+    const toast = [...get().toasts].reverse().find((t) => t.kind === 'undo' && typeof t.action === 'function');
+    if (!toast) return false;
+    get().dismissToast(toast.id);
+    try { toast.action(); } catch { /* no-op, as the toast's button */ }
+    return true;
+  },
   clearToasts: () => set({ toasts: [] }),
 
   // ── Backend reachability (for the global status banner) ───────
@@ -1922,7 +1931,10 @@ export const useF1Store = create(persist((set, get) => ({
       set({ isLoading: false });
     } catch (e) {
       if (superseded()) return;
-      set({ isLoading: false, error: e.message });
+      // The backend's message when it sent one (a status code with a generic
+      // text, e.g. no cached session for the mock replay), else axios's
+      const detail = e.response?.data?.detail;
+      set({ isLoading: false, error: typeof detail === 'string' ? detail : e.message });
       console.error('Failed to enter live mode', e);
     }
   },
@@ -2519,14 +2531,37 @@ export const useF1Store = create(persist((set, get) => ({
     return { openOverlays: next, activeTab: next.length > 0 ? next[next.length - 1] : 'charts', overlayTiles: tiles, overlayVizMapping: vizMap };
   }),
 
-  closeAllOverlays: () => set({
-    openOverlays: [],
-    activeTab: 'pitwall',
-    overlayTiles: {},
-    overlayVizMapping: {},
-    dockedLayout: null,
-    _arrangeIdx: 0,
-  }),
+  // Every window and the docked layout closed (X, Escape with nothing
+  // transient open, "Close all"): undoable from its toast or Ctrl/Cmd+Z
+  // (undoLastChange), which restore the layout as it was
+  closeAllOverlays: () => {
+    const s = get();
+    const hadLayout = !!s.dockedLayout || s.openOverlays.length > 0;
+    const before = {
+      openOverlays: s.openOverlays,
+      activeTab: s.activeTab,
+      overlayTiles: s.overlayTiles,
+      overlayVizMapping: s.overlayVizMapping,
+      dockedLayout: s.dockedLayout,
+      _arrangeIdx: s._arrangeIdx,
+    };
+    set({
+      openOverlays: [],
+      activeTab: 'pitwall',
+      overlayTiles: {},
+      overlayVizMapping: {},
+      dockedLayout: null,
+      _arrangeIdx: 0,
+    });
+    if (!hadLayout) return;
+    s.pushToast({
+      kind: 'undo',
+      message: 'Closed every window and the docked layout',
+      actionLabel: 'Undo',
+      timeout: 8000,
+      action: () => set(before),
+    });
+  },
 
   cycleOverlay: (direction = 1) => set((s) => {
     if (s.openOverlays.length === 0) return s;

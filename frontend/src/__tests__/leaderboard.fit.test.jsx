@@ -54,6 +54,15 @@ const { act } = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { useF1Store } = await import('../store/useF1Store.js');
 const { default: Leaderboard } = await import('../components/visualizations/Leaderboard.jsx');
+// Escape reaches a popover through the global key handler (the Escape stack,
+// utils/escapeStack.js), mounted once as App.jsx mounts it
+const { useKeyboardShortcuts } = await import('../hooks/useKeyboardShortcuts.js');
+{
+  const keysHost = dom.document.createElement('div');
+  dom.document.body.appendChild(keysHost);
+  const Keys = () => { useKeyboardShortcuts(); return null; };
+  await act(async () => { createRoot(keysHost).render(React.createElement(Keys)); });
+}
 const { towerRowStyle, towerBodyStyle } = await import('../utils/views/leaderboard.js');
 const { fitRows } = await import('../utils/views/chartBox.js');
 

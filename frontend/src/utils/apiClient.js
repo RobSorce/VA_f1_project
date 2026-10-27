@@ -171,21 +171,25 @@ export const getChampionship = demoable('getChampionship', (year, loadAll = fals
 export const getLiveStatus = demoable('getLiveStatus', () => client.get('/live/status').then((r) => r.data));
 export const getLiveSnapshot = demoable('getLiveSnapshot', () => client.get('/live/snapshot').then((r) => r.data));
 export const getLiveFrames = demoable('getLiveFrames', () => client.get('/live/frames').then((r) => r.data));
-export const connectSignalR = demoable('connectSignalR', () => client.get('/live/connect-signalr').then((r) => r.data));
+// The controls that change the live session are POSTs with a JSON body (an
+// empty object when they take no parameter): the backend refuses them as GET
+// and without JSON (backend/api/commands.py)
+export const connectSignalR = demoable('connectSignalR', (reset = false) =>
+  client.post('/live/connect-signalr', { reset }).then((r) => r.data));
 export const disconnectSignalR = demoable('disconnectSignalR', () =>
-  client.get('/live/disconnect-signalr').then((r) => r.data));
+  client.post('/live/disconnect-signalr', {}).then((r) => r.data));
 export const loadLiveFullSession = demoable('loadLiveFullSession', () =>
   client.get('/live/load-full-session', { timeout: 600000 }).then((r) => r.data));
 export const getMockSessions = demoable('getMockSessions', () => client.get('/live/mock/sessions').then((r) => r.data));
 export const startMockReplay = demoable('startMockReplay', (year, round, speed = 10) =>
-  client.get('/live/mock/start', { params: { year, round, speed } }).then((r) => r.data));
-export const stopMockReplay = demoable('stopMockReplay', () => client.get('/live/mock/stop').then((r) => r.data));
+  client.post('/live/mock/start', { year, round, speed }).then((r) => r.data));
+export const stopMockReplay = demoable('stopMockReplay', () => client.post('/live/mock/stop', {}).then((r) => r.data));
 
 // ── OpenF1 Telemetry ────────────────────────────────────────────────
 export const startOpenF1Telemetry = demoable('startOpenF1Telemetry', (sessionKey) =>
-  client.get('/live/openf1/start', { params: sessionKey ? { session_key: sessionKey } : {} }).then((r) => r.data));
+  client.post('/live/openf1/start', { session_key: sessionKey || null }).then((r) => r.data));
 export const stopOpenF1Telemetry = demoable('stopOpenF1Telemetry', () =>
-  client.get('/live/openf1/stop').then((r) => r.data));
+  client.post('/live/openf1/stop', {}).then((r) => r.data));
 export const getOpenF1Status = demoable('getOpenF1Status', () => client.get('/live/openf1/status').then((r) => r.data));
 
 // ── Health ──────────────────────────────────────────────────────────

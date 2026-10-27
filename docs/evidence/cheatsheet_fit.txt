@@ -1,5 +1,5 @@
 6 sections, 43 rows; 3 columns; modal max-height 92vh; row padding 2 px; sections may continue in the next column
 OK   1536x750: column 317 px wide, 1 descriptions on 2+ lines; tallest column <= 468 px, body room 604 px (135 px to spare)
 OK   1366x768: column 317 px wide, 1 descriptions on 2+ lines; tallest column <= 469 px, body room 620 px (152 px to spare)
-OK   1920x1080: column 317 px wide, 3 descriptions on 2+ lines; tallest column <= 501 px, body room 907 px (406 px to spare)
-OK   2048x1100: column 317 px wide, 3 descriptions on 2+ lines; tallest column <= 503 px, body room 926 px (423 px to spare)
+OK   1920x1080: column 317 px wide, 5 descriptions on 2+ lines; tallest column <= 507 px, body room 907 px (400 px to spare)
+OK   2048x1100: column 317 px wide, 5 descriptions on 2+ lines; tallest column <= 509 px, body room 926 px (417 px to spare)
