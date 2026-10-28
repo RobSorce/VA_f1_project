@@ -30,7 +30,7 @@ import {
   BRUSH_TINT_ALPHA,
 } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { causalKey } from '../../utils/strategyViews';
+import { causalKey, viewSessionType } from '../../utils/strategyViews';
 import {
   buildRaceTrace, traceBands, traceStops, wetRace, traceWindow, traceAnswer, referenceText, latestPoint,
 } from '../../utils/raceTrace';
@@ -89,7 +89,8 @@ export default function RaceTrace() {
 
   const sessionData = useF1Store((s) => s.sessionData);
   const trackStatus = useF1Store((s) => s.trackStatus);
-  const sessionType = useF1Store((s) => s.sessionType);
+  // The loaded session's type, not the menu's pill (the menus change the pill without loading)
+  const sessionType = useF1Store(viewSessionType);
   const isLiveMode = useF1Store((s) => s.isLiveMode);
   const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
   const focusDriver = useF1Store((s) => s.focusDriver);

@@ -698,6 +698,7 @@ export const CHART_HELP = {
       'This race only: the season view needs an archive of the cached races.',
       'Laps in traffic count: a free-air filter needs a gap threshold that is not calibrated yet.',
       'Causal: only the laps completed at the replay clock.',
+      'Race and sprint sessions only: a qualifying or practice session has no race pace to compare.',
     ],
     seeAlso: [
       { tabId: 'racetrace', label: 'Race Trace' },

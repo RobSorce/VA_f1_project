@@ -14,7 +14,8 @@
  * when the interval excludes 0.
  *
  * Reads the brushed lap range (a chip "laps 20–35 ×" clears it), causal at
- * the dashboard's clock. 21 px rows, up to 10 a page, a pager in the header
+ * the dashboard's clock. Race and sprint sessions only (the loaded session's
+ * type, utils/strategyViews.js viewSessionType). 21 px rows, up to 10 a page, a pager in the header
  * for the rest (utils/views/fieldPaceChart.js FIELD_PACE_MIN: 220 px hold
  * ten rows); under 560 px of width the answer line only. Nothing scrolls.
  */
@@ -26,7 +27,7 @@ import {
   UI_COLORS, withAlpha, BRUSH_TINT_ALPHA,
 } from '../../utils/colors';
 import { useSessionNow } from '../../hooks/useSessionNow';
-import { causalKey } from '../../utils/strategyViews';
+import { causalKey, viewSessionType, isRaceSession } from '../../utils/strategyViews';
 import { fieldPace, pctText, gapLine, PACE_LOW_DATA_LAPS } from '../../utils/fieldPace';
 import {
   FIELD_PACE_ROW_PX, paceRowsFit, pacePage, paceDomain, markShape, diamondPath, paceAnswer,
@@ -37,6 +38,10 @@ import { useChartBox } from '../../utils/views/chartBox';
 
 // Radius of a driver's mark (px)
 const MARK_R = 4.5;
+// The pace of a session that is not a race: nothing to compare
+const NO_PACE = Object.freeze({
+  comparable: 0, repLaps: 0, lapRange: null, drivers: Object.freeze({}), teams: Object.freeze([]),
+});
 
 export default function FieldPace() {
   const rootRef = useRef(null);
@@ -56,6 +61,9 @@ export default function FieldPace() {
   const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   const setFocusDriver = useF1Store((s) => s.setFocusDriver);
   const setBrushLapRange = useF1Store((s) => s.setBrushLapRange);
+  // The session the views apply rules for (the loaded one, not the menu's
+  // pill): a qualifying or practice session has no race pace
+  const race = isRaceSession(useF1Store(viewSessionType));
 
   const lapTimes = useMemo(() => sessionData?.lap_times || [], [sessionData]);
   const status = useMemo(() => trackStatus || sessionData?.track_status || [], [trackStatus, sessionData]);
@@ -65,12 +73,12 @@ export default function FieldPace() {
   const causal = useMemo(() => causalKey(lapTimes, sessionNow, status), [lapTimes, sessionNow, status]);
   const rangeKey = brushLapRange ? `${brushLapRange[0]}-${brushLapRange[1]}` : '';
   const pace = useMemo(
-    () => fieldPace(lapTimes, {
+    () => (race ? fieldPace(lapTimes, {
       sessionNow, trackStatus: status, lapRange: brushLapRange, driverInfo: sessionData?.driver_info,
-    }),
+    }) : NO_PACE),
     // sessionNow enters through the causal key, which changes whenever the result does
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lapTimes, status, causal, rangeKey, sessionData],
+    [race, lapTimes, status, causal, rangeKey, sessionData],
   );
 
   const width = box.width || 640;
@@ -252,7 +260,7 @@ export default function FieldPace() {
     });
   }, [hoverTeam, highlightedDriver, pace, pg.rows, width, height]);
 
-  const controls = answerOnly ? null : (
+  const controls = answerOnly || !race ? null : (
     <>
       {brushLapRange && (
         <button type="button" className="pos-chart-clear-brush fp-range" onClick={() => setBrushLapRange(null)} title="Clear the lap range (every view)">
@@ -272,7 +280,9 @@ export default function FieldPace() {
   return (
     <Panel title="Race Pace" controls={controls} className="panel--dense">
       <div ref={rootRef} className="field-pace" style={{ position: 'relative', height: '100%', minHeight: 0 }}>
-        {pace.comparable === 0 ? (
+        {!race ? (
+          <div className="loading-placeholder"><span>Race and sprint sessions only</span></div>
+        ) : pace.comparable === 0 ? (
           <div className="loading-placeholder"><span>No comparable lap yet</span></div>
         ) : answerOnly ? (
           <div className="fp-answer" style={{ color: TEXT_COLORS.primary, fontSize: CHART_FONT.data, fontWeight: 700 }}>

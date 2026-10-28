@@ -300,6 +300,27 @@ describe('interactions', () => {
   });
 });
 
+describe('race sessions only', () => {
+  for (const [name, extra] of [
+    ['a qualifying session loaded (the pill still on R)', { loadedSessionType: 'Q', sessionType: 'R' }],
+    ['a practice session loaded', { loadedSessionType: 'FP2' }],
+    ['a qualifying replay', { isQualifyingReplay: true }],
+  ]) {
+    it(`${name}: the placeholder, no rows, no controls`, async () => {
+      state(MONZA, { brushLapRange: [20, 35], selectedLapRange: [20, 35], ...extra });
+      const { host } = await mount({ width: 700, height: 260 });
+      expect(host.querySelector('.loading-placeholder').textContent).toBe('Race and sprint sessions only');
+      expect(svgOf(host)).toBeFalsy();
+      expect(host.querySelector('.fp-range')).toBeFalsy();
+    });
+  }
+  it('a sprint: the rows', async () => {
+    state(MONZA, { loadedSessionType: 'S', sessionType: 'S' });
+    const { host } = await mount({ width: 700, height: 260 });
+    expect(rowsOf(host).length).toBe(10);
+  });
+});
+
 describe('replay frames', () => {
   it('two frames with no lap completed: the same row nodes, the tooltip still shown', async () => {
     const lt = MONZA.lap_times;

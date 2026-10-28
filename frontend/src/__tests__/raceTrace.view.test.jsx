@@ -184,6 +184,13 @@ describe('fit modes', () => {
     expect(host.querySelector('.rt-reference')).toBeFalsy();
   });
 
+  it('a qualifying session loaded, the pill still on R: race and sprint sessions only', async () => {
+    state({ loadedSessionType: 'Q', sessionType: 'R' });
+    const { host } = await mount({ width: 800, height: 400 });
+    expect(host.querySelector('.loading-placeholder').textContent).toBe('Race and sprint sessions only');
+    expect(chartSvg(host)).toBeFalsy();
+  });
+
   it('the source has no scroll area', () => {
     const src = fs.readFileSync(path.join(SRC, 'components/visualizations/RaceTrace.jsx'), 'utf8');
     expect(src).not.toMatch(/overflow[XY]?\s*:\s*['"](auto|scroll)/);
