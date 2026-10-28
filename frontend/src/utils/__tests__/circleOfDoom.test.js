@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   referenceLap, phases, phaseAt, circleState, gapSeconds, lapOffset, pitWindow, rankByCrossing,
   rejoinProbabilities, rejoinDistribution, seededRandom, circleMemoKey, circleStateKey, ringRelations,
-  wrapPhase, PHASE_MAX,
+  wrapPhase, PHASE_MAX, isCleanLap, OUT_LAP_ANCHORS,
 } from '../circleOfDoom.js';
 import { estimatePitLoss, FALLBACK_PIT_LOSS } from '../pitLoss.js';
 import { perturbFuture } from './futureRows.js';
@@ -659,5 +659,236 @@ describe('causality (synthetic)', () => {
       }
       expect(circleMemoKey('FOC', future, now, estB)).toBe(circleMemoKey('FOC', RACE, now, estA));
     }
+  });
+});
+
+// Out-lap anchor (module header). PIT's stop: pit entry T0 + 575, in-lap 6 ends
+// at the line inside the pit lane at T0 + 595, pit exit T0 + 610 (15 s later),
+// out-lap 7 ends at T0 + 702 (107 s). The 22 s fallback loss, 5 s of it paid
+// on the in-lap (95 - 90): 17 s pending on the out-lap.
+describe('out-lap anchor: line (default) and pit exit', () => {
+  const LINE_FIELDS = ['linePhase', 'sincePitExit'];
+  const strip = (cars) => cars.map((c) => Object.fromEntries(Object.entries(c).filter(([k]) => !LINE_FIELDS.includes(k))));
+  const at = (now, anchor, lapTimes = RACE) => circleState(lapTimes, { sessionNow: now, outLapAnchor: anchor });
+  // Analytics that must not move with the anchor
+  const BAND_KEYS = ['focusPhase', 'rejoinPhase', 'rejoinArc', 'trafficOnly', 'bandSeconds'];
+  const withoutBand = (w) => Object.fromEntries(Object.entries(w).filter(([k]) => !BAND_KEYS.includes(k)));
+
+  it('the anchors; an unknown one is refused', () => {
+    expect(OUT_LAP_ANCHORS).toEqual(['line', 'pitExit']);
+    expect(() => phases(RACE, { sessionNow: NOW, outLapAnchor: 'exit' })).toThrow(/outLapAnchor/);
+  });
+
+  it('default = line: the same rows as an explicit line anchor, which adds linePhase and sincePitExit', () => {
+    for (const now of [T0 + 541, NOW, T0 + 600, T0 + 650, T0 + 690, T0 + 905, Infinity]) {
+      const plain = phases(RACE, { sessionNow: now });
+      const line = phases(RACE, { sessionNow: now, outLapAnchor: 'line' });
+      expect(strip(line)).toEqual(plain);
+      for (const c of line) {
+        expect(c.anchorTime).toBe(c.lastCrossingTime);
+        expect(Object.keys(c)).toEqual(expect.arrayContaining(LINE_FIELDS));
+      }
+      expect(plain.every((c) => !('linePhase' in c) && !('sincePitExit' in c))).toBe(true);
+    }
+  });
+
+  it('on the out-lap after the pit exit: line counts from the crossing in the lane, pitExit from the exit', () => {
+    const line = carOf(at(T0 + 650, 'line'), 'PIT');
+    const exit = carOf(at(T0 + 650, 'pitExit'), 'PIT');
+    for (const c of [line, exit]) {
+      expect(c).toMatchObject({
+        lapsCompleted: 6, lastCrossingTime: T0 + 595, pitExitTime: T0 + 610, elapsed: 55, sincePitExit: 40,
+        inPitLane: false, saturated: false,
+      });
+      expect(c.linePhase).toBeCloseTo(55 / 90, 12);
+    }
+    expect(line.anchorTime).toBe(T0 + 595);
+    expect(line.phase).toBeCloseTo(55 / 90, 12);
+    expect(exit.anchorTime).toBe(T0 + 610);
+    expect(exit.phase).toBeCloseTo(40 / 90, 12);
+    expect(exit.angle).toBeCloseTo((40 / 90) * 2 * Math.PI, 12);
+    // at the exit itself the car leaves the lane at the line
+    expect(carOf(at(T0 + 610, 'pitExit'), 'PIT')).toMatchObject({ phase: 0, sincePitExit: 0, inPitLane: false });
+    expect(carOf(at(T0 + 610, 'line'), 'PIT').phase).toBeCloseTo(15 / 90, 12);
+  });
+
+  it('before the pit exit and after the out-lap: both anchors are the line', () => {
+    // in the lane after the crossing (T0 + 600), before the entry, after the out-lap
+    for (const now of [T0 + 570, T0 + 580, T0 + 600, T0 + 609.9, T0 + 702, T0 + 720]) {
+      expect(strip(at(now, 'pitExit').cars)).toEqual(strip(at(now, 'line').cars));
+      expect(carOf(at(now, 'pitExit'), 'PIT').pitExitTime).toBeNull();
+    }
+    expect(carOf(at(T0 + 600, 'pitExit'), 'PIT')).toMatchObject({ anchorTime: T0 + 595, elapsed: 5, sincePitExit: null });
+  });
+
+  it('linePhase is unclamped; the 0.999 hold counts from the anchor', () => {
+    // T0 + 690: 95 s since the line (held at 0.999 with the line anchor), 80 s since the exit
+    const line = carOf(at(T0 + 690, 'line'), 'PIT');
+    const exit = carOf(at(T0 + 690, 'pitExit'), 'PIT');
+    expect(line).toMatchObject({ phase: PHASE_MAX, saturated: true });
+    expect(exit).toMatchObject({ saturated: false });
+    expect(exit.phase).toBeCloseTo(80 / 90, 12);
+    for (const c of [line, exit]) expect(c.linePhase).toBeCloseTo(5 / 90, 12);
+    // seconds held at 0.999 before the out-lap ends at T0 + 702: from 0.999 x 90 s after the anchor
+    // (PIT's row is constant from the crossing to the exit and from the exit to the line)
+    const held = (anchor) => {
+      const [inLane, out] = [T0 + 600, T0 + 650].map((t) => carOf(at(t, anchor), 'PIT'));
+      let n = 0;
+      for (let t = T0 + 595; t < T0 + 702; t += 0.01) if (phaseAt(t < T0 + 610 ? inLane : out, t, 90).saturated) n += 1;
+      return n * 0.01;
+    };
+    expect(held('line')).toBeCloseTo(702 - 595 - PHASE_MAX * 90, 1); // 17.1 s
+    expect(held('pitExit')).toBeCloseTo(702 - 610 - PHASE_MAX * 90, 1); // 2.1 s
+  });
+
+  it('a row without PitOutTime (live feed) keeps the line anchor', () => {
+    const live = RACE.map((r) => (r.Driver === 'PIT' && r.LapNumber === 7 ? { ...r, PitOutTimeSeconds: null } : r));
+    const c = carOf(at(T0 + 650, 'pitExit', live), 'PIT');
+    expect(c).toMatchObject({ anchorTime: T0 + 595, pitExitTime: null, sincePitExit: null });
+    expect(c.phase).toBeCloseTo(55 / 90, 12);
+  });
+
+  it('race order, positions, gaps and lap offsets do not move with the anchor', () => {
+    for (let now = T0 + 560; now <= T0 + 720; now += 1) {
+      const a = at(now, 'line');
+      const b = at(now, 'pitExit');
+      const key = (st) => st.cars.map((c) => [c.driver, c.position, c.lapsCompleted, c.lastCrossingTime, c.lapOffsetToLeader]);
+      expect(key(b)).toEqual(key(a));
+      for (const d of ['FOC', 'B30', 'LAPD']) {
+        expect(gapSeconds('PIT', d, b)).toBe(gapSeconds('PIT', d, a));
+        expect(lapOffset('PIT', d, b)).toBe(lapOffset('PIT', d, a));
+      }
+    }
+  });
+
+  it('the window ranks, lists, traffic and probabilities do not move with the anchor', () => {
+    for (const now of [T0 + 600, T0 + 610, T0 + 650, T0 + 690, T0 + 701]) {
+      const est = estimatePitLoss(RACE, { sessionNow: now });
+      for (const focus of ['FOC', 'PIT', 'B5', 'B30', 'LAPD']) {
+        const a = pitWindow(focus, at(now, 'line'), est);
+        const b = pitWindow(focus, at(now, 'pitExit'), est);
+        expect(withoutBand(b)).toEqual(withoutBand(a));
+        expect(rejoinDistribution(focus, at(now, 'pitExit'), est)).toEqual(rejoinDistribution(focus, at(now, 'line'), est));
+      }
+    }
+  });
+
+  it('a stop under way: the rejoin point is placed from the line time, whatever is drawn', () => {
+    const est = estimatePitLoss(RACE, { sessionNow: T0 + 650 });
+    for (const anchor of ['line', 'pitExit']) {
+      const w = pitWindow('PIT', at(T0 + 650, anchor), est);
+      expect(w).toMatchObject({ ongoingStop: true, stage: 'out-lap', targetLap: 7 });
+      expect(w.rejoinSeconds).toBeCloseTo(17, 9);
+      expect(w.predictedCrossing).toBeCloseTo(T0 + 702, 9);
+      // 55 s since the line, 17 s still to pay: the point 38 s past the line,
+      // which carried on at 90 s a lap crosses the line at the predicted crossing
+      expect(w.rejoinPhase).toBeCloseTo(38 / 90, 12);
+      expect(w.predictedCrossing - (T0 + 650) + w.rejoinPhase * 90).toBeCloseTo(90, 9);
+      expect(w.rejoinArc[0]).toBeCloseTo(wrapPhase(55 / 90 - w.rejoinArcOffset[0]), 12);
+      expect(w.rejoinArc[1]).toBeCloseTo(wrapPhase(55 / 90 - w.rejoinArcOffset[1]), 12);
+    }
+    // drawn: 55 s with the line anchor (the band is the whole 17 s), 40 s at the
+    // pit exit (15 s of the stop already behind the car: a 2 s band)
+    expect(pitWindow('PIT', at(T0 + 650, 'line'), est)).toMatchObject({ bandSeconds: 17 });
+    const exit = pitWindow('PIT', at(T0 + 650, 'pitExit'), est);
+    expect(exit.focusPhase).toBeCloseTo(40 / 90, 12);
+    expect(exit.bandSeconds).toBeCloseTo(2, 9);
+    // held at 0.999 with the line anchor: the rejoin point keeps moving with the line time
+    const held = pitWindow('PIT', at(T0 + 690, 'line'), estimatePitLoss(RACE, { sessionNow: T0 + 690 }));
+    expect(held.focusPhase).toBe(PHASE_MAX);
+    expect(held.rejoinPhase).toBeCloseTo((95 - 17) / 90, 12);
+    expect(held.bandSeconds).toBeCloseTo(17, 9);
+    // a focus not stopping: from its drawn phase, as before
+    const foc = pitWindow('FOC', at(NOW, 'pitExit'), estimatePitLoss(RACE, { sessionNow: NOW }));
+    expect(foc.rejoinPhase).toBeCloseTo(wrapPhase(30 / 90 - 22 / 90), 12);
+    expect(foc.bandSeconds).toBe(22);
+  });
+
+  it('lapped traffic in the band: ring seconds between anchors, the band from the drawn focus', () => {
+    // LAP2 / LAP3 / LAP4 one lap down on PIT, across the line at T0 + 611 / 605 / 620 (lap 5)
+    const RACE_A = withPositions([
+      ...RACE.map((r) => ({ ...r })),
+      ...car('LAP2', { offset: 161, laps: 9 }),
+      ...car('LAP3', { offset: 155, laps: 9 }),
+      ...car('LAP4', { offset: 170, laps: 9 }),
+    ]);
+    const est = estimatePitLoss(RACE_A, { sessionNow: T0 + 650 });
+    const line = pitWindow('PIT', at(T0 + 650, 'line', RACE_A), est);
+    const exit = pitWindow('PIT', at(T0 + 650, 'pitExit', RACE_A), est);
+    // line: PIT drawn 55 s past the line, band back to 38 s: LAP3 (45 s) and LAP2 (39 s), not LAP4 (30 s)
+    expect(line.trafficOnly).toEqual([
+      { driver: 'LAP2', laps: 1, label: '1L' },
+      { driver: 'LAP3', laps: 1, label: '1L' },
+    ]);
+    // pitExit: PIT drawn 40 s past the line, band back to 38 s: LAP2 only (LAP3 is ahead
+    // of it; LAP4 is 10 s behind it, inside the 17 s pending loss but outside the band)
+    expect(exit.trafficOnly).toEqual([{ driver: 'LAP2', laps: 1, label: '1L' }]);
+    expect(withoutBand(exit)).toEqual(withoutBand(line));
+    // independent reading of the drawn ring
+    for (const [anchor, w] of [['line', line], ['pitExit', exit]]) {
+      const st = at(T0 + 650, anchor, RACE_A);
+      const pit = carOf(st, 'PIT');
+      const inBand = st.cars
+        .filter((c) => c.driver !== 'PIT' && !c.inPitLane && !c.finished)
+        .filter((c) => {
+          const behind = wrapPhase(pit.phase - c.phase) * 90;
+          return behind > 1e-9 && behind <= w.bandSeconds + 1e-9;
+        })
+        .filter((c) => lapOffset('PIT', c.driver, st) !== 0)
+        .map((c) => c.driver)
+        .sort();
+      expect(w.trafficOnly.map((x) => x.driver)).toEqual(inBand);
+    }
+  });
+
+  it('memoised state + phaseAt + ringRelations = a fresh computation at every frame (pit exit)', () => {
+    let key = null;
+    let memo = null;
+    let checks = 0;
+    for (let t = T0 + 600; t < T0 + 710; t += 0.5) {
+      const est = estimatePitLoss(RACE, { sessionNow: t });
+      const k = circleStateKey(RACE, t);
+      if (k !== key) {
+        key = k;
+        const st = at(t, 'pitExit');
+        memo = { st, wins: new Map(['FOC', 'PIT', 'B30', 'LAPD'].map((f) => [f, pitWindow(f, st, est)])) };
+      }
+      const cars = memo.st.cars.map((c) => ({ ...c, ...phaseAt(c, t, memo.st.refLap) }));
+      const frame = { ...memo.st, sessionNow: t, cars };
+      const fresh = at(t, 'pitExit');
+      expect(fresh.cars).toEqual(cars);
+      for (const [focus, win] of memo.wins) {
+        if (!win.available) continue;
+        expect({ ...win, ...ringRelations(win, frame) }).toEqual(pitWindow(focus, fresh, est));
+        checks += 1;
+      }
+    }
+    expect(checks).toBeGreaterThan(600);
+  });
+
+  it('causal: every future row changed, the anchored phases and the window unchanged', () => {
+    for (const now of [T0 + 541, NOW, T0 + 650, T0 + 690]) {
+      const future = perturbFuture(RACE, now);
+      const a = at(now, 'pitExit');
+      const b = at(now, 'pitExit', future);
+      expect(b.cars).toEqual(a.cars);
+      const estA = estimatePitLoss(RACE, { sessionNow: now });
+      const estB = estimatePitLoss(future, { sessionNow: now });
+      for (const d of ['FOC', 'PIT', 'LAPD']) expect(pitWindow(d, b, estB)).toEqual(pitWindow(d, a, estA));
+    }
+    // In the lane after the crossing (T0 + 600) only inPitLane reads the future
+    // (driverStateAt and the out-lap's PitOutTime, see the causality test above)
+    const fields = (st) => st.cars.map(({ inPitLane, ...c }) => c);
+    expect(fields(at(T0 + 600, 'pitExit', perturbFuture(RACE, T0 + 600)))).toEqual(fields(at(T0 + 600, 'pitExit')));
+  });
+
+  it('isCleanLap is the pace-sample rule', () => {
+    const lap = (o) => ({ LapNumber: 5, LapTimeSeconds: 90, TrackStatus: '1', ...o });
+    expect(isCleanLap(lap())).toBe(true);
+    expect(isCleanLap(lap({ LapNumber: 1 }))).toBe(false);
+    expect(isCleanLap(lap({ TrackStatus: '4' }))).toBe(false);
+    expect(isCleanLap(lap({ PitInTimeSeconds: 10 }))).toBe(false);
+    expect(isCleanLap(lap({ PitOutTimeSeconds: 10 }))).toBe(false);
+    expect(isCleanLap(lap({ LapTimeSeconds: 200 }))).toBe(false);
   });
 });

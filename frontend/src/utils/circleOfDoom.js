@@ -3,11 +3,11 @@
  * plus the "pit now" window of a focus car and its rejoin probabilities.
  *
  * Geometry. The top of the circle is the timing line. A car's phase is the
- * time since it last crossed the line divided by the reference lap, so the
- * angular distance between two cars is their time gap. The layout is cyclic
- * because the lap is: a car just before the line sits next to a car just past
- * it, where a linear axis would break.
- *   phase = clamp((sessionNow - lastCrossingTime) / refLap, 0, 0.999)
+ * time since its anchor (normally its last line crossing) divided by the
+ * reference lap, so the angular distance between two cars is their time gap.
+ * The layout is cyclic because the lap is: a car just before the line sits
+ * next to a car just past it, where a linear axis would break.
+ *   phase = clamp((sessionNow - anchorTime) / refLap, 0, 0.999)
  *   angle = phase * 2 * PI, radians, clockwise from the top: in SVG
  *   coordinates x = cx + r * sin(angle), y = cy - r * cos(angle) (d3.arc uses
  *   the same convention).
@@ -16,6 +16,26 @@
  * green-flag lap, so under SC the second part of the lap piles up at the line.
  * Analytics never use the clamped value: gaps and ranks come from crossing
  * times.
+ *
+ * Out-lap anchor (opts.outLapAnchor). A stopping car crosses the line inside
+ * the pit lane: its in-lap ends there and its out-lap starts there, well
+ * before the pit exit. With the default 'line' anchor (anchorTime =
+ * lastCrossingTime) the out-lap phase counts from that crossing, so the car
+ * leaves the pit lane drawn a fraction of a lap ahead of where it is, and
+ * then waits at 0.999 for the line while its slow out-lap ends. With
+ * 'pitExit', a car whose last completed lap is an in-lap and whose out-lap
+ * PitOutTime <= sessionNow (the out-lap has started but is not complete) is
+ * anchored at its pit exit: it leaves the pit lane at the line (phase 0) and
+ * then runs at the reference lap; no estimator of where the exit is on the
+ * lap. A row without a PitOutTime (live feed) keeps the line anchor. Only the
+ * drawn ring moves with the anchor (the phases, and the pit window's band read
+ * off it: focusPhase, bandSeconds, trafficOnly): the race order (the car keeps
+ * its place until it crosses the line), gaps, ranks, the window's projections,
+ * lists and rejoin point, and circleStateKey all use lastCrossingTime. Every
+ * row also carries elapsed (seconds since the line) and pitExitTime (that pit
+ * exit, or null); with an explicit outLapAnchor it also carries sincePitExit
+ * (seconds since that pit exit) and linePhase = wrap(elapsed / refLap),
+ * unclamped: where the car is on the ring by its line time.
  *
  * Clock. Every time is SESSION seconds (raceTime.js header): lap Time (lap
  * end), LapStartTime, PitInTime / PitOutTime, and sessionNow = replay frame.t
@@ -153,16 +173,26 @@
  * replaces flagged 18.2 %, 24 % right, 25 % found (rival stops not yet
  * started are unknown to both).
  *
+ * Rejoin point of a stop under way (ongoingStop). Its rejoin point is placed
+ * from the car's line time, wrap((sessionNow - lastCrossingTime - pending) /
+ * refLap): where the car will be on the ring once the loss still to pay is
+ * paid, the point that, carried on to the line at its pace, is
+ * predictedCrossing. Neither its anchor at the pit exit nor its hold at 0.999
+ * moves it.
+ *
  * Lapped traffic in the band (trafficOnly) is read off the ring as the view
  * draws it: phases clamped at 0.999, cars in the pit lane (inner arc) and
  * finished cars left out. Ring seconds from car b forward to car a: the
- * difference of their last crossings while both move, else of their drawn
+ * difference of their anchors while both move, else of their drawn
  * positions (phase x refLap) when one sits at 0.999. ringRelations(win, state)
  * recomputes it (and the phases of the band) for the cars of any frame;
  * pitWindow uses the same code, so pitWindow(focus, frame) = { ...a window of
  * the same memo key, ...ringRelations(that window, frame) }.
- *   trafficOnly = cars inside the band (the ring arc from the focus back to the
- *                 rejoin point, pending loss long) that are not on the focus's
+ *   trafficOnly = cars inside the band (the ring arc from the focus as drawn
+ *                 back to the rejoin point: bandSeconds = the pending loss,
+ *                 less the time from the line to the pit exit for a car
+ *                 anchored there, never below 0; a focus held at 0.999 keeps
+ *                 that length from where it is drawn) that are not on the focus's
  *                 lap: laps = lapOffset(focus, car), label '1L' (one lap down on
  *                 the focus) or '-1L' (one lap up); a car not yet passed (lapOffset
  *                 0) but ahead of the focus in the race is about to lap it:
@@ -196,7 +226,7 @@
  * Pure module: no React, no D3, no store access.
  */
 import {
-  isLapCompleted, isGreenLap, hasPitIn, hasPitOut, pitInSeconds, lapEndTime, lapStartTime,
+  isLapCompleted, isGreenLap, hasPitIn, hasPitOut, pitInSeconds, pitOutSeconds, lapEndTime, lapStartTime,
   leaderLapEndTime,
 } from './raceTime';
 import { estimatePitLoss, FALLBACK_PIT_LOSS } from './pitLoss';
@@ -252,8 +282,14 @@ export function wrapPhase(p) {
   return p - Math.floor(p);
 }
 
-/** A completed lap usable as a pace sample: green, no pit entry or exit, lap > 1, 0 < time < 200 s. */
-function isCleanLap(lt) {
+/**
+ * A completed lap usable as a pace sample: green, no pit entry or exit, lap > 1, 0 < time < 200 s.
+ * The reference lap, the recent paces and the sector fractions (circleSectors.js) use it.
+ *
+ * @param {Object} lt - one lap_times row
+ * @returns {boolean}
+ */
+export function isCleanLap(lt) {
   const t = toNum(lt?.LapTimeSeconds);
   return toNum(lt?.LapNumber) > 1 && t != null && t > 0 && t < MAX_LAP_S
     && isGreenLap(lt) && !hasPitIn(lt) && !hasPitOut(lt);
@@ -353,26 +389,70 @@ function refSecondsOf(refLap) {
   return s != null && s > 0 ? s : null;
 }
 
+/** Out-lap anchors of phases(): the line crossing (default) or the pit exit (module header). */
+export const OUT_LAP_ANCHORS = Object.freeze(['line', 'pitExit']);
+
 /**
  * Phase and angle of one car at sessionNow (cheap: for per-frame updates of a
  * memoised circleState). Finished cars and sessionNow = Infinity sit at 0.
+ * The phase counts from car.anchorTime (lastCrossingTime when absent). On a
+ * row that carries linePhase (phases() with an explicit outLapAnchor) it also
+ * refreshes linePhase and sincePitExit.
  *
- * @param {{lastCrossingTime: number, finished?: boolean}} car - a phases() row
+ * @param {{lastCrossingTime: number, anchorTime?: number, pitExitTime?: number|null,
+ *   finished?: boolean}} car - a phases() row
  * @param {number} sessionNow - session seconds
  * @param {number|Object} refLap - seconds, or a referenceLap result
- * @returns {{elapsed: number, phase: number|null, angle: number|null, saturated: boolean}}
- *   elapsed in seconds; phase null without a reference lap
+ * @returns {{elapsed: number, phase: number|null, angle: number|null, saturated: boolean,
+ *   linePhase?: number|null, sincePitExit?: number|null}}
+ *   elapsed = seconds since the line; phase null without a reference lap;
+ *   linePhase = wrap(elapsed / refLap) (null without a reference lap);
+ *   sincePitExit = seconds since car.pitExitTime (null without one)
  */
 export function phaseAt(car, sessionNow, refLap) {
   const now = normaliseNow(sessionNow);
   const ref = refSecondsOf(refLap);
-  const elapsed = car?.finished || now === Infinity
-    ? 0
-    : Math.max(0, now - car.lastCrossingTime);
-  if (ref == null) return { elapsed, phase: null, angle: null, saturated: false };
-  const raw = elapsed / ref;
-  const phase = Math.min(PHASE_MAX, Math.max(0, raw));
-  return { elapsed, phase, angle: phase * TWO_PI, saturated: raw > PHASE_MAX };
+  const still = car?.finished || now === Infinity;
+  const elapsed = still ? 0 : Math.max(0, now - car.lastCrossingTime);
+  const anchor = toNum(car?.anchorTime) ?? car?.lastCrossingTime;
+  const sinceAnchor = still ? 0 : Math.max(0, now - anchor);
+  let out;
+  if (ref == null) {
+    out = { elapsed, phase: null, angle: null, saturated: false };
+  } else {
+    const raw = sinceAnchor / ref;
+    const phase = Math.min(PHASE_MAX, Math.max(0, raw));
+    out = { elapsed, phase, angle: phase * TWO_PI, saturated: raw > PHASE_MAX };
+  }
+  if (car && 'linePhase' in car) {
+    const exit = toNum(car.pitExitTime);
+    out.linePhase = ref == null ? null : wrapPhase(elapsed / ref);
+    out.sincePitExit = still || exit == null ? null : Math.max(0, now - exit);
+  }
+  return out;
+}
+
+/**
+ * Phase of a car by its line time, wrap((sessionNow - lastCrossingTime) /
+ * refLap): its linePhase when the row carries one, else from sessionNow.
+ */
+function linePhaseOf(car, sessionNow, ref) {
+  if (typeof car.linePhase === 'number') return car.linePhase;
+  const now = normaliseNow(sessionNow);
+  if (car.finished || now === Infinity) return 0;
+  return wrapPhase(Math.max(0, now - car.lastCrossingTime) / ref);
+}
+
+/**
+ * Pit exit of the out-lap a car is running at now: its last completed row is
+ * an in-lap and the next row's PitOutTime has passed (not before that line
+ * crossing); else null (no row, no PitOutTime yet, finished).
+ */
+function pitExitOf(last, byLap, lastCrossingTime, finished, now) {
+  if (finished || !last || !hasPitIn(last)) return null;
+  const next = byLap.get(toNum(last.LapNumber) + 1);
+  const exit = next && hasPitOut(next) ? pitOutSeconds(next) : null;
+  return exit != null && exit <= now && exit >= lastCrossingTime ? exit : null;
 }
 
 /**
@@ -444,7 +524,9 @@ function compareLapOne(a, b) {
  * entered the pits for good) are dropped. inPitLane (driverStateAt: pit entry
  * passed, pit exit not yet) asks the view for the inner arc. finished = took
  * the chequered flag (crossed the line after the leader completed the race's
- * last lap): phase 0.
+ * last lap): phase 0. anchorTime = where the phase counts from (module header:
+ * the pit exit of an out-lap under way with outLapAnchor 'pitExit', else
+ * lastCrossingTime); pitExitTime = that pit exit whatever the anchor, or null.
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
  * @param {Object} [opts]
@@ -457,14 +539,24 @@ function compareLapOne(a, b) {
  * @param {boolean} [opts.isLiveMode=false] - live feed rows: retirements from the feed's dnfMap
  *   only (driverState.js nonFinisherMap), and no chequered flag (the rows' latest lap is
  *   not the race's last one), so no car is `finished`
+ * @param {'line'|'pitExit'} [opts.outLapAnchor] - where an out-lap's phase counts from
+ *   (module header); omitted = 'line'. Given (either value), the rows also carry linePhase
+ *   and sincePitExit
  * @returns {Array<{driver: string, position: number|null, lapsCompleted: number,
- *   lastCrossingTime: number, elapsed: number, phase: number|null, angle: number|null,
- *   saturated: boolean, inPitLane: boolean, retired: boolean, finished: boolean,
- *   lapOffsetToLeader: number}>} times in session seconds, elapsed in seconds, angle in radians
+ *   lastCrossingTime: number, anchorTime: number, pitExitTime: number|null, elapsed: number,
+ *   phase: number|null, angle: number|null, saturated: boolean, inPitLane: boolean,
+ *   retired: boolean, finished: boolean, lapOffsetToLeader: number,
+ *   linePhase?: number|null, sincePitExit?: number|null}>} times in session seconds,
+ *   elapsed / sincePitExit in seconds, angle in radians
  */
 export function phases(lapTimes, {
   sessionNow = Infinity, refLap, dnfMap, gridPositions, includeRetired = false, isLiveMode = false,
+  outLapAnchor,
 } = {}) {
+  if (outLapAnchor !== undefined && !OUT_LAP_ANCHORS.includes(outLapAnchor)) {
+    throw new Error(`phases: outLapAnchor must be one of ${OUT_LAP_ANCHORS.join(', ')}`);
+  }
+  const atPitExit = outLapAnchor === 'pitExit';
   const now = normaliseNow(sessionNow);
   const idx = driverIndex(lapTimes);
   if (!idx.size) return [];
@@ -486,16 +578,20 @@ export function phases(lapTimes, {
     const lastCrossingTime = last ? lapEndTime(last) : lapStartTime(rows[0]);
     if (lastCrossingTime == null) continue;
     const finished = flag != null && last != null && lastCrossingTime >= flag;
+    const pitExitTime = pitExitOf(last, byLap, lastCrossingTime, finished, now);
     const car = {
       driver,
       position: null,
       lapsCompleted: st.lapsCompleted,
       lastCrossingTime,
+      anchorTime: atPitExit && pitExitTime != null ? pitExitTime : lastCrossingTime,
+      pitExitTime,
       inPitLane: st.inPitLane,
       retired: st.retired,
       finished,
       lapOffsetToLeader: 0,
     };
+    if (outLapAnchor !== undefined) car.linePhase = null;
     Object.assign(car, phaseAt(car, now, ref));
     if (!car.lapsCompleted) lapOne.set(driver, lapOneKey(byLap.get(1), gridPositions?.[driver], now));
     (st.retired ? retired : running).push(car);
@@ -537,10 +633,11 @@ export function phases(lapTimes, {
  * @param {Object} [opts.gridPositions] - { driver: grid slot } (phases)
  * @param {number|Object} [opts.refLap] - seconds or a referenceLap result; computed when omitted
  * @param {boolean} [opts.isLiveMode=false] - live feed rows (phases)
+ * @param {'line'|'pitExit'} [opts.outLapAnchor] - out-lap anchor of the drawn phases (phases)
  * @returns {{sessionNow: number, refLap: Object, cars: Array<Object>, lapTimes: Array<Object>}}
  */
 export function circleState(lapTimes, {
-  sessionNow = Infinity, dnfMap, gridPositions, refLap, isLiveMode = false,
+  sessionNow = Infinity, dnfMap, gridPositions, refLap, isLiveMode = false, outLapAnchor,
 } = {}) {
   const now = normaliseNow(sessionNow);
   let ref;
@@ -548,7 +645,7 @@ export function circleState(lapTimes, {
   else if (refSecondsOf(refLap) != null) ref = { seconds: refLap, nSamples: 0, laps: null, source: 'given' };
   else ref = referenceLap(lapTimes, { sessionNow: now });
   const cars = phases(lapTimes, {
-    sessionNow: now, refLap: ref, dnfMap, gridPositions, isLiveMode,
+    sessionNow: now, refLap: ref, dnfMap, gridPositions, isLiveMode, outLapAnchor,
   });
   return { sessionNow: now, refLap: ref, cars, lapTimes: Array.isArray(lapTimes) ? lapTimes : [] };
 }
@@ -556,7 +653,9 @@ export function circleState(lapTimes, {
 /** A circleState, or one built from opts.lapTimes / opts.sessionNow. */
 function ensureState(state, opts = {}) {
   if (state && Array.isArray(state.cars) && Array.isArray(state.lapTimes)) return state;
-  return circleState(opts.lapTimes, { sessionNow: opts.sessionNow, dnfMap: opts.dnfMap });
+  return circleState(opts.lapTimes, {
+    sessionNow: opts.sessionNow, dnfMap: opts.dnfMap, outLapAnchor: opts.outLapAnchor,
+  });
 }
 
 function carOf(state, driver) {
@@ -935,28 +1034,43 @@ function wrapSeconds(x, period) {
   return x - period * Math.floor(x / period);
 }
 
+/** Session time a row's phase counts from: anchorTime, else lastCrossingTime. */
+function anchorOf(car) {
+  return toNum(car.anchorTime) ?? car.lastCrossingTime;
+}
+
 /**
  * Ring seconds from car b forward to car a as drawn, before wrapping: the
- * difference of their last crossings while both move (exact, the same at every
+ * difference of their anchors while both move (exact, the same at every
  * frame), else of their drawn positions (phase x refLap).
  */
 function ringSeconds(a, b, ref) {
-  if (!a.saturated && !b.saturated) return b.lastCrossingTime - a.lastCrossingTime;
+  if (!a.saturated && !b.saturated) return anchorOf(b) - anchorOf(a);
   return (a.phase - b.phase) * ref;
 }
 
 /**
+ * Ring seconds of the band from the focus as drawn back to its rejoin point:
+ * the pending loss, less the time from the line to the pit exit for a focus
+ * anchored there (that part of the stop is already behind the drawn car);
+ * never below 0. Constant between two events.
+ */
+function bandSecondsOf(car, pending) {
+  return Math.max(0, pending - (anchorOf(car) - car.lastCrossingTime));
+}
+
+/**
  * Lapped / lapping cars inside the band, read off the ring as drawn (module
- * header): the cars at most `pending` seconds of ring behind the focus car
- * that are not on its lap. A same-lap car (lapOffset 0) is about to lap the
+ * header): the cars at most `band` seconds of ring (bandSecondsOf) behind the
+ * focus car that are not on its lap. A same-lap car (lapOffset 0) is about to lap the
  * focus only when it is ahead of it in the race order; behind in the race it
  * is a rival on the focus's lap (e.g. on its own out-lap), not traffic.
  */
-function bandTraffic(focusCar, ring, ref, pending) {
+function bandTraffic(focusCar, ring, ref, band) {
   const trafficOnly = [];
   for (const { car: c, ahead } of ring) {
     const behind = wrapSeconds(-ahead, ref);
-    if (!(behind > 0 && behind <= pending)) continue;
+    if (!(behind > 0 && behind <= band)) continue;
     let laps = lapsBehind(focusCar, c);
     if (laps === 0) {
       if (!aheadInRace(c, focusCar)) continue;
@@ -1005,9 +1119,13 @@ function trafficOf(ahead, targetLap) {
  *   trackFlag (opts.trackFlag or null), neutralised (SC / VSC / red: the green-flag
  *   pit loss and paces are used anyway; the view must say so),
  *   pitLoss: { median, p10, p90, n, source }, refLap: seconds,
- *   focusPhase, rejoinSeconds (ring seconds from the focus back to the rejoin point:
- *   the loss still to pay at the median), rejoinOffset (the same as a phase),
- *   rejoinArcOffset: [p10, p90] offsets, rejoinPhase, rejoinArc: [p10Phase, p90Phase],
+ *   focusPhase, rejoinSeconds (the loss still to pay at the median: ring seconds from
+ *   the focus's line position back to the rejoin point), rejoinOffset (the same as a phase),
+ *   bandSeconds (ring seconds of the band from the focus as drawn back to the rejoin
+ *   point, the trafficOnly reading: rejoinSeconds, less the line-to-pit-exit time of a
+ *   focus anchored at its pit exit, never below 0),
+ *   rejoinArcOffset: [p10, p90] offsets, rejoinPhase, rejoinArc: [p10Phase, p90Phase]
+ *   (from focusPhase; for a stop under way from the focus's line time, module header),
  *   targetLap, pace (focus, s/lap), predictedCrossing (session s the focus completes targetLap),
  *   predictedPosition, currentPosition, positionsLost (predicted - current),
  *   wouldPassFocus: [{ driver, gapSeconds, marginSeconds }],
@@ -1032,13 +1150,16 @@ export function pitWindow(focus, state, pitLoss, opts = {}) {
   const p10 = toNum(est.p10) ?? lossMedian;
   const p90 = toNum(est.p90) ?? lossMedian;
 
-  // Geometry: the band runs from the focus back to the rejoin point
+  // Geometry: the band runs from the focus back to the rejoin point; a stop
+  // under way places that point from the car's line time (module header)
   const pending = focusPending(lossMedian);
   const rejoinOffset = pending / ref;
   const rejoinArcOffset = [focusPending(p10) / ref, focusPending(p90) / ref];
   const focusPhase = car.phase;
-  const rejoinPhase = wrapPhase(focusPhase - rejoinOffset);
-  const rejoinArc = rejoinArcOffset.map((o) => wrapPhase(focusPhase - o));
+  const rejoinFrom = ongoingStop ? linePhaseOf(car, st.sessionNow, ref) : focusPhase;
+  const rejoinPhase = wrapPhase(rejoinFrom - rejoinOffset);
+  const rejoinArc = rejoinArcOffset.map((o) => wrapPhase(rejoinFrom - o));
+  const bandSeconds = bandSecondsOf(car, pending);
 
   // Rank
   const predictedCrossing = predictedAt(lossMedian);
@@ -1081,7 +1202,7 @@ export function pitWindow(focus, state, pitLoss, opts = {}) {
 
   // Lapped / lapping cars drawn inside the band (traffic only): read off the
   // ring as drawn (ringRelations, every frame)
-  const trafficOnly = bandTraffic(car, ringAround(st, car, ref), ref, pending);
+  const trafficOnly = bandTraffic(car, ringAround(st, car, ref), ref, bandSeconds);
   // Traffic at the predicted rejoin: the car crossing the line last before it
   const traffic = trafficOf(trafficReader(ctx, predictedCrossing, predictedCrossing)(predictedCrossing), targetLap);
 
@@ -1110,6 +1231,7 @@ export function pitWindow(focus, state, pitLoss, opts = {}) {
     refLap: ref,
     focusPhase,
     rejoinSeconds: pending,
+    bandSeconds,
     rejoinOffset,
     rejoinArcOffset,
     rejoinPhase,
@@ -1234,11 +1356,12 @@ export function ringRelations(win, state) {
   const car = carOf(st, win.focus);
   const ref = win.refLap;
   if (!car || car.phase == null || !(ref > 0)) return null;
+  const from = win.ongoingStop ? linePhaseOf(car, st.sessionNow, ref) : car.phase;
   return {
     focusPhase: car.phase,
-    rejoinPhase: wrapPhase(car.phase - win.rejoinOffset),
-    rejoinArc: win.rejoinArcOffset.map((o) => wrapPhase(car.phase - o)),
-    trafficOnly: bandTraffic(car, ringAround(st, car, ref), ref, win.rejoinSeconds),
+    rejoinPhase: wrapPhase(from - win.rejoinOffset),
+    rejoinArc: win.rejoinArcOffset.map((o) => wrapPhase(from - o)),
+    trafficOnly: bandTraffic(car, ringAround(st, car, ref), ref, bandSecondsOf(car, win.rejoinSeconds)),
   };
 }
 
