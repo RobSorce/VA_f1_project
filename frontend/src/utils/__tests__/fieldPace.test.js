@@ -80,6 +80,28 @@ describe('comparable laps, rule by rule', () => {
     expect(tyreClass('nan')).toBe(null);
   });
 
+  it('an unknown compound (\'nan\') takes the lap\'s majority class; a lap with none known is dry while the race has been dry', () => {
+    // every car on 'nan' for laps 1-5 (a whole first stint), MEDIUM after
+    const nan = field(CODES, [0, 0.1, 0.2, 0.3, 0.4, 0.5], 8, { extra: (d, k) => (k <= 5 ? { Compound: 'nan' } : {}) });
+    expect([...new Set(comparableLaps(nan).laps.map((e) => e.lap))]).toEqual([2, 3, 4, 5, 6, 7, 8]);
+    // one car on 'nan' among MEDIUMs: counted with the dry majority
+    const one = field(CODES, [0, 0.1, 0.2, 0.3, 0.4, 0.5], 4, { extra: (d, k) => (d === 'AAA' && k === 2 ? { Compound: 'nan' } : {}) });
+    expect(comparableLaps(one).laps.filter((e) => e.lap === 2).map((e) => e.driver)).toContain('AAA');
+    // an intermediate lap so far: a lap with no known compound is left out
+    const wet = field(CODES, [0, 0.1, 0.2, 0.3, 0.4, 0.5], 4, {
+      extra: (d, k) => (k === 2 && d === 'AAA' ? { Compound: 'INTERMEDIATE' } : k === 3 ? { Compound: 'nan' } : {}),
+    });
+    const res = comparableLaps(wet);
+    expect(res.laps.filter((e) => e.lap === 2).map((e) => e.driver)).toEqual(['BBB', 'CCC', 'DDD', 'EEE', 'FFF']);
+    expect(res.laps.filter((e) => e.lap === 3)).toEqual([]);
+    // causal: an intermediate lap after sessionNow does not leave the earlier laps out
+    const later = field(CODES, [0, 0.1, 0.2, 0.3, 0.4, 0.5], 8, {
+      extra: (d, k) => (k <= 3 ? { Compound: 'nan' } : k === 7 ? { Compound: 'INTERMEDIATE' } : {}),
+    });
+    const now = Math.max(...later.filter((r) => r.LapNumber === 4).map((r) => r.Time)) + 1;
+    expect([...new Set(comparableLaps(later, { sessionNow: now }).laps.map((e) => e.lap))]).toEqual([2, 3, 4]);
+  });
+
   it('red-flag restart laps: from the red flag\'s lap to two laps after its end', () => {
     const rows = field(CODES, [0, 0.1, 0.2, 0.3, 0.4, 0.5], 9);
     // AAA's lap 4 runs 1270-1360: the red flag starts and ends inside it

@@ -8,6 +8,10 @@
  * WET) the majority class among the laps of that lap number passing the
  * rules before (no lap of a lap number with a tie counts), and not a red-flag
  * restart lap (from the lap of a red flag to two laps after its end).
+ * A lap with an unknown compound (the timing's 'nan': a whole first stint
+ * can have one) takes its lap number's majority class; on a lap number with
+ * no known compound it counts as dry while no lap completed so far was on
+ * INTERMEDIATE or WET, and is left out otherwise.
  *
  * LapRep(j) = the median of the comparable laps of lap j, when at least
  * PACE_MIN_LAP_FIELD of them exist; a lap is then
@@ -118,7 +122,9 @@ export function comparableLaps(lapTimes, { sessionNow = Infinity, trackStatus = 
     .map((b) => [b.startLap, b.endLap + RED_RESTART_LAPS]);
   const byLap = new Map();
   const seen = new Set();
-  for (const r of completedLaps(lapTimes, sessionNow)) {
+  const done = completedLaps(lapTimes, sessionNow);
+  const wetSoFar = done.some((r) => tyreClass(r?.Compound) === 'wet');
+  for (const r of done) {
     const lap = toNum(r?.LapNumber);
     const t = toNum(r?.LapTimeSeconds);
     if (!r?.Driver || lap == null || lap <= 1 || t == null || !(t > 0 && t < PACE_MAX_LAP_S)) continue;
@@ -126,7 +132,6 @@ export function comparableLaps(lapTimes, { sessionNow = Infinity, trackStatus = 
     if (hasPitIn(r) || hasPitOut(r) || !isGreenLap(r) || isDeleted(r)) continue;
     if (red.some(([a, b]) => lap >= a && lap <= b)) continue;
     const cls = tyreClass(r.Compound);
-    if (!cls) continue;
     const key = `${r.Driver}|${lap}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -137,10 +142,13 @@ export function comparableLaps(lapTimes, { sessionNow = Infinity, trackStatus = 
   const reps = new Map();
   for (const [lap, list] of [...byLap.entries()].sort((a, b) => a[0] - b[0])) {
     const dry = list.filter((e) => e.cls === 'dry').length;
-    const wet = list.length - dry;
-    if (dry === wet) continue;
-    const major = dry > wet ? 'dry' : 'wet';
-    const kept = list.filter((e) => e.cls === major);
+    const wet = list.filter((e) => e.cls === 'wet').length;
+    // no known compound on the lap: dry while the race has been dry so far
+    let major = dry + wet === 0 ? (wetSoFar ? null : 'dry') : null;
+    if (dry + wet > 0 && dry !== wet) major = dry > wet ? 'dry' : 'wet';
+    if (!major) continue;
+    // an unknown compound takes the lap's majority class
+    const kept = list.filter((e) => e.cls === major || e.cls == null);
     if (kept.length < PACE_MIN_LAP_FIELD) continue;
     const rep = median(kept.map((e) => e.t));
     reps.set(lap, { rep, n: kept.length });
