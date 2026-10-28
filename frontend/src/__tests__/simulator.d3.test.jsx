@@ -40,6 +40,19 @@ accessor('options', function options() { return this.localName === 'select' ? th
 accessor('value', function value() { return this._value ?? this.getAttribute('value') ?? ''; });
 accessor('selected', function selected() { return !!this._selected; });
 accessor('defaultSelected', function defaultSelected() { return !!this._defaultSelected; });
+// The Result tab's sections measure their own height (miniDom reports the
+// nearest ancestor's rect otherwise, so every section would be the panel's
+// height and fitBlocks would keep only the verdict)
+const SECTION_H = { cards: 70, ranges: 110, verdict: 40, note: 36 };
+const baseRect = El.prototype.getBoundingClientRect;
+El.prototype.getBoundingClientRect = function rect() {
+  const r = baseRect.call(this);
+  const cls = (this.getAttribute?.('class') || '').split(/\s+/);
+  for (const key of Object.keys(SECTION_H)) {
+    if (cls.includes(`sim-result__${key}`)) return { ...r, height: SECTION_H[key], bottom: r.top + SECTION_H[key] };
+  }
+  return r;
+};
 const React = (await import('react')).default;
 const { act } = await import('react');
 const { createRoot } = await import('react-dom/client');
