@@ -261,8 +261,11 @@ export default function RaceTrace() {
         .attr('stroke', UI_COLORS.brush).attr('stroke-width', 1).attr('stroke-dasharray', '3,3');
     }
 
-    // Bands: SC hatched, VSC dotted, RED tinted, each named at its top; a click selects its laps
+    // Bands: SC hatched, VSC dotted, RED tinted, each named at its top; a click selects its laps.
+    // A name that would run into the one before it goes a row lower, else it
+    // is left out (the band keeps its hatch, its tooltip and its legend row)
     const bandG = plot.append('g').attr('class', 'rt-bands');
+    const bandNameRows = [];
     for (const b of bands) {
       const x0 = lapX(b.startLap - 1);
       const x1 = lapX(b.endLap);
@@ -278,11 +281,19 @@ export default function RaceTrace() {
           setBrushLapRange([b.startLap, b.endLap]);
         })
         .append('title').text(`${st.label} L${b.startLap}–${b.endLap}${b.ongoing ? ' (running)' : ''}: click to select these laps`);
-      bandG.append('text').attr('class', 'rt-band-label')
-        .attr('x', x0 + 2).attr('y', labelPx)
+      const name = bandG.append('text').attr('class', 'rt-band-label')
+        .attr('x', x0 + 2)
         .attr('fill', textColor(st.color)).style('font-size', CHART_FONT.label).attr('font-weight', 800)
         .style('pointer-events', 'none')
         .text(st.label);
+      const nameW = name.node().getComputedTextLength() || 0.6 * labelPx * st.label.length;
+      const row = [0, 1].find((r) => bandNameRows[r] == null || x0 + 2 >= bandNameRows[r] + 4);
+      if (row == null) {
+        name.remove();
+        continue;
+      }
+      bandNameRows[row] = x0 + 2 + nameW;
+      name.attr('y', labelPx * (1 + 1.2 * row));
     }
 
     // Lines, context first and the focus last
@@ -430,9 +441,14 @@ export default function RaceTrace() {
       wanted.push({ key: d.driver, y: y(p.y), priority, text: endLabel(d, p), d });
     }
     const gap = Math.ceil(dataPx * 1.15);
+    // A count drawn at an edge keeps its row: the labels stay one gap off it
+    const countTop = dataPx * 0.5;
+    const countBottom = innerH - dataPx * 0.5;
+    const labelTop = countTop + (win.above.length ? gap : 0);
+    const labelBottom = countBottom - (win.below.length ? gap : 0);
     const placed = mode === 'full'
-      ? placeEndLabels(wanted, { gap, top: dataPx * 0.5, bottom: innerH - dataPx * 0.5 })
-      : new Map(wanted.map((w) => [w.key, Math.max(dataPx * 0.5, Math.min(innerH - dataPx * 0.5, w.y))]));
+      ? placeEndLabels(wanted, { gap, top: labelTop, bottom: labelBottom })
+      : new Map(wanted.map((w) => [w.key, Math.max(labelTop, Math.min(labelBottom, w.y))]));
     const lx = innerW + bracketCol + 4;
     for (const w of wanted) {
       if (!placed.has(w.key)) continue;
@@ -453,8 +469,8 @@ export default function RaceTrace() {
         .text(`${glyph} ${list.length}`)
         .append('title').text(`${list.length} car${list.length === 1 ? '' : 's'} ${glyph === '▲' ? 'above' : 'below'} the window: ${list.join(', ')}`);
     };
-    edge(win.above, dataPx * 0.5, '▲');
-    edge(win.below, innerH - dataPx * 0.5, '▼');
+    edge(win.above, countTop, '▲');
+    edge(win.below, countBottom, '▼');
 
     // Drag along x: a lap range; a click on the background clears one
     const sel = g.append('rect').attr('class', 'rt-drag').attr('y', 0).attr('height', innerH)

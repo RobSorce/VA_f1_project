@@ -8,7 +8,9 @@
 //  - the x axis title 'lap' and the tick labels never share a spot;
 //  - the legend, laid out as a browser wraps it (flex-wrap, the CSS of
 //    components.css, the swatches of Legend.jsx), keeps every row inside its
-//    box, and every mark drawn has its row.
+//    box, and every mark drawn has its row;
+//  - the end labels keep one gap off the off-window counts (▲ n, ▼ n), and
+//    the band names (SC, VSC, RED) never run into each other.
 import { describe, it, expect, vi, afterEach, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -213,5 +215,65 @@ describe.skipIf(!haveFonts)('legend', () => {
     const flow = legendFlow(legend, 400);
     const boxH = legend.style.height ? parseFloat(legend.style.height) : flow.height;
     for (const b of flow.boxes) expect(b.y + b.h, b.label).toBeLessThanOrEqual(boxH);
+  });
+});
+
+describe.skipIf(!haveFonts)('labels that share the plot\'s edges', () => {
+  const GAP = Math.ceil(FONT_FLOOR_PX.data * 1.15);
+  const cases = [];
+  for (const focusDriver of ['VER', 'HAM', 'SAR']) {
+    for (const currentLap of [20, 32, 45]) cases.push({ focusDriver, currentLap });
+  }
+  it('no end label within one gap of a drawn count (window ± one stop, 593 x 211)', async () => {
+    let counts = 0;
+    let near = 0;
+    for (const c of cases) {
+      state({ ...c, raceTraceWindow: 'focus' });
+      const { host } = await mount({ width: 593, height: 211 });
+      const svg = chartSvg(host);
+      const labels = svg.querySelectorAll('.rt-end-label').filter((e) => e.style.display !== 'none');
+      for (const count of svg.querySelectorAll('.rt-outside')) {
+        counts += 1;
+        const cy = Number(count.getAttribute('y'));
+        for (const l of labels) {
+          const ly = Number(l.getAttribute('y'));
+          if (Math.abs(ly - cy) < 2 * GAP) near += 1;
+          expect(Math.abs(ly - cy), `${c.focusDriver} L${c.currentLap} ${l.textContent} vs ${count.textContent}`).toBeGreaterThanOrEqual(GAP);
+        }
+      }
+    }
+    // the cases do draw counts, and labels next to them
+    expect(counts).toBeGreaterThan(3);
+    expect(near).toBeGreaterThan(0);
+  });
+
+  it('compact (400 x 190): the hovered car\'s label keeps the same bounds', async () => {
+    state({ focusDriver: 'VER', currentLap: 20, raceTraceWindow: 'focus' });
+    const { host } = await mount({ width: 400, height: 190 });
+    const svg = chartSvg(host);
+    const counts = svg.querySelectorAll('.rt-outside').map((e) => Number(e.getAttribute('y')));
+    expect(counts.length).toBeGreaterThan(0);
+    for (const l of svg.querySelectorAll('.rt-end-label')) {
+      for (const cy of counts) expect(Math.abs(Number(l.getAttribute('y')) - cy), l.textContent).toBeGreaterThanOrEqual(GAP);
+    }
+  });
+
+  it('2024 R5: VSC L22, then SC from L23: the band names do not run into each other', async () => {
+    for (const size of [{ width: 593, height: 211 }, { width: 420, height: 200 }]) {
+      state({ currentLap: 32 });
+      const { host } = await mount(size);
+      const svg = chartSvg(host);
+      const names = svg.querySelectorAll('.rt-band-label').map((t) => ({
+        text: t.textContent, x: Number(t.getAttribute('x')), y: Number(t.getAttribute('y')), w: widthOf(t),
+      }));
+      expect(names.map((n) => n.text)).toEqual(['VSC', 'SC', 'SC']);
+      for (let i = 0; i < names.length; i++) {
+        for (let j = i + 1; j < names.length; j++) {
+          const [a, b] = [names[i], names[j]];
+          const apart = a.y !== b.y || a.x + a.w + 4 <= b.x || b.x + b.w + 4 <= a.x;
+          expect(apart, `${a.text} at ${a.x.toFixed(1)} and ${b.text} at ${b.x.toFixed(1)}, ${size.width} px`).toBe(true);
+        }
+      }
+    }
   });
 });
