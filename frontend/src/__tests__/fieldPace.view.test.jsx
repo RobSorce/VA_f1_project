@@ -32,7 +32,7 @@ const { causalKey } = await import('../utils/strategyViews.js');
 const { setSessionDriverColors } = await import('../utils/colors.js');
 const { fieldPace, gapLine } = await import('../utils/fieldPace.js');
 const {
-  FIELD_PACE_MIN, FIELD_PACE_ROW_PX, paceRowsFit, paceAnswerOnly, markLabelLayout,
+  FIELD_PACE_MIN, FIELD_PACE_ROW_PX, paceRowsFit, paceAnswerOnly, markLabelLayout, paceAxisH,
 } = await import('../utils/views/fieldPaceChart.js');
 const { underFloor } = await import('./helpers/screenFont.js');
 const { loadCss, dockedPanesAt, px } = await import('./helpers/layoutModel.js');
@@ -87,7 +87,7 @@ afterAll(() => {
 describe('rows and marks', () => {
   beforeEach(() => state());
 
-  it('10 teams on one page at 600 x 220, sorted by the team median, two marks and the gap per row', async () => {
+  it(`10 teams on one page at 600 x ${FIELD_PACE_MIN.height}, sorted by the team median, two marks and the gap per row`, async () => {
     const { host } = await mount({ width: 600, height: FIELD_PACE_MIN.height });
     const rows = rowsOf(host);
     const pace = fieldPace(MONZA.lap_times, { trackStatus: MONZA.track_status, driverInfo: MONZA.driver_info });
@@ -165,8 +165,8 @@ describe('rows and marks', () => {
 });
 
 describe('fit', () => {
-  it('rows of 21 px, 10 a page from 220 px; under 560 px wide the answer line only', () => {
-    expect(FIELD_PACE_MIN).toEqual({ width: 560, height: 220 });
+  it('rows of 21 px, 10 a page from 222 px; under 560 px wide the answer line only', () => {
+    expect(FIELD_PACE_MIN).toEqual({ width: 560, height: 222 });
     expect(FIELD_PACE_ROW_PX).toBe(21);
     expect(paceRowsFit(210, 10)).toEqual({ perPage: 10, paged: false });
     expect(paceRowsFit(210, 11)).toEqual({ perPage: 10, paged: true });
@@ -185,6 +185,17 @@ describe('fit', () => {
     const header = 2 * pad + Math.max(22, px(css, 'var(--font-size-sm)', vp) * 1.5);
     return { width: Math.floor(q.width - 2 * pad), height: Math.floor(q.height - header - 2 * pad) };
   };
+
+  it('the height floor holds 10 rows at 1536 x 864, 1536 x 750 and 2048 x 1152 (the label token evaluated)', () => {
+    for (const vp of [{ W: 1536, H: 864 }, { W: 1536, H: 750 }, { W: 2048, H: 1152 }]) {
+      const labelPx = Math.max(10, px(css, 'var(--font-size-label)', vp));
+      // the axis line as FieldPace.jsx draws it: the label line rounded up
+      const axisH = Math.ceil(labelPx);
+      expect(paceRowsFit(FIELD_PACE_MIN.height - axisH, 10), `${vp.W} x ${vp.H}`).toEqual({ perPage: 10, paged: false });
+    }
+    expect(paceAxisH(10.0005)).toBe(11);
+    expect(paceAxisH(11.5)).toBe(12);
+  });
 
   it('a quarter dock pane at 1536 x 750: rows, 9 a page (the pager); at 1536 x 864: all 10', async () => {
     state();

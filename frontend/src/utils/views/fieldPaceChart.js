@@ -8,18 +8,36 @@
 import { fitRows, pageOf } from './chartBox';
 import { teammateIndex } from '../colors';
 
-/**
- * Size floors (CSS px of the view's box): the rows need 560 px of width
- * (narrower: the answer line only); 220 px of height hold the axis line (one
- * label line, 10 px at 1536 x 750) and 10 rows of 21 px, a season's ten
- * teams on one page; lower, the rows go on pages (the pager is in the panel
- * header), down to FIELD_PACE_MIN_ROWS rows a page.
- */
-export const FIELD_PACE_MIN = Object.freeze({ width: 560, height: 220 });
 /** Height of a team row (px), the rows of a page at most, at least. */
 export const FIELD_PACE_ROW_PX = 21;
 export const FIELD_PACE_MAX_ROWS = 10;
 export const FIELD_PACE_MIN_ROWS = 2;
+/** The label size at its largest (px): the cap of --font-size-label in tokens.css. */
+export const PACE_LABEL_MAX_PX = 11.5;
+
+/**
+ * Height of the axis line (px): one label line, rounded up (10.0005 px at
+ * 1536 x 750 takes 11 px, 11.5 px takes 12).
+ *
+ * @param {number} labelPx - chartFontPx('label')
+ * @returns {number}
+ */
+export function paceAxisH(labelPx) {
+  return Math.ceil(labelPx);
+}
+
+/**
+ * Size floors (CSS px of the view's box): the rows need 560 px of width
+ * (narrower: the answer line only); the height holds the axis line at its
+ * largest (paceAxisH of PACE_LABEL_MAX_PX: 12 px) and 10 rows of 21 px, a
+ * season's ten teams on one page, at every viewport: 222 px. Lower, the rows
+ * go on pages (the pager is in the panel header), down to
+ * FIELD_PACE_MIN_ROWS rows a page.
+ */
+export const FIELD_PACE_MIN = Object.freeze({
+  width: 560,
+  height: paceAxisH(PACE_LABEL_MAX_PX) + FIELD_PACE_MAX_ROWS * FIELD_PACE_ROW_PX,
+});
 
 /**
  * Whether only the answer line fits: under FIELD_PACE_MIN.width, or too low

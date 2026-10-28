@@ -11,13 +11,14 @@
  * where the axis column has no room: a label never covers the team name or
  * the gap); hollow and "LOW DATA" under 10 laps. Rows sorted by the team
  * median. On the right the team-mate gap with its interval: "decisive" only
- * when the interval excludes 0.
+ * when the interval, as printed, excludes 0.
  *
  * Reads the brushed lap range (a chip "laps 20–35 ×" clears it), causal at
  * the dashboard's clock. Race and sprint sessions only (the loaded session's
- * type, utils/strategyViews.js viewSessionType). 21 px rows, up to 10 a page, a pager in the header
- * for the rest (utils/views/fieldPaceChart.js FIELD_PACE_MIN: 220 px hold
- * ten rows); under 560 px of width the answer line only. Nothing scrolls.
+ * type, utils/strategyViews.js viewSessionType). 21 px rows, up to 10 a page,
+ * a pager in the header for the rest (utils/views/fieldPaceChart.js
+ * FIELD_PACE_MIN: 222 px hold ten rows at every viewport); under 560 px of
+ * width the answer line only. Nothing scrolls.
  */
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
@@ -31,7 +32,7 @@ import { causalKey, viewSessionType, isRaceSession } from '../../utils/strategyV
 import { fieldPace, pctText, gapLine, PACE_LOW_DATA_LAPS } from '../../utils/fieldPace';
 import {
   FIELD_PACE_ROW_PX, paceRowsFit, pacePage, paceDomain, markShape, diamondPath, paceAnswer,
-  markLabelLayout, paceAnswerOnly,
+  markLabelLayout, paceAnswerOnly, paceAxisH,
 } from '../../utils/views/fieldPaceChart';
 import Panel from '../ui/Panel';
 import { useChartBox } from '../../utils/views/chartBox';
@@ -84,7 +85,7 @@ export default function FieldPace() {
   const width = box.width || 640;
   const height = box.height || 260;
   // the axis line: one line of label text
-  const axisH = Math.ceil(chartFontPx('label'));
+  const axisH = paceAxisH(chartFontPx('label'));
   const answerOnly = paceAnswerOnly(box, axisH);
   const fit = paceRowsFit(height - axisH, pace.teams.length);
   // the same rows object while the page holds the same teams: the draw effect
