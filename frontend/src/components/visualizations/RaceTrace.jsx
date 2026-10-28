@@ -185,21 +185,35 @@ export default function RaceTrace() {
     probe.remove();
     const bracketCol = pitLoss ? 10 : 2;
     const margin = {
-      top: Math.ceil(labelPx * 1.5), right: bracketCol + Math.ceil(labelW) + 6, bottom: Math.ceil(dataPx * 1.7), left: 44,
+      top: Math.ceil(labelPx * 1.5), right: bracketCol + Math.ceil(labelW) + 6, bottom: Math.ceil(dataPx * 1.7),
     };
-    const innerW = Math.max(10, width - margin.left - margin.right);
     const innerH = Math.max(10, height - margin.top - margin.bottom);
+    const y = d3.scaleLinear().domain([win.lo, win.hi]).range([innerH, 0]);
+    const yTicks = y.ticks(Math.max(2, Math.floor(innerH / (dataPx * 2.6))));
+    const yTickText = (v) => `${gapText(v)}s`;
+    // Left column: the widest y tick label in the axis font (an .axis text:
+    // the mono face at the data size), right-aligned by axisLeft at x = -9
+    // (6 px tick, 3 px padding); 0.6 em a character where nothing is laid out
+    const tickProbe = svg.append('g').attr('class', 'axis').append('text')
+      .style('font-size', CHART_FONT.data).style('visibility', 'hidden');
+    let tickW = 0;
+    for (const v of yTicks) {
+      const t = yTickText(v);
+      tickProbe.text(t);
+      tickW = Math.max(tickW, tickProbe.node().getComputedTextLength() || 0.6 * dataPx * t.length);
+    }
+    tickProbe.node().parentNode.remove();
+    margin.left = Math.max(44, Math.ceil(tickW) + 12);
+    const innerW = Math.max(10, width - margin.left - margin.right);
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
     defs.append('clipPath').attr('id', `${ids}-clip`)
       .append('rect').attr('width', innerW).attr('height', innerH);
 
     const xMax = Math.max(1, trace.lastLap + (raceOver ? 0 : 0.5));
     const x = d3.scaleLinear().domain([0, xMax]).range([0, innerW]);
-    const y = d3.scaleLinear().domain([win.lo, win.hi]).range([innerH, 0]);
     const lapX = (lap) => x(Math.max(0, Math.min(xMax, lap)));
 
     // Grid, zero line and axes
-    const yTicks = y.ticks(Math.max(2, Math.floor(innerH / (dataPx * 2.6))));
     g.append('g').attr('class', 'rt-grid').selectAll('line').data(yTicks).enter().append('line')
       .attr('x1', 0).attr('x2', innerW).attr('y1', (v) => y(v)).attr('y2', (v) => y(v))
       .attr('stroke', (v) => (v === 0 ? GRID_COLORS.axis : GRID_COLORS.grid))
@@ -207,7 +221,7 @@ export default function RaceTrace() {
     const xAxis = g.append('g').attr('class', 'axis rt-axis-x').attr('transform', `translate(0,${innerH})`)
       .call(d3.axisBottom(x).ticks(Math.max(2, Math.min(trace.lastLap, Math.floor(innerW / 48)))).tickFormat(d3.format('d')).tickSizeOuter(0));
     const yAxis = g.append('g').attr('class', 'axis rt-axis-y')
-      .call(d3.axisLeft(y).tickValues(yTicks).tickFormat((v) => `${gapText(v)}s`).tickSizeOuter(0));
+      .call(d3.axisLeft(y).tickValues(yTicks).tickFormat(yTickText).tickSizeOuter(0));
     for (const a of [xAxis, yAxis]) {
       a.select('.domain').attr('stroke', GRID_COLORS.axis);
       a.selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data);
@@ -216,10 +230,19 @@ export default function RaceTrace() {
       .attr('x', -margin.left + 2).attr('y', -Math.ceil(labelPx * 0.5))
       .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label).attr('font-weight', 600)
       .text('+ ahead (s)');
-    g.append('text').attr('class', 'rt-axis-title')
+    const lapTitle = g.append('text').attr('class', 'rt-axis-title')
       .attr('x', innerW).attr('y', innerH + margin.bottom - 2).attr('text-anchor', 'end')
       .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label).attr('font-weight', 600)
       .text('lap');
+    // The title shares the tick labels' line: a tick label that would reach
+    // into it is dropped (its tick stays)
+    const titleW = lapTitle.node().getComputedTextLength() || 0.6 * labelPx * 3;
+    xAxis.selectAll('.tick').each(function dropUnderTitle(v) {
+      const t = this.querySelector('text');
+      if (!t) return;
+      const w = t.getComputedTextLength() || 0.6 * dataPx * t.textContent.length;
+      if (x(v) + w / 2 > innerW - titleW - 4) t.remove();
+    });
 
     const plot = g.append('g').attr('clip-path', `url(#${ids}-clip)`);
 
