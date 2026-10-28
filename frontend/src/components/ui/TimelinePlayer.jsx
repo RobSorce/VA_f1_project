@@ -8,7 +8,8 @@ import {
 } from '../../utils/colors';
 import { useChartBox } from '../../utils/views/chartBox';
 import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeed';
-import { stopStintRange } from '../../utils/stints';
+import { stopStintRange, pitStops } from '../../utils/stints';
+import { resolveSessionNow } from '../../utils/raceTime';
 
 // Track-status events of the timeline: FIA colour (utils/colors.js) and the
 // letter drawn in the marker and in the legend, so the colour is never the
@@ -30,6 +31,47 @@ const TICK_MAJOR = 'rgba(255,255,255,0.5)';
 // A position change marker gains when the event says so (change > 0, or
 // "gained" in its description for events without the number)
 const isPositionGain = (evt) => (evt.change != null ? evt.change > 0 : / gained /.test(evt.description || ''));
+
+/**
+ * Seek the replay to the moment a pit marker's stops become visible
+ * (utils/stints.js pitStops: from the pit exit): with frames, the first
+ * frame that shows them; in lap mode, the first lap whose clock shows them,
+ * else the race-over state. Without a tyre change on that out-lap: the
+ * leader's start of the out-lap.
+ */
+function seekToStops(lap, drivers, { seekToLap, seekToFrame }) {
+  const st = useF1Store.getState();
+  const lapTimes = st.sessionData?.lap_times || [];
+  const targets = pitStops(lapTimes).filter((p) => drivers.includes(p.Driver) && (p.outLap ?? p.inLap + 1) === lap);
+  if (!targets.length) {
+    seekToLap(lap);
+    return;
+  }
+  const shows = (now) => {
+    const visible = pitStops(lapTimes, { sessionNow: now });
+    return targets.every((t) => visible.some((p) => p.Driver === t.Driver && p.inLap === t.inLap));
+  };
+  const frames = st.frameData?.frames;
+  if (st.totalFrames > 0 && frames?.length) {
+    // the first frame that shows the stops (visibility only grows with time)
+    let lo = 0;
+    let hi = frames.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (shows(frames[mid].t + st.sessionTimeOffset)) hi = mid;
+      else lo = mid + 1;
+    }
+    seekToFrame(lo);
+    return;
+  }
+  for (let l = lap; l <= st.maxLap; l++) {
+    if (shows(resolveSessionNow({ currentLap: l, lapTimes }))) {
+      seekToLap(l);
+      return;
+    }
+  }
+  st.showRaceOver();
+}
 
 /**
  * Collapsible timeline player rendered at the bottom of the dashboard.
@@ -176,17 +218,20 @@ export default function TimelinePlayer() {
       const [from, to] = trackStatusBandLaps(evt, maxLap);
       return { x1: xScale(from), x2: xScale(to) };
     };
-    // A pit marker: the replay to the stop's out-lap, Tyre Degradation opened
-    // (or brought forward), the lap range on the stint the stop ended when
-    // the driver the view shows (the focus driver, else the first selected)
-    // made it. The stint is read at the clock the marker was drawn at
+    // A pit marker: the replay to the moment the stop is visible (the stop
+    // of the driver the view shows, the focus driver else the first selected,
+    // when that driver made it; else every stop of the marker), Tyre
+    // Degradation opened (or brought forward), and the lap range on the
+    // stint that stop ended, read at the NEW clock: its end is a lap the car
+    // has completed then
     const openStopDegradation = (lap, drivers) => {
       const st = useF1Store.getState();
       const shown = st.focusDriver || st.selectedDrivers[0];
-      const range = shown && drivers.includes(shown)
-        ? stopStintRange(st.sessionData?.lap_times, shown, lap, { sessionNow: st.getSessionNow() })
+      const who = shown && drivers.includes(shown) ? shown : null;
+      seekToStops(lap, who ? [who] : drivers, { seekToLap, seekToFrame });
+      const range = who
+        ? stopStintRange(st.sessionData?.lap_times, who, lap, { sessionNow: useF1Store.getState().getSessionNow() })
         : null;
-      seekToLap(lap);
       if (range) setSelectedLapRange(range);
       showView('tiredeg');
     };

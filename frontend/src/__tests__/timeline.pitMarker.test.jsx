@@ -14,6 +14,12 @@
 // driver the view shows. Here: the store action in each mode, the stint on
 // the demo race 2024 R16 (frontend/public/data), and the click on the
 // timeline as drawn.
+//
+// The click seeks to the moment the stop becomes visible (the first frame
+// at or after its pit exit; in lap mode the first lap whose clock shows it),
+// and only then reads the stint: seeking to the leader's start of the
+// out-lap showed a clock before the stop, and a range ending on a lap the
+// car had not completed then (future information).
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -39,8 +45,8 @@ const { act } = await import('react');
 const { createRoot } = await import('react-dom/client');
 await import('d3');
 const { useF1Store } = await import('../store/useF1Store.js');
-const { computeSessionTimeOffset, resolveSessionNow } = await import('../utils/raceTime.js');
-const { stopStintRange } = await import('../utils/stints.js');
+const { computeSessionTimeOffset, resolveSessionNow, isLapCompleted } = await import('../utils/raceTime.js');
+const { stopStintRange, pitStops } = await import('../utils/stints.js');
 const { installResizeObserverMock } = await import('./helpers/chartFixtures.js');
 const { default: TimelinePlayer } = await import('../components/ui/TimelinePlayer.jsx');
 
@@ -48,6 +54,31 @@ const ro = installResizeObserverMock();
 const INITIAL = useF1Store.getState();
 const MONZA = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.resolve(HERE, '../../public/data/2024_16_R/session.json.gz'))));
 const MAX_LAP = Math.max(...MONZA.lap_times.map((r) => r.LapNumber));
+const FRAMES = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.resolve(HERE, '../../public/data/2024_16_R/frames.json.gz'))));
+// The replay state of the frames, as the store's loadFrames builds it: the first frame of each leader lap
+function framesState(lap) {
+  const lapFrameMap = {};
+  FRAMES.frames.forEach((f, i) => {
+    const lead = Math.max(0, ...Object.values(f.drivers || {}).map((d) => d.lap || 0));
+    if (lead > 0 && !(lead in lapFrameMap)) lapFrameMap[lead] = i;
+  });
+  const idx = lapFrameMap[lap];
+  return {
+    frameData: FRAMES, totalFrames: FRAMES.frames.length, lapFrameMap, frameDt: FRAMES.frames[1].t - FRAMES.frames[0].t,
+    maxTime: FRAMES.max_time, currentFrameIndex: idx, currentTime: FRAMES.frames[idx].t,
+  };
+}
+// LEC's first stop: in-lap 15, out-lap 16
+const LEC_STOP = pitStops(MONZA.lap_times).find((p) => p.Driver === 'LEC' && p.inLap === 15);
+const lecRow = (lap) => MONZA.lap_times.find((r) => r.Driver === 'LEC' && r.LapNumber === lap);
+/** The clock now shows LEC's stop, and the lap range ends on a lap LEC has completed. */
+function expectStopShown() {
+  const now = store().getSessionNow();
+  expect(pitStops(MONZA.lap_times, { sessionNow: now }).some((p) => p.Driver === 'LEC' && p.inLap === 15)).toBe(true);
+  expect(store().selectedLapRange).toEqual([1, 15]);
+  expect(isLapCompleted(lecRow(store().selectedLapRange[1]), now)).toBe(true);
+  return now;
+}
 const store = () => useF1Store.getState();
 const tabsOf = (node) => (!node ? [] : node.children ? [...tabsOf(node.children[0]), ...tabsOf(node.children[1])] : node.tabs);
 const paneOf = (node, tab) => (!node ? null : node.children
@@ -156,6 +187,28 @@ describe('the pit markers of the timing bar', () => {
       expect(store().activeTab).not.toBe('pitwall');
       expect(store().selectedLapRange).toEqual([1, 15]);
       expect(store().activePanel ?? null).toBeNull();
+      // lap mode: the first lap whose clock shows the stop, not the leader's start of lap 16
+      const now = expectStopShown();
+      const lap = store().currentLap;
+      expect(resolveSessionNow({ currentLap: lap - 1, lapTimes: MONZA.lap_times })).toBeLessThan(LEC_STOP.pitOutTime);
+      expect(now).toBeGreaterThanOrEqual(LEC_STOP.pitOutTime);
+    } finally {
+      await v.unmount();
+    }
+  });
+
+  it('frames: the click seeks to the first frame at or after LEC\'s pit exit, then reads the stint', async () => {
+    const offset = computeSessionTimeOffset(MONZA.lap_times);
+    const v = await mountAt(40, framesState(40));
+    try {
+      expect(LEC_STOP.pitOutTime).toBeGreaterThan(0);
+      const marks = pitMarkers(v.host, 'rect');
+      expect(marks.length).toBeGreaterThan(0);
+      await act(async () => { dom.mouse(marks[0], 'click'); });
+      const want = FRAMES.frames.findIndex((f) => f.t + offset >= LEC_STOP.pitOutTime);
+      expect(store().currentFrameIndex).toBe(want);
+      expectStopShown();
+      expect(tabsOf(store().dockedLayout)).toContain('tiredeg');
     } finally {
       await v.unmount();
     }
