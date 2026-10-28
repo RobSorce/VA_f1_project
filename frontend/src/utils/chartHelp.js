@@ -199,7 +199,7 @@ export const CHART_HELP = {
     howToRead: [
       'X-axis = tyre life (laps on the set); Y-axis = lap time. One scatter and one fit line per stint: a stint is one tyre set, so a stop onto the same compound starts a new stint.',
       `The fit uses the clean laps only: lap 1, pit in / out laps, laps not fully green and slow outliers (more than ${OUTLIER_K} robust sigmas above the stint's fit) are drawn as hollow circles and left out. A stint needs ${MIN_FIT_LAPS} clean laps for a fit.`,
-      'Two slopes per stint: **fuel-corr.** (the degradation every view uses: raw slope + the fuel effect) and **raw** (the lap-time trend, fuel burn included, often negative on low-degradation tracks).',
+      'Two slopes per stint: **fuel-corr.** (the degradation every view uses: raw slope + the fuel effect) and **raw** (the lap-time trend, fuel burn included, often negative on low-degradation tracks). They sit by the end of the stint\'s fit line; where there is no room there, the raw slope is left to the tooltip, and a block placed farther away starts with its stint\'s label ("S2 H" before the slope).',
       FUEL_ASSUMPTION,
       'A lap range brushed on the Position Tracker or dragged on the Lap Times bar (else a stint, pit window or race event clicked in another view) fits that range only; the replay draws only the laps completed so far.',
       'Dots and fit lines in the compound colour; each stint label carries the compound letter (e.g. "S1 M").',

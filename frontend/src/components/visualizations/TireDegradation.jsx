@@ -320,6 +320,8 @@ export default function TireDegradation() {
         const { tyreMin, tyreMax, y1, y2 } = stint.line;
 
         g.append('line')
+          .attr('class', 'deg-fit-line')
+          .attr('data-stint', stint.stintNumber)
           .attr('x1', x(tyreMin))
           .attr('y1', y(y1))
           .attr('x2', x(tyreMax))
@@ -337,6 +339,8 @@ export default function TireDegradation() {
           x: x(tyreMax),
           y: y(y2),
           lines: [`${formatSlope(stint.fit.slope)} s/lap (fuel-corr.*)`, `${formatSlope(stint.fit.rawSlope)} s/lap (raw)`],
+          // the stint's name, leading the block when it has to go far from its line
+          tag: `S${stint.stintNumber} ${tyreLetter(stint.compound)}`,
           color: compoundText,
         });
       }
@@ -363,7 +367,8 @@ export default function TireDegradation() {
     });
 
     // The slope labels: inside the plot, the two lines one under the other,
-    // over no stint label and no other stint's slopes (placeSlopeLabels)
+    // over no stint label and no other stint's slopes, led by the stint's tag
+    // when placed far from the line's end (placeSlopeLabels)
     const placed = placeSlopeLabels(slopeItems, {
       width: innerW, height: innerH, fontPx, obstacles: stintLabels,
     });
@@ -372,6 +377,7 @@ export default function TireDegradation() {
       p.lines.forEach((line, i) => {
         g.append('text')
           .attr('class', 'deg-slope-label')
+          .attr('data-stint', p.key)
           .attr('x', p.x)
           .attr('y', line.y)
           .attr('fill', i === 0 ? item.color : TEXT_COLORS.muted)

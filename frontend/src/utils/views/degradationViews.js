@@ -132,16 +132,24 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 /**
  * Where the slope labels of the Tyre Degradation chart go: per fitted stint a
  * block of its lines (the fuel-corrected slope, then the raw one), one line
- * under the other, inside the plot and over no other label. Tried in order:
- * right of the end of the fit line (the place it had), above the end, below
- * it, left of it, first where each fits as it is, then each moved inside the
- * plot; then any other place in the plot, nearest the end of the line first;
- * then the first line alone. A
- * block with no room left (a plot narrower than its line) is not drawn: the
+ * under the other, inside the plot and over no other label. The near places
+ * are right of the end of the fit line (the place it had), above the end,
+ * below it and left of it, first where each fits as it is, then each moved
+ * inside the plot; a near place counts only where the block is nearer the
+ * end of its own line than the end of any other stint's. Tried in order:
+ *  (a) the near places for the whole block;
+ *  (b) the near places for the first line alone;
+ *  (c) any place in the plot, nearest the end of the line first, for the
+ *      whole block with its first line led by the stint's tag ('S2 H'): a
+ *      block far from its line could sit next to another stint's line end,
+ *      and colour alone would not tell them apart (two stints on one
+ *      compound share it);
+ *  (d) the same for the tagged first line alone.
+ * A block with no room left (a plot narrower than its line) is not drawn: the
  * slopes stay in the tooltip and the brush banner.
  *
- * @param {Array<{key: string, x: number, y: number, lines: string[]}>} items -
- *   x, y: end of the stint's fit line (plot px)
+ * @param {Array<{key: string, x: number, y: number, lines: string[], tag?: string}>} items -
+ *   x, y: end of the stint's fit line (plot px); tag: the stint's name ('S<n> <tyre letter>')
  * @param {{width: number, height: number, fontPx: number,
  *   obstacles?: Array<{x0: number, y0: number, x1: number, y1: number}>}} plot -
  *   the plot area (px), the labels' size and the boxes of the other labels
@@ -157,9 +165,19 @@ export function placeSlopeLabels(items, {
   const GAP = 3;
   const taken = [...obstacles];
   const out = [];
+  // px from a box to a point (0 inside it)
+  const distance = (b, p) => Math.hypot(Math.max(0, b.x0 - p.x, p.x - b.x1), Math.max(0, b.y0 - p.y, p.y - b.y1));
   for (const item of items) {
-    for (const n of [item.lines.length, 1]) {
-      const lines = item.lines.slice(0, n);
+    const ownEnd = (b) => items.every((o) => o === item || distance(b, o) > distance(b, item));
+    const tagged = item.tag ? [`${item.tag} ${item.lines[0]}`, ...item.lines.slice(1)] : item.lines;
+    const attempts = [
+      { lines: item.lines, far: false },
+      { lines: item.lines.slice(0, 1), far: false },
+      { lines: tagged, far: true },
+      { lines: tagged.slice(0, 1), far: true },
+    ];
+    for (const { lines, far } of attempts) {
+      const n = lines.length;
       const w = Math.max(...lines.map((t) => [...String(t)].length)) * MONO_ADVANCE_EM * fontPx;
       const h = n * lineH;
       if (w > width || h > height) continue;
@@ -171,6 +189,7 @@ export function placeSlopeLabels(items, {
         };
       };
       const free = (b) => !taken.some((t) => boxesOverlap(b, t));
+      const near = (b) => free(b) && ownEnd(b);
       const tries = [
         at(item.x + PAD, item.y - h / 2),
         at(item.x - w, item.y - GAP - h),
@@ -179,8 +198,8 @@ export function placeSlopeLabels(items, {
       ];
       // a place as it is first (moved inside the plot, the right and left
       // ones would sit on the fit line), then moved ones
-      let box = tries.find((b) => !b.moved && free(b)) || tries.find(free);
-      if (!box) {
+      let box = far ? null : tries.find((b) => !b.moved && near(b)) || tries.find(near);
+      if (far) {
         // every place of the plot (4 px apart sideways, 1 px up and down),
         // the block's nearest corner closest to the end of the line first
         const xs = new Set(tries.map((b) => b.x0));

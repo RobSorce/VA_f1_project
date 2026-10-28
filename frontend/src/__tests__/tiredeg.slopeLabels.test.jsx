@@ -9,6 +9,12 @@
 // 1493 px, and the two lines overlapped by 2 px (baselines 13 px apart for
 // 15 px of line).
 //
+// A block placed far from its line could sit next to another stint's line
+// end, linked back by colour only (not even that between two stints on one
+// compound): far from its line, a block's first line is led by the stint's
+// tag ('S2 H'), and near it, it must be nearer its own line's end than any
+// other's.
+//
 // Here the chart is drawn for every driver of the demo race 2024 R16
 // (frontend/public/data) with each of his stints as the lap range, and with
 // no range, in a low wide plot (the Simulator preset's bottom pane at
@@ -119,13 +125,38 @@ function labelsOf(svg, vp) {
       text: t.textContent, x0, x1: x0 + w, y0: y - MONO.ascent(px, weight), y1: y + MONO.descent(px, weight),
     };
   };
-  const slope = texts.filter((t) => /s\/lap/.test(t.textContent)).map(box);
-  const stint = texts.filter((t) => /^S\d/.test(t.textContent)).map(box);
-  // the fit lines (dashed): one per fitted stint
-  const fits = [...g.children].filter((l) => l.localName === 'line' && l.getAttribute('stroke-dasharray')).length;
+  const slopeTexts = texts.filter((t) => /s\/lap/.test(t.textContent));
+  const slope = slopeTexts.map(box);
+  // the stint labels (a tagged slope line starts with 'S<n>' too)
+  const stint = texts.filter((t) => /^S\d/.test(t.textContent) && !/s\/lap/.test(t.textContent)).map(box);
+  // the fit lines (dashed): one per fitted stint, its end where the slope block belongs
+  const fitLines = [...g.children].filter((l) => l.localName === 'line' && l.getAttribute('stroke-dasharray'));
+  const ends = fitLines.map((l) => ({
+    stint: l.getAttribute('data-stint'), x: Number(l.getAttribute('x2')), y: Number(l.getAttribute('y2')),
+  }));
+  // each stint's block: the box of its lines, its first line's text
+  const blocks = [...new Set(slopeTexts.map((t) => t.getAttribute('data-stint')))].map((k) => {
+    const bs = slopeTexts.map((t, i) => [t, slope[i]]).filter(([t]) => t.getAttribute('data-stint') === k).map(([, b]) => b);
+    return {
+      stint: k,
+      first: bs[0].text,
+      box: {
+        x0: Math.min(...bs.map((b) => b.x0)), x1: Math.max(...bs.map((b) => b.x1)), y0: Math.min(...bs.map((b) => b.y0)), y1: Math.max(...bs.map((b) => b.y1)),
+      },
+    };
+  });
   return {
-    area, slope, stint, fits,
+    area, slope, stint, fits: fitLines.length, ends, blocks,
   };
+}
+
+/** px from a box to a point (0 inside it). */
+const distance = (b, p) => Math.hypot(Math.max(0, b.x0 - p.x, p.x - b.x1), Math.max(0, b.y0 - p.y, p.y - b.y1));
+/** A block nearer its own line's end than any other stint's, or led by its tag ('S2 H'). */
+function linkedToItsStint(block, ends, tagOf) {
+  const own = ends.find((e) => e.stint === block.stint);
+  const nearest = ends.every((e) => e === own || distance(block.box, e) > distance(block.box, own));
+  return nearest || block.first.startsWith(`${tagOf(block.stint)} `);
 }
 
 describe('placeSlopeLabels (utils/views/degradationViews.js)', () => {
@@ -163,6 +194,40 @@ describe('placeSlopeLabels (utils/views/degradationViews.js)', () => {
   it('a plot narrower than a line: no label (the slope stays in the tooltip and the banner)', () => {
     expect(placeSlopeLabels([{ key: '1', x: 50, y: 40, lines }], { ...plot, width: 120 })).toEqual([]);
   });
+  it('two stints ending at the same place: neither block is nearer its own end, both are tagged', () => {
+    const ps = placeSlopeLabels([
+      { key: '1', x: 600, y: 40, lines, tag: 'S1 H' }, { key: '2', x: 600, y: 40, lines, tag: 'S2 H' },
+    ], plot);
+    expect(ps.map((p) => p.lines[0].text)).toEqual([`S1 H ${lines[0]}`, `S2 H ${lines[0]}`]);
+  });
+  it('the near places for the first line alone before a far place; far from its line, the block leads with its tag', () => {
+    // a plot 3 lines high, the line ending in the top row; an obstacle on the
+    // second row around the end: no near place for the whole block, the first
+    // line alone fits right of the end (a far place for the block exists)
+    const lineH = (MONO_ASCENT_EM + MONO_DESCENT_EM) * 11;
+    const small = { width: 1124, height: 3 * lineH, fontPx: 11 };
+    const obstacles = [{ x0: 400, x1: 800, y0: lineH + 1, y1: 2 * lineH }];
+    const [p] = placeSlopeLabels([{ key: '1', x: 600, y: lineH / 2, lines, tag: 'S1 H' }], { ...small, obstacles });
+    expect(p.lines.map((l) => l.text)).toEqual([lines[0]]);
+    expect(p.x).toBe(604);
+    // random rows of stints: every block is nearer its own end than any other's, or led by its tag
+    let seed = 11;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    let tagged = 0;
+    for (let t = 0; t < 200; t++) {
+      const n = 2 + Math.floor(rnd() * 3);
+      const items = Array.from({ length: n }, (_, i) => ({
+        key: String(i + 1), x: 200 + rnd() * 900, y: 5 + rnd() * 70, lines, tag: `S${i + 1} H`,
+      }));
+      const obstacles = Array.from({ length: 3 }, () => monoLabelBox('S9 M', rnd() * 1000, 10 + rnd() * 60, 11));
+      for (const p of placeSlopeLabels(items, { ...plot, obstacles })) {
+        if (p.lines[0].text.startsWith('S')) tagged += 1;
+        const block = { stint: p.key, first: p.lines[0].text, box: p.box };
+        expect(linkedToItsStint(block, items.map((it) => ({ stint: it.key, x: it.x, y: it.y })), (k) => `S${k} H`)).toBe(true);
+      }
+    }
+    expect(tagged).toBeGreaterThan(0);
+  });
 });
 
 const overlap = (a, b) => Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0.01 && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0.01;
@@ -189,7 +254,7 @@ describe('Tyre Degradation slope labels, Monza 2024 (demo data)', () => {
 
   for (const vp of VIEWPORTS) {
     for (const plot of PLOTS) {
-      it(`${plot.name}, type of ${vp.W} x ${vp.H}: each fitted stint's two slope lines inside the plot, over no other label`, async () => {
+      it(`${plot.name}, type of ${vp.W} x ${vp.H}: each fitted stint's slope lines inside the plot, over no other label, linked to its stint`, async () => {
         // the data size of the viewport (tokens.css --font-size-data), as the page sets it
         const data = px(CSS, '--font-size-data', vp);
         dom.document.documentElement.style.setProperty('--font-size-data', `${data}px`);
@@ -202,8 +267,14 @@ describe('Tyre Degradation slope labels, Monza 2024 (demo data)', () => {
             if (!L) continue;
             const what = `${driver} ${range ? `L${range[0]}-L${range[1]}` : 'race'}`;
             if (range && L.slope.length === 2) oneStint += 1;
-            // two lines per fitted stint: the fuel-corrected and the raw slope
-            expect(L.slope.length, what).toBe(2 * L.fits);
+            // per fitted stint the fuel-corrected slope, and the raw one where it fits
+            expect(L.slope.filter((b) => /fuel-corr/.test(b.text)).length, what).toBe(L.fits);
+            expect(L.slope.length, what).toBeLessThanOrEqual(2 * L.fits);
+            // each block nearer its own line's end than any other stint's, or led by its tag
+            const tagOf = (k) => L.stint.find((b) => b.text.startsWith(`S${k} `))?.text.split(' ').slice(0, 2).join(' ');
+            for (const b of L.blocks) {
+              if (!linkedToItsStint(b, L.ends, tagOf)) problems.push(`${what}: the block of S${b.stint} "${b.first}" is nearer another stint's line end`);
+            }
             for (const b of L.slope) {
               const out = outside(b, L.area);
               if (out > 0.5) problems.push(`${what}: "${b.text}" ${out.toFixed(1)} px out of the ${L.area.width} x ${L.area.height} plot`);
