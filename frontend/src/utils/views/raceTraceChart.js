@@ -18,9 +18,9 @@ import { TOP_WINDOW_CARS, FOCUS_WINDOW } from '../raceTrace';
 
 /**
  * Fit floors of the pane (CSS px of the view's content box): from FULL up
- * the end labels are drawn and the legend has every row; under FULL the
- * labels show on hover only and the legend keeps its short rows; under
- * ANSWER only the answer line is drawn (no chart).
+ * the end labels are drawn; under FULL the labels show on hover only and the
+ * legend's labels are short (every row kept); under ANSWER only the answer
+ * line is drawn (no chart).
  */
 export const RACE_TRACE_FIT = Object.freeze({
   full: Object.freeze({ width: 420, height: 200 }),
@@ -29,7 +29,7 @@ export const RACE_TRACE_FIT = Object.freeze({
 
 /**
  * Fit mode of a pane size: 'full', 'compact' (under 420 x 200: labels on
- * hover, short legend) or 'answer' (under 300 x 150: the answer line only).
+ * hover, short legend labels) or 'answer' (under 300 x 150: the answer line only).
  * An unmeasured box (0 x 0) is 'full' (tests, server render).
  *
  * @param {{width: number, height: number}} box
@@ -177,32 +177,38 @@ export function provenanceLine({
 }
 
 /**
- * Legend rows, as drawn: the second car of a team dashed, the focus line
- * thicker, a provisional lap hollow, a stop chip (new compound and letter),
- * a pit visit with the same tyres, the bands present, the one-stop bracket.
- * `compact`: the short rows only (dash, provisional, stop, the bands).
+ * Legend rows, one for each kind of mark drawn: the focus line thicker, the
+ * second car of a team dashed, a provisional lap hollow, a stop chip (new
+ * compound and letter), a pit visit with the same tyres, the bands present,
+ * the one-stop bracket. `compact`: the same rows with short labels (a row
+ * whose mark is drawn is never left out). The legend takes the rows it
+ * needs (it wraps, the chart gives up the height).
  *
  * @param {Object} p
  * @param {Array<string>} p.bands - band kinds present ('SC', 'VSC', 'RED')
  * @param {boolean} p.compact
  * @param {boolean} p.bracket - the pit-loss bracket is drawn
  * @param {boolean} p.focus - a focus line is drawn
+ * @param {boolean} [p.stop=true] - a stop chip is drawn
+ * @param {boolean} [p.visit=true] - a pit-visit chip is drawn
+ * @param {boolean} [p.provisional=true] - a provisional lap is drawn
  * @returns {Array<Object>} Legend items
  */
 export function raceTraceLegend({
-  bands = [], compact = false, bracket = false, focus = false,
+  bands = [], compact = false, bracket = false, focus = false, stop = true, visit = true, provisional = true,
 }) {
+  const label = (full, short) => (compact ? short : full);
   const items = [];
-  if (focus && !compact) items.push({ label: 'focus', color: TEXT_COLORS.secondary, shape: 'line', strokeWidth: 3 });
-  items.push({ label: '2nd car of a team', color: TEXT_COLORS.secondary, shape: 'line', dash: '6,3', strokeWidth: 1.5 });
-  items.push({ label: 'provisional lap', color: TEXT_COLORS.secondary, shape: 'glyph', glyph: '○' });
-  items.push({ label: compact ? 'stop' : 'stop: new tyres', color: TYRE_COLORS.HARD, shape: 'badge', glyph: TYRE_LABELS.HARD });
-  if (!compact) items.push({ label: 'pit, same tyres', color: TEXT_COLORS.secondary, shape: 'glyph', glyph: 'P' });
+  if (focus) items.push({ label: 'focus', color: TEXT_COLORS.secondary, shape: 'line', strokeWidth: 3 });
+  items.push({ label: label('2nd car of a team', '2nd car'), color: TEXT_COLORS.secondary, shape: 'line', dash: '6,3', strokeWidth: 1.5 });
+  if (provisional) items.push({ label: label('provisional lap', 'provisional'), color: TEXT_COLORS.secondary, shape: 'glyph', glyph: '○' });
+  if (stop) items.push({ label: label('stop: new tyres', 'stop'), color: TYRE_COLORS.HARD, shape: 'badge', glyph: TYRE_LABELS.HARD });
+  if (visit) items.push({ label: label('pit, same tyres', 'same tyres'), color: TEXT_COLORS.secondary, shape: 'glyph', glyph: 'P' });
   for (const kind of ['SC', 'VSC', 'RED']) {
     if (!bands.includes(kind)) continue;
     items.push({ label: BAND_STYLE[kind].label, color: BAND_STYLE[kind].color, shape: 'band', fill: bandCss(kind) });
   }
-  if (bracket && !compact) items.push({ label: 'one pit stop', color: TEXT_COLORS.secondary, shape: 'glyph', glyph: '⊐' });
+  if (bracket) items.push({ label: label('one pit stop', '1 stop'), color: TEXT_COLORS.secondary, shape: 'glyph', glyph: '⊐' });
   return items;
 }
 

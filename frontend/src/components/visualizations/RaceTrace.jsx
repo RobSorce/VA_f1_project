@@ -16,8 +16,9 @@
  * Causal: everything is read at the dashboard's clock (useSessionNow).
  *
  * Fit (utils/views/raceTraceChart.js RACE_TRACE_FIT): from 420 x 200 the end
- * labels and the full legend; under it labels on hover and a short legend;
- * under 300 x 150 the answer line only. Nothing scrolls.
+ * labels and the full legend; under it labels on hover and the legend's short
+ * labels; under 300 x 150 the answer line only. The legend wraps onto the
+ * rows it needs, the chart takes the rest. Nothing scrolls.
  */
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
@@ -148,7 +149,10 @@ export default function RaceTrace() {
     bands: [...new Set(bands.map((b) => b.kind))],
     compact: mode !== 'full',
     bracket: !!pitLoss,
-    focus: !!focusDriver,
+    focus: !!focusDriver && trace.drivers.some((d) => d.driver === focusDriver),
+    stop: stops.some((c) => c.kind === 'stop'),
+    visit: stops.some((c) => c.kind === 'visit'),
+    provisional: trace.drivers.some((d) => d.points.some((p) => p.provisional)),
   });
   const hasTrace = race && trace.lastLap > 0;
 
@@ -555,8 +559,6 @@ export default function RaceTrace() {
       </div>
     );
   } else {
-    // one row of the legend (.chart-legend padding, .legend-item padding, the label line)
-    const legendH = Math.ceil(chartFontPx('label') * 1.5) + 12;
     body = (
       <>
         <div className="rt-answer" style={{ ...lineStyle, color: TEXT_COLORS.primary, fontSize: CHART_FONT.data, fontWeight: 700 }} title={answer}>
@@ -565,7 +567,8 @@ export default function RaceTrace() {
         <div className="viz-container" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
           <svg ref={svgRef} style={{ width: '100%', height: '100%', display: 'block' }} />
         </div>
-        <div className="rt-legend" style={{ flex: 'none', height: legendH, overflow: 'hidden' }}>
+        {/* the rows the legend needs: the chart (flex 1) gives up the height and redraws */}
+        <div className="rt-legend" style={{ flex: 'none' }}>
           <Legend items={legendItems} />
         </div>
         <div className="rt-provenance" style={{ ...lineStyle, color: TEXT_COLORS.muted, fontSize: CHART_FONT.label }} title={provenance}>

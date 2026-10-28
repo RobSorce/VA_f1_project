@@ -667,7 +667,7 @@ export const CHART_HELP = {
       PIT_LOSS_METHOD,
       PIT_LOSS_FALLBACK,
       'Hover a line to highlight the driver, click to select it, double-click to focus it; drag along the laps to set the lap range of every view; click an SC band for its laps; in a replay, click a stop chip to rewind to the lap before the in-lap (the decision).',
-      `From ${RACE_TRACE_FIT.full.width} x ${RACE_TRACE_FIT.full.height} px the end labels and the full legend; smaller, the labels on hover only; under ${RACE_TRACE_FIT.answer.width} x ${RACE_TRACE_FIT.answer.height} px the answer line only (the focus car's gap, lap and place). The provenance line under the chart names the source, the lap, the reference and its car count.`,
+      `From ${RACE_TRACE_FIT.full.width} x ${RACE_TRACE_FIT.full.height} px the end labels and the full legend; smaller, the labels on hover only and the legend's short labels (every row kept); under ${RACE_TRACE_FIT.answer.width} x ${RACE_TRACE_FIT.answer.height} px the answer line only (the focus car's gap, lap and place). The provenance line under the chart names the source, the lap, the reference and its car count.`,
     ],
     limitations: [
       `A wet race (more than ${Math.round(WET_ROW_SHARE * 100)} % of the laps on intermediates or wets): the field reference is unreliable while the field changes tyres together; the provenance line says so.`,
