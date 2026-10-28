@@ -263,6 +263,23 @@ describe('interactions', () => {
   });
 });
 
+describe('the answer line on the focus reference: gaps from the subject', () => {
+  it('focus VER, NOR hovered: VER ahead of NOR, not "0.0 s behind"', async () => {
+    state({ focusDriver: 'VER', raceTraceReference: 'focus' });
+    const { host } = await mount({ width: 800, height: 400 });
+    const hit = chartSvg(host).querySelectorAll('.rt-hit').find((h) => h.getAttribute('data-driver') === 'NOR');
+    await fire(hit, 'mouseenter', { clientX: 5, clientY: 5 });
+    expect(host.querySelector('.rt-answer').textContent).toBe('NOR at L30, P2: VER +1.6 s ahead, LEC −1.9 s behind');
+  });
+
+  it('Lap Delta base car VER, focus LEC: the resting line reads from LEC', async () => {
+    state({ focusDriver: 'LEC', lapDeltaBaseDriver: 'VER', raceTraceReference: 'focus' });
+    const { host } = await mount({ width: 800, height: 400 });
+    expect(host.querySelector('.rt-reference').textContent).toBe('VS VER');
+    expect(host.querySelector('.rt-answer').textContent).toBe('LEC at L30, P3: NOR +1.9 s ahead, PER −1.4 s behind');
+  });
+});
+
 describe('store settings and helpers', () => {
   it('reference and window are store settings, persisted with the other view settings', () => {
     state();

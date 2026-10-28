@@ -614,8 +614,9 @@ function signed1(v) {
 /**
  * The view's one-line answer for a subject car: e.g. "LEC +4.2 s ahead of the
  * field-median car at L36, P1". On the leader reference the gap to the
- * leader; on the focus reference the cars just ahead of and behind the focus.
- * '' without a point.
+ * leader; on the focus reference the cars just ahead of and behind the
+ * subject, each gap measured from the subject (which need not be the
+ * reference car). '' without a point.
  *
  * @param {ReturnType<typeof buildRaceTrace>} trace
  * @param {string|null} subject - driver code (default: the focus car, else P1)
@@ -637,16 +638,20 @@ export function traceAnswer(trace, subject = null) {
     if (d.position === 1) return `${d.driver} leads ${where}`;
     return `${d.driver} ${signed1(p.y)} s behind the leader ${where}${lapped}`;
   }
-  // focus reference: the nearest car on either side on the focus car's newest lap
+  // focus reference: the nearest car on either side of the subject on its
+  // newest lap. The y values are relative to the reference car, which need
+  // not be the subject (a hovered car, a Lap Delta base car), so each gap is
+  // measured from the subject's own point: g = q.y - p.y, + = ahead of it
   const near = drivers
     .filter((x) => x.driver !== d.driver)
     .map((x) => ({ x, q: x.points.find((q) => q.lap === p.lap && !q.start) }))
-    .filter((e) => e.q);
-  const ahead = near.filter((e) => e.q.y > 0).sort((a, b) => a.q.y - b.q.y)[0];
-  const behind = near.filter((e) => e.q.y <= 0).sort((a, b) => b.q.y - a.q.y)[0];
+    .filter((e) => e.q)
+    .map((e) => ({ x: e.x, g: e.q.y - p.y }));
+  const ahead = near.filter((e) => e.g > 0).sort((a, b) => a.g - b.g)[0];
+  const behind = near.filter((e) => e.g <= 0).sort((a, b) => b.g - a.g)[0];
   const parts = [];
-  if (ahead) parts.push(`${ahead.x.driver} ${signed1(ahead.q.y)} s ahead`);
-  if (behind) parts.push(`${behind.x.driver} ${signed1(behind.q.y)} s behind`);
+  if (ahead) parts.push(`${ahead.x.driver} ${signed1(ahead.g)} s ahead`);
+  if (behind) parts.push(`${behind.x.driver} ${signed1(behind.g)} s behind`);
   return `${d.driver} ${where}${lapped}${parts.length ? `: ${parts.join(', ')}` : ''}`;
 }
 

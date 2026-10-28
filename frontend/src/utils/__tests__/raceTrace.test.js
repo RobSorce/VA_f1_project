@@ -238,6 +238,16 @@ describe('race order, lapped cars, answer and window', () => {
     const focus = buildRaceTrace(rows, { reference: 'focus', focusDriver: 'BBB' });
     expect(traceAnswer(focus)).toBe('BBB at L6, P2: AAA +6.0 s ahead');
   });
+  it('focus reference, a subject that is not the reference car: the gaps from the subject', () => {
+    // the y values are relative to the reference (BBB, y = 0), not to the subject
+    const focus = buildRaceTrace(rows, { reference: 'focus', focusDriver: 'BBB' });
+    expect(traceAnswer(focus, 'AAA')).toBe('AAA at L6, P1: BBB −6.0 s behind');
+    const four = race(['AAA', 'BBB', 'CCC', 'DDD'], [90, 91, 92, 93], 6);
+    const ref = buildRaceTrace(four, { reference: 'focus', focusDriver: 'AAA' });
+    // CCC is 12 s behind AAA: BBB 6 s ahead of it, DDD 6 s behind
+    expect(traceAnswer(ref, 'CCC')).toBe('CCC at L6, P3: BBB +6.0 s ahead, DDD −6.0 s behind');
+    expect(traceAnswer(ref, 'DDD')).toBe('DDD at L6, P4: CCC +6.0 s ahead');
+  });
   it('windows: top, focus +- max(20 s, pit loss + 5 s), all; outside cars counted by side', () => {
     const top = traceWindow(tr, { window: 'top' });
     expect(top.mode).toBe('top');
