@@ -446,6 +446,24 @@ export function createCommandRegistry() {
         getState().closeCommandPalette();
       },
     },
+
+    // === RACE TRACE AND RACE PACE (no key) ===
+    {
+      id: 'open-race-trace',
+      label: 'Race Trace',
+      category: 'Navigation',
+      shortcut: null,
+      icon: 'activity',
+      action: () => openOverlayTab(getState(), 'racetrace'),
+    },
+    {
+      id: 'open-race-pace',
+      label: 'Race Pace',
+      category: 'Navigation',
+      shortcut: null,
+      icon: 'bar-chart',
+      action: () => openOverlayTab(getState(), 'teampace'),
+    },
   ];
 
   return commands;

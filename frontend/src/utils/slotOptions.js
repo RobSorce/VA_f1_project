@@ -38,6 +38,8 @@ const CircleOfDoom       = lazy(() => import('../components/visualizations/Circl
 const RaceControlPanel   = lazy(() => import('../components/visualizations/RaceControlPanel'));
 const SettingsTabContent = lazy(() => import('../components/tabs/SettingsTabContent'));
 const ChampionshipTabContent = lazy(() => import('../components/tabs/ChampionshipTabContent'));
+const RaceTrace          = lazy(() => import('../components/visualizations/RaceTrace'));
+const FieldPace          = lazy(() => import('../components/visualizations/FieldPace'));
 
 /* Icon paths — Feather-style single-path 24x24, stroke=currentColor width=1.8 */
 const ICONS = {
@@ -67,6 +69,8 @@ const ICONS = {
   championship:  'M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M18 2H6v7a6 6 0 0 0 12 0V2z',
   racecontrol:   'M5 4h14v6H5zM5 14h14v6H5zM8 7h2M8 17h8M14 7h2',
   settings:      'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.36.15.67.4.89.72.22.33.34.72.34 1.12v.32c0 .4-.12.79-.34 1.12-.22.32-.53.57-.89.72z',
+  racetrace:     'M3 12h4l3-6 4 10 3-4h4',
+  teampace:      'M4 6h16M4 12h16M4 18h16M9 4v4M14 10v4M11 16v4',
 };
 
 export const SLOT_OPTIONS = [
@@ -110,6 +114,10 @@ export const SLOT_OPTIONS = [
   // ── System ─────────────────────────────────────────────────────────────
   { id: 'championship',  label: 'Championship',        component: ChampionshipTabContent, category: 'system', icon: ICONS.championship },
   { id: 'settings',      label: 'Settings',            component: SettingsTabContent,     category: 'system', icon: ICONS.settings },
+
+  // ── Race Trace and Race Pace (strategy / timing) ──────────────────────
+  { id: 'racetrace',     label: 'Race Trace',          component: RaceTrace,       category: 'strategy',   icon: ICONS.racetrace },
+  { id: 'teampace',      label: 'Race Pace',           component: FieldPace,       category: 'timing',     icon: ICONS.teampace },
 ];
 
 /** Lightweight id set for dock validation (avoids circular imports with the store). */

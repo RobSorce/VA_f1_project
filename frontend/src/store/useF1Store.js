@@ -29,6 +29,7 @@ import { FALLBACK_SEASONS, seasonsFromResponse } from '../utils/seasons';
 import {
   forecastRequestOf, forecastEntry,
 } from '../utils/forecast';
+import { TRACE_REFERENCES, TRACE_WINDOWS } from '../utils/raceTrace';
 
 /* ── Race clock helpers (SESSION seconds, see utils/raceTime.js) ── */
 
@@ -2597,6 +2598,13 @@ export const useF1Store = create(persist((set, get) => ({
   showDashboard: true,
   leaderboardCollapsed: false,
   telemetryChannels: { speed: true, delta: true, throttle: true, brake: true, gear: true, rpm: true },
+  // Race Trace (utils/raceTrace.js): the reference ('field' | 'leader' |
+  // 'focus') and the y window ('top' | 'focus' | 'all'); 'focus' shows the
+  // top window while there is no focus driver
+  raceTraceReference: 'field',
+  raceTraceWindow: 'focus',
+  setRaceTraceReference: (ref) => set({ raceTraceReference: TRACE_REFERENCES.includes(ref) ? ref : 'field' }),
+  setRaceTraceWindow: (w) => set({ raceTraceWindow: TRACE_WINDOWS.includes(w) ? w : 'focus' }),
 
   setTheme: () => {
     document.documentElement.setAttribute('data-theme', 'dark');
@@ -4025,6 +4033,8 @@ export const useF1Store = create(persist((set, get) => ({
     telemetryChannels: state.telemetryChannels,
     year: state.year,
     sessionType: state.sessionType,
+    raceTraceReference: state.raceTraceReference,
+    raceTraceWindow: state.raceTraceWindow,
   }),
   onRehydrateStorage: () => (state) => {
     document.documentElement.setAttribute('data-theme', 'dark');

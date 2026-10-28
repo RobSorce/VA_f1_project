@@ -1,6 +1,9 @@
 /**
  * View model of the lap delta chart (components/visualizations/LapDeltaChart.jsx):
- * cumulative race time per driver over the laps completed at sessionNow.
+ * each driver's time against the base driver over the laps completed at
+ * sessionNow, read from the race trace on the focus reference
+ * (utils/raceTrace.js), so the chart equals the Race Trace with that
+ * reference, its sign turned to this chart's axis (+ = behind the base).
  *
  * Kept out of the component module on purpose: React Fast Refresh hot-swaps
  * a module only when every export is a component, so a component file that
@@ -8,7 +11,7 @@
  *
  * Pure module: no React, no D3, no store access.
  */
-import { completedLaps } from '../raceTime';
+import { buildRaceTrace } from '../raceTrace';
 import { DIVERGING, TEXT_COLORS, getDriverColor, getDriverDash, markColor } from '../colors';
 import { deltaHatchCss } from './deltaHatch';
 
@@ -55,33 +58,32 @@ export function lapDeltaLegend(base, drivers) {
 }
 
 /**
- * Cumulative race time per driver over the laps COMPLETED at sessionNow
- * (session seconds, utils/raceTime.js): a lap time is known at the lap's
- * end, so the chart never draws a lap still running (decision R6). Laps
- * without a usable time (0 < LapTimeSeconds < 300) are skipped.
+ * Each driver's delta to the base driver on every lap both completed at
+ * sessionNow (session seconds, utils/raceTime.js; decision R6): the race
+ * trace on the focus reference (raceTrace.js buildRaceTrace) with the sign
+ * of this chart, delta = cum_driver(k) - cum_base(k) = -y(k), + = behind.
+ * The race clock is the lap rows' Time less the red-flag suspension, never a
+ * sum of lap times: the old sum skipped every lap without a LapTimeSeconds
+ * (a retirement, a red-flag lap), and every lap after it read short.
+ * Drivers in race order at sessionNow, the base included (delta 0).
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
- * @param {number} [sessionNow=Infinity] - session seconds
- * @returns {Object<string, Array<{lap: number, cumTime: number, lapTime: number}>>} by lap
+ * @param {Object} opts
+ * @param {string} opts.base - the base driver
+ * @param {number} [opts.sessionNow=Infinity] - session seconds
+ * @param {Array<Object>} [opts.trackStatus] - sessionData.track_status (red flags)
+ * @returns {Object<string, Array<{lap: number, delta: number}>>} by lap; {} without the base
  */
-export function cumulativeLapTimes(lapTimes, sessionNow = Infinity) {
-  const map = {};
-  for (const d of completedLaps(lapTimes || [], sessionNow)) {
-    if (!map[d.Driver]) map[d.Driver] = {};
-    if (d.LapTimeSeconds > 0 && d.LapTimeSeconds < 300) {
-      map[d.Driver][d.LapNumber] = d.LapTimeSeconds;
-    }
+export function lapDeltaSeries(lapTimes, { base, sessionNow = Infinity, trackStatus = [] } = {}) {
+  if (!base) return {};
+  const trace = buildRaceTrace(lapTimes || [], {
+    trackStatus, sessionNow, reference: 'focus', focusDriver: base,
+  });
+  if (trace.reference !== 'focus') return {};
+  const out = {};
+  for (const d of trace.drivers) {
+    const points = d.points.filter((p) => !p.start).map((p) => ({ lap: p.lap, delta: -p.y }));
+    if (points.length) out[d.driver] = points;
   }
-  const cumMap = {};
-  for (const [driver, laps] of Object.entries(map)) {
-    const sortedLaps = Object.keys(laps).map(Number).sort((a, b) => a - b);
-    const cumArr = [];
-    let sum = 0;
-    for (const lap of sortedLaps) {
-      sum += laps[lap];
-      cumArr.push({ lap, cumTime: sum, lapTime: laps[lap] });
-    }
-    cumMap[driver] = cumArr;
-  }
-  return cumMap;
+  return out;
 }

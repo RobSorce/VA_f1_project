@@ -71,7 +71,7 @@ const NOT_LINKS = [...LIFECYCLE_ACTIONS, ...CLOCK_ACTIONS];
 export const MATRIX_VIEWS = Object.freeze([
   'Leaderboard', 'TrackMap', 'LapTimeChart', 'PositionByLap', 'StrategyTimeline', 'TireDegradation',
   'PCABiplot', 'PCAAnalysisPanel', 'StrategyAnalysis', 'RaceSituationMap', 'CircleOfDoom', 'RacePaceGrid',
-  'LapDeltaChart', 'TelemetryStrip', 'TimelinePlayer',
+  'LapDeltaChart', 'TelemetryStrip', 'TimelinePlayer', 'RaceTrace', 'FieldPace',
 ]);
 
 const FIELD_NAMES = Object.keys(COORDINATION_FIELDS);

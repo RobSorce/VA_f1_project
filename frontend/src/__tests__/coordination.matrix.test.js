@@ -117,8 +117,8 @@ describe('the claims removed from the docs are absent from the code', () => {
   it('the lap ranges have exactly the writers and subscribers the doc names', () => {
     const field = (f) => coord.fields.find((x) => x.field === f);
     // Position by Lap through setBrushLapRange: the selection the brush wrote follows the brush (V7)
-    expect(field('selectedLapRange').writers).toEqual(['LapTimeChart', 'PCAAnalysisPanel', 'PositionByLap', 'StrategyTimeline', 'TimelinePlayer', 'commandRegistry']);
-    expect(field('selectedLapRange').readers).toEqual(['LapTimeChart', 'StrategyTimeline', 'TelemetryStrip', 'TireDegradation']);
+    expect(field('selectedLapRange').writers).toEqual(['FieldPace', 'LapTimeChart', 'PCAAnalysisPanel', 'PositionByLap', 'RaceTrace', 'StrategyTimeline', 'TimelinePlayer', 'commandRegistry']);
+    expect(field('selectedLapRange').readers).toEqual(['LapTimeChart', 'RaceTrace', 'StrategyTimeline', 'TelemetryStrip', 'TireDegradation']);
     // one range under two names: every lap-range action writes both
     expect(field('brushLapRange').writers).toEqual(field('selectedLapRange').writers);
     expect(field('selectedPCAPoints').readers).toEqual(['PCAAnalysisPanel', 'PCABiplot']);
