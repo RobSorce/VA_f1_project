@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { CHART_FONT, FLAG_COLORS, TEXT_COLORS, UI_COLORS, getDriverColor, withAlpha } from '../../utils/colors';
 import { yearOptions } from '../../utils/seasons';
-import { APP_NAME, TRADEMARK_NOTICE } from '../../utils/brand';
+import { APP_NAME, APP_TAGLINE, TRADEMARK_NOTICE } from '../../utils/brand';
 import { useBackendOnlyText } from '../../utils/demoMode';
 const SESSION_TYPES = [
   { value: 'R', label: 'Race' },
@@ -173,7 +173,7 @@ export default function SessionSelectorScreen() {
         {/* Wordmark */}
         <div className="session-screen__brand">
           <h1 className="wordmark session-screen__title">{APP_NAME}</h1>
-          <p className="session-screen__subtitle">Visual Analytics Dashboard</p>
+          <p className="session-screen__subtitle">{APP_TAGLINE}</p>
           {/* Trade-mark notice (utils/brand.js): in sight without a scroll */}
           <p className="session-screen__notice">{TRADEMARK_NOTICE}</p>
         </div>

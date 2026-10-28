@@ -1,4 +1,6 @@
-# Race Strategy Dashboard
+# VARIANTE
+
+Race strategy intelligence.
 
 Interactive visual analytics platform for Formula 1 race strategy analysis.
 

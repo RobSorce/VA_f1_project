@@ -1,4 +1,4 @@
-# Heuristic Evaluation — Race Strategy Dashboard
+# Heuristic Evaluation — VARIANTE
 
 Nielsen's ten usability heuristics applied to the current frontend
 (branch `v4`, commit state `324bb9f` + live edits). Conducted by

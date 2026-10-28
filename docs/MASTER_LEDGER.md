@@ -1,4 +1,4 @@
-# Race Strategy Dashboard — Master Ledger
+# VARIANTE — Master Ledger
 
 > Single-source, exhaustive entry point for the final Visual Analytics report.
 > Every subsequent document (INSIGHTS, RELATED_WORK, PCA_METHODOLOGY, etc.) is a deeper dive on a section that already appears here.
@@ -38,7 +38,7 @@ Repository: [github.com/RobSorce/VA_f1_project](https://github.com/RobSorce/VA_f
 
 ## 1 · What the system is and why
 
-**Race Strategy Dashboard** is a full-stack visual-analytics platform for Formula 1 race-strategy decision making.
+**VARIANTE** (race strategy intelligence) is a full-stack visual-analytics platform for Formula 1 race-strategy decision making.
 It is *not* an F1 information dashboard. It is a decision-support tool that closes the loop
 
 ```
