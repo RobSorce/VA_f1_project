@@ -28,7 +28,10 @@
  * and the gap arc, d3.format) and the tooltip (a d3 selection on body, as in
  * RaceSituationMap); React renders the marks from it. The drawing is therefore
  * in the DOM from the first render (server rendering included, which the view
- * tests read) and React never competes with D3 for the same nodes.
+ * tests read) and React never competes with D3 for the same nodes. A seek
+ * under a pointer at rest fires no mouse event: after every new drawing the
+ * tooltip is refreshed while its car or marker is still under the pointer,
+ * else hidden with the highlight, as a mouseleave would.
  * Labels: utils/circleLabelLayout.js places them around the ring with no two
  * boxes overlapping, inside the slot and clear of the ring; if they do not fit,
  * it tries smaller fonts and, for the rejoin label, other angles near its
@@ -1615,14 +1618,69 @@ export default function CircleOfDoom({
   // Hide the shared tooltip when the view goes away
   useEffect(() => () => hideTooltip(), []);
 
+  const rejoinHtml = useCallback(
+    () => `<div class="tooltip-title" style="color:${PIT_WINDOW_TEXT}">${focusDriver} pit now</div>${distributionRows()}`,
+    [focusDriver, distributionRows],
+  );
+  const ghostHtml = useCallback(
+    () => `<div class="tooltip-title" style="color:${PIT_WINDOW_TEXT}">${focusDriver} pits in ${kShown}</div>${pitInRows()}`,
+    [focusDriver, kShown, pitInRows],
+  );
+
+  // The tooltip shown and the pointer it follows: { kind: 'car' | 'rejoin' |
+  // 'ghost', driver, clientX, clientY, x, y } (x, y in plot coordinates), or
+  // null. A keyboard seek (←/→, Home/End) or the replay moves the cars under
+  // a pointer at rest, and no mouse event fires (F4)
+  const tipRef = useRef(null);
+  const pointerAt = (event) => {
+    const svg = event.currentTarget?.ownerSVGElement;
+    const [x, y] = svg ? d3.pointer(event, svg) : [NaN, NaN];
+    return {
+      clientX: event.clientX, clientY: event.clientY, x, y,
+    };
+  };
+  const showTip = (event, tip, html) => {
+    tipRef.current = { ...tip, ...pointerAt(event) };
+    showTooltip(event, html);
+  };
+  const hideTip = () => {
+    tipRef.current = null;
+    hideTooltip();
+  };
+  // After every new drawing: the tooltip is refreshed while its car or marker
+  // is still under the pointer (its hit area, 1 px slack at the edge), else
+  // hidden and the highlight dropped, as a mouseleave would
+  useEffect(() => {
+    const tip = tipRef.current;
+    if (!tip) return;
+    const under = (x, y, r) => Math.hypot(tip.x - x, tip.y - y) <= r + 1;
+    let html = null;
+    if (tip.kind === 'car') {
+      const c = scene.drawn.find((d) => d.driver === tip.driver);
+      if (c && under(c.x, c.y, c.rad + 5)) html = carTooltip(c);
+    } else {
+      const wm = scene.windowMarks;
+      const m = tip.kind === 'ghost' ? wm?.ghost : wm?.marker;
+      // the diamond (inside a circle of its half-diagonal), the traffic ring around the rejoin
+      const reach = m && (m.s + (tip.kind === 'rejoin' && wm.traffic ? 4.7 : 0));
+      if (m && under(m.x, m.y, reach)) html = tip.kind === 'ghost' ? ghostHtml() : rejoinHtml();
+    }
+    if (html) {
+      showTooltip(tip, html);
+      return;
+    }
+    hideTip();
+    if (tip.kind === 'car' && useF1Store.getState().highlightedDriver === tip.driver) setHighlightedDriver(null);
+  }, [scene, carTooltip, rejoinHtml, ghostHtml, setHighlightedDriver]);
+
   const onCarEnter = (event, c) => {
     setHighlightedDriver(c.driver);
-    showTooltip(event, carTooltip(c));
+    showTip(event, { kind: 'car', driver: c.driver }, carTooltip(c));
   };
-  const onCarMove = (event, c) => showTooltip(event, carTooltip(c));
+  const onCarMove = (event, c) => showTip(event, { kind: 'car', driver: c.driver }, carTooltip(c));
   const onCarLeave = () => {
     setHighlightedDriver(null);
-    hideTooltip();
+    hideTip();
   };
   const onCarClick = (event, c) => {
     event.stopPropagation();
@@ -1641,14 +1699,8 @@ export default function CircleOfDoom({
   const onCarMouseDown = (event) => {
     if (event.shiftKey) event.preventDefault();
   };
-  const rejoinTooltip = (event) => showTooltip(
-    event,
-    `<div class="tooltip-title" style="color:${PIT_WINDOW_TEXT}">${focusDriver} pit now</div>${distributionRows()}`,
-  );
-  const ghostTooltip = (event) => showTooltip(
-    event,
-    `<div class="tooltip-title" style="color:${PIT_WINDOW_TEXT}">${focusDriver} pits in ${kShown}</div>${pitInRows()}`,
-  );
+  const rejoinTooltip = (event) => showTip(event, { kind: 'rejoin' }, rejoinHtml());
+  const ghostTooltip = (event) => showTip(event, { kind: 'ghost' }, ghostHtml());
 
   // Header: the "pit in k laps" stepper ([ and ]) and the "rivals stop" toggle
   const stepBtn = {
@@ -1834,7 +1886,7 @@ export default function CircleOfDoom({
                   transform={`translate(${windowMarks.ghost.x},${windowMarks.ghost.y})`}
                   onMouseEnter={ghostTooltip}
                   onMouseMove={ghostTooltip}
-                  onMouseLeave={hideTooltip}
+                  onMouseLeave={hideTip}
                 >
                   <path
                     className="cod-ghost-marker"
@@ -1850,7 +1902,7 @@ export default function CircleOfDoom({
                   transform={`translate(${windowMarks.marker.x},${windowMarks.marker.y})`}
                   onMouseEnter={rejoinTooltip}
                   onMouseMove={rejoinTooltip}
-                  onMouseLeave={hideTooltip}
+                  onMouseLeave={hideTip}
                 >
                   {windowMarks.traffic && <circle className="cod-traffic-ring" r={windowMarks.marker.s + 4} />}
                   <path

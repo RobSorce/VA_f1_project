@@ -8,7 +8,10 @@
 //  - with no focus, the gaps are measured from the selected car first in race
 //    order: its label reads 'ref', the other selected cars' labels carry
 //    gapSeconds to it, the hover readout and the tooltip use the same car,
-//    signed (+ behind, − ahead).
+//    signed (+ behind, − ahead);
+//  - a keyboard seek under a pointer at rest (F4): the tooltip is refreshed
+//    while its car stays under the pointer, and hidden (the highlight with
+//    it) once the car has moved away.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,6 +44,7 @@ await import('d3');
 const { useF1Store } = await import('../store/useF1Store.js');
 const { computeSessionTimeOffset, resolveSessionNow } = await import('../utils/raceTime.js');
 const { circleState, gapSeconds, lapOffset } = await import('../utils/circleOfDoom.js');
+const { stepLap } = await import('../hooks/useKeyboardShortcuts.js');
 const { installResizeObserverMock, syntheticSession } = await import('./helpers/chartFixtures.js');
 const { default: CircleOfDoom } = await import('../components/visualizations/CircleOfDoom.jsx');
 
@@ -123,6 +127,11 @@ const tooltipShown = () => {
 };
 const tooltipText = () => (tooltip()?.innerHTML || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const tagOf = (d) => view.label(d)?.querySelector('.cod-label__gap')?.textContent ?? null;
+/** Centre of a car in plot coordinates (its translate). */
+function placeOf(d) {
+  const m = /translate\(([-\d.e]+),\s*([-\d.e]+)\)/.exec(view.car(d).getAttribute('transform'));
+  return [Number(m[1]), Number(m[2])];
+}
 
 beforeEach(() => {
   for (const t of dom.document.body.querySelectorAll('.cod-tooltip')) t.remove();
@@ -258,5 +267,52 @@ describe('gap tags with no focus: measured from the selected car first in race o
     raceAtLap(12, { selectedDrivers: ['NOR', 'SAI'] });
     await mount();
     expect(view.host.querySelectorAll('.cod-legend__item').length).toBe(9);
+  });
+});
+
+describe('F4: a keyboard seek under a pointer at rest', () => {
+  it('→ (one lap on): the tooltip of the car still under the pointer shows the new lap and gap', async () => {
+    // lap 15: every car has made its stop, the leader stays the same
+    raceAtLap(15, { selectedDrivers: ['NOR'] });
+    await mount();
+    const leader = stateNow().cars[0].driver;
+    await hover(leader);
+    expect(useF1Store.getState().highlightedDriver).toBe(leader);
+    const before = tooltipText();
+    expect(before).toContain('Lap 15');
+    // the → key
+    await act(async () => { stepLap(useF1Store.getState(), 1); });
+    await settle();
+    const st = stateNow();
+    expect(st.cars[0].driver).toBe(leader);
+    // in lap order the leader is at the line, where the pointer rests
+    const hit = Number(view.car(leader).querySelector('circle.cod-car__hit').getAttribute('r'));
+    const [x, y] = placeOf(leader);
+    const p = dom.toClient(view.svg(), x, y);
+    const { clientX, clientY } = centreOf(leader);
+    expect(Math.hypot(p.clientX - clientX, p.clientY - clientY)).toBeLessThanOrEqual(hit);
+    const g = gapSeconds('NOR', leader, st);
+    expect(tooltipShown()).toBe(true);
+    expect(tooltipText()).toContain('Lap 16');
+    expect(tooltipText()).toContain(`Gap to NOR ${signed(g)} s`);
+    expect(tooltipText()).not.toBe(before);
+  });
+
+  it('a seek that moves the car away hides the tooltip and drops the highlight', async () => {
+    raceAtLap(12);
+    await mount();
+    const last = stateNow().cars.at(-1).driver;
+    await hover(last);
+    expect(tooltipShown()).toBe(true);
+    const { clientX, clientY } = centreOf(last);
+    const hit = Number(view.car(last).querySelector('circle.cod-car__hit').getAttribute('r'));
+    // a lap picked on the timeline (Home / End seek the same way)
+    await act(async () => { useF1Store.getState().setCurrentLap(4); });
+    await settle();
+    const [x, y] = placeOf(last);
+    const p = dom.toClient(view.svg(), x, y);
+    expect(Math.hypot(p.clientX - clientX, p.clientY - clientY)).toBeGreaterThan(hit + 1);
+    expect(tooltipShown()).toBe(false);
+    expect(useF1Store.getState().highlightedDriver).toBeNull();
   });
 });
