@@ -28,6 +28,7 @@ const { act } = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { useF1Store } = await import('../store/useF1Store.js');
 const { computeSessionTimeOffset } = await import('../utils/raceTime.js');
+const { causalKey } = await import('../utils/strategyViews.js');
 const { setSessionDriverColors } = await import('../utils/colors.js');
 const { fieldPace, gapLine } = await import('../utils/fieldPace.js');
 const {
@@ -232,5 +233,33 @@ describe('interactions', () => {
     const nor = row().querySelectorAll('.fp-mark').find((m) => m.getAttribute('data-driver') === 'NOR');
     await fire(nor.querySelector('.fp-dot'), 'dblclick');
     expect(useF1Store.getState().focusDriver).toBe('NOR');
+  });
+});
+
+describe('replay frames', () => {
+  it('two frames with no lap completed: the same row nodes, the tooltip still shown', async () => {
+    const lt = MONZA.lap_times;
+    const offset = computeSessionTimeOffset(lt);
+    // halfway through the leader's lap 30, and two frames of 0.1 s after it
+    const lead30 = lt.filter((r) => r.LapNumber === 30).sort((a, b) => a.LapStartTime - b.LapStartTime)[0];
+    const nows = [0, 0.1, 0.2].map((d) => lead30.LapStartTime + 40 + d);
+    const keys = nows.map((n) => causalKey(lt, n, MONZA.track_status));
+    expect(new Set(keys).size).toBe(1);
+    state(MONZA, {
+      totalFrames: 1000, currentFrameIndex: 500, currentTime: nows[0] - offset, maxTime: 1e6, lapModeRaceOver: false,
+    });
+    const { host } = await mount({ width: 700, height: 260 });
+    const ferrari = rowsOf(host).find((r) => r.getAttribute('data-team') === 'Ferrari');
+    const sai = ferrari.querySelectorAll('.fp-mark').find((m) => m.getAttribute('data-driver') === 'SAI');
+    await fire(sai.querySelector('.fp-dot'), 'mousemove', { clientX: 5, clientY: 5 });
+    const tip = host.querySelector('.pos-chart-tooltip');
+    expect(tip.style.display).toBe('block');
+    for (const [i, n] of nows.slice(1).entries()) {
+      await act(async () => { useF1Store.setState({ currentTime: n - offset, currentFrameIndex: 501 + i }); });
+      expect(useF1Store.getState().getSessionNow()).toBeCloseTo(n, 6);
+    }
+    expect(rowsOf(host).find((r) => r.getAttribute('data-team') === 'Ferrari')).toBe(ferrari);
+    expect(ferrari.isConnected).toBe(true);
+    expect(tip.style.display).toBe('block');
   });
 });

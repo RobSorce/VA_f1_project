@@ -77,7 +77,9 @@ export default function FieldPace() {
   const axisH = Math.ceil(chartFontPx('label'));
   const answerOnly = paceAnswerOnly(box, axisH);
   const fit = paceRowsFit(height - axisH, pace.teams.length);
-  const pg = pacePage(pace.teams, page, fit.perPage);
+  // the same rows object while the page holds the same teams: the draw effect
+  // (and the tooltip it would hide) does not run again on every replay frame
+  const pg = useMemo(() => pacePage(pace.teams, page, fit.perPage), [pace.teams, page, fit.perPage]);
   useEffect(() => { if (pg.page !== page) setPage(pg.page); }, [pg.page, page]);
 
   useEffect(() => {
