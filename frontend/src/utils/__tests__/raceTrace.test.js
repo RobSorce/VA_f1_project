@@ -14,6 +14,7 @@ import {
 } from '../raceTrace.js';
 import { resolveSessionNow, isLapCompleted } from '../raceTime.js';
 import { perturbFuture } from './futureRows.js';
+import { leaderGapCheck } from '../../../scripts/race_trace_check.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.resolve(HERE, '../../../public/data');
@@ -283,6 +284,28 @@ describe('race order, lapped cars, answer and window', () => {
     const w = traceWindow(t, { window: 'top' });
     expect(t.drivers.find((d) => d.driver === 'CCC').lapsDown).toBeGreaterThan(0);
     expect(w.below).toEqual(['CCC']);
+  });
+});
+
+describe('scripts/race_trace_check.mjs: the leader gap, overall and outside the red-flag windows', () => {
+  // AAA laps in 90 s, BBB in 91 s; a red flag from 1451 s to 1460 s falls
+  // between their lap-5 crossings (1450 s, 1455 s): the race clock is frozen
+  // from 1451 s to the restart (AAA's lap 7 start, 1540 s), the timing's gap is not
+  const rows = race(['AAA', 'BBB'], [90, 91], 8).map((r) => ({ ...r, GapToLeader: r.Driver === 'AAA' ? 0 : r.LapNumber }));
+  const red = [{ status: '5', start_time: 1451, end_time: 1460 }];
+  it('every row: the lap-5 row across the window differs by the 4 s frozen; outside it: none', () => {
+    const c = leaderGapCheck(rows, red);
+    expect(c.leader.suspensions).toEqual([{ start: 1451, restart: 1540 }]);
+    expect(c.all.max).toBeCloseTo(4, 9);
+    expect(c.all.at).toBe('BBB L5');
+    expect(c.redRows).toBe(1);
+    expect(c.outside.rows).toBe(c.all.rows - 1);
+    expect(c.outside.max).toBeLessThan(1e-9);
+  });
+  it('no red flag: both checks are the same', () => {
+    const c = leaderGapCheck(rows, []);
+    expect(c.redRows).toBe(0);
+    expect(c.outside).toEqual(c.all);
   });
 });
 

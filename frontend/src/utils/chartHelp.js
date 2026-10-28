@@ -671,7 +671,7 @@ export const CHART_HELP = {
     ],
     limitations: [
       `A wet race (more than ${Math.round(WET_ROW_SHARE * 100)} % of the laps on intermediates or wets): the field reference is unreliable while the field changes tyres together; the provenance line says so.`,
-      'A final lap\'s median keeps following the cars that complete that lap later, so the newest laps can still move a little; the race_trace_check script measures it on the cached races.',
+      'A final lap\'s median keeps following the cars that complete that lap later, so the newest laps can still move: docs/evidence/race_trace_check.txt (frontend/scripts/race_trace_check.mjs, on the cached races) gives by how much, for the provisional points and the final points of the newest two laps.',
       'A retiring car\'s last row (no position, no lap time) is not a lap end: its line stops at its last crossing of the line.',
       'Race and sprint sessions only.',
     ],
