@@ -8,7 +8,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import {
-  comparableLaps, fieldPace, blockBootstrapMedians, tyreClass, gapLine, pctText,
+  comparableLaps, fieldPace, blockBootstrapMedians, tyreClass, gapLine, pctText, gapVerdict,
   PACE_MIN_LAP_FIELD, PACE_LOW_DATA_LAPS, PACE_BLOCK_LAPS, PACE_BOOTSTRAP_RUNS, PACE_INTERVAL,
 } from '../fieldPace.js';
 import { seedFrom, uniformAt } from '../prng.js';
@@ -165,6 +165,26 @@ describe('drivers and team-mates', () => {
     expect(t1.gap.lo).toBeLessThanOrEqual(0);
     expect(t1.gap.hi).toBeGreaterThanOrEqual(0);
     expect(res.teams.find((t) => t.team === 'T2').gap.verdict).toBe('low data');
+  });
+  it('decisive on the interval as printed: a bound that prints 0.00 is not decisive', () => {
+    // hi in (-0.005, 0) prints '0.00': the line must not read "[−1.01, 0.00] · decisive"
+    expect(gapVerdict(-1.01, -0.003)).toBe('not decisive');
+    expect(gapLine({ faster: 'AAA', slower: 'BBB', value: -0.5, lo: -1.01, hi: -0.003, verdict: gapVerdict(-1.01, -0.003) }))
+      .toBe('AAA −0.50 % [−1.01, 0.00] · not decisive');
+    expect(gapVerdict(0.004, 0.8)).toBe('not decisive');
+    expect(gapVerdict(-1.01, -0.006)).toBe('decisive');
+    expect(gapVerdict(0.006, 0.8)).toBe('decisive');
+    expect(gapVerdict(-0.4, 0.3)).toBe('not decisive');
+    expect(gapVerdict(-1.01, -0.5, true)).toBe('low data');
+  });
+  it('2025 R16 at the leader\'s lap-53 start: Alpine\'s interval prints 0.00 at its end, not decisive', () => {
+    const monza25 = demo(2025, 16);
+    const now = resolveSessionNow({ currentLap: 53, lapTimes: monza25.lap_times });
+    const alpine = fieldPace(monza25.lap_times, { sessionNow: now, trackStatus: monza25.track_status, driverInfo: monza25.driver_info })
+      .teams.find((t) => t.team === 'Alpine');
+    expect(alpine.gap.hi).toBeLessThan(0);
+    expect(alpine.gap.hi).toBeGreaterThan(-0.005);
+    expect(gapLine(alpine.gap)).toMatch(/\[−\d\.\d\d, 0\.00\] · not decisive$/);
   });
   it('rows sorted by the team median (pooled laps of both drivers)', () => {
     expect(res.teams.map((t) => t.team)).toEqual(['T0', 'T1', 'T2']);

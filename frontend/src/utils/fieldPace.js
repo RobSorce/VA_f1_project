@@ -26,7 +26,8 @@
  * A team: the median pct of its drivers' laps together (the row order), and
  * the team-mate gap = the faster driver's median minus the slower's, with
  * the 80 % interval of the same difference over the paired resamples.
- * "decisive" when that interval excludes 0; a gap with a driver under
+ * "decisive" when that interval, as printed (two decimals), excludes 0, so a
+ * line never reads "[−1.01, 0.00] · decisive"; a gap with a driver under
  * PACE_LOW_DATA_LAPS laps reads "low data" (at 5 laps or fewer the bootstrap
  * has one block: its interval collapses to a point and would always exclude 0).
  *
@@ -180,6 +181,26 @@ export function blockBootstrapMedians(values, seed) {
   return out;
 }
 
+/** A value as gapLine prints it (two decimals), sign kept: -0.004 -> -0. */
+function shown2(v) {
+  return Math.sign(v) * Number(Math.abs(v).toFixed(2));
+}
+
+/**
+ * Verdict of a team-mate gap: 'low data' when a driver is LOW DATA, else
+ * 'decisive' when the interval as printed (two decimals) excludes 0, else
+ * 'not decisive'.
+ *
+ * @param {number} lo - lower bound of the gap's interval (pct)
+ * @param {number} hi - upper bound (pct)
+ * @param {boolean} [lowData=false]
+ * @returns {'decisive'|'not decisive'|'low data'}
+ */
+export function gapVerdict(lo, hi, lowData = false) {
+  if (lowData) return 'low data';
+  return shown2(hi) < 0 || shown2(lo) > 0 ? 'decisive' : 'not decisive';
+}
+
 /** p10 / p90 (PACE_INTERVAL) of resampled values. */
 function interval(resamples) {
   const sorted = [...resamples].sort((a, b) => a - b);
@@ -269,7 +290,7 @@ export function fieldPace(lapTimes, {
         value: drivers[faster].median - drivers[slower].median,
         lo,
         hi,
-        verdict: low ? 'low data' : (hi < 0 || lo > 0 ? 'decisive' : 'not decisive'),
+        verdict: gapVerdict(lo, hi, low),
       };
     }
     teams.push({

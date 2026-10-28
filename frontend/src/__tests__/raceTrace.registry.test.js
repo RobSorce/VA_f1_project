@@ -91,6 +91,6 @@ describe('help', () => {
     expect(pace).toContain(`blocks of ${PACE_BLOCK_LAPS} consecutive laps`);
     expect(pace).toContain(`under ${PACE_LOW_DATA_LAPS} laps`);
     expect(pace).toContain(`at least ${PACE_MIN_LAP_FIELD} of them`);
-    expect(pace).toMatch(/"decisive" only when the interval excludes 0/);
+    expect(pace).toMatch(/"decisive" only when the interval, as printed \(two decimals\), excludes 0/);
   });
 });
