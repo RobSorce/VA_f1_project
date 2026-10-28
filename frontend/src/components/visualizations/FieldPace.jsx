@@ -7,9 +7,11 @@
  * same lap. Per row two marks in the team colour, a circle for the first
  * driver and a diamond for the second (the shape tells team-mates apart),
  * each at the driver's median with its 80 % interval (moving-block
- * bootstrap), the driver code and the laps counted; hollow and "LOW DATA"
- * under 10 laps. Rows sorted by the team median. On the right the team-mate
- * gap with its interval: "decisive" only when the interval excludes 0.
+ * bootstrap), the driver code and the laps counted (shortened to the code
+ * where the axis column has no room: a label never covers the team name or
+ * the gap); hollow and "LOW DATA" under 10 laps. Rows sorted by the team
+ * median. On the right the team-mate gap with its interval: "decisive" only
+ * when the interval excludes 0.
  *
  * Reads the brushed lap range (a chip "laps 20–35 ×" clears it), causal at
  * the dashboard's clock. 21 px rows, up to 10 a page, a pager in the header
@@ -156,15 +158,20 @@ export default function FieldPace() {
         .attr('fill', TEXT_COLORS.secondary).style('font-size', CHART_FONT.data).attr('font-weight', 700)
         .text(team.team);
 
-      // The two marks: median, 80 % interval, code and laps; the labels
-      // beside the pair, inside the axis column (markLabelLayout)
+      // The marks: median, 80 % interval, code and laps; the labels beside
+      // them, inside the axis column, shortened when the room asks for it
+      // (markLabelLayout: 'TSU n4 LOW DATA', 'TSU n4', 'TSU')
       const racing = team.drivers.filter((d) => pace.drivers[d]?.n > 0)
         .sort((a, b) => pace.drivers[a].median - pace.drivers[b].median);
-      const labelOf = (d) => `${d} n${pace.drivers[d].n}${pace.drivers[d].lowData ? ' LOW DATA' : ''}`;
+      const labelsOf = (d) => {
+        const p = pace.drivers[d];
+        const texts = p.lowData ? [`${d} n${p.n} LOW DATA`, `${d} n${p.n}`, d] : [`${d} n${p.n}`, d];
+        return texts.map((text) => ({ text, w: textW(text) }));
+      };
       const layout = markLabelLayout(racing.map((d) => {
         const p = pace.drivers[d];
         const ext = [p.median, p.lo, p.hi].filter(Number.isFinite).map((v) => x(v));
-        return { key: d, left: Math.min(...ext) - MARK_R, right: Math.max(...ext) + MARK_R, w: textW(labelOf(d)) };
+        return { key: d, left: Math.min(...ext) - MARK_R, right: Math.max(...ext) + MARK_R, labels: labelsOf(d) };
       }), { x0: x0 + 2, x1: x1 - 2 });
       racing.forEach((d) => {
         const p = pace.drivers[d];
@@ -188,10 +195,12 @@ export default function FieldPace() {
             .attr('fill', fill).attr('stroke', color).attr('stroke-width', 1.5);
         }
         const at = layout.get(d);
-        mark.append('text').attr('class', 'fp-label')
-          .attr('x', at.x).attr('y', cy).attr('dominant-baseline', 'middle').attr('text-anchor', at.anchor)
-          .attr('fill', textColor(getDriverColor(d))).style('font-size', CHART_FONT.data).attr('font-weight', 700)
-          .text(labelOf(d));
+        if (at) {
+          mark.append('text').attr('class', 'fp-label')
+            .attr('x', at.x).attr('y', cy).attr('dominant-baseline', 'middle').attr('text-anchor', at.anchor)
+            .attr('fill', textColor(getDriverColor(d))).style('font-size', CHART_FONT.data).attr('font-weight', 700)
+            .text(at.text);
+        }
         mark.on('mousemove', (event) => showTip(event,
           `<div style="font-weight:800;color:${textColor(getDriverColor(d), SURFACES.elevated)}">${d} · ${team.team}</div>`
           + `<div>median ${pctText(p.median)} [${pctText(p.lo)}, ${pctText(p.hi)}], 80 %</div>`

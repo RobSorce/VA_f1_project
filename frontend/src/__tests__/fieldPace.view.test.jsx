@@ -134,6 +134,21 @@ describe('rows and marks', () => {
     expect(host.querySelector('.fp-page').textContent).toBe('2/2');
   });
 
+  it('three drivers in one team row: three marks, each labelled', async () => {
+    // a third Ferrari: a copy of LEC's laps under another code
+    const extra = MONZA.lap_times.filter((r) => r.Driver === 'LEC').map((r) => ({ ...r, Driver: 'XXC' }));
+    const session = {
+      ...MONZA,
+      lap_times: [...MONZA.lap_times, ...extra],
+      driver_info: [...MONZA.driver_info, { DriverNumber: '97', Abbreviation: 'XXC', FullName: 'C', TeamName: 'Ferrari', TeamColor: 'E8002D' }],
+    };
+    state(session);
+    const { host } = await mount({ width: 700, height: 260 });
+    const ferrari = rowsOf(host).find((r) => r.getAttribute('data-team') === 'Ferrari');
+    expect(ferrari.querySelectorAll('.fp-mark').length).toBe(3);
+    expect(ferrari.querySelectorAll('.fp-label').map((t) => t.textContent.split(' ')[0]).sort()).toEqual(['LEC', 'SAI', 'XXC']);
+  });
+
   it('the lap range: a chip "laps a–b ×" that clears it; the pace of those laps only', async () => {
     state(MONZA, { brushLapRange: [20, 35], selectedLapRange: [20, 35] });
     const { host } = await mount({ width: 640, height: 260 });
@@ -192,14 +207,63 @@ describe('fit', () => {
     expect(host.querySelector('.fp-answer').textContent).toMatch(/^Fastest race pace: McLaren \((NOR|PIA) −\d\.\d\d %, (NOR|PIA) −\d\.\d\d %\)$/);
   });
 
+  const mk = (key, left, right, ...ws) => ({ key, left, right, labels: ws.map(([text, w]) => ({ text, w })) });
   it('mark labels stay inside the axis column when one side has no room', () => {
-    const marks = [{ key: 'A', left: 105, right: 115, w: 50 }, { key: 'B', left: 130, right: 140, w: 50 }];
+    const marks = [mk('A', 105, 115, ['A', 50]), mk('B', 130, 140, ['B', 50])];
     const lay = markLabelLayout(marks, { x0: 100, x1: 400 });
-    expect(lay.get('A')).toEqual({ x: 146, anchor: 'start' });
-    expect(lay.get('B')).toEqual({ x: 202, anchor: 'start' });
-    const wide = markLabelLayout([{ key: 'A', left: 200, right: 210, w: 50 }, { key: 'B', left: 250, right: 260, w: 50 }], { x0: 100, x1: 400 });
-    expect(wide.get('A')).toEqual({ x: 194, anchor: 'end' });
-    expect(wide.get('B')).toEqual({ x: 266, anchor: 'start' });
+    expect(lay.get('A')).toEqual({ x: 146, anchor: 'start', text: 'A' });
+    expect(lay.get('B')).toEqual({ x: 202, anchor: 'start', text: 'B' });
+    const wide = markLabelLayout([mk('A', 200, 210, ['A', 50]), mk('B', 250, 260, ['B', 50])], { x0: 100, x1: 400 });
+    expect(wide.get('A')).toEqual({ x: 194, anchor: 'end', text: 'A' });
+    expect(wide.get('B')).toEqual({ x: 266, anchor: 'start', text: 'B' });
+  });
+
+  it('the sides of the pair\'s union extent: a wide interval of the left mark pushes the right label out', () => {
+    const lay = markLabelLayout([mk('A', 150, 300, ['A', 30]), mk('B', 200, 220, ['B', 30])], { x0: 100, x1: 400 });
+    expect(lay.get('A')).toEqual({ x: 144, anchor: 'end', text: 'A' });
+    expect(lay.get('B')).toEqual({ x: 306, anchor: 'start', text: 'B' });
+  });
+
+  it('the labels step down, longest first, before the placement gives up', () => {
+    const marks = [
+      mk('TSU', 110, 150, ['TSU n4 LOW DATA', 90], ['TSU n4', 40], ['TSU', 20]),
+      mk('GAS', 160, 200, ['GAS n40', 45], ['GAS', 20]),
+    ];
+    const lay = markLabelLayout(marks, { x0: 100, x1: 300 });
+    // 10 px before lo, 100 after hi: both after hi, 'TSU n4' and 'GAS n40' (97 px with the pads)
+    expect(lay.get('TSU')).toEqual({ x: 206, anchor: 'start', text: 'TSU n4' });
+    expect(lay.get('GAS')).toEqual({ x: 252, anchor: 'start', text: 'GAS n40' });
+  });
+
+  it('three marks in one row: every one labelled, in the column', () => {
+    const marks = [mk('A', 200, 210, ['A n9', 30], ['A', 10]), mk('B', 220, 230, ['B n9', 30], ['B', 10]), mk('C', 240, 250, ['C n9', 30], ['C', 10])];
+    const lay = markLabelLayout(marks, { x0: 100, x1: 400 });
+    expect([...lay.keys()].sort()).toEqual(['A', 'B', 'C']);
+    expect(lay.get('A')).toEqual({ x: 194, anchor: 'end', text: 'A n9' });
+    expect(lay.get('B')).toEqual({ x: 256, anchor: 'start', text: 'B n9' });
+    expect(lay.get('C')).toEqual({ x: 292, anchor: 'start', text: 'C n9' });
+  });
+
+  it('last resort: the codes pushed into the column; never out of [x0, x1]', () => {
+    const lay = markLabelLayout([mk('A', 105, 150, ['A n9', 40], ['AAA', 20]), mk('B', 150, 195, ['B n9', 40], ['BBB', 20])], { x0: 100, x1: 200 });
+    expect(lay.get('A')).toEqual({ x: 120, anchor: 'end', text: 'AAA' });
+    expect(lay.get('B')).toEqual({ x: 180, anchor: 'start', text: 'BBB' });
+    // random rows: every label placed lies in the column
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let t = 0; t < 300; t++) {
+      const n = 1 + Math.floor(rnd() * 3);
+      const marks2 = Array.from({ length: n }, (_, i) => {
+        const left = 100 + rnd() * 280;
+        return mk(`D${i}`, left, left + rnd() * 60, [`D${i} n12`, 30 + rnd() * 30], [`D${i}`, 15 + rnd() * 10]);
+      }).sort((a, b) => a.left - b.left);
+      for (const at of markLabelLayout(marks2, { x0: 100, x1: 400 }).values()) {
+        const w = marks2.flatMap((m) => m.labels).find((l) => l.text === at.text).w;
+        const [a, b] = at.anchor === 'end' ? [at.x - w, at.x] : [at.x, at.x + w];
+        expect(a).toBeGreaterThanOrEqual(100 - 0.5);
+        expect(b).toBeLessThanOrEqual(400 + 0.5);
+      }
+    }
   });
 
   it('the source has no scroll area', () => {
