@@ -35,7 +35,8 @@
  * marker (joined by a leader along the label circle); then the dimmed cars
  * (not relevant to the focus) lose the gap tag of their label (it stays in
  * their tooltip), then the ring shrinks.
- * Inside the pit lane: the centre text at fixed sizes, never below 9 px, every
+ * Inside the pit lane: the centre text at fixed sizes, never below 11 px (the
+ * italic notes 10 px, MIN_CENTRE_FONT and MIN_CENTRE_NOTE), every
  * line inside the cars on the pit-lane arc. When the room is too small, whole
  * lines leave the centre by priority (the hint first, then the reference lap,
  * the track status, the neutralised note, the focus result; lap/maxLap and the
@@ -47,16 +48,26 @@
  * arc where it clears every centre line (else as one more centre line; else
  * only in the tooltip).
  *
- * Coordination. Click a car = setFocusDriver (click again to clear), hover =
+ * Coordination. Click a car = setFocusDriver (click again to clear; the
+ * second click of a double-click does nothing, so a double-click leaves the
+ * car focused), Shift-, Ctrl- or Cmd-click = toggleDriver (the car joins or
+ * leaves the selection of every view; the focus stays: the pit window, the
+ * rejoin distribution and pit in k are memoised on one focus), hover =
  * setHighlightedDriver. The focus is read by the Track Map, Leaderboard,
  * Timing Tower, PositionByLap and the PCA panel; the highlight by the Track
  * Map, Leaderboard, Timing Tower, Lap Times, Strategy Timeline and the race
  * situation map, among others (not by PositionByLap or the PCA views, which
  * follow focus and selection only). Focus (ring), highlight (dashed ring) and
- * selection (red ring, as the Track Map's selected cars; e.g. a click on the
+ * selection (blue ring, as the Track Map's selected cars; e.g. a click on the
  * Track Map) set in any other view are drawn here; with a selection and no
- * focus the labels of the other cars are dimmed. With a focus (or a selected
- * car) hovering another car draws the time gap between the two.
+ * focus the labels of the other cars are dimmed.
+ * Gaps are measured from one reference car (gapReference): the focus, else
+ * the first selected car in race order. With a focus every label carries its
+ * gap (or lap) tag to the focus; with no focus only the selected cars' labels
+ * do, the reference's own reading 'ref' (the other cars keep their laps-down
+ * tag). Hovering another car draws the time gap from the reference to it,
+ * signed as the tags (+ behind, − ahead), and the car tooltip names the same
+ * reference.
  *
  * The shared Legend component draws flat colour swatches only; the legend
  * here draws each mark as it appears on the circle (ring, hatch, inner arc)
@@ -789,10 +800,38 @@ function rejoinLeaderPath(cx, cy, rFrom, rTo, markerAngle, placed) {
   return d;
 }
 
-/** Car the hover gap is measured from: the focus, else the first selected car (not the hovered one). */
-function gapAnchor(focusDriver, selectedDrivers, highlightedDriver) {
-  if (focusDriver && focusDriver !== highlightedDriver) return focusDriver;
-  return (selectedDrivers || []).find((d) => d !== highlightedDriver) || null;
+/**
+ * Car every gap is measured from (ring labels, hover readout, car tooltip):
+ * the focus if there is one, else the first selected car in race order (the
+ * order of state.cars), else null.
+ */
+function gapReference(state, focus, selectedDrivers) {
+  if (focus) return focus;
+  const selected = new Set(selectedDrivers || []);
+  return state.cars.find((c) => selected.has(c.driver))?.driver ?? null;
+}
+
+/**
+ * Gap tags of the ring labels against the reference car `ref`: the signed
+ * gap (signedSeconds: + behind, − ahead) or, across laps, the lap tag (1L,
+ * −1L). With a focus (`only` null) every other car's; with no focus only the
+ * cars in `only` (the selected ones), the reference's own tag reading 'ref'.
+ * Empty when the reference is not on the circle.
+ */
+function referenceTags(state, ref, only = null) {
+  const tags = new Map();
+  if (!ref || !state.cars.some((c) => c.driver === ref)) return tags;
+  const keep = only ? new Set(only) : null;
+  for (const c of state.cars) {
+    if (keep && !keep.has(c.driver)) continue;
+    if (c.driver === ref) {
+      if (keep) tags.set(c.driver, 'ref');
+      continue;
+    }
+    const k = lapOffset(ref, c.driver, state);
+    tags.set(c.driver, k ? lapTag(k) : signedSeconds(gapSeconds(ref, c.driver, state)));
+  }
+  return tags;
 }
 
 /** Tooltip on body, shared with the other views' tooltip style. */
@@ -994,6 +1033,7 @@ export default function CircleOfDoom({
   const highlightedDriver = useF1Store((s) => s.highlightedDriver);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
+  const toggleDriver = useF1Store((s) => s.toggleDriver);
   // Pit loss and pit window: race sessions ('R', 'S') only
   const sessionType = useF1Store(viewSessionType);
   const isRace = isRaceSession(sessionType);
@@ -1133,22 +1173,16 @@ export default function CircleOfDoom({
     return ring ? { win: { ...win, ...ring }, dist: analytics.dist } : analytics;
   }, [analytics, state, sessionNow, cars]);
 
-  // Gap or lap tag of every car relative to the focus (labels)
-  const focusTags = useMemo(() => {
-    const tags = new Map();
-    if (!focusDriver || !state.cars.some((c) => c.driver === focusDriver)) return tags;
-    for (const c of state.cars) {
-      if (c.driver === focusDriver) continue;
-      const k = lapOffset(focusDriver, c.driver, state);
-      if (k) {
-        tags.set(c.driver, lapTag(k));
-      } else {
-        const g = gapSeconds(focusDriver, c.driver, state);
-        tags.set(c.driver, signedSeconds(g));
-      }
-    }
-    return tags;
-  }, [state, focusDriver]);
+  // The car the gaps are measured from and the gap or lap tags of the labels
+  // against it: every car's with a focus, the selected cars' without one
+  const gapRef = useMemo(
+    () => gapReference(state, focusDriver, selectedDrivers),
+    [state, focusDriver, selectedDrivers],
+  );
+  const refTags = useMemo(
+    () => referenceTags(state, gapRef, focusDriver ? null : selectedDrivers),
+    [state, gapRef, focusDriver, selectedDrivers],
+  );
 
   // Slot layout and centre text: changes with the slot, the focus and the
   // events behind the centre text (lap, track status, pit loss, window), never
@@ -1211,9 +1245,12 @@ export default function CircleOfDoom({
     const dimOn = !!focusCar || selected.size > 0;
     const isDim = (c) => dimOn && !relevant.has(c.driver);
 
-    // Label texts (the same at every ring size); a dimmed car's label may drop its tag
+    // Label texts (the same at every ring size); a dimmed car's label may drop
+    // its tag. No focus: the selected cars' gaps to the reference, the laps
+    // down on the leader for the others
     const tagOf = (c) => {
-      if (focusCar) return c.driver === focusDriver ? '' : (focusTags.get(c.driver) || '');
+      if (focusCar) return c.driver === focusDriver ? '' : (refTags.get(c.driver) || '');
+      if (refTags.has(c.driver)) return refTags.get(c.driver);
       return c.lapOffsetToLeader > 0 ? lapTag(c.lapOffsetToLeader) : '';
     };
     const onRing = cars.filter((c) => c.angle != null);
@@ -1404,11 +1441,12 @@ export default function CircleOfDoom({
     const rInner = innerRoom(geo, R);
     let centre = panel.centre.lines;
 
-    // Time gap between the hovered car and the focus (or a selected car): its
-    // readout where it clears the centre text, else as one more centre line,
-    // else only in the tooltip
+    // Time gap from the reference car (the focus, else the first selected car
+    // in race order) to the hovered car, signed as the labels: its readout
+    // where it clears the centre text, else as one more centre line, else
+    // only in the tooltip. Hovering the reference itself draws none
     let gapMark = null;
-    const anchorDriver = gapAnchor(focusDriver, selectedDrivers, highlightedDriver);
+    const anchorDriver = gapRef !== highlightedDriver ? gapRef : null;
     if (anchorDriver && highlightedDriver) {
       const A = carByDriver.get(anchorDriver);
       const B = carByDriver.get(highlightedDriver);
@@ -1424,7 +1462,7 @@ export default function CircleOfDoom({
           path: d3.arc()({
             innerRadius: rGap - 0.75, outerRadius: rGap + 0.75, startAngle: start, endAngle: end,
           }),
-          text: `${fmt1(Math.abs(g))} s${k ? ` · ${lapTag(Math.abs(k))}` : ''}`,
+          text: `${signedSeconds(g)} s${k ? ` · ${lapTag(k)}` : ''}`,
           mid: (start + end) / 2,
           a: anchorDriver,
           b: highlightedDriver,
@@ -1488,7 +1526,7 @@ export default function CircleOfDoom({
       layoutOk: layout.ok,
       hiddenLabels,
     };
-  }, [cars, live, panel, width, height, focusDriver, highlightedDriver, selectedDrivers, focusTags,
+  }, [cars, live, panel, width, height, focusDriver, highlightedDriver, selectedDrivers, gapRef, refTags,
     secondCars, state, measure, pitInRow, kShown]);
 
   // Tooltip rows of "pit in k laps" (k > 0): the projected place, against
@@ -1553,16 +1591,11 @@ export default function CircleOfDoom({
     let html = `<div class="tooltip-title" style="color:${c.color}">${c.driver} — ${place}</div>`
       + row('Lap', `${c.finished ? 'finished' : c.lapsCompleted + 1}`)
       + row('Since the line', `${fmt1(c.elapsed)} s${c.saturated ? ' (longer than the ref lap)' : ''}`);
-    if (focusDriver && c.driver !== focusDriver && focusTags.get(c.driver)) {
-      html += row(`Gap to ${focusDriver}`, `${focusTags.get(c.driver)}${focusTags.get(c.driver).endsWith('L') ? '' : ' s'}`);
-    } else if (!focusDriver) {
-      // the selected car the hover gap is drawn from
-      const anchor = gapAnchor(null, selectedDrivers, c.driver);
-      const g = anchor ? gapSeconds(anchor, c.driver, state) : null;
-      if (g != null) {
-        const k = lapOffset(anchor, c.driver, state);
-        html += row(`Gap to ${anchor}`, k ? lapTag(k) : `${signedSeconds(g)} s`);
-      }
+    // the reference car of the labels and the hover readout
+    const g = gapRef && c.driver !== gapRef ? gapSeconds(gapRef, c.driver, state) : null;
+    if (g != null) {
+      const k = lapOffset(gapRef, c.driver, state);
+      html += row(`Gap to ${gapRef}`, k ? lapTag(k) : `${signedSeconds(g)} s`);
     }
     if (c.inPitLane) html += row('Status', 'in the pit lane');
     if (c.lappedByLeader) html += row('Lapped', `${c.lapOffsetToLeader} lap${c.lapOffsetToLeader > 1 ? 's' : ''} down on the leader`);
@@ -1574,9 +1607,10 @@ export default function CircleOfDoom({
       html += row('Reference lap', `${lapClock(ref.seconds)}${note ? ` (${note})` : ''}`);
     }
     if (c.driver === focusDriver) html += distributionRows();
-    else html += '<div class="tooltip-row"><span class="tooltip-label">Click to focus: pit window</span></div>';
+    const click = c.driver === focusDriver ? 'Click: clear focus' : 'Click: focus';
+    html += `<div class="tooltip-row"><span class="tooltip-label">${click} · Shift-click: compare</span></div>`;
     return html;
-  }, [focusDriver, focusTags, distributionRows, selectedDrivers, state, trackFlag]);
+  }, [focusDriver, gapRef, distributionRows, state, trackFlag]);
 
   // Hide the shared tooltip when the view goes away
   useEffect(() => () => hideTooltip(), []);
@@ -1592,7 +1626,20 @@ export default function CircleOfDoom({
   };
   const onCarClick = (event, c) => {
     event.stopPropagation();
+    // Shift-, Ctrl- (Windows) or Cmd-click (macOS): the car joins or leaves
+    // the selection shared with the other views; the focus stays
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      toggleDriver(c.driver);
+      return;
+    }
+    // The second click of a double-click: the first one set the focus, a
+    // second setFocusDriver would clear it again
+    if (event.detail > 1) return;
     setFocusDriver(c.driver);
+  };
+  // Shift-click would extend the page's text selection
+  const onCarMouseDown = (event) => {
+    if (event.shiftKey) event.preventDefault();
   };
   const rejoinTooltip = (event) => showTooltip(
     event,
@@ -1760,6 +1807,7 @@ export default function CircleOfDoom({
                     onMouseEnter={(e) => onCarEnter(e, c)}
                     onMouseMove={(e) => onCarMove(e, c)}
                     onMouseLeave={onCarLeave}
+                    onMouseDown={onCarMouseDown}
                     onClick={(e) => onCarClick(e, c)}
                   >
                     <circle className="cod-car__hit" r={c.rad + 5} />
