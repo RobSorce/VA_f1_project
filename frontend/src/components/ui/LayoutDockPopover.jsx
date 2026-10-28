@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useF1Store } from '../../store/useF1Store';
 import { useEscapeLayer } from '../../hooks/useEscapeLayer';
+import { viewKeyHint } from '../../hooks/useKeyboardShortcuts';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 import { WINDOW_PRESETS } from '../../utils/windowPresets';
 
@@ -125,6 +126,7 @@ export default function LayoutDockPopover({ anchorRect, onClose }) {
               <div className="layout-dock-popover__group-label">{CATEGORY_LABELS[cat]}</div>
               {entries.map((opt) => {
                 const shown = activeIds.has(opt.id);
+                const hint = viewKeyHint(opt.id);
                 return (
                   <button
                     key={opt.id}
@@ -138,7 +140,7 @@ export default function LayoutDockPopover({ anchorRect, onClose }) {
                       <path d={opt.icon} />
                     </svg>
                     <span className="layout-dock-popover__label">{opt.label}</span>
-                    {opt.hint && <kbd className="layout-dock-popover__kbd">{opt.hint}</kbd>}
+                    {hint && <kbd className="layout-dock-popover__kbd">{hint}</kbd>}
                     {shown && <span className="layout-dock-popover__check" aria-label="Currently shown">{'\u2713'}</span>}
                   </button>
                 );

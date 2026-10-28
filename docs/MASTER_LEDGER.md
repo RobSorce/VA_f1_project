@@ -564,7 +564,7 @@ Native HTML5 drag & drop. `onDragStart` sets `dragId`; `onDragOver` sets `dropTa
 - **Keyboard:** `Cmd/Ctrl+Alt+D` resets the dock (no confirmation).
 
 ### 11.5 Categories (from `slotOptions.js`)
-`monitor` · `timing` · `tyres` · `strategy` · `analysis` · `prediction` · `system` (`CATEGORY_ORDER`). Each slot carries a Feather-style SVG `icon`, `category` and `hint` letter (single-key shortcut); only Pit Wall carries the `isMode` flag (a mode switch, not a view). The dock's toggle lists leave out Pit Wall (`isMode`) and Settings (by its id).
+`monitor` · `timing` · `tyres` · `strategy` · `analysis` · `prediction` · `system` (`CATEGORY_ORDER`). Each slot carries a Feather-style SVG `icon` and a `category`; its key hint (the dock, its popovers, the panel headers) is read from the key handler's binding table (`hooks/useKeyboardShortcuts.js` `VIEW_KEYS`, `viewKeyHint`), not written in the slot; only Pit Wall carries the `isMode` flag (a mode switch, not a view). The dock's toggle lists leave out Pit Wall (`isMode`) and Settings (by its id).
 
 ### 11.6 No scroll
 The dock never scrolls: `.bottom-tab-bar` has `overflow: hidden` and `max-width: calc(100vw - 2 * var(--dock-side-gutter))`, and the items that do not fit go into the `⋯` popover (§11.1; `docs/SCROLL_HEURISTIC_EVALUATION.md`, S2).
@@ -791,7 +791,7 @@ Connecting after a session finishes only gives a state snapshot — no lap histo
 - **External seek detection:** if `currentFrameIndex` changes from outside the loop (e.g., scrub on timeline), `wallStart` rebases.
 - **Session-swap safety:** frames are re-read from the store each tick so a session change mid-playback doesn't leave the loop indexing into a stale array.
 - **Speeds:** 0.25 / 0.5 / 1 / 2 / 4 / 8.
-- **Timeline Player (`ui/TimelinePlayer.jsx`)** — D3 scrubber with SC / VSC / Red Flag / Yellow Flag bands (tints 0.14 / 0.08), event marks (flags, chequered flag, pit window, fastest lap; the pit stops and position changes of the selected drivers), a tick per lap labelled every 1, 5 or 10 laps by race length, live mode degrades to a simple progress bar.
+- **Timeline Player (`ui/TimelinePlayer.jsx`)** — D3 scrubber with SC / VSC / Red Flag / Yellow Flag bands (tints 0.14 / 0.08), event marks (flags, chequered flag, pit window, fastest lap; the pit stops and position changes of the selected drivers; a pit mark opens Tyre Degradation, or brings it forward, with the lap range on the stint the stop ended), a tick per lap labelled every 1, 5 or 10 laps by race length, live mode degrades to a simple progress bar.
 
 ---
 

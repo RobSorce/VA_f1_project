@@ -208,7 +208,6 @@ export default function TrackMap({ compact = false }) {
   const isInitialRenderRef = useRef(true);
   const prevFrameIndexRef = useRef(-1); // Track previous frame to detect changes
 
-  const focusedView = useF1Store((s) => s.focusedView);
   const circuitInfo = useF1Store((s) => s.circuitInfo);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -1806,8 +1805,6 @@ export default function TrackMap({ compact = false }) {
       className="panel--dense track-map-panel"
       controls={toolbar}
       style={panelStyle}
-      focused={focusedView === 'trackmap'}
-      shortcutKey="1"
     >
       {/* A tall panel: the layers, the overlay and the legends above the map */}
       {layersInline && (

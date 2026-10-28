@@ -98,6 +98,123 @@ export function fitLapTime(fit, lap) {
 }
 
 /**
+ * JetBrains Mono, the face of the chart's labels (public/fonts): every
+ * character 0.6 em wide; a line 1.32 em high, 1.02 em of it above the
+ * baseline (hhea ascent and descent, the same in every weight).
+ */
+export const MONO_ADVANCE_EM = 0.6;
+export const MONO_ASCENT_EM = 1.02;
+export const MONO_DESCENT_EM = 0.3;
+
+/**
+ * Box (plot px) of a one-line JetBrains Mono label drawn at x, baseline y,
+ * text-anchor start.
+ *
+ * @param {string} text
+ * @param {number} x
+ * @param {number} y - baseline
+ * @param {number} fontPx
+ * @returns {{x0: number, y0: number, x1: number, y1: number}}
+ */
+export function monoLabelBox(text, x, y, fontPx) {
+  return {
+    x0: x,
+    y0: y - MONO_ASCENT_EM * fontPx,
+    x1: x + [...String(text)].length * MONO_ADVANCE_EM * fontPx,
+    y1: y + MONO_DESCENT_EM * fontPx,
+  };
+}
+
+const boxesOverlap = (a, b) => Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0)
+  && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * Where the slope labels of the Tyre Degradation chart go: per fitted stint a
+ * block of its lines (the fuel-corrected slope, then the raw one), one line
+ * under the other, inside the plot and over no other label. Tried in order:
+ * right of the end of the fit line (the place it had), above the end, below
+ * it, left of it, first where each fits as it is, then each moved inside the
+ * plot; then any other place in the plot, nearest the end of the line first;
+ * then the first line alone. A
+ * block with no room left (a plot narrower than its line) is not drawn: the
+ * slopes stay in the tooltip and the brush banner.
+ *
+ * @param {Array<{key: string, x: number, y: number, lines: string[]}>} items -
+ *   x, y: end of the stint's fit line (plot px)
+ * @param {{width: number, height: number, fontPx: number,
+ *   obstacles?: Array<{x0: number, y0: number, x1: number, y1: number}>}} plot -
+ *   the plot area (px), the labels' size and the boxes of the other labels
+ * @returns {Array<{key: string, x: number, lines: Array<{text: string, y: number}>,
+ *   box: {x0: number, y0: number, x1: number, y1: number}}>} x: the lines' start,
+ *   y: their baselines (text-anchor start)
+ */
+export function placeSlopeLabels(items, {
+  width, height, fontPx, obstacles = [],
+}) {
+  const lineH = (MONO_ASCENT_EM + MONO_DESCENT_EM) * fontPx;
+  const PAD = 4;
+  const GAP = 3;
+  const taken = [...obstacles];
+  const out = [];
+  for (const item of items) {
+    for (const n of [item.lines.length, 1]) {
+      const lines = item.lines.slice(0, n);
+      const w = Math.max(...lines.map((t) => [...String(t)].length)) * MONO_ADVANCE_EM * fontPx;
+      const h = n * lineH;
+      if (w > width || h > height) continue;
+      const at = (x0, y0) => {
+        const x = clamp(x0, 0, width - w);
+        const y = clamp(y0, 0, height - h);
+        return {
+          x0: x, y0: y, x1: x + w, y1: y + h, moved: x !== x0 || y !== y0,
+        };
+      };
+      const free = (b) => !taken.some((t) => boxesOverlap(b, t));
+      const tries = [
+        at(item.x + PAD, item.y - h / 2),
+        at(item.x - w, item.y - GAP - h),
+        at(item.x - w, item.y + GAP),
+        at(item.x - PAD - w, item.y - h / 2),
+      ];
+      // a place as it is first (moved inside the plot, the right and left
+      // ones would sit on the fit line), then moved ones
+      let box = tries.find((b) => !b.moved && free(b)) || tries.find(free);
+      if (!box) {
+        // every place of the plot (4 px apart sideways, 1 px up and down),
+        // the block's nearest corner closest to the end of the line first
+        const xs = new Set(tries.map((b) => b.x0));
+        for (let x0 = 0; x0 <= width - w; x0 += 4) xs.add(x0);
+        const spots = [];
+        for (const x0 of xs) {
+          for (let y0 = 0; y0 <= height - h; y0 += 1) {
+            const dx = Math.max(0, x0 - item.x, item.x - (x0 + w));
+            const dy = Math.max(0, y0 - item.y, item.y - (y0 + h));
+            spots.push({ x0, y0, d: dx * dx + dy * dy });
+          }
+        }
+        spots.sort((a, b) => a.d - b.d);
+        const spot = spots.find((p) => free({ x0: p.x0, y0: p.y0, x1: p.x0 + w, y1: p.y0 + h }));
+        if (spot) box = { x0: spot.x0, y0: spot.y0, x1: spot.x0 + w, y1: spot.y0 + h };
+      }
+      if (!box) continue;
+      const placed = {
+        x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1,
+      };
+      taken.push(placed);
+      out.push({
+        key: item.key,
+        x: placed.x0,
+        lines: lines.map((text, i) => ({ text, y: placed.y0 + i * lineH + MONO_ASCENT_EM * fontPx })),
+        box: placed,
+      });
+      break;
+    }
+  }
+  return out;
+}
+
+/**
  * Tyre-degradation chart of one driver at sessionNow: per stint (deriveStints
  * via cleanStintLaps, so a same-compound stop opens a new stint) its completed
  * laps, which of them are clean, and its stintFits row.

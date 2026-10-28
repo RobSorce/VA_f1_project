@@ -8,6 +8,7 @@ import DockOverflowPopover from './DockOverflowPopover';
 import LayoutDockPopover from './LayoutDockPopover';
 import DockCustomizePopover from './DockCustomizePopover';
 import { dockCapacity, dockRow } from '../../utils/dockCapacity';
+import { viewKeyHint } from '../../hooks/useKeyboardShortcuts';
 
 const HOVER_ZONE_HEIGHT = 12;
 // Width of the ⋯ overflow button (6 + 10 px padding each side, 18 px icon),
@@ -26,6 +27,7 @@ const DockButton = React.forwardRef(function DockButton(
   },
   ref
 ) {
+  const hint = viewKeyHint(option.id);
   const cls = [
     'bottom-tab-bar__tab',
     isOpen && 'bottom-tab-bar__tab--active',
@@ -46,14 +48,14 @@ const DockButton = React.forwardRef(function DockButton(
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
-      title={`${option.label}${option.hint ? ` [${option.hint}]` : ''} — drag to reorder, right-click to configure`}
+      title={`${option.label}${hint ? ` [${hint}]` : ''} — drag to reorder, right-click to configure`}
     >
       <svg className="bottom-tab-bar__icon" width="18" height="18" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d={option.icon} />
       </svg>
       <span className="bottom-tab-bar__label">{option.label}</span>
-      {option.hint && <kbd className="tab-kbd">{option.hint}</kbd>}
+      {hint && <kbd className="tab-kbd">{hint}</kbd>}
     </button>
   );
 });

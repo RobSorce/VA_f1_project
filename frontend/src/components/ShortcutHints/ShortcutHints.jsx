@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useF1Store } from '../../store/useF1Store';
 import { modKey } from '../CommandPalette/commandRegistry';
+import { viewDigitRanges } from '../../hooks/useKeyboardShortcuts';
 import './ShortcutHints.css';
 
 export default function ShortcutHints() {
@@ -38,7 +39,8 @@ export default function ShortcutHints() {
   const hints = [
     { key: `${modKey}K`, label: 'Commands' },
     { key: 'Esc', label: 'Close Overlays' },
-    { key: '1-0', label: 'Views' },
+    // the number keys that open a view (the handler's VIEW_KEYS)
+    { key: viewDigitRanges(), label: 'Views' },
   ];
 
   if (!activeDriver) {

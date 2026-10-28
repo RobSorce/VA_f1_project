@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import { useF1Store, sessionScopeOf, telemetryKeySuffix } from '../../store/useF1Store';
 import {
   getDriverColor, TYRE_LABELS, tyreColor, tyreLetter, markColor, textColor, deltaColor, signedDelta,
-  TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT, UNKNOWN_TEAM_COLOR,
+  TEXT_COLORS, GRID_COLORS, SURFACES, CHART_FONT, UNKNOWN_TEAM_COLOR, chartFontPx,
 } from '../../utils/colors';
 
 // Dash of a stint's fit line (legend and line)
@@ -12,7 +12,8 @@ import { useSessionNow } from '../../hooks/useSessionNow';
 import { causalKey, fittedLapRange } from '../../utils/strategyViews';
 import { FUEL_EFFECT_S_PER_LAP, MIN_FIT_LAPS } from '../../utils/degradation';
 import {
-  tyreDegradationView, formatSlope, FUEL_NOTE, FIT_NOTE,
+  tyreDegradationView, formatSlope, FUEL_NOTE, FIT_NOTE, placeSlopeLabels, monoLabelBox,
+  MONO_ASCENT_EM, MONO_DESCENT_EM,
 } from '../../utils/views/degradationViews';
 import { driverStateAt, nonFinisherMap } from '../../utils/driverState';
 import { focusForecast } from '../../utils/forecast';
@@ -25,7 +26,6 @@ export default function TireDegradation() {
   // The box the chart fills (.deg-plot, the svg's parent): it lays out again
   // at each new size (D4)
   const box = useChartBox(svgRef);
-  const focusedView = useF1Store((s) => s.focusedView);
   const sessionData = useF1Store((s) => s.sessionData);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const focusDriver = useF1Store((s) => s.focusDriver);
@@ -276,7 +276,11 @@ export default function TireDegradation() {
       .attr('font-family', 'var(--font-primary)')
       .text('Lap time');
 
-    // Draw each stint: scatter points + regression line + slope annotation
+    // Draw each stint: scatter points + regression line; the stint labels
+    // and the slope labels after, placed inside the plot
+    const fontPx = chartFontPx('data');
+    const stintLabels = [];
+    const slopeItems = [];
     chartData.stints.forEach((stint) => {
       if (stint.cleanLaps.length < 2) return;
       // FIA compound colour (marks >= 3:1 on the panel); its text >= 4.5:1
@@ -324,48 +328,59 @@ export default function TireDegradation() {
           .attr('stroke-width', 1.8)
           .attr('stroke-dasharray', FIT_DASH);
 
-        // Slope annotation near end of fit line: the degradation of the
-        // shared definition (fuel-corrected slope, fuel effect an assumed
+        // Slope annotation at the end of the fit line: the degradation of
+        // the shared definition (fuel-corrected slope, fuel effect an assumed
         // constant, FUEL_NOTE under the chart) and the raw slope, which
         // includes the fuel burn (often negative on low-degradation tracks)
-        const corrLabel = `${formatSlope(stint.fit.slope)} s/lap (fuel-corr.*)`;
-        const rawLabel = `${formatSlope(stint.fit.rawSlope)} s/lap (raw)`;
-        const annotX = tyreMax;
-        const annotY = y2;
-
-        g.append('text')
-          .attr('x', x(annotX) + 4)
-          .attr('y', y(annotY) - 5)
-          .attr('fill', compoundText)
-          .style('font-size', CHART_FONT.data)
-          .attr('font-weight', 700)
-          .attr('font-family', 'var(--font-mono)')
-          .text(corrLabel);
-
-        g.append('text')
-          .attr('x', x(annotX) + 4)
-          .attr('y', y(annotY) + 8)
-          .attr('fill', TEXT_COLORS.muted)
-          .style('font-size', CHART_FONT.data)
-          .attr('font-weight', 600)
-          .attr('font-family', 'var(--font-mono)')
-          .text(rawLabel);
+        slopeItems.push({
+          key: String(stint.stintNumber),
+          x: x(tyreMax),
+          y: y(y2),
+          lines: [`${formatSlope(stint.fit.slope)} s/lap (fuel-corr.*)`, `${formatSlope(stint.fit.rawSlope)} s/lap (raw)`],
+          color: compoundText,
+        });
       }
 
-      // Stint label at first point (and why a stint has no line)
+      // Stint label at first point (and why a stint has no line), kept
+      // inside the plot
       const first = stint.cleanLaps[0];
+      // the compound letter with the stint: the cue of the FIA colour
+      const label = stint.fit
+        ? `S${stint.stintNumber} ${tyreLetter(stint.compound)}`
+        : `S${stint.stintNumber} ${tyreLetter(stint.compound)} no fit (${stint.cleanCount} < ${MIN_FIT_LAPS} clean laps)`;
+      const w = monoLabelBox(label, 0, 0, fontPx).x1;
+      const lx = Math.max(0, Math.min(innerW - w, x(first.tyreLife) - 2));
+      const ly = Math.max(MONO_ASCENT_EM * fontPx, Math.min(innerH - MONO_DESCENT_EM * fontPx, y(first.lapTime) - 8));
+      stintLabels.push(monoLabelBox(label, lx, ly, fontPx));
       g.append('text')
-        .attr('x', x(first.tyreLife) - 2)
-        .attr('y', y(first.lapTime) - 8)
+        .attr('x', lx)
+        .attr('y', ly)
         .attr('fill', compoundText)
         .style('font-size', CHART_FONT.data)
         .attr('font-weight', 700)
         .attr('font-family', 'var(--font-mono)')
-        // the compound letter with the stint: the cue of the FIA colour
-        .text(stint.fit
-          ? `S${stint.stintNumber} ${tyreLetter(stint.compound)}`
-          : `S${stint.stintNumber} ${tyreLetter(stint.compound)} no fit (${stint.cleanCount} < ${MIN_FIT_LAPS} clean laps)`);
+        .text(label);
     });
+
+    // The slope labels: inside the plot, the two lines one under the other,
+    // over no stint label and no other stint's slopes (placeSlopeLabels)
+    const placed = placeSlopeLabels(slopeItems, {
+      width: innerW, height: innerH, fontPx, obstacles: stintLabels,
+    });
+    for (const p of placed) {
+      const item = slopeItems.find((it) => it.key === p.key);
+      p.lines.forEach((line, i) => {
+        g.append('text')
+          .attr('class', 'deg-slope-label')
+          .attr('x', p.x)
+          .attr('y', line.y)
+          .attr('fill', i === 0 ? item.color : TEXT_COLORS.muted)
+          .style('font-size', CHART_FONT.data)
+          .attr('font-weight', i === 0 ? 700 : 600)
+          .attr('font-family', 'var(--font-mono)')
+          .text(line.text);
+      });
+    }
 
     // Tooltip on hover
     g.append('rect')
@@ -529,8 +544,6 @@ export default function TireDegradation() {
       title="Tyre Degradation"
       className="panel-degradation"
       controls={<>{driverBadge}<Legend items={legendItems} /></>}
-      focused={focusedView === 'tires'}
-      shortcutKey="4"
     >
       {brushBanner}
       <div className="viz-container deg-manager">

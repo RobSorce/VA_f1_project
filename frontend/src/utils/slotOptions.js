@@ -7,9 +7,11 @@
  *   component — lazy-loaded React component (omitted for isMode entries)
  *   icon     — SVG path `d` attribute (24x24, stroke="currentColor", stroke-width=1.8)
  *   category — grouping key for the add-popover
- *   hint     — keyboard/display shortcut letter (null if none)
  *   isMode   — if true, the dock fires setActiveTab(id) for a top-level mode switch
  *              (Pit Wall / Home) rather than an overlay/pane open
+ *
+ * The key hint shown with a view comes from the key handler's binding table
+ * (hooks/useKeyboardShortcuts.js viewKeyHint), not from here.
  */
 import { lazy } from 'react';
 
@@ -69,45 +71,45 @@ const ICONS = {
 
 export const SLOT_OPTIONS = [
   // ── Mode switches (no component — handled by setActiveTab directly) ─────
-  { id: 'pitwall', label: 'Pit Wall', category: 'monitor', icon: ICONS.pitwall, hint: 'P',  isMode: true },
+  { id: 'pitwall', label: 'Pit Wall', category: 'monitor', icon: ICONS.pitwall, isMode: true },
 
   // ── Monitor ────────────────────────────────────────────────────────────
-  { id: 'trackmap',      label: 'Track Map',           component: TrackMap,        category: 'monitor',    icon: ICONS.trackmap,      hint: null },
-  { id: 'telemetry',     label: 'Telemetry',           component: TelemetryStrip,  category: 'monitor',    icon: ICONS.telemetry,     hint: null },
-  { id: 'racecontrol',   label: 'Race Control',        component: RaceControlPanel,category: 'monitor',    icon: ICONS.racecontrol,   hint: null },
+  { id: 'trackmap',      label: 'Track Map',           component: TrackMap,        category: 'monitor',    icon: ICONS.trackmap },
+  { id: 'telemetry',     label: 'Telemetry',           component: TelemetryStrip,  category: 'monitor',    icon: ICONS.telemetry },
+  { id: 'racecontrol',   label: 'Race Control',        component: RaceControlPanel,category: 'monitor',    icon: ICONS.racecontrol },
 
   // ── Timing ─────────────────────────────────────────────────────────────
-  { id: 'laptimes',      label: 'Lap Times',           component: LapTimeChart,    category: 'timing',     icon: ICONS.laptimes,      hint: '1' },
-  { id: 'lapdelta',      label: 'Lap Delta',           component: LapDeltaChart,   category: 'timing',     icon: ICONS.lapdelta,      hint: null },
-  { id: 'sectors',       label: 'Sectors & Speeds',    component: SectorsPanel,    category: 'timing',     icon: ICONS.sectors,       hint: '4' },
-  { id: 'sectordelta',   label: 'Sector Delta',        component: SectorDeltaWaterfall, category: 'timing', icon: ICONS.sectordelta,   hint: null },
-  { id: 'consistency',   label: 'Consistency',         component: ConsistencyPanel,category: 'timing',     icon: ICONS.consistency,   hint: '9' },
-  { id: 'racepace',      label: 'Race Pace Grid',      component: RacePaceGrid,    category: 'timing',     icon: ICONS.racepace,      hint: null },
-  { id: 'positionlaps',  label: 'Position Tracker',    component: PositionByLap,   category: 'timing',     icon: ICONS.positionlaps,  hint: null },
+  { id: 'laptimes',      label: 'Lap Times',           component: LapTimeChart,    category: 'timing',     icon: ICONS.laptimes },
+  { id: 'lapdelta',      label: 'Lap Delta',           component: LapDeltaChart,   category: 'timing',     icon: ICONS.lapdelta },
+  { id: 'sectors',       label: 'Sectors & Speeds',    component: SectorsPanel,    category: 'timing',     icon: ICONS.sectors },
+  { id: 'sectordelta',   label: 'Sector Delta',        component: SectorDeltaWaterfall, category: 'timing', icon: ICONS.sectordelta },
+  { id: 'consistency',   label: 'Consistency',         component: ConsistencyPanel,category: 'timing',     icon: ICONS.consistency },
+  { id: 'racepace',      label: 'Race Pace Grid',      component: RacePaceGrid,    category: 'timing',     icon: ICONS.racepace },
+  { id: 'positionlaps',  label: 'Position Tracker',    component: PositionByLap,   category: 'timing',     icon: ICONS.positionlaps },
 
   // ── Tyres ──────────────────────────────────────────────────────────────
-  { id: 'tyres',         label: 'Tyres',               component: TireDegradation, category: 'tyres',      icon: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z', hint: '2' },
-  { id: 'tiredeg',       label: 'Tyre Degradation',    component: TireDegradation, category: 'tyres',      icon: ICONS.tiredeg,       hint: null },
-  { id: 'tyrehealth',    label: 'Tyre Health',         component: TyreHealth,      category: 'tyres',      icon: ICONS.tyrehealth,    hint: null },
-  { id: 'tyremgmt',      label: 'Pace Retention',      component: TyreManagement,  category: 'tyres',      icon: ICONS.tyremgmt,      hint: null },
+  { id: 'tyres',         label: 'Tyres',               component: TireDegradation, category: 'tyres',      icon: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z' },
+  { id: 'tiredeg',       label: 'Tyre Degradation',    component: TireDegradation, category: 'tyres',      icon: ICONS.tiredeg },
+  { id: 'tyrehealth',    label: 'Tyre Health',         component: TyreHealth,      category: 'tyres',      icon: ICONS.tyrehealth },
+  { id: 'tyremgmt',      label: 'Pace Retention',      component: TyreManagement,  category: 'tyres',      icon: ICONS.tyremgmt },
 
   // ── Strategy ───────────────────────────────────────────────────────────
-  { id: 'strategy',      label: 'Strategy Timeline',   component: StrategyTimeline,category: 'strategy',   icon: ICONS.strategy,      hint: '3' },
-  { id: 'analysis',      label: 'Strategy Analysis',   component: StrategyAnalysis,category: 'strategy',   icon: ICONS.analysis,      hint: null },
-  { id: 'simulator',     label: 'Strategy Simulator',  component: StrategySimulator,category: 'strategy',  icon: ICONS.simulator,     hint: null },
-  { id: 'circle',        label: 'Circle of Doom',      component: CircleOfDoom,    category: 'strategy',   icon: ICONS.circle,        hint: null },
+  { id: 'strategy',      label: 'Strategy Timeline',   component: StrategyTimeline,category: 'strategy',   icon: ICONS.strategy },
+  { id: 'analysis',      label: 'Strategy Analysis',   component: StrategyAnalysis,category: 'strategy',   icon: ICONS.analysis },
+  { id: 'simulator',     label: 'Strategy Simulator',  component: StrategySimulator,category: 'strategy',  icon: ICONS.simulator },
+  { id: 'circle',        label: 'Circle of Doom',      component: CircleOfDoom,    category: 'strategy',   icon: ICONS.circle },
 
   // ── Analysis ───────────────────────────────────────────────────────────
-  { id: 'analytics',     label: 'Analytics (PCA)',     component: AnalyticsTabContent, category: 'analysis', icon: ICONS.analytics,   hint: '6' },
-  { id: 'compare',       label: 'Driver Compare',      component: DriverComparePanel,  category: 'analysis', icon: ICONS.compare,     hint: '8' },
-  { id: 'racesituation', label: 'Race Situation (PCA)',component: RaceSituationMap,    category: 'analysis', icon: ICONS.racesituation, hint: null },
+  { id: 'analytics',     label: 'Analytics (PCA)',     component: AnalyticsTabContent, category: 'analysis', icon: ICONS.analytics },
+  { id: 'compare',       label: 'Driver Compare',      component: DriverComparePanel,  category: 'analysis', icon: ICONS.compare },
+  { id: 'racesituation', label: 'Race Situation (PCA)',component: RaceSituationMap,    category: 'analysis', icon: ICONS.racesituation },
 
   // ── Prediction ─────────────────────────────────────────────────────────
-  { id: 'prediction',    label: 'Race Prediction',     component: RacePredictionPanel, category: 'prediction', icon: ICONS.prediction, hint: '5' },
+  { id: 'prediction',    label: 'Race Prediction',     component: RacePredictionPanel, category: 'prediction', icon: ICONS.prediction },
 
   // ── System ─────────────────────────────────────────────────────────────
-  { id: 'championship',  label: 'Championship',        component: ChampionshipTabContent, category: 'system', icon: ICONS.championship, hint: '0' },
-  { id: 'settings',      label: 'Settings',            component: SettingsTabContent,     category: 'system', icon: ICONS.settings,     hint: null },
+  { id: 'championship',  label: 'Championship',        component: ChampionshipTabContent, category: 'system', icon: ICONS.championship },
+  { id: 'settings',      label: 'Settings',            component: SettingsTabContent,     category: 'system', icon: ICONS.settings },
 ];
 
 /** Lightweight id set for dock validation (avoids circular imports with the store). */

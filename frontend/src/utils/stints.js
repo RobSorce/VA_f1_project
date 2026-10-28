@@ -296,6 +296,27 @@ export function stintsByDriver(lapTimes, opts) {
 }
 
 /**
+ * The laps of the stint a pit stop ended: from the stint's first lap to the
+ * stop's in-lap. The stop is the driver's one whose out-lap is `outLap` (the
+ * lap the timing bar puts a stop on, pitStops).
+ *
+ * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
+ * @param {string} driver
+ * @param {number} outLap - first lap of the new stint
+ * @param {Object} [opts]
+ * @param {number} [opts.sessionNow=Infinity] - session seconds
+ * @returns {number[]|null} [first lap, in-lap], null when there is no such stop
+ */
+export function stopStintRange(lapTimes, driver, outLap, { sessionNow = Infinity } = {}) {
+  const stop = pitStops(lapTimes, { sessionNow })
+    .find((p) => p.Driver === driver && (p.outLap ?? p.inLap + 1) === outLap);
+  if (!stop) return null;
+  const stint = (stintsByDriver(lapTimes, { sessionNow })[driver] || [])
+    .filter((s) => s.StartLap <= stop.inLap).pop();
+  return stint ? [stint.StartLap, stop.inLap] : null;
+}
+
+/**
  * Pit stops = tyre changes = stint boundaries, visible at sessionNow from the
  * pit exit, exactly when the new stint appears in deriveStints: per driver,
  * pitStops count = visible stints - 1 at every sessionNow. Pit-lane visits

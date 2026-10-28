@@ -5,6 +5,71 @@ import { stepPlaybackSpeed } from '../utils/playbackSpeed';
 import { closeTopEscapeLayer } from '../utils/escapeStack';
 
 /**
+ * The keys that open a view: the key (KeyboardEvent.key) -> the view the
+ * handler below opens with it (setActiveTab). The number keys, and the
+ * letters whose Shift form does the same where both are listed; p switches
+ * between the Pit Wall and the analysis views. The keys that open a view
+ * only with Shift (Shift+C, Shift+G, Shift+P) do more than open it and stay
+ * in the handler. The key hints of the panels, the dock and the hints bar
+ * are read from this table (viewKeyHint, viewDigitRanges), never written by
+ * hand.
+ */
+export const VIEW_KEYS = Object.freeze({
+  '1': 'laptimes',
+  '2': 'tyres',
+  '3': 'strategy',
+  '4': 'sectors',
+  '5': 'prediction',
+  '6': 'analytics',
+  '8': 'compare',
+  '9': 'consistency',
+  '0': 'championship',
+  'p': 'pitwall',
+  's': 'strategy',
+  't': 'tyres',
+  'T': 'tyres',
+  'm': 'simulator',
+  'M': 'simulator',
+  'a': 'analytics',
+  'A': 'analytics',
+});
+
+/**
+ * The key hint of a view: its number key in VIEW_KEYS, else its letter
+ * (upper case, as the cheatsheet writes a key), else null (no key opens it).
+ *
+ * @param {string} view - a view id (slotOptions.js)
+ * @returns {string|null}
+ */
+export function viewKeyHint(view) {
+  const ks = Object.keys(VIEW_KEYS).filter((k) => VIEW_KEYS[k] === view);
+  const k = ks.find((x) => /^\d$/.test(x)) || ks[0];
+  return k ? k.toUpperCase() : null;
+}
+
+/**
+ * The number keys of VIEW_KEYS as runs in keyboard order (1 ... 9, 0),
+ * e.g. '1-6 8-0' when 7 opens no view.
+ *
+ * @returns {string}
+ */
+export function viewDigitRanges() {
+  const order = '1234567890'.split('');
+  const runs = [];
+  let run = null;
+  for (const d of order) {
+    if (VIEW_KEYS[d]) {
+      if (run) run.last = d; else run = { first: d, last: d };
+    } else if (run) {
+      runs.push(run);
+      run = null;
+    }
+  }
+  if (run) runs.push(run);
+  return runs.map((r) => (r.first === r.last ? r.first : `${r.first}-${r.last}`)).join(' ');
+}
+
+/**
  * One lap step of the arrow keys on the store state. In lap mode (no frames)
  * the step after the last lap is the race-over state (store showRaceOver:
  * the clock after the chequered flag), and the step back from it is the last
@@ -203,21 +268,12 @@ export function useKeyboardShortcuts() {
       // / — focus command bar (handled by CommandBar component)
       if (e.key === '/') return;
 
-      // Number keys — open panels (X closes all, numbers only open)
-      const tabMap = {
-        '1': 'laptimes',
-        '2': 'tyres',
-        '3': 'strategy',
-        '4': 'sectors',
-        '5': 'prediction',
-        '6': 'analytics',
-        '8': 'compare',
-        '9': 'consistency',
-        '0': 'championship',
-      };
-      if (tabMap[e.key]) {
+      // Number keys, s, t, m, a — open a view (VIEW_KEYS; X closes all);
+      // p — toggle Pit Wall <-> Analysis mode
+      const view = VIEW_KEYS[e.key];
+      if (view) {
         e.preventDefault();
-        state.setActiveTab(tabMap[e.key]);
+        state.setActiveTab(view === 'pitwall' && state.activeTab === 'pitwall' ? 'charts' : view);
         return;
       }
 
@@ -337,20 +393,6 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // s — open Strategy Timeline
-      if (e.key === 's') {
-        e.preventDefault();
-        state.setActiveTab('strategy');
-        return;
-      }
-
-      // t/T — open Tyres overlay
-      if (e.key === 't' || e.key === 'T') {
-        e.preventDefault();
-        state.setActiveTab('tyres');
-        return;
-      }
-
       // Shift+P — the lap-time forecast of the focus driver (the store's one
       // trigger, as a double-click on the driver) + open prediction view
       if (e.key === 'P' && e.shiftKey) {
@@ -363,31 +405,6 @@ export function useKeyboardShortcuts() {
         state.setActiveTab('prediction');
         return;
       }
-      // p — toggle Pit Wall <-> Analysis mode
-      if (e.key === 'p') {
-        e.preventDefault();
-        if (state.activeTab === 'pitwall') {
-          state.setActiveTab('charts');
-        } else {
-          state.setActiveTab('pitwall');
-        }
-        return;
-      }
-
-      // M — open Strategy Simulator
-      if (e.key === 'm' || e.key === 'M') {
-        e.preventDefault();
-        state.setActiveTab('simulator');
-        return;
-      }
-
-      // A — open Analytics overlay
-      if (e.key === 'a' || e.key === 'A') {
-        e.preventDefault();
-        state.setActiveTab('analytics');
-        return;
-      }
-
       // Shift+C — championship
       if (e.key === 'C' && e.shiftKey) {
         e.preventDefault();

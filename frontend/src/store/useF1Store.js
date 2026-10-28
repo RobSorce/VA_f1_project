@@ -18,6 +18,7 @@ import {
 } from '../utils/raceTime';
 import { pitStops, stintsRunning } from '../utils/stints';
 import { driverStateAt, nonFinisherMap } from '../utils/driverState';
+import { rivalGapTrend } from '../utils/rivalTrend';
 import {
   viewSessionType, isRaceSession, causalKey, sessionScopeOf,
 } from '../utils/strategyViews';
@@ -2307,7 +2308,6 @@ export const useF1Store = create(persist((set, get) => ({
 
   // ── Command Palette & Keyboard ────────────────────────────────
   commandPaletteOpen: false,
-  focusedView: null,         // 'trackmap' | 'leaderboard' | 'laptimes' | 'strategy' | 'tires' | null
   compareMode: false,
   compareDrivers: [],        // max 2 driver abbreviations
   comparisonDriver: null,    // shared focus-vs-comparison target for Sector Delta / Undercut Calculator
@@ -2318,8 +2318,6 @@ export const useF1Store = create(persist((set, get) => ({
   toggleCommandPalette: () => set(s => ({ commandPaletteOpen: !s.commandPaletteOpen })),
   openCommandPalette: () => set({ commandPaletteOpen: true }),
   closeCommandPalette: () => set({ commandPaletteOpen: false }),
-  setFocusedView: (view) => set(s => ({ focusedView: s.focusedView === view ? null : view })),
-  clearFocusedView: () => set({ focusedView: null }),
   toggleCompareMode: () => set(s => ({
     compareMode: !s.compareMode,
     compareDrivers: s.compareMode ? [] : s.compareDrivers,
@@ -2491,6 +2489,23 @@ export const useF1Store = create(persist((set, get) => ({
     if (!s.openOverlays.includes(tab)) return s;
     return { activeTab: tab };
   }),
+
+  // Open a view, or bring it forward when it is open, never close it
+  // (setActiveTab closes a docked tab already open): a floating window comes
+  // to the front, a docked tab becomes the active tab of its pane, any other
+  // view opens as the dock, the palette and the keys open it
+  showView: (tab) => {
+    const s = get();
+    if (s.openOverlays.includes(tab)) {
+      s.focusOverlay(tab);
+      return;
+    }
+    if (s.dockedLayout && s.activeTab !== 'pitwall' && _collectDockedTabs(s.dockedLayout).includes(tab)) {
+      set({ dockedLayout: _activateTabInTree(s.dockedLayout, tab) });
+      return;
+    }
+    s.setActiveTab(tab);
+  },
 
   closeOverlay: (tab) => set((s) => {
     // Utility overlays live in openOverlays — always check there first
@@ -2739,7 +2754,6 @@ export const useF1Store = create(persist((set, get) => ({
       previewDriversLoading: false,
       preSelectedDrivers: [],
       commandPaletteOpen: false,
-      focusedView: null,
       compareMode: false,
       compareDrivers: [],
       comparisonDriver: null,
@@ -3735,7 +3749,9 @@ export const useF1Store = create(persist((set, get) => ({
       if (drv === focusDriver || !lt.Position) continue;
       const posDiff = lt.Position - focusPos;
       if (Math.abs(posDiff) <= 2) {
-        // Gap trend: compare gap over last 3 laps
+        // Gap trend over the last 3 laps: the size of the gap on the side the
+        // rival is on now (utils/rivalTrend.js), closing = it shrinks
+        const side = posDiff > 0 ? 1 : -1;
         const recentGaps = [];
         for (let lap = Math.max(1, currentLap - 2); lap <= currentLap; lap++) {
           const fLap = lapTimes.find((l) => l.Driver === focusDriver && l.LapNumber === lap);
@@ -3744,12 +3760,7 @@ export const useF1Store = create(persist((set, get) => ({
             recentGaps.push(rLap.GapToLeader - fLap.GapToLeader);
           }
         }
-        let gapTrend = 'stable';
-        if (recentGaps.length >= 2) {
-          const delta = recentGaps[recentGaps.length - 1] - recentGaps[0];
-          if (delta < -0.3) gapTrend = 'closing';
-          else if (delta > 0.3) gapTrend = 'opening';
-        }
+        const gapTrend = rivalGapTrend(recentGaps, side);
 
         // Tyre in force at now (R3, utils/driverState.js): the new set only
         // from the pit exit. The replay frames switch to it at the out-lap
@@ -3782,6 +3793,7 @@ export const useF1Store = create(persist((set, get) => ({
           position: lt.Position,
           gap,
           gapTrend,
+          side: side > 0 ? 'behind' : 'ahead',
           compound,
           tyreAge,
           estPitIn,

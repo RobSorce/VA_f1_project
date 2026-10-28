@@ -8,6 +8,7 @@ import {
 } from '../../utils/colors';
 import { useChartBox } from '../../utils/views/chartBox';
 import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeed';
+import { stopStintRange } from '../../utils/stints';
 
 // Track-status events of the timeline: FIA colour (utils/colors.js) and the
 // letter drawn in the marker and in the legend, so the colour is never the
@@ -59,7 +60,7 @@ export default function TimelinePlayer() {
   const isLoadingFrames = useF1Store((s) => s.isLoadingFrames);
   const totalRaceLaps = useF1Store((s) => s.totalRaceLaps);
   const frameData = useF1Store((s) => s.frameData);
-  const openPanel = useF1Store((s) => s.openPanel);
+  const showView = useF1Store((s) => s.showView);
   const setSelectedLapRange = useF1Store((s) => s.setSelectedLapRange);
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
@@ -174,6 +175,20 @@ export default function TimelinePlayer() {
     const bandX = (evt) => {
       const [from, to] = trackStatusBandLaps(evt, maxLap);
       return { x1: xScale(from), x2: xScale(to) };
+    };
+    // A pit marker: the replay to the stop's out-lap, Tyre Degradation opened
+    // (or brought forward), the lap range on the stint the stop ended when
+    // the driver the view shows (the focus driver, else the first selected)
+    // made it. The stint is read at the clock the marker was drawn at
+    const openStopDegradation = (lap, drivers) => {
+      const st = useF1Store.getState();
+      const shown = st.focusDriver || st.selectedDrivers[0];
+      const range = shown && drivers.includes(shown)
+        ? stopStintRange(st.sessionData?.lap_times, shown, lap, { sessionNow: st.getSessionNow() })
+        : null;
+      seekToLap(lap);
+      if (range) setSelectedLapRange(range);
+      showView('tiredeg');
     };
 
     const g = svg.append('g');
@@ -404,10 +419,7 @@ export default function TimelinePlayer() {
             setTooltipData(null);
             interactingRef.current = false;
           })
-          .on('click', () => {
-            seekToLap(evt.lap);
-            openPanel('degradation');
-          });
+          .on('click', () => { openStopDegradation(evt.lap, evt.drivers); });
 
       // ── Layer 2: Fastest lap among the laps completed at the replay's now
       // (hooks/useReplayEngine.js fastestLapEvent): never a lap not run yet ──
@@ -470,10 +482,7 @@ export default function TimelinePlayer() {
             interactingRef.current = false;
             setHighlightedDriver(null);
           })
-          .on('click', () => {
-            seekToLap(evt.lap);
-            openPanel('degradation');
-          });
+          .on('click', () => { openStopDegradation(evt.lap, [evt.driver]); });
 
       // ── Layer 3: Position change (only for selected drivers) ──
       } else if (evt.type === 'POSITION_CHANGE' && hasSelection && selSet.has(evt.driver)) {
@@ -542,7 +551,7 @@ export default function TimelinePlayer() {
     svg.on('mouseleave', handleDragEnd);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, hasData, maxLap, currentLap, raceEvents, seekToLap, seekToFrame, totalFrames, openPanel, setSelectedLapRange, setHighlightedDriver, selectedDrivers, isQualifyingReplay, timelineBox.width]);
+  }, [expanded, hasData, maxLap, currentLap, raceEvents, seekToLap, seekToFrame, totalFrames, showView, setSelectedLapRange, setHighlightedDriver, selectedDrivers, isQualifyingReplay, timelineBox.width]);
 
   // Handle drag on the SVG (additional global listener for edge cases)
   useEffect(() => {
