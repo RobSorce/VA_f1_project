@@ -613,7 +613,8 @@ function signed1(v) {
 
 /**
  * The view's one-line answer for a subject car: e.g. "LEC +4.2 s ahead of the
- * field-median car at L36, P1". On the leader reference the gap to the
+ * field-median car at L36, P1", on the car's newest final lap (its newest
+ * lap, "(provisional)", when none is final yet). On the leader reference the gap to the
  * leader; on the focus reference the cars just ahead of and behind the
  * subject, each gap measured from the subject (which need not be the
  * reference car). '' without a point.
@@ -631,8 +632,13 @@ export function traceAnswer(trace, subject = null) {
   const where = `at L${p.lap}, P${d.position}`;
   const lapped = d.lapsDown > 0 ? ` (−${d.lapsDown}L)` : '';
   if (trace.reference === 'field') {
-    const word = p.y >= 0 ? 'ahead of' : 'behind';
-    return `${d.driver} ${signed1(p.y)} s ${word} the field-median car ${where}${lapped}`;
+    // A provisional gap can be far off its final value (laps after an SC or
+    // a red flag): the newest final lap, named; the provisional one only
+    // when the car has no final lap yet
+    const f = [...d.points].reverse().find((q) => !q.start && !q.provisional);
+    const q = f || p;
+    const word = q.y >= 0 ? 'ahead of' : 'behind';
+    return `${d.driver} ${signed1(q.y)} s ${word} the field-median car at L${q.lap}, P${d.position}${lapped}${f ? '' : ' (provisional)'}`;
   }
   if (trace.reference === 'leader') {
     if (d.position === 1) return `${d.driver} leads ${where}`;

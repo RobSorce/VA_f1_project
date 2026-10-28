@@ -9,9 +9,10 @@
  * or hovered, 1 px the others (context while a car is emphasised). Stop chips
  * on the out-lap vertex (new compound and its letter; a hollow P for a pit
  * visit with the same tyres), SC hatched / VSC dotted / RED tinted bands with
- * their names, the newest provisional laps hollow, a "now" rule, the brushed
- * lap range as a tint, and at the right margin a bracket one pit loss long
- * under the focus car's gap: the cars inside it are within one stop.
+ * their names, the newest provisional laps hollow (their end labels read
+ * '~'), a "now" rule, the brushed lap range as a tint, and at the right
+ * margin a bracket one pit loss long under the focus car's gap: the cars
+ * inside it are within one stop.
  *
  * Causal: everything is read at the dashboard's clock (useSessionNow).
  *
@@ -65,9 +66,9 @@ function nextOption(list, current, available) {
   return current;
 }
 
-/** End label of a car: its gap on the reference, or the laps it is down. */
+/** End label of a car: its gap on the reference ('~' while provisional), or the laps it is down. */
 function endLabel(d, p) {
-  return d.lapsDown > 0 ? `${d.driver} −${d.lapsDown}L` : `${d.driver} ${gapText(p.y)}`;
+  return d.lapsDown > 0 ? `${d.driver} −${d.lapsDown}L` : `${d.driver} ${p.provisional ? '~' : ''}${gapText(p.y)}`;
 }
 
 export default function RaceTrace() {

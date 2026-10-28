@@ -144,7 +144,13 @@ describe('fit modes', () => {
       // the focus line is 3 px, the others 1 px in context
       const ver = svg.querySelectorAll('.rt-line').find((l) => l.getAttribute('data-driver') === 'VER');
       expect(Number(ver.getAttribute('stroke-width'))).toBe(LINE_WIDTHS.focus);
-      expect(host.querySelector('.rt-answer').textContent).toMatch(/^VER [+−]\d+\.\d s (ahead of|behind) the field-median car at L31, P\d+$/);
+      // VER's L31 is provisional at L32 (its end label reads '~'): the answer reads its newest final lap
+      expect(host.querySelector('.rt-answer').textContent).toMatch(/^VER [+−]\d+\.\d s (ahead of|behind) the field-median car at L30, P1$/);
+      const verLabel = svg.querySelectorAll('.rt-end-label').find((l) => l.getAttribute('data-driver') === 'VER');
+      expect(verLabel.textContent).toMatch(/^VER ~[+−]\d+\.\d$/);
+      expect(svg.querySelectorAll('.rt-end-label').filter((l) => l.textContent.includes('~')).map((l) => l.getAttribute('data-driver')))
+        .toEqual(trace.drivers.filter((d) => d.points[d.points.length - 1].provisional && d.lapsDown === 0
+          && svg.querySelectorAll('.rt-end-label').some((l) => l.getAttribute('data-driver') === d.driver)).map((d) => d.driver));
       expect(host.querySelector('.rt-provenance').textContent)
         .toMatch(/^lap end times \(Time\) of the timing · as of L31 · reference: field-median lap, \d+ of \d+ cars on L\d+/);
       expect(screenTexts(svg, VP).length).toBeGreaterThan(10);

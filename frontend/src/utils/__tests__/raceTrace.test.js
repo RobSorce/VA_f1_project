@@ -238,6 +238,19 @@ describe('race order, lapped cars, answer and window', () => {
     const focus = buildRaceTrace(rows, { reference: 'focus', focusDriver: 'BBB' });
     expect(traceAnswer(focus)).toBe('BBB at L6, P2: AAA +6.0 s ahead');
   });
+  it('field reference: the answer on the newest final lap, "(provisional)" only without one', () => {
+    // 2024 R5 at currentLap 33: VER's L32 is provisional at +35.3 s (final −7.1 s)
+    const china = demo(2024, 5);
+    const now = resolveSessionNow({ currentLap: 33, lapTimes: china.lap_times });
+    const tr33 = buildRaceTrace(china.lap_times, { trackStatus: china.track_status, sessionNow: now });
+    expect(at(tr33, 'VER', 32)).toMatchObject({ provisional: true });
+    expect(at(tr33, 'VER', 32).y).toBeCloseTo(35.3, 1);
+    expect(traceAnswer(tr33, 'VER')).toBe('VER −9.6 s behind the field-median car at L31, P1');
+    // one car of four across lap 1: no final lap yet
+    const four = race(['AAA', 'BBB', 'CCC', 'DDD'], [90, 91, 92, 93], 3);
+    const early = buildRaceTrace(four, { sessionNow: T0 + 90.5 });
+    expect(traceAnswer(early, 'AAA')).toBe('AAA 0.0 s ahead of the field-median car at L1, P1 (provisional)');
+  });
   it('focus reference, a subject that is not the reference car: the gaps from the subject', () => {
     // the y values are relative to the reference (BBB, y = 0), not to the subject
     const focus = buildRaceTrace(rows, { reference: 'focus', focusDriver: 'BBB' });
