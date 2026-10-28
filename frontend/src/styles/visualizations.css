@@ -2625,3 +2625,9 @@
 [data-theme="light"] .cod-gap-text {
   fill: #111827;
 }
+
+/* A lapped car is hollow: the panel's own surface inside its ring (the JSX
+   fill is the dark panel, SURFACES.panel) */
+[data-theme="light"] .cod-car__dot--hollow {
+  fill: var(--color-bg-secondary);
+}

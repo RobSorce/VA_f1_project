@@ -134,6 +134,14 @@ const FALLBACK_SIZE = { width: 520, height: 360 };
 // docs/COLOR_ENCODING.md, focus + context)
 const LEADER_STROKE = 'rgba(255,255,255,0.28)';
 const CONTEXT_LEADER = contextColor(LEADER_STROKE, SURFACES.panel);
+// A car lapped by the leader is hollow: the panel inside a ring of its mark
+// colour HOLLOW_STROKE px wide, drawn inside the dot (its outer edge at the
+// dot's radius); the second car's white cue goes outside that ring. The
+// selection ring sits SELECT_RING_GAP px out from the dot, 1 px further for a
+// hollow car (HOLLOW_RING_GAP), so the two rings never merge
+const HOLLOW_STROKE = 1.5;
+const SELECT_RING_GAP = 2;
+const HOLLOW_RING_GAP = SELECT_RING_GAP + 1;
 // Fixed drawing size (size prop) and wide: legend beside the circle instead of under it
 const SIDE_LEGEND_ASPECT = 1.45;
 // Ring labels are data: drawn at the data type (CHART_FONT.data, >= 11 px)
@@ -960,7 +968,9 @@ function Swatch({ kind, hatchId }) {
           <circle cx="10" cy="5.6" r="3.2" fill={car} stroke="rgba(0,0,0,0.55)" strokeWidth="1" />
         </>
       )}
-      {kind === 'lapped' && <circle cx="10" cy="6" r="4" fill={car} fillOpacity="0.45" stroke="rgba(0,0,0,0.55)" strokeWidth="1" />}
+      {kind === 'lapped' && (
+        <circle cx="10" cy="6" r={4 - HOLLOW_STROKE / 2} className="cod-car__dot--hollow" fill={SURFACES.panel} stroke={car} strokeWidth={HOLLOW_STROKE} />
+      )}
     </svg>
   );
 }
@@ -1866,15 +1876,29 @@ export default function CircleOfDoom({
                     <circle className="cod-car__hit" r={c.rad + 5} />
                     {c.isFocus && <circle className="cod-focus-ring" r={c.rad + 3.5} />}
                     {c.isHighlighted && !c.isFocus && <circle className="cod-highlight-ring" r={c.rad + 3.5} />}
-                    {c.isSelected && <circle className="cod-select-ring" r={c.rad + 2} />}
-                    <circle
-                      className="cod-car__dot"
-                      r={c.rad}
-                      fill={c.color}
-                      fillOpacity={c.lappedByLeader ? 0.45 : 1}
-                      stroke={c.second ? '#fff' : 'rgba(0,0,0,0.55)'}
-                      strokeWidth={c.second ? 1.5 : 1}
-                    />
+                    {c.isSelected && <circle className="cod-select-ring" r={c.rad + (c.lappedByLeader ? HOLLOW_RING_GAP : SELECT_RING_GAP)} />}
+                    {c.lappedByLeader ? (
+                      <>
+                        <circle
+                          className="cod-car__dot cod-car__dot--hollow"
+                          r={c.rad - HOLLOW_STROKE / 2}
+                          fill={SURFACES.panel}
+                          stroke={c.color}
+                          strokeWidth={HOLLOW_STROKE}
+                        />
+                        {c.second && (
+                          <circle className="cod-car__second" r={c.rad + HOLLOW_STROKE / 2} fill="none" stroke="#fff" strokeWidth={HOLLOW_STROKE} />
+                        )}
+                      </>
+                    ) : (
+                      <circle
+                        className="cod-car__dot"
+                        r={c.rad}
+                        fill={c.color}
+                        stroke={c.second ? '#fff' : 'rgba(0,0,0,0.55)'}
+                        strokeWidth={c.second ? 1.5 : 1}
+                      />
+                    )}
                   </g>
                 ))}
               </g>

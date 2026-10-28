@@ -1,4 +1,4 @@
-Repair contrast check (WCAG 2.1), 37 pairs read from the working tree, 2026-10-26
+Repair contrast check (WCAG 2.1), 53 pairs read from the working tree, 2026-10-28
 OK   5.67:1 (needs 4.5)  dock fixed buttons Layouts / Cmd K / Settings (label text), opacity 1  fg #A3A7B7 on #2C2C3F  [dashboard.css .bottom-tab-bar__tab--fixed (opacity none)]
 OK   5.67:1 (needs 3)  dock overflow button ⋯ (the only way to the hidden items), opacity 1  fg #A3A7B7 on #2C2C3F  [dashboard.css .bottom-tab-bar__tab--overflow (opacity none)]
 OK   6.54:1 (needs 4.5)  shortcut hint key (shown; after 5 s hidden whole: opacity 0, visibility hidden)  fg #A6A6A6 on #222222  [ShortcutHints.css .shortcut-hint-key]
@@ -11,6 +11,22 @@ OK   7.63:1 (needs 4.5)  RacePaceGrid context cell (muted text, no opacity)  fg 
 OK   7.63:1 (needs 4.5)  CircleOfDoom context ring label code (muted)  fg #A3A7B7 on #131326  [CircleOfDoom.jsx cod-label__code]
 OK   11.40:1 (needs 4.5)  CircleOfDoom ring label gap tag (secondary)  fg #C9CCD6 on #131326  [visualizations.css .cod-label__gap]
 OK   6.90:1 (needs 3)  CircleOfDoom pit-lane arc (--status-pit, no opacity)  fg #F472B6 on #131326  [visualizations.css .cod-pitlane (opacity none)]
+OK   3.42:1 (needs 3)  CircleOfDoom hollow lapped car ring, Red Bull Racing, the worst of its 1st / 2nd / 3rd car: 3.77 / 8.31 / 3.42 (markColor lifted #162D4F at 1.33:1)  fg #5C6C84 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.41:1 (needs 3)  CircleOfDoom hollow lapped car ring, Ferrari, the worst of its 1st / 2nd / 3rd car: 3.89 / 6.62 / 3.41 (markColor lifted #5D0012 at 1.28:1)  fg #965965 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   5.04:1 (needs 3)  CircleOfDoom hollow lapped car ring, Mercedes, the worst of its 1st / 2nd / 3rd car: 13.02 / 5.04 / 8.21  fg #189782 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.11:1 (needs 3)  CircleOfDoom hollow lapped car ring, McLaren, the worst of its 1st / 2nd / 3rd car: 7.26 / 10.83 / 3.11 (markColor lifted #663300 at 1.77:1)  fg #855C33 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.47:1 (needs 3)  CircleOfDoom hollow lapped car ring, Aston Martin, the worst of its 1st / 2nd / 3rd car: 5.10 / 9.40 / 3.47 (markColor lifted #0F4533 at 1.67:1)  fg #4B7466 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.46:1 (needs 3)  CircleOfDoom hollow lapped car ring, Alpine, the worst of its 1st / 2nd / 3rd car: 8.22 / 3.46 / 13.32  fg #9E5475 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.90:1 (needs 3)  CircleOfDoom hollow lapped car ring, Williams, the worst of its 1st / 2nd / 3rd car: 9.47 / 3.90 / 14.05  fg #3E7A9E on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.45:1 (needs 3)  CircleOfDoom hollow lapped car ring, RB, the worst of its 1st / 2nd / 3rd car: 6.20 / 10.43 / 3.45 (markColor lifted #293A66 at 1.65:1)  fg #5F6B8C on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.45:1 (needs 3)  CircleOfDoom hollow lapped car ring, Racing Bulls, the worst of its 1st / 2nd / 3rd car: 6.20 / 10.43 / 3.45 (markColor lifted #293A66 at 1.65:1)  fg #5F6B8C on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.38:1 (needs 3)  CircleOfDoom hollow lapped car ring, AlphaTauri, the worst of its 1st / 2nd / 3rd car: 5.21 / 9.71 / 3.38 (markColor lifted #2F4855 at 1.90:1)  fg #596D77 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.84:1 (needs 3)  CircleOfDoom hollow lapped car ring, Haas F1 Team, the worst of its 1st / 2nd / 3rd car: 9.36 / 3.84 / 6.07  fg #717375 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   4.30:1 (needs 3)  CircleOfDoom hollow lapped car ring, Kick Sauber, the worst of its 1st / 2nd / 3rd car: 10.76 / 4.30 / 14.46  fg #338C33 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.30:1 (needs 3)  CircleOfDoom hollow lapped car ring, Alfa Romeo, the worst of its 1st / 2nd / 3rd car: 3.45 / 7.34 / 3.30 (markColor lifted #5A1422 at 1.36:1)  fg #8C5B64 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.00:1 (needs 3)  CircleOfDoom hollow lapped car ring, Audi, the worst of its 1st / 2nd / 3rd car: 4.32 / 7.02 / 3.00 (markColor lifted #620216 at 1.34:1)  fg #914E5C on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   3.43:1 (needs 3)  CircleOfDoom hollow lapped car ring, Cadillac, the worst of its 1st / 2nd / 3rd car: 5.73 / 10.26 / 3.43 (markColor lifted #3A3A3A at 1.61:1)  fg #6B6B6B on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
+OK   18.28:1 (needs 3)  CircleOfDoom hollow lapped car, second car's white cue outside the ring  fg #FFFFFF on #131326  [CircleOfDoom.jsx cod-car__second]
 OK   3.27:1 (needs 3)  TrackMap throttle / brake ramp low end CHANNEL_RAMP_LOW #5C6677 on page  fg #5C6677 on #0F0F1E  [utils/colors.js CHANNEL_RAMP_LOW]
 OK   3.18:1 (needs 3)  TrackMap speed ramp low end cividis(0.37) rgb(97, 99, 111) on page  fg #61636F on #0F0F1E  [utils/colors.js SPEED_RAMP_START]
 OK   3.15:1 (needs 3)  TrackMap throttle / brake ramp low end CHANNEL_RAMP_LOW #5C6677 on panel  fg #5C6677 on #131326  [utils/colors.js CHANNEL_RAMP_LOW]
@@ -40,4 +56,4 @@ INFO (before the repair, not gated) tower PIT value text at the former pit-blink
 INFO (before the repair, not gated) delta area as the former 22 % tint (better) on the raised surface: 1.48:1
 INFO (before the repair, not gated) delta area as the former 22 % tint (worse) on the raised surface: 1.45:1
 
-0 of 37 pairs under their threshold
+0 of 53 pairs under their threshold

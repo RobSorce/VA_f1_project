@@ -105,6 +105,26 @@ add('CircleOfDoom context ring label code (muted)', col(C.TEXT_COLORS.muted), PA
 add('CircleOfDoom ring label gap tag (secondary)', col(decl('.cod-label__gap', 'fill')), PANEL, 4.5, 'visualizations.css .cod-label__gap');
 add('CircleOfDoom pit-lane arc (--status-pit, no opacity)', col(decl('.cod-pitlane', 'stroke')), PANEL, 3, `visualizations.css .cod-pitlane (opacity ${decl('.cod-pitlane', 'opacity') ?? 'none'})`);
 must(decl('.cod-pitlane', 'opacity') == null, 'pit-lane arc has an opacity');
+// A car lapped by the leader is hollow: the panel inside a ring of the car's
+// mark colour (markColor(getDriverColor) on the panel: the team colour, the
+// teammate tint for the second car, lifted toward white where it is under
+// 3:1), the panel on both sides of the ring; no opacity (it was a 0.45 fill)
+must(/color: markColor\(getDriverColor\(c\.driver\), SURFACES\.panel\),/.test(codJsx)
+  && /className="cod-car__dot cod-car__dot--hollow"\s*r=\{c\.rad - HOLLOW_STROKE \/ 2\}\s*fill=\{SURFACES\.panel\}\s*stroke=\{c\.color\}/.test(codJsx)
+  && !/fillOpacity/.test(codJsx), 'Circle hollow lapped car changed');
+for (const [team, c] of Object.entries(C.TEAM_COLORS)) {
+  let worst = null;
+  const parts = [];
+  for (const colour of [c, C.teammateTint(c), C.teammateTint(c, 2)]) {
+    const mark = C.markColor(colour, C.SURFACES.panel);
+    const fg = col(mark);
+    const r = H.contrast(fg, PANEL);
+    parts.push(mark === colour ? r.toFixed(2) : `${r.toFixed(2)} (markColor lifted ${colour} at ${H.contrast(col(colour), PANEL).toFixed(2)}:1)`);
+    if (!worst || r < worst.r) worst = { r, fg };
+  }
+  add(`CircleOfDoom hollow lapped car ring, ${team}, the worst of its 1st / 2nd / 3rd car: ${parts.join(' / ')}`, worst.fg, PANEL, 3, 'CircleOfDoom.jsx cod-car__dot--hollow stroke');
+}
+add('CircleOfDoom hollow lapped car, second car\'s white cue outside the ring', WHITE, PANEL, 3, 'CircleOfDoom.jsx cod-car__second');
 
 // 7. Track Map channel ramps: their low ends on the map backgrounds
 for (const bgName of ['page', 'panel']) {
