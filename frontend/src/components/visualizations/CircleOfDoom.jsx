@@ -22,7 +22,8 @@
  * Slot. The view lays itself out from the size of its slot (panelLayout): the
  * legend in a grid under the plot or beside it, whichever leaves the larger
  * ring, and the plot sized explicitly from what is left, so the drawing never
- * depends on a measurement of its own content.
+ * depends on a measurement of its own content. The panel is dense
+ * (.panel--dense: half the content padding), as the Track Map beside it.
  *
  * Drawing. D3 v7 builds the geometry (d3.arc for the band, the uncertainty arc
  * and the gap arc, d3.format) and the tooltip (a d3 selection on body, as in
@@ -1761,7 +1762,7 @@ export default function CircleOfDoom({
 
   if (body) {
     return (
-      <Panel title="Circle of Doom">
+      <Panel title="Circle of Doom" className="panel--dense">
         <div className="viz-container">{body}</div>
       </Panel>
     );
@@ -1776,7 +1777,7 @@ export default function CircleOfDoom({
   const plotStyle = fixed ? undefined : { flex: 'none', width, height };
 
   return (
-    <Panel title="Circle of Doom" controls={headerControls}>
+    <Panel title="Circle of Doom" className="panel--dense" controls={headerControls}>
       <div ref={setWrapEl} className={`cod${panel.side ? ' cod--side' : ''}`}>
         <div className="cod__main">
           <div ref={setPlotEl} className="cod__plot" style={plotStyle}>

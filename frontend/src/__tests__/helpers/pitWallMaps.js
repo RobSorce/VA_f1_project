@@ -12,7 +12,7 @@
 // title line, the 22 px export button; 1 px rule), the content padding of
 // .panel--dense, and the map (.viz-container) the rest. The Circle of Doom
 // panel: the glass border (1 px), the same header, the content padding of
-// .panel (1rem); .cod is the content box.
+// .panel--dense (0.5rem, half the 1rem of .panel); .cod is the content box.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -108,13 +108,15 @@ export function trackMapPanelAt(css, src, vp) {
 /**
  * The Circle of Doom's slot (.cod, the panel's content box) in its Pit Wall
  * cell at vp: the glass border, the header (one 22 px row: the export
- * button and the pit-in stepper), the content padding of .panel.
+ * button and the pit-in stepper), the content padding of .panel--dense
+ * (of .panel if the view no longer draws its panel dense).
  */
 export function codSlotAt(css, src, vp) {
   const cellModel = pitWallAt(css, pitWallSpec(src), vp);
   const cell = { width: cellModel.mapW, height: cellModel.bottom };
   const header = panelHeaderAt(css, vp, EXPORT_BTN_PX);
-  const pad = sidesAt(css, declAt(css, '.panel-content', 'padding', vp), vp);
+  const contentRule = circleIsDense(src) ? '.panel--dense > .panel-content' : '.panel-content';
+  const pad = sidesAt(css, declAt(css, contentRule, 'padding', vp), vp);
   return {
     cell,
     width: Math.floor(cell.width - 2 * GLASS_BORDER_PX - pad.left - pad.right),
@@ -124,6 +126,12 @@ export function codSlotAt(css, src, vp) {
 
 /** The four constants the fit is built on, for the reports. */
 export const TRACK_MAP_LIMITS = { LAYERS_INLINE_MIN_H, ROTATE_TOOLS_MIN_W, TOOL_PX };
+
+/** True when the CircleOfDoom source draws both its panels with .panel--dense. */
+export function circleIsDense(src) {
+  const code = fs.readFileSync(path.join(src, 'components/visualizations/CircleOfDoom.jsx'), 'utf8');
+  return (code.match(/<Panel title="Circle of Doom" className="panel--dense"/g) || []).length === 2;
+}
 
 /** True when the TrackMap source still draws its panel with .panel--dense. */
 export function trackMapIsDense(src) {

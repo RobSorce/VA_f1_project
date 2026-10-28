@@ -1,4 +1,4 @@
-Layout fit at the V13 target viewports, CSS + components of the working tree, 2026-10-26
+Layout fit at the V13 target viewports, CSS + components of the working tree, 2026-10-28
 Pit Wall grid (PitWallLayout.jsx): columns "480px 1fr", rows "44px 1fr 35vh", map row "minmax(0, 1fr) minmax(0, 1fr) 280px"
 Timing Tower (TimingTower.jsx): rows 18-24 px (fitRows), column widths (COL) sum 476 px, drawn as percentages (table-layout fixed)
 Race Pace Grid (utils/views/racePaceGrid.js): lap column 34 px + 20 drivers x 36-78 px cells (paceColumns), header 30 px, rows 18-26 px (fitRows), laps that do not fit paged
@@ -10,6 +10,7 @@ Floating overlay minimum (OverlayPanel.jsx): 420 x 320 px
   root font 14.08 px; chrome: weather 39 + timeline 36 (expanded 140) + dock 46.5 + margin 6.0 = 127.5 px
   app body 1536 x 622.5 px (timeline expanded: 622.5 px, the event strip opens over the body); Leaderboard sidebar 288 px
   Pit Wall: timing column 480 x 623; main 1055 wide: session bar 44, pace grid 316, map row 263 (Track Map / Circle of Doom 387 x 263, side column 280)
+  Circle of Doom slot (.cod, the content box of its .panel--dense panel): 370 x 209 in its 387 x 263 cell
   Timing Tower chrome 101 px (header 31, column header 25, legend 45; a flag banner adds 19); the 20 rows need 360 px at 18 px
   Timing Tower, no focus driver: 522 px for rows -> 20 of 20 rows at 24 px (all); columns 476 px of design widths in the 480 px column (fits)
   Timing Tower, focus cards collapsed (default here) (est. 68 px): 454 px for rows -> 20 of 20 rows at 22 px
@@ -31,6 +32,7 @@ Floating overlay minimum (OverlayPanel.jsx): 420 x 320 px
   root font 13.23 px; chrome: weather 40 + timeline 37 (expanded 141) + dock 47.6 + margin 6.1 = 130.6 px
   app body 1366 x 637.4 px (timeline expanded: 637.4 px, the event strip opens over the body); Leaderboard sidebar 256 px
   Pit Wall: timing column 480 x 637; main 885 wide: session bar 44, pace grid 325, map row 269 (Track Map / Circle of Doom 302 x 269, side column 280)
+  Circle of Doom slot (.cod, the content box of its .panel--dense panel): 286 x 217 in its 302 x 269 cell
   Timing Tower chrome 100 px (header 31, column header 25, legend 44; a flag banner adds 19); the 20 rows need 360 px at 18 px
   Timing Tower, no focus driver: 537 px for rows -> 20 of 20 rows at 24 px (all); columns 476 px of design widths in the 480 px column (fits)
   Timing Tower, focus cards collapsed (default here) (est. 68 px): 470 px for rows -> 20 of 20 rows at 23 px
@@ -52,6 +54,7 @@ Floating overlay minimum (OverlayPanel.jsx): 420 x 320 px
   root font 16.00 px; chrome: weather 44 + timeline 40 (expanded 144) + dock 52.0 + margin 8.0 = 144.0 px
   app body 1920 x 936.0 px (timeline expanded: 936.0 px, the event strip opens over the body); Leaderboard sidebar 300 px
   Pit Wall: timing column 480 x 936; main 1439 wide: session bar 44, pace grid 514, map row 378 (Track Map / Circle of Doom 579 x 378, side column 280)
+  Circle of Doom slot (.cod, the content box of its .panel--dense panel): 560 x 321 in its 579 x 378 cell
   Timing Tower chrome 106 px (header 31, column header 25, legend 50; a flag banner adds 19); the 20 rows need 360 px at 18 px
   Timing Tower, no focus driver: 830 px for rows -> 20 of 20 rows at 24 px (all); columns 476 px of design widths in the 480 px column (fits)
   Timing Tower, focus cards open (default here) (est. 301 px): 530 px for rows -> 20 of 20 rows at 24 px
@@ -73,6 +76,7 @@ Floating overlay minimum (OverlayPanel.jsx): 420 x 320 px
   root font 16.00 px; chrome: weather 44 + timeline 40 (expanded 144) + dock 52.0 + margin 8.0 = 144.0 px
   app body 2048 x 956.0 px (timeline expanded: 956.0 px, the event strip opens over the body); Leaderboard sidebar 300 px
   Pit Wall: timing column 480 x 956; main 1567 wide: session bar 44, pace grid 527, map row 385 (Track Map / Circle of Doom 643 x 385, side column 280)
+  Circle of Doom slot (.cod, the content box of its .panel--dense panel): 624 x 328 in its 643 x 385 cell
   Timing Tower chrome 106 px (header 31, column header 25, legend 50; a flag banner adds 19); the 20 rows need 360 px at 18 px
   Timing Tower, no focus driver: 850 px for rows -> 20 of 20 rows at 24 px (all); columns 476 px of design widths in the 480 px column (fits)
   Timing Tower, focus cards open (default here) (est. 301 px): 549 px for rows -> 20 of 20 rows at 24 px
