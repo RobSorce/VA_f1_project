@@ -44,6 +44,7 @@ await import('d3');
 const { useF1Store } = await import('../store/useF1Store.js');
 const { computeSessionTimeOffset, resolveSessionNow } = await import('../utils/raceTime.js');
 const { circleState, gapSeconds, lapOffset } = await import('../utils/circleOfDoom.js');
+const { pitStatus } = await import('../utils/circlePitLane.js');
 const { stepLap } = await import('../hooks/useKeyboardShortcuts.js');
 const { installResizeObserverMock, syntheticSession } = await import('./helpers/chartFixtures.js');
 const { default: CircleOfDoom } = await import('../components/visualizations/CircleOfDoom.jsx');
@@ -78,15 +79,22 @@ function raceAtLap(lap, extra = {}) {
   });
 }
 
-/** The ring the view draws at the store's clock (lap-indexed mode: the leader's crossing). */
-function stateNow() {
+/** The store's clock in session seconds (lap-indexed mode: the leader's crossing). */
+function nowOf() {
   const s = useF1Store.getState();
-  const sessionNow = resolveSessionNow({
+  return resolveSessionNow({
     currentTime: s.currentTime, sessionTimeOffset: s.sessionTimeOffset, replayActive: false,
     currentLap: s.currentLap, maxLap: s.maxLap, lapTimes: SESSION.lap_times,
   });
-  return circleState(SESSION.lap_times, { sessionNow });
 }
+
+/** The ring the view draws at the store's clock. */
+function stateNow() {
+  return circleState(SESSION.lap_times, { sessionNow: nowOf() });
+}
+
+/** Stop under way of a car at the store's clock: 'lane', 'out' or null (circlePitLane.pitStatus). */
+const stopOf = (d) => pitStatus(SESSION.lap_times, d, nowOf()).status;
 
 const settle = () => act(async () => {
   ro.flushFrames();
@@ -95,12 +103,12 @@ const settle = () => act(async () => {
 });
 
 let view = null;
-async function mount() {
+async function mount(slot = SLOT) {
   const host = dom.document.createElement('div');
   dom.document.body.appendChild(host);
-  dom.setRect(host, { left: 0, top: 0, ...SLOT });
+  dom.setRect(host, { left: 0, top: 0, ...slot });
   const root = createRoot(host);
-  await act(async () => { root.render(React.createElement(CircleOfDoom, { slotSize: SLOT, measureText: measure })); });
+  await act(async () => { root.render(React.createElement(CircleOfDoom, { slotSize: slot, measureText: measure })); });
   await settle();
   const svg = () => host.querySelector('svg.cod__svg');
   // the plot on screen at its own size, as the browser lays it out
@@ -214,20 +222,28 @@ describe('gap tags with no focus: measured from the selected car first in race o
     const k = lapOffset(ahead, behind, st);
     expect(tagOf(behind)).toBe(k ? lapTag(k) : signed(gapSeconds(ahead, behind, st)));
     expect(tagOf(behind)).toMatch(/^\+\d+\.\d$/);
-    // an unselected car on the leader's lap carries no tag (none is lapped here)
+    // an unselected car on the leader's lap carries no tag (none is lapped
+    // here), but for a car in the middle of its stop: PIT n or OUT
+    expect(stopOf(ahead)).toBeNull();
+    expect(stopOf(behind)).toBeNull();
     for (const d of order.filter((x) => x !== ahead && x !== behind)) {
       expect(st.cars.find((c) => c.driver === d).lapOffsetToLeader).toBe(0);
-      expect(tagOf(d)).toBeNull();
+      const stop = stopOf(d);
+      if (stop === 'lane') expect(tagOf(d)).toMatch(/^PIT \d+$/);
+      else if (stop === 'out') expect(tagOf(d)).toBe('OUT');
+      else expect(tagOf(d)).toBeNull();
     }
   });
 
   it('the hover readout and the tooltip use the same reference, signed: + behind it, − ahead of it', async () => {
-    const order = (() => { raceAtLap(12); return stateNow().cars.map((c) => c.driver); })();
-    const ref = order[3];
-    raceAtLap(12, { selectedDrivers: [order[6], ref] });
+    // the cars not stopping at lap 12 (a stopping car's gap goes to the tooltip only)
+    const order = (() => { raceAtLap(12); return stateNow().cars.map((c) => c.driver).filter((d) => !stopOf(d)); })();
+    expect(order.length).toBeGreaterThanOrEqual(5);
+    const ref = order[2];
+    raceAtLap(12, { selectedDrivers: [order[3], ref] });
     await mount();
     const st = stateNow();
-    for (const [other, sign] of [[order[0], MINUS], [order[7], '+']]) {
+    for (const [other, sign] of [[order[0], MINUS], [order[order.length - 1], '+']]) {
       await hover(other);
       const g = gapSeconds(ref, other, st);
       expect(signed(g).startsWith(sign)).toBe(true);
@@ -267,6 +283,132 @@ describe('gap tags with no focus: measured from the selected car first in race o
     raceAtLap(12, { selectedDrivers: ['NOR', 'SAI'] });
     await mount();
     expect(view.host.querySelectorAll('.cod-legend__item').length).toBe(9);
+  });
+});
+
+// Lap 12 of the synthetic race: PIA in the pit lane, NOR and HAM on their
+// out-laps (helpers/chartFixtures.js: a stop on laps 8 to 11)
+describe('a car in the middle of its stop: PIT / OUT, never a gap (stop rule)', () => {
+  /** Angle of a car as drawn, clockwise from the top, in (-pi, pi]; its radius. */
+  function polarOf(d) {
+    const ring = view.host.querySelector('circle.cod-ring');
+    const [cx, cy] = [Number(ring.getAttribute('cx')), Number(ring.getAttribute('cy'))];
+    const [x, y] = placeOf(d);
+    return { angle: Math.atan2(x - cx, cy - y), r: Math.hypot(x - cx, y - cy) };
+  }
+
+  it('its tag is PIT n (whole seconds since the pit entry) or OUT; hovering it draws no readout, its gap is in the tooltip "(before its stop)"', async () => {
+    raceAtLap(12, { focusDriver: 'VER' });
+    await mount();
+    const st = stateNow();
+    expect(['PIA', 'NOR', 'HAM', 'VER'].map(stopOf)).toEqual(['lane', 'out', 'out', null]);
+    const pin = pitStatus(SESSION.lap_times, 'PIA', nowOf()).pitInTime;
+    expect(tagOf('PIA')).toBe(`PIT ${Math.floor(nowOf() - pin)}`);
+    expect(tagOf('NOR')).toBe('OUT');
+    expect(tagOf('HAM')).toBe('OUT');
+    expect(view.label('PIA').querySelector('.cod-label__stop')).not.toBeNull();
+    await hover('PIA');
+    expect(view.host.querySelector('g.cod-gap-layer')).toBeNull();
+    const g = gapSeconds('VER', 'PIA', st);
+    const k = lapOffset('VER', 'PIA', st);
+    expect(tooltipText()).toContain(`Gap to VER ${k ? lapTag(k) : `${signed(g)} s`} (before its stop)`);
+    expect(tooltipText()).toMatch(/Status In the pit lane \d+\.\d s · (median lane time this race \d+\.\d s \(\d+ stops\)|no lane median yet)/);
+    await act(async () => { dom.mouse(view.car('PIA'), 'mouseout', centreOf('PIA')); });
+    await hover('NOR');
+    expect(view.host.querySelector('g.cod-gap-layer')).toBeNull();
+    expect(tooltipText()).toContain('(before its stop)');
+    expect(tooltipText()).toMatch(/Status Out-lap, \d+\.\d s since the pit exit/);
+  });
+
+  it('a car in the lane sits on the pit-lane segment, between -θ and the timing line, at its radius; the others on the ring', async () => {
+    raceAtLap(12, { focusDriver: 'VER' });
+    await mount();
+    const lane = view.host.querySelector('path.cod-pitlane');
+    const rPit = Number(lane.getAttribute('data-r'));
+    const theta = Number(lane.getAttribute('data-span'));
+    expect(theta).toBeGreaterThanOrEqual(Math.PI / 9 - 1e-4);
+    expect(theta).toBeLessThanOrEqual(Math.PI / 3 + 1e-4);
+    const pia = polarOf('PIA');
+    expect(view.car('PIA').getAttribute('data-pit')).toBe('true');
+    expect(pia.r).toBeCloseTo(rPit, 1);
+    expect(pia.angle).toBeGreaterThanOrEqual(-theta - 1e-6);
+    expect(pia.angle).toBeLessThanOrEqual(1e-6);
+    const R = Number(view.host.querySelector('circle.cod-ring').getAttribute('r'));
+    for (const d of ['NOR', 'VER']) expect(polarOf(d).r).toBeCloseTo(R, 1);
+  });
+
+  it('a stopping reference: no gap tag against it; its own tag reads PIT / OUT', async () => {
+    raceAtLap(12, { focusDriver: 'HAM' });
+    await mount();
+    expect(tagOf('HAM')).toBe('OUT');
+    for (const d of ['RUS', 'VER', 'LEC', 'SAI', 'PER']) expect(tagOf(d)).toBeNull();
+    expect(tagOf('PIA')).toMatch(/^PIT \d+$/);
+    await hover('LEC');
+    expect(view.host.querySelector('g.cod-gap-layer')).toBeNull();
+    expect(tooltipText()).toContain("(before HAM's stop)");
+  });
+});
+
+// The gap list (CircleGapList.jsx): beside the plot under the legend in the
+// large slot; in the Pit Wall slot of 1536x864 (371 x 250, the legend under
+// the plot) the "gaps" toggle swaps the legend for the gap grid
+describe('gap list: hover, clear, the "gaps" toggle', () => {
+  const UNDER = { width: 371, height: 250 };
+  const KEY = 'va-cod-gaps-v1';
+
+  it('hovering a row highlights its car; the × clears the selection', async () => {
+    raceAtLap(15, { selectedDrivers: ['NOR', 'LEC', 'SAI'] });
+    await mount();
+    const list = view.host.querySelector('.cod-gaps--side');
+    expect(list).not.toBeNull();
+    expect([...list.querySelectorAll('.cod-gaps__row')].map((r) => r.getAttribute('data-driver'))).toEqual(['NOR', 'LEC', 'SAI']);
+    const row = list.querySelector('.cod-gaps__row[data-driver="LEC"]');
+    await act(async () => { dom.mouse(row, 'mouseover'); });
+    expect(useF1Store.getState().highlightedDriver).toBe('LEC');
+    await act(async () => { dom.mouse(row, 'mouseout'); });
+    expect(useF1Store.getState().highlightedDriver).toBeNull();
+    const clear = list.querySelector('button.cod-gaps__clear');
+    expect(clear.getAttribute('aria-label')).toBe('Clear comparison');
+    await act(async () => { dom.mouse(clear, 'click'); });
+    expect(useF1Store.getState().selectedDrivers).toEqual([]);
+    expect(view.host.querySelector('.cod-gaps__hint').textContent).toBe('Shift-click cars to compare');
+  });
+
+  it('"gaps" (aria-pressed, on by default) swaps the legend for the gap grid of the same rows, and is kept in localStorage', async () => {
+    localStorage.removeItem(KEY);
+    raceAtLap(15, { focusDriver: 'LEC' });
+    await mount(UNDER);
+    const toggle = view.host.querySelector('button.cod-gaps-toggle');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    const grid = view.host.querySelector('.cod-gaps--grid');
+    expect(grid).not.toBeNull();
+    expect(view.host.querySelector('.cod-legend')).toBeNull();
+    const ring = view.host.querySelector('circle.cod-ring').getAttribute('r');
+    await act(async () => { dom.mouse(toggle, 'click'); });
+    expect(localStorage.getItem(KEY)).toBe('0');
+    expect(view.host.querySelector('button.cod-gaps-toggle').getAttribute('aria-pressed')).toBe('false');
+    expect(view.host.querySelector('.cod-gaps--grid')).toBeNull();
+    const legend = view.host.querySelector('.cod-legend');
+    expect(legend.querySelectorAll('.cod-legend__item').length).toBe(9);
+    const cols = Number(/repeat\((\d+)/.exec(legend.style.gridTemplateColumns)[1]);
+    expect(Number(grid.getAttribute('data-rows'))).toBe(Math.ceil(9 / cols));
+    // the ring does not move
+    expect(view.host.querySelector('circle.cod-ring').getAttribute('r')).toBe(ring);
+    await view.unmount();
+    // kept: a new view opens with the legend
+    await mount(UNDER);
+    expect(view.host.querySelector('button.cod-gaps-toggle').getAttribute('aria-pressed')).toBe('false');
+    expect(view.host.querySelector('.cod-legend')).not.toBeNull();
+    localStorage.removeItem(KEY);
+  });
+
+  it('beside the plot there is no "gaps" toggle: the list is always under the legend', async () => {
+    raceAtLap(15, { focusDriver: 'LEC' });
+    await mount();
+    expect(view.host.querySelector('.cod--side')).not.toBeNull();
+    expect(view.host.querySelector('button.cod-gaps-toggle')).toBeNull();
+    expect(view.host.querySelector('.cod__side .cod-legend')).not.toBeNull();
+    expect(view.host.querySelector('.cod__side .cod-gaps--side')).not.toBeNull();
   });
 });
 

@@ -39,9 +39,9 @@
  * marker (joined by a leader along the label circle); then the dimmed cars
  * (not relevant to the focus) lose the gap tag of their label (it stays in
  * their tooltip), then the ring shrinks.
- * Inside the pit lane: the centre text at fixed sizes, never below 11 px (the
- * italic notes 10 px, MIN_CENTRE_FONT and MIN_CENTRE_NOTE), every
- * line inside the cars on the pit-lane arc. When the room is too small, whole
+ * Inside the pit-lane radius: the centre text at fixed sizes, never below 11 px
+ * (the italic notes 10 px, MIN_CENTRE_FONT and MIN_CENTRE_NOTE), every
+ * line inside the cars on the pit-lane segment. When the room is too small, whole
  * lines leave the centre by priority (the hint first, then the reference lap,
  * the track status, the neutralised note, the focus result; lap/maxLap and the
  * pit loss with its "(fallback)" last) and are printed on the legend line
@@ -49,8 +49,49 @@
  * loss always, the others while they fit); the car tooltip always repeats the
  * track status and the reference lap, and the focus's tooltip its result. The ring never shrinks below what the
  * centre lines need. The hover gap readout is placed nearest the middle of its
- * arc where it clears every centre line (else as one more centre line; else
- * only in the tooltip).
+ * arc where it clears every centre line and sector mark (else as one more
+ * centre line; else only in the tooltip).
+ *
+ * Pit lane. A short dashed segment inside the ring at rPit, from -θ to the
+ * timing line, θ = three car slots (2 carR + 1 px) at rPit, 20° to 60°: not
+ * to scale. A car in the lane (circlePitLane.pitStatus 'lane') keeps its dot,
+ * drawn on the segment at -θ + u θ, u = min(0.95, seconds since its pit entry
+ * / the race's median lane time, laneStats); with no median yet (fewer than 3
+ * stops) the lane cars sit in entry order from the entry end, one slot apart.
+ * Two marks closer than one slot are spread along the segment in entry order,
+ * never inward (the centre text is there). That angle is the drawing's only:
+ * the analytics read the model's phases. The out-lap counts from the pit exit
+ * (circleOfDoom.js, out-lap anchor), so the car leaves the segment at the
+ * line. The pit state is told by place and text, never by colour alone (the
+ * pit pink is also a team's and sector 1's): the label reads 'VER PIT 14'
+ * (whole seconds since the pit entry, its box measured at two digits), then
+ * 'VER OUT' from the pit exit to the end of the out-lap; a lane car's label
+ * is in the tier of the relevant cars when a crowded ring thins the labels.
+ * The band of a focus whose stop is under way runs from the car as drawn to
+ * the rejoin point placed from its line time (pitWindow rejoinPhase), never
+ * backwards.
+ *
+ * Stops. While a car is in the lane or on its out-lap its tag is PIT / OUT,
+ * never a gap, and no tag is a gap to a reference that is stopping: the gap
+ * on the latest lap both completed does not hold the stop yet
+ * (circleGapList.js). Hovering such a car, or with such a reference, draws no
+ * readout: the gap goes to the tooltip, marked "(before its stop)".
+ *
+ * Sector marks. Two radial ticks at the ends of sector 1 and sector 2
+ * (circleSectors.sectorFractions: shares of the lap time, causal, from lap 2),
+ * each with its definition as a title; the S1 / S2 / S3 / PIT labels in the
+ * band from the room of the centre text to the hover gap arc
+ * (placeRingMarks, the pit segment reserved), a label with no room dropped
+ * (its tick stays). Rows without sector times (live feed): no ticks, the PIT
+ * label alone.
+ *
+ * Gap list (CircleGapList.jsx): the gaps between the followed cars, without
+ * hovering (circleGapList.gapRows). With the legend beside the plot it sits
+ * under the legend, in a column as wide as it (the legend top-aligned); with
+ * the legend under the plot the header toggle "gaps" (on by default, kept in
+ * localStorage) swaps the legend for a gap grid of the same height. Neither
+ * moves the plot (panelLayout is the same with the list on or off). With a
+ * fixed drawing size (size prop, the first render) the legend stays.
  *
  * Coordination. Click a car = setFocusDriver (click again to clear; the
  * second click of a double-click does nothing, so a double-click leaves the
@@ -65,17 +106,17 @@
  * selection (blue ring, as the Track Map's selected cars; e.g. a click on the
  * Track Map) set in any other view are drawn here; with a selection and no
  * focus the labels of the other cars are dimmed.
- * Gaps are measured from one reference car (gapReference): the focus, else
- * the first selected car in race order. With a focus every label carries its
- * gap (or lap) tag to the focus; with no focus only the selected cars' labels
- * do, the reference's own reading 'ref' (the other cars keep their laps-down
- * tag). Hovering another car draws the time gap from the reference to it,
- * signed as the tags (+ behind, − ahead), and the car tooltip names the same
- * reference.
+ * Gaps are measured from one reference car (circleGapList.gapReference): the
+ * focus, else the first selected car in race order. With a focus every label
+ * carries its gap (or lap) tag to the focus; with no focus only the selected
+ * cars' labels do, the reference's own reading 'ref' (the other cars keep
+ * their laps-down tag). Hovering another car draws the time gap from the
+ * reference to it, signed as the tags (+ behind, − ahead), and the car tooltip
+ * names the same reference.
  *
  * The shared Legend component draws flat colour swatches only; the legend
- * here draws each mark as it appears on the circle (ring, hatch, inner arc)
- * with the same legend classes.
+ * here draws each mark as it appears on the circle (ring, hatch, pit-lane
+ * segment) with the same legend classes.
  *
  * Pit in k laps (Task 4). A stepper in the panel header (k = 0..10, also the
  * [ and ] keys, ignored while typing; useKeyboardShortcuts uses neither) and a
@@ -112,8 +153,16 @@ import {
 import {
   layoutLabels, polar, wrapAngle, CHAR_EM,
 } from '../../utils/circleLabelLayout';
+import { pitStatus, laneStats } from '../../utils/circlePitLane';
+import { sectorFractions, sectorShares, placeRingMarks } from '../../utils/circleSectors';
+import { gapReference, gapRows } from '../../utils/circleGapList';
 import { useChartBox } from '../../utils/views/chartBox';
+import {
+  pitSpan, laneAngles, pitLanePath, rejoinAngle, stopTag, stopTagBox,
+} from '../../utils/views/circleRing';
+import { GAP_ROW_PX, GRID_COLS } from '../../utils/views/circleGapRows';
 import Panel from '../ui/Panel';
+import CircleGapList from './CircleGapList';
 
 /** Pit-window purple: utils/colors.js UI_COLORS.pitWindow (>= 3:1 as a mark). */
 const PIT_WINDOW_COLOR = UI_COLORS.pitWindow;
@@ -228,6 +277,10 @@ const GAP_YIELDS = ['hint', 'refnote', 'ref', 'neutral', 'flag'];
 const GAP_ANGLE_STEP = Math.PI / 45;
 // Gap kept between the readout and a centre line, px
 const GAP_PAD = 2;
+// Sector mark labels (.cod-sector-mark) are drawn at this weight
+const MARK_WEIGHT = 600;
+// The "gaps" toggle of the under-plot legend, kept per browser
+const GAPS_STORAGE_KEY = 'va-cod-gaps-v1';
 
 const fmt1 = d3.format('.1f');
 
@@ -600,7 +653,7 @@ function fitCentre(items, rInner, cx, cy, measure) {
 /**
  * Ring geometry of a plot of width x height px: car and band sizes, the label
  * font, the largest ring radius R0 that leaves room for the labels, and the
- * inset from the ring to the room inside the cars on the pit-lane arc.
+ * inset from the ring to the room inside the cars on the pit-lane segment.
  */
 function ringGeometry(width, height, measure) {
   const minSide = Math.min(width, height);
@@ -615,14 +668,14 @@ function ringGeometry(width, height, measure) {
     width / 2 - gapOut - baseLabelW - 6,
     height / 2 - gapOut - (fs0 + 2) - 6,
   ));
-  // ring -> pit-lane arc (band, car, 5 px) -> room clear of a focus-size car and its ring
+  // ring -> pit-lane radius (band, car, 5 px) -> room clear of a focus-size car and its ring
   const inset = bandHalf + carR + 5 + carR * 1.35 + 4.5;
   return {
     width, height, cx: width / 2, cy: height / 2, carR, bandHalf, fs0, gapOut, R0, inset,
   };
 }
 
-/** Room inside the cars on the pit-lane arc of a ring of radius R. */
+/** Room inside the cars on the pit-lane segment of a ring of radius R. */
 function innerRoom(geo, R) {
   return Math.max(8, R - geo.inset);
 }
@@ -813,29 +866,20 @@ function rejoinLeaderPath(cx, cy, rFrom, rTo, markerAngle, placed) {
 }
 
 /**
- * Car every gap is measured from (ring labels, hover readout, car tooltip):
- * the focus if there is one, else the first selected car in race order (the
- * order of state.cars), else null.
- */
-function gapReference(state, focus, selectedDrivers) {
-  if (focus) return focus;
-  const selected = new Set(selectedDrivers || []);
-  return state.cars.find((c) => selected.has(c.driver))?.driver ?? null;
-}
-
-/**
  * Gap tags of the ring labels against the reference car `ref`: the signed
  * gap (signedSeconds: + behind, − ahead) or, across laps, the lap tag (1L,
  * −1L). With a focus (`only` null) every other car's; with no focus only the
  * cars in `only` (the selected ones), the reference's own tag reading 'ref'.
- * Empty when the reference is not on the circle.
+ * Empty when the reference is not on the circle or is stopping, and none for
+ * a car that is stopping (`stopping`: their tag is PIT / OUT, module header).
  */
-function referenceTags(state, ref, only = null) {
+function referenceTags(state, ref, only = null, stopping = new Map()) {
   const tags = new Map();
-  if (!ref || !state.cars.some((c) => c.driver === ref)) return tags;
+  if (!ref || !state.cars.some((c) => c.driver === ref) || stopping.has(ref)) return tags;
   const keep = only ? new Set(only) : null;
   for (const c of state.cars) {
     if (keep && !keep.has(c.driver)) continue;
+    if (stopping.has(c.driver)) continue;
     if (c.driver === ref) {
       if (keep) tags.set(c.driver, 'ref');
       continue;
@@ -844,6 +888,52 @@ function referenceTags(state, ref, only = null) {
     tags.set(c.driver, k ? lapTag(k) : signedSeconds(gapSeconds(ref, c.driver, state)));
   }
   return tags;
+}
+
+/**
+ * Title of a sector tick, e.g. 'S1 ends at 32.6 % of the 85.4 s reference
+ * lap (median of 40 clean laps, laps 10–14)'.
+ */
+function sectorTickTitle(k, share, fr, refSeconds) {
+  const [from, to] = fr.laps;
+  const laps = from === to ? `lap ${from}` : `laps ${from}–${to}`;
+  return `S${k} ends at ${(share * 100).toFixed(1)} % of the ${fmt1(refSeconds)} s reference lap `
+    + `(median of ${fr.n} clean laps, ${laps})`;
+}
+
+/** The "gaps" toggle as kept in localStorage (on when nothing is kept or storage is unavailable). */
+function readGapsToggle() {
+  try {
+    const v = globalThis.localStorage?.getItem(GAPS_STORAGE_KEY);
+    return v == null ? true : v === '1';
+  } catch {
+    return true;
+  }
+}
+
+function writeGapsToggle(on) {
+  try {
+    globalThis.localStorage?.setItem(GAPS_STORAGE_KEY, on ? '1' : '0');
+  } catch {
+    // storage unavailable: the toggle holds while the view is open
+  }
+}
+
+/**
+ * Status row of a stopping car: 'In the pit lane 14.2 s · median lane time
+ * this race 24.8 s (6 stops)' (or '· no lane median yet', fewer than
+ * LANE_MIN_STOPS stops); on its out-lap 'Out-lap, 12.3 s since the pit exit'.
+ */
+function stopStatusText(stop, now, lane) {
+  const known = (t) => t != null && Number.isFinite(now);
+  if (stop.status === 'out') {
+    return known(stop.pitOutTime) ? `Out-lap, ${fmt1(Math.max(0, now - stop.pitOutTime))} s since the pit exit` : 'Out-lap';
+  }
+  const inLane = known(stop.pitInTime) ? `In the pit lane ${fmt1(Math.max(0, now - stop.pitInTime))} s` : 'In the pit lane';
+  const median = lane?.median != null
+    ? `median lane time this race ${fmt1(lane.median)} s (${lane.n} stops)`
+    : 'no lane median yet';
+  return `${inLane} · ${median}`;
 }
 
 /** Tooltip on body, shared with the other views' tooltip style. */
@@ -1048,6 +1138,7 @@ export default function CircleOfDoom({
   const setHighlightedDriver = useF1Store((s) => s.setHighlightedDriver);
   const selectedDrivers = useF1Store((s) => s.selectedDrivers);
   const toggleDriver = useF1Store((s) => s.toggleDriver);
+  const setSelectedDrivers = useF1Store((s) => s.setSelectedDrivers);
   // Pit loss and pit window: race sessions ('R', 'S') only
   const sessionType = useF1Store(viewSessionType);
   const isRace = isRaceSession(sessionType);
@@ -1059,6 +1150,8 @@ export default function CircleOfDoom({
   // Pit in k laps: the stepper (k) and the "rivals stop" toggle
   const [pitInK, setPitInK] = useState(initialPitInK);
   const [rivalsStop, setRivalsStop] = useState(false);
+  // Gap grid in place of the under-plot legend (header toggle "gaps", on by default)
+  const [gapsOn, setGapsOn] = useState(readGapsToggle);
 
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const hatchId = `cod-hatch-${uid}`;
@@ -1105,6 +1198,25 @@ export default function CircleOfDoom({
     () => circleState(lapTimes, { sessionNow, dnfMap, gridPositions, isLiveMode }),
     [lapTimes, stateKey, dnfMap, gridPositions, isLiveMode],
   );
+  // Stops under way (circlePitLane.pitStatus: 'lane' or 'out') and the race's
+  // lane time (laneStats): pit entries and exits passed and laps completed
+  // are events of circleStateKey
+  const stops = useMemo(() => {
+    const out = new Map();
+    for (const c of state.cars) {
+      const st = pitStatus(lapTimes, c.driver, sessionNow);
+      if (st.status) out.set(c.driver, st);
+    }
+    return out;
+  }, [lapTimes, state]);
+  const laneTime = useMemo(() => laneStats(lapTimes, sessionNow), [lapTimes, stateKey]);
+  // Sector fractions of the reference lap's window (from lap 2); clean laps
+  // with no sector time at all (live rows) keep the PIT mark alone
+  const sectors = useMemo(() => {
+    if (state.refLap?.source !== 'race') return { fr: null, pitOnly: false };
+    const fr = sectorFractions(lapTimes, state.refLap, sessionNow);
+    return { fr, pitOnly: !fr && sectorShares(lapTimes, state.refLap, sessionNow).s1.length === 0 };
+  }, [lapTimes, state]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
   // Per frame: the cars move with the clock
@@ -1188,14 +1300,15 @@ export default function CircleOfDoom({
   }, [analytics, state, sessionNow, cars]);
 
   // The car the gaps are measured from and the gap or lap tags of the labels
-  // against it: every car's with a focus, the selected cars' without one
+  // against it: every car's with a focus, the selected cars' without one;
+  // none for a stopping car, nor against a stopping reference
   const gapRef = useMemo(
     () => gapReference(state, focusDriver, selectedDrivers),
     [state, focusDriver, selectedDrivers],
   );
   const refTags = useMemo(
-    () => referenceTags(state, gapRef, focusDriver ? null : selectedDrivers),
-    [state, gapRef, focusDriver, selectedDrivers],
+    () => referenceTags(state, gapRef, focusDriver ? null : selectedDrivers, stops),
+    [state, gapRef, focusDriver, selectedDrivers, stops],
   );
 
   // Slot layout and centre text: changes with the slot, the focus and the
@@ -1226,6 +1339,25 @@ export default function CircleOfDoom({
     state.refLap, pitLoss, focusDriver, focusWin, pitInRow, kShown]);
   /* eslint-enable react-hooks/exhaustive-deps */
   const { plotW: width, plotH: height } = panel;
+
+  // Gap list (CircleGapList.jsx): under a side legend, or in place of the
+  // legend under the plot while "gaps" is on (slot layouts only). Its rows
+  // (gapRows) fill its room less the header line; one '+n more' row for the rest
+  const listMode = panel.side ? 'side' : (!fixed && gapsOn ? 'grid' : null);
+  const columnH = fixed ? panel.plotH : cell?.height ?? 0;
+  const listRoom = listMode === 'side'
+    ? Math.max(0, Math.floor((columnH - panel.legend.h - BLOCK_GAP) / GAP_ROW_PX) - 1)
+    : Math.max(0, GRID_COLS * (panel.legend.rows - 1));
+  /* eslint-disable react-hooks/exhaustive-deps -- `state` stands for sessionNow */
+  const gapList = useMemo(() => {
+    if (!listMode || !isRace) return null;
+    const opts = { focus: focusDriver, selected: selectedDrivers };
+    const all = gapRows(state, lapTimes, sessionNow, { ...opts, capacity: listRoom });
+    return all.overflow.length && listRoom > 0
+      ? gapRows(state, lapTimes, sessionNow, { ...opts, capacity: listRoom - 1 })
+      : all;
+  }, [listMode, isRace, listRoom, state, lapTimes, focusDriver, selectedDrivers]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const scene = useMemo(() => {
     const win = live?.win;
@@ -1260,64 +1392,85 @@ export default function CircleOfDoom({
     const isDim = (c) => dimOn && !relevant.has(c.driver);
 
     // Label texts (the same at every ring size); a dimmed car's label may drop
-    // its tag. No focus: the selected cars' gaps to the reference, the laps
-    // down on the leader for the others
+    // its tag, never a stopping car's PIT / OUT. No focus: the selected cars'
+    // gaps to the reference, the laps down on the leader for the others
     const tagOf = (c) => {
+      if (stops.has(c.driver)) return stopTag(stops.get(c.driver), sessionNow);
       if (focusCar) return c.driver === focusDriver ? '' : (refTags.get(c.driver) || '');
       if (refTags.has(c.driver)) return refTags.get(c.driver);
       return c.lapOffsetToLeader > 0 ? lapTag(c.lapOffsetToLeader) : '';
     };
+    // what a label's box is measured at: a lane car's seconds at two digits
+    const boxTagOf = (c) => (stops.has(c.driver) ? stopTagBox(stops.get(c.driver), sessionNow) : tagOf(c));
     const onRing = cars.filter((c) => c.angle != null);
-    const items = onRing.map((c) => {
-      const tag = tagOf(c);
-      return { key: c.driver, angle: c.angle, text: tag ? `${c.driver} ${tag}` : c.driver };
+    const keepsTag = (c) => !isDim(c) || stops.has(c.driver);
+    const hasShort = onRing.some((c) => !keepsTag(c) && tagOf(c));
+
+    // The ring at radius R: the pit-lane segment (rPit, its span θ) and the
+    // angle each car is drawn at (a car in the lane on the segment, module
+    // header; the others at their phase)
+    const laneCars = onRing.filter((c) => stops.get(c.driver)?.status === 'lane')
+      .map((c) => ({ driver: c.driver, pitInTime: stops.get(c.driver).pitInTime }));
+    const ringAt = (R) => {
+      const rPit = R - bandHalf - carR - 5;
+      const theta = pitSpan(carR, rPit);
+      const lane = laneAngles(laneCars, {
+        theta, gap: (2 * carR + 1) / Math.max(1, rPit), median: laneTime.median, now: sessionNow,
+      });
+      return {
+        R, rPit, theta, lane, angleOf: (c) => (lane.has(c.driver) ? wrapAngle(lane.get(c.driver)) : c.angle),
+      };
+    };
+    const itemsAt = (ring, short) => onRing.map((c) => {
+      const tag = short && !keepsTag(c) ? '' : boxTagOf(c);
+      return { key: c.driver, angle: ring.angleOf(c), text: tag ? `${c.driver} ${tag}` : c.driver };
     });
-    const shortItems = onRing.some((c) => isDim(c) && tagOf(c))
-      ? onRing.map((c, i) => (isDim(c) ? { ...items[i], text: c.driver } : items[i]))
-      : null;
-    let rejoin = null;
     let lineSets = null;
+    let variants = null;
     if (windowOn && pitInRow) {
       // Pit in k laps: the ring's label goes to the ghost (the pit-now
       // probabilities stay in the rejoin marker's tooltip)
       lineSets = ghostLineSets(kShown, pitInRow);
-      rejoin = {
-        angle: focusCar.angle - TWO_PI * pitInRow.ghostOffset,
-        variants: lineSets.map((set) => set.map((l) => l.text)),
-      };
     } else if (windowOn) {
       const entries = probabilityEntries(dist?.positions);
       lineSets = rejoinLineSets(entries.length ? entries : [`P${win.predictedPosition}`],
         win.traffic?.flag ? win.traffic : null, entries.length > 2 ? compactEntries(dist?.positions) : null);
-      rejoin = {
-        angle: focusCar.angle - TWO_PI * win.rejoinOffset,
-        variants: lineSets.map((set) => set.map((l) => l.text)),
-      };
     }
+    if (lineSets) variants = lineSets.map((set) => set.map((l) => l.text));
+    // The rejoin label's marker: the ghost's, or the rejoin point, from the focus as drawn
+    const rejoinAt = (ring) => {
+      if (!variants) return null;
+      const af = ring.angleOf(focusCar);
+      return { angle: pitInRow ? af - TWO_PI * pitInRow.ghostOffset : rejoinAngle(af, win), variants };
+    };
 
     // Largest ring whose labels fit (utils/circleLabelLayout.js): full labels
     // and the full rejoin label first, then the dimmed cars' labels without
     // their tag, then the compact rejoin label; never smaller than the ring
     // the centre text needs
     const rFloor = Math.min(R0, panel.centre.reach + geo.inset);
-    const fullRejoin = rejoin && { ...rejoin, variants: rejoin.variants.slice(0, 2) };
-    const attempts = [[items, fullRejoin]];
-    if (shortItems) attempts.push([shortItems, fullRejoin]);
-    if (rejoin && rejoin.variants.length > 2) attempts.push([shortItems || items, rejoin]);
     let chosen = null;
     for (const scale of RING_SCALES) {
       const R = Math.max(30, R0 * scale, rFloor);
       if (chosen && R >= chosen.R) continue;
+      const ring = ringAt(R);
+      const items = itemsAt(ring, false);
+      const shortItems = hasShort ? itemsAt(ring, true) : null;
+      const rejoin = rejoinAt(ring);
+      const fullRejoin = rejoin && { ...rejoin, variants: rejoin.variants.slice(0, 2) };
+      const attempts = [[items, fullRejoin, false]];
+      if (shortItems) attempts.push([shortItems, fullRejoin, true]);
+      if (rejoin && rejoin.variants.length > 2) attempts.push([shortItems || items, rejoin, !!shortItems]);
       const rLabel = R + gapOut;
       // outermost mark of the ring: the uncertainty arc, or a ring around a car
       const rClear = R + Math.max(bandHalf + 6, carR * 1.35 + 5.5) + 1;
-      for (const [variant, rejoinVariant] of attempts) {
+      for (const [variant, rejoinVariant, short] of attempts) {
         const layout = layoutLabels(variant, rejoinVariant, {
           width, height, cx, cy, rLabel, rClear, fontSize: fs0, minFontSize: fs0, measure,
         });
         if (!chosen || layout.problems < chosen.layout.problems) {
           chosen = {
-            R, rLabel, layout, short: variant === shortItems,
+            R, rLabel, layout, short, ring,
           };
         }
         if (layout.ok) break;
@@ -1325,20 +1478,22 @@ export default function CircleOfDoom({
       if (chosen.layout.ok) break;
     }
     // Too crowded at the data type: the labels of the cars that matter least
-    // leave until the others fit (focus, hovered, selected and relevant cars
-    // first, then by place); their cars stay, a hover brings a label back
+    // leave until the others fit (focus, hovered, selected, relevant and lane
+    // cars first, then by place); their cars stay, a hover brings a label back
     let hiddenLabels = 0;
     if (!chosen.layout.ok) {
       const rank = (it) => {
         const c = onRing.find((x) => x.driver === it.key);
         const tier = it.key === focusDriver ? 0 : it.key === highlightedDriver ? 1 : selected.has(it.key) ? 2
-          : !isDim(c) ? 3 : 4;
+          : !isDim(c) || stops.get(it.key)?.status === 'lane' ? 3 : 4;
         return tier * 1000 + (c?.position ?? 999);
       };
-      const ordered = [...(shortItems || items)].sort((a, b) => rank(a) - rank(b));
       let thin = null;
       for (const scale of RING_SCALES) {
         const R = Math.max(30, R0 * scale, rFloor);
+        const ring = ringAt(R);
+        const ordered = itemsAt(ring, hasShort).sort((a, b) => rank(a) - rank(b));
+        const rejoin = rejoinAt(ring);
         const rLabel = R + gapOut;
         const rClear = R + Math.max(bandHalf + 6, carR * 1.35 + 5.5) + 1;
         const at = (k) => layoutLabels(ordered.slice(0, k), rejoin, {
@@ -1352,32 +1507,41 @@ export default function CircleOfDoom({
           const layout = at(mid);
           if (layout.ok) { best = { k: mid, layout }; lo = mid; } else hi = mid - 1;
         }
-        if (best && (!thin || best.k > thin.k)) thin = { ...best, R, rLabel };
+        if (best && (!thin || best.k > thin.k)) thin = { ...best, R, rLabel, ring };
         if (thin && thin.k >= ordered.length - 1) break;
       }
       if (thin) {
-        chosen = { R: thin.R, rLabel: thin.rLabel, layout: thin.layout, short: !!shortItems };
+        chosen = {
+          R: thin.R, rLabel: thin.rLabel, layout: thin.layout, short: hasShort, ring: thin.ring,
+        };
         hiddenLabels = onRing.length - thin.k;
       }
     }
-    const { R, rLabel, layout } = chosen;
+    const {
+      R, rLabel, layout, ring,
+    } = chosen;
     const fs = layout.fontSize;
-    const rPit = R - bandHalf - carR - 5;
+    const { rPit, theta } = ring;
 
-    // Cars
+    // Cars, at their drawn angle (a car in the lane on the pit-lane segment)
     const drawn = [];
     for (const c of onRing) {
       const isFocus = c.driver === focusDriver;
       const rad = isFocus ? carR * 1.35 : carR;
-      const r = c.inPitLane ? rPit : R;
-      const [x, y] = polar(cx, cy, r, c.angle);
+      const inLane = ring.lane.has(c.driver);
+      const r = inLane ? rPit : R;
+      const angle = ring.angleOf(c);
+      const [x, y] = polar(cx, cy, r, angle);
       const dim = isDim(c);
       drawn.push({
         ...c,
+        angle,
         x,
         y,
         r,
         rad,
+        inLane,
+        stop: stops.get(c.driver) || null,
         isFocus,
         isHighlighted: c.driver === highlightedDriver,
         isSelected: selected.has(c.driver),
@@ -1386,7 +1550,7 @@ export default function CircleOfDoom({
         color: markColor(getDriverColor(c.driver), SURFACES.panel),
         // label text in the driver colour at >= 4.5:1 on the panel
         text: textColor(getDriverColor(c.driver), SURFACES.panel),
-        tag: chosen.short && dim ? '' : tagOf(c),
+        tag: chosen.short && !keepsTag(c) ? '' : tagOf(c),
         dim,
       });
     }
@@ -1394,20 +1558,23 @@ export default function CircleOfDoom({
     drawn.sort((a, b) => (Number(b.dim) - Number(a.dim)) || (Number(a.isFocus) - Number(b.isFocus)));
     const carByDriver = new Map(drawn.map((c) => [c.driver, c]));
 
-    // Pit window (focus car)
+    // Pit window (focus car): the band from the car as drawn back to the
+    // rejoin point (rejoinAngle), the p10-p90 arc around that point
     let windowMarks = null;
     if (windowOn) {
-      const af = focusCar.angle;
-      const aRejoin = af - TWO_PI * win.rejoinOffset;
-      const a10 = af - TWO_PI * win.rejoinArcOffset[0];
-      const a90 = af - TWO_PI * win.rejoinArcOffset[1];
+      const af = ring.angleOf(focusCar);
+      const aRejoin = rejoinAngle(af, win);
+      const a10 = aRejoin - TWO_PI * (win.rejoinArcOffset[0] - win.rejoinOffset);
+      const a90 = aRejoin - TWO_PI * (win.rejoinArcOffset[1] - win.rejoinOffset);
       const arc = d3.arc();
       const [mx, my] = polar(cx, cy, R, aRejoin);
-      const set = layout.lines ? lineSets[rejoin.variants.indexOf(layout.lines)] : null;
+      const set = layout.lines ? lineSets[variants.indexOf(layout.lines)] : null;
       windowMarks = {
-        band: arc({
+        band: af > aRejoin ? arc({
           innerRadius: R - bandHalf, outerRadius: R + bandHalf, startAngle: aRejoin, endAngle: af,
-        }),
+        }) : null,
+        bandFrom: wrapAngle(aRejoin),
+        bandTo: wrapAngle(af),
         uncertainty: arc({
           innerRadius: R + bandHalf + 1.5,
           outerRadius: R + bandHalf + 6,
@@ -1454,14 +1621,42 @@ export default function CircleOfDoom({
     // Centre text (panelLayout: fixed sizes, inside the room of the ring)
     const rInner = innerRoom(geo, R);
     let centre = panel.centre.lines;
+    // The hover gap arc, just inside the ring
+    const rGap = R - bandHalf - 2.5;
+
+    // Sector marks (module header): the ticks at the ends of sector 1 and
+    // sector 2, and the S1 / S2 / S3 / PIT labels between the centre room and
+    // the gap arc, clear of the pit-lane segment
+    const { fr } = sectors;
+    const ticks = fr ? [[1, fr.f1], [2, fr.f12]].map(([k, share]) => {
+      const a = TWO_PI * share;
+      const [x1, y1] = polar(cx, cy, R - bandHalf - 3, a);
+      const [x2, y2] = polar(cx, cy, R + bandHalf + 3, a);
+      return {
+        k, x1, y1, x2, y2, title: sectorTickTitle(k, share, fr, state.refLap.seconds),
+      };
+    }) : [];
+    const marks = fr || sectors.pitOnly ? placeRingMarks({
+      cx,
+      cy,
+      rIn: rInner,
+      rOut: rGap - 1,
+      sectors: fr ? [0, fr.f1, fr.f12, 1] : null,
+      reserved: [[-theta, 0]],
+      measure: measure ? (t, size) => measure(t, size, MARK_WEIGHT) : null,
+      fontPx: chartFontPx('label'),
+    }).filter((m) => !m.dropped) : [];
+    const markBoxes = marks.map((m) => [m.box.x0, m.box.y0, m.box.x1, m.box.y1]);
 
     // Time gap from the reference car (the focus, else the first selected car
     // in race order) to the hovered car, signed as the labels: its readout
-    // where it clears the centre text, else as one more centre line, else
-    // only in the tooltip. Hovering the reference itself draws none
+    // where it clears the centre text and the sector marks, else as one more
+    // centre line, else only in the tooltip. Hovering the reference itself
+    // draws none; nor does a car that is stopping, or a stopping reference:
+    // that gap is in the tooltip only (module header, stops)
     let gapMark = null;
     const anchorDriver = gapRef !== highlightedDriver ? gapRef : null;
-    if (anchorDriver && highlightedDriver) {
+    if (anchorDriver && highlightedDriver && !stops.has(anchorDriver) && !stops.has(highlightedDriver)) {
       const A = carByDriver.get(anchorDriver);
       const B = carByDriver.get(highlightedDriver);
       const g = A && B ? gapSeconds(anchorDriver, highlightedDriver, state) : null;
@@ -1471,7 +1666,6 @@ export default function CircleOfDoom({
         let end = g > 0 ? A.angle : B.angle;
         if (end < start) end += TWO_PI;
         const k = lapOffset(anchorDriver, highlightedDriver, state);
-        const rGap = R - bandHalf - 2.5;
         gapMark = {
           path: d3.arc()({
             innerRadius: rGap - 0.75, outerRadius: rGap + 0.75, startAngle: start, endAngle: end,
@@ -1483,7 +1677,7 @@ export default function CircleOfDoom({
           size: Math.max(MIN_CENTRE_FONT, fs + 1),
         };
         let spot = placeGapText(gapMark.text, gapMark.size, {
-          cx, cy, rInner, mid: gapMark.mid, avoid: centre.map((l) => l.box), measure,
+          cx, cy, rInner, mid: gapMark.mid, avoid: [...centre.map((l) => l.box), ...markBoxes], measure,
         });
         // No room at the data type: the readout of the car the user points at
         // outranks the reference notes; the least important centre lines step
@@ -1496,7 +1690,7 @@ export default function CircleOfDoom({
             key: l.key, text: l.text, cls: l.cls, size: l.size,
           })), cx, cy, measure);
           const at = placeGapText(gapMark.text, gapMark.size, {
-            cx, cy, rInner, mid: gapMark.mid, avoid: restacked.map((l) => l.box), measure,
+            cx, cy, rInner, mid: gapMark.mid, avoid: [...restacked.map((l) => l.box), ...markBoxes], measure,
           });
           if (at) { centre = restacked; spot = at; } else centre = restacked;
         }
@@ -1527,6 +1721,8 @@ export default function CircleOfDoom({
       cy,
       R,
       rPit,
+      theta,
+      pitPath: pitLanePath(cx, cy, rPit, theta),
       rInner,
       bandHalf,
       carR,
@@ -1535,13 +1731,15 @@ export default function CircleOfDoom({
       placed,
       windowMarks,
       gapMark,
+      ticks,
+      marks,
       centre,
       centreFits: centre.every((l) => cornerReach(l.box, cx, cy) <= rInner + FIT_EPS),
       layoutOk: layout.ok,
       hiddenLabels,
     };
   }, [cars, live, panel, width, height, focusDriver, highlightedDriver, selectedDrivers, gapRef, refTags,
-    secondCars, state, measure, pitInRow, kShown]);
+    secondCars, state, measure, pitInRow, kShown, stops, laneTime, sectors, sessionNow]);
 
   // Tooltip rows of "pit in k laps" (k > 0): the projected place, against
   // pitting now at the same lap, and the inputs of the lap model
@@ -1605,13 +1803,21 @@ export default function CircleOfDoom({
     let html = `<div class="tooltip-title" style="color:${c.color}">${c.driver} — ${place}</div>`
       + row('Lap', `${c.finished ? 'finished' : c.lapsCompleted + 1}`)
       + row('Since the line', `${fmt1(c.elapsed)} s${c.saturated ? ' (longer than the ref lap)' : ''}`);
-    // the reference car of the labels and the hover readout
+    // the reference car of the labels and the hover readout; a gap that
+    // does not hold a stop under way yet says so (module header, stops)
     const g = gapRef && c.driver !== gapRef ? gapSeconds(gapRef, c.driver, state) : null;
     if (g != null) {
       const k = lapOffset(gapRef, c.driver, state);
-      html += row(`Gap to ${gapRef}`, k ? lapTag(k) : `${signedSeconds(g)} s`);
+      const own = stops.has(c.driver);
+      const ofRef = stops.has(gapRef);
+      let note = '';
+      if (own && ofRef) note = ' (before their stops)';
+      else if (own) note = ' (before its stop)';
+      else if (ofRef) note = ` (before ${gapRef}'s stop)`;
+      html += row(`Gap to ${gapRef}`, `${k ? lapTag(k) : `${signedSeconds(g)} s`}${note}`);
     }
-    if (c.inPitLane) html += row('Status', 'in the pit lane');
+    const stop = stops.get(c.driver);
+    if (stop) html += row('Status', stopStatusText(stop, sessionNow, laneTime));
     if (c.lappedByLeader) html += row('Lapped', `${c.lapOffsetToLeader} lap${c.lapOffsetToLeader > 1 ? 's' : ''} down on the leader`);
     // Track status and reference lap, also when the centre has no room for them
     html += row('Track', FLAG_LABELS[trackFlag] || FLAG_LABELS['1']);
@@ -1624,7 +1830,7 @@ export default function CircleOfDoom({
     const click = c.driver === focusDriver ? 'Click: clear focus' : 'Click: focus';
     html += `<div class="tooltip-row"><span class="tooltip-label">${click} · Shift-click: compare</span></div>`;
     return html;
-  }, [focusDriver, gapRef, distributionRows, state, trackFlag]);
+  }, [focusDriver, gapRef, distributionRows, state, trackFlag, stops, laneTime, sessionNow]);
 
   // Hide the shared tooltip when the view goes away
   useEffect(() => () => hideTooltip(), []);
@@ -1719,6 +1925,12 @@ export default function CircleOfDoom({
     border: '1px solid rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.06)',
     color: TEXT_COLORS.primary, fontSize: 11, fontWeight: 700, cursor: 'pointer',
   };
+  // "gaps": with the legend under the plot of a slot layout only (module header)
+  const showGapsToggle = !panel.side && !fixed;
+  const toggleGaps = () => setGapsOn((on) => {
+    writeGapsToggle(!on);
+    return !on;
+  });
   const pitInTitle = focusDriver
     ? `Pit in k laps ([ and ] keys): ${focusDriver} stays out k more laps, then stops; dashed diamond = its projected rejoin. `
       + 'Lap model of the race simulation (degradation by compound and tyre age, fresh-tyre delta), no traffic.'
@@ -1754,6 +1966,17 @@ export default function CircleOfDoom({
       >
         rivals
       </button>
+      {showGapsToggle && (
+        <button
+          type="button"
+          className="cod-gaps-toggle"
+          aria-pressed={gapsOn}
+          title="Gaps between the followed cars in place of the legend, shown without hovering (focus a car, Shift-click cars to compare)"
+          onClick={toggleGaps}
+        >
+          gaps
+        </button>
+      )}
     </div>
   ) : null;
 
@@ -1779,10 +2002,34 @@ export default function CircleOfDoom({
   }
 
   const {
-    cx, cy, R, rPit, rInner, bandHalf, carR, fs, drawn, placed, windowMarks, gapMark, centre, centreFits, layoutOk,
-    hiddenLabels,
+    cx, cy, R, rPit, theta, pitPath, rInner, bandHalf, fs, drawn, placed, windowMarks, gapMark, ticks, marks, centre,
+    centreFits, layoutOk, hiddenLabels,
   } = scene;
   const boxAttr = (box) => box.map((v) => v.toFixed(1)).join(',');
+  const legend = (
+    <CircleLegend
+      hatchId={legendHatchId}
+      side={panel.side}
+      cols={panel.legend.cols}
+      short={panel.legend.short}
+      items={pitInRow ? LEGEND_ITEMS_GHOST : LEGEND_ITEMS}
+    />
+  );
+  const gapListView = gapList && (
+    <CircleGapList
+      mode={listMode}
+      list={gapList}
+      focus={focusDriver}
+      hasSelection={(selectedDrivers || []).length > 0}
+      now={sessionNow}
+      width={listMode === 'side' ? panel.legend.w : (cell?.width ?? width)}
+      rows={listMode === 'side' ? listRoom + 1 : panel.legend.rows}
+      height={listMode === 'grid' ? panel.legend.h : null}
+      measure={measure}
+      onHover={setHighlightedDriver}
+      onClear={() => setSelectedDrivers([])}
+    />
+  );
   // Laid out from the slot: the plot gets its size explicitly
   const plotStyle = fixed ? undefined : { flex: 'none', width, height };
 
@@ -1803,16 +2050,45 @@ export default function CircleOfDoom({
                 <HatchPattern id={hatchId} />
               </defs>
 
-              {/* Ring = one reference lap; tick = timing line; inner dashed arc = pit lane */}
+              {/* Ring = one reference lap; tick = timing line; dashed segment = pit lane (not to
+                  scale); thin ticks = ends of sectors 1 and 2; S1 / S2 / S3 / PIT marks inside */}
               <g className="cod-ring-layer">
                 <circle className="cod-ring" cx={cx} cy={cy} r={R} />
-                <circle className="cod-pitlane" cx={cx} cy={cy} r={rPit} />
+                <path className="cod-pitlane" d={pitPath} data-r={rPit.toFixed(2)} data-span={theta.toFixed(4)} />
                 <line className="cod-line-tick" x1={cx} y1={cy - R - bandHalf - 3} x2={cx} y2={cy - R + bandHalf + 3} />
+                {ticks.map((t) => (
+                  <g key={`sector-${t.k}`} className="cod-sector" data-sector={t.k}>
+                    <line className="cod-sector-tick" x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />
+                    <line className="cod-sector-hit" x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}>
+                      <title>{t.title}</title>
+                    </line>
+                  </g>
+                ))}
+                {marks.map((m) => (
+                  <text
+                    key={`mark-${m.text}`}
+                    className="cod-sector-mark"
+                    x={m.x}
+                    y={m.y}
+                    data-mark={m.text}
+                    data-mark-box={boxAttr([m.box.x0, m.box.y0, m.box.x1, m.box.y1])}
+                  >
+                    {m.text}
+                  </text>
+                ))}
               </g>
 
               {windowMarks && (
                 <g className="cod-window-layer">
-                  <path className="cod-pit-window" d={windowMarks.band} transform={`translate(${cx},${cy})`} />
+                  {windowMarks.band && (
+                    <path
+                      className="cod-pit-window"
+                      d={windowMarks.band}
+                      transform={`translate(${cx},${cy})`}
+                      data-from={windowMarks.bandFrom.toFixed(4)}
+                      data-to={windowMarks.bandTo.toFixed(4)}
+                    />
+                  )}
                   <path
                     className="cod-uncertainty"
                     d={windowMarks.uncertainty}
@@ -1863,9 +2139,10 @@ export default function CircleOfDoom({
                 {drawn.map((c) => (
                   <g
                     key={c.driver}
-                    className={`cod-car${c.isFocus ? ' cod-car--focus' : ''}${c.inPitLane ? ' cod-car--pit' : ''}${c.isSelected ? ' cod-car--selected' : ''}`}
+                    className={`cod-car${c.isFocus ? ' cod-car--focus' : ''}${c.inLane ? ' cod-car--pit' : ''}${c.isSelected ? ' cod-car--selected' : ''}`}
                     data-driver={c.driver}
-                    data-pit={c.inPitLane ? 'true' : undefined}
+                    data-pit={c.inLane ? 'true' : undefined}
+                    data-stop={c.stop?.status ?? undefined}
                     transform={`translate(${c.x},${c.y})`}
                     onMouseEnter={(e) => onCarEnter(e, c)}
                     onMouseMove={(e) => onCarMove(e, c)}
@@ -1980,7 +2257,7 @@ export default function CircleOfDoom({
                       data-box={l.box.map((v) => v.toFixed(1)).join(',')}
                     >
                       <tspan className="cod-label__code" fill={c.dim ? TEXT_COLORS.muted : c.text}>{c.driver}</tspan>
-                      {c.tag && <tspan className="cod-label__gap" dx={3}>{c.tag}</tspan>}
+                      {c.tag && <tspan className={`cod-label__gap${c.stop ? ' cod-label__stop' : ''}`} dx={3}>{c.tag}</tspan>}
                     </text>
                   );
                 })}
@@ -2023,13 +2300,14 @@ export default function CircleOfDoom({
         <svg width="0" height="0" className="cod-defs" aria-hidden="true">
           <defs><HatchPattern id={legendHatchId} /></defs>
         </svg>
-        <CircleLegend
-          hatchId={legendHatchId}
-          side={panel.side}
-          cols={panel.legend.cols}
-          short={panel.legend.short}
-          items={pitInRow ? LEGEND_ITEMS_GHOST : LEGEND_ITEMS}
-        />
+        {listMode === 'side' && (
+          <div className="cod__side" style={{ width: panel.legend.w }}>
+            {legend}
+            {gapListView}
+          </div>
+        )}
+        {listMode === 'grid' && gapListView}
+        {!listMode && legend}
       </div>
     </Panel>
   );
