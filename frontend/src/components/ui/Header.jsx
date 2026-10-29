@@ -3,7 +3,7 @@ import { useF1Store, loadedSessionTypeOf } from '../../store/useF1Store';
 import SessionSelector from './SessionSelector';
 import SessionMenu from './SessionMenu';
 import PanelToggleBar from '../layout/PanelToggleBar';
-import { APP_NAME } from '../../utils/brand';
+import Wordmark from './Wordmark';
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -38,7 +38,7 @@ export default function Header() {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span className="wordmark header-wordmark">{APP_NAME}</span>
+          <Wordmark className="header-wordmark" />
         </div>
 
         <div className="header-center">

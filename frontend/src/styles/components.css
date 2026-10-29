@@ -3,18 +3,67 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   Wordmark: the app's name as text (utils/brand.js APP_NAME), no image. Each
-   place sets its own size (weather bar, header, session menu, start screen,
-   Settings > About).
+   Wordmark: the app's name (utils/brand.js APP_NAME), no image.
+   Drawn (Wordmark.jsx, utils/wordmark.js) in the weather bar, the header and
+   on the start screen: an inline SVG sized in em, so each place sets its size
+   with font-size; the word in the primary text, the line and the dot in the
+   brand accent. As text in the session menu and Settings > About (.wordmark),
+   in the same weight and tracking (utils/wordmark.js TRACKING_EM).
    -------------------------------------------------------------------------- */
 .wordmark {
   font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.14em;
   text-transform: none;
   line-height: 1;
   white-space: nowrap;
   color: var(--color-text-primary);
+}
+
+.wordmark-lockup {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  /* the box is the SVG's: no line box around it */
+  line-height: 0;
+}
+
+.wordmark-svg {
+  display: block;
+  overflow: visible;
+}
+
+.wordmark-svg__name {
+  font-family: var(--font-display);
+  font-weight: var(--font-weight-medium);
+  fill: var(--color-text-primary);
+}
+
+.wordmark-svg__line {
+  fill: none;
+  stroke: var(--color-brand-accent);
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+}
+
+.wordmark-svg__dot {
+  fill: var(--color-brand-accent);
+}
+
+/* The tagline under the hero wordmark (start screen) */
+.wordmark-lockup__tagline {
+  margin-top: 0.7em;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  line-height: 1.3;
+  /* secondary, not muted: >= 4.5:1 on every stop of the light start
+     screen under its glow (contrast_pairs.txt) */
+  color: var(--color-text-secondary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------

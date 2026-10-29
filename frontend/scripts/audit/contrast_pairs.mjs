@@ -234,6 +234,81 @@ must(!(decl('.tower-row__battle-badge', 'animation') || '').includes('battle-pul
 add('tower battle glyph ⚔ (no animation) on the battle row tint', col(decl('.tower-row__battle-badge', 'color')),
   H.over(col(decl('.tower-row--battle', 'background').replace(/\s*!important/, '')), PANEL), 4.5, '.tower-row__battle-badge on .tower-row--battle');
 
+// 13. The drawn wordmark (Wordmark.jsx): the line and the dot in
+//     --color-brand-accent (a mark, 3:1), the word in --color-text-primary
+//     and the start screen's tagline in --color-text-secondary (text, 4.5:1), on
+//     the weather bar, the header and the start screen of each theme. A bar
+//     is its glass over the top of the app background; the start screen is
+//     each stop of its gradient, alone and under the centre of its glow.
+//     The favicon: its line and dot on its square.
+const lightTokens = new Map(tokens);
+for (const r of rules) {
+  if (!r.media && r.selector.trim() === '[data-theme="light"]') {
+    for (const d of r.decls) if (d.prop.startsWith('--')) lightTokens.set(d.prop, d.value);
+  }
+}
+const colIn = (v, toks) => {
+  const c = H.parseColor(H.resolveVars(String(v), toks));
+  if (!c) throw new Error(`colour ${v}`);
+  return c;
+};
+const gradientColours = (v) => (String(v).match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g) || []);
+must(/<Wordmark className="weather-bar__wordmark" \/>/.test(read('components/ui/WeatherBar.jsx'))
+  && /<Wordmark className="header-wordmark" \/>/.test(read('components/ui/Header.jsx'))
+  && /<h1 className="session-screen__title"><Wordmark size="hero" tagline \/><\/h1>/.test(read('components/ui/SessionSelectorScreen.jsx')),
+'the wordmark is not drawn where this check measures it');
+must(decl('.wordmark-svg__line', 'stroke') === 'var(--color-brand-accent)' && decl('.wordmark-svg__dot', 'fill') === 'var(--color-brand-accent)'
+  && decl('.wordmark-svg__name', 'fill') === 'var(--color-text-primary)'
+  && decl('.wordmark-lockup__tagline', 'color') === 'var(--color-text-secondary)', 'wordmark colours changed');
+for (const [theme, toks, pre] of [['dark', tokens, ''], ['light', lightTokens, '[data-theme="light"] ']]) {
+  const accent = colIn('var(--color-brand-accent)', toks);
+  const word = colIn('var(--color-text-primary)', toks);
+  const tagline = colIn('var(--color-text-secondary)', toks);
+  const appBg = theme === 'dark' ? gradientColours(decl('.app-container', 'background'))[0] : decl(`${pre}.app-container`, 'background');
+  const bars = [
+    ['weather bar', H.over(colIn(decl(`${pre}.weather-bar`, 'background'), toks), colIn(appBg, toks)), `${pre}.weather-bar over ${appBg}`],
+    ['header', H.over(colIn(decl(`${pre}.app-header`, 'background'), toks), colIn(appBg, toks)), `${pre}.app-header over ${appBg}`],
+  ];
+  const glow = gradientColours(decl(`${pre}.session-screen__glow`, 'background'))[0];
+  for (const stop of gradientColours(decl(`${pre}.session-screen`, 'background'))) {
+    bars.push([`start screen ${stop}`, colIn(stop, toks), `${pre}.session-screen`]);
+    bars.push([`start screen ${stop} under the glow ${glow}`, H.over(colIn(glow, toks), colIn(stop, toks)), `${pre}.session-screen, .session-screen__glow`]);
+  }
+  for (const [where, bg, src] of bars) {
+    add(`wordmark line and dot (--color-brand-accent, ${theme}) on the ${where}`, accent, bg, 3, src);
+    add(`wordmark word (--color-text-primary, ${theme}) on the ${where}`, word, bg, 4.5, src);
+    if (where.startsWith('start screen')) add(`wordmark tagline (--color-text-secondary, ${theme}) on the ${where}`, tagline, bg, 4.5, src);
+  }
+}
+const favicon = fs.readFileSync(path.join(ROOT, 'frontend/public/fonts/favicon.svg'), 'utf8');
+const favSquare = (favicon.match(/<rect[^>]*fill="(#[0-9a-fA-F]{6})"/) || [])[1];
+const favMarks = [...favicon.matchAll(/(?:stroke|fill)="(#[0-9a-fA-F]{6})"/g)].map((m) => m[1]).filter((c) => c !== favSquare);
+must(favSquare && favMarks.length > 0, 'favicon colours not found');
+for (const c of new Set(favMarks)) add(`favicon mark ${c} on its square`, col(c), col(favSquare), 3, 'public/fonts/favicon.svg');
+// The accent is no data colour: its nearest data colours (CIEDE2000), for
+// the record (not gated: the wordmark is drawn away from every chart)
+const DATA_COLOURS = {
+  ...Object.fromEntries(Object.entries(C.TYRE_COLORS).filter(([k]) => k !== 'UNKNOWN').map(([k, v]) => [`TYRE_COLORS.${k}`, v])),
+  ...Object.fromEntries(Object.entries(C.FLAG_COLORS).map(([k, v]) => [`FLAG_COLORS.${k}`, v])),
+  ...Object.fromEntries(Object.entries(C.TEAM_COLORS).map(([k, v]) => [`TEAM_COLORS.${k}`, v])),
+  ...Object.fromEntries(Object.entries(C.STATUS_COLORS).map(([k, v]) => [`STATUS_COLORS.${k}`, v])),
+  ...Object.fromEntries(Object.entries(C.CHANNEL_COLORS).map(([k, v]) => [`CHANNEL_COLORS.${k}`, v])),
+  ...Object.fromEntries(C.SERIES_COLORS.map((v, i) => [`SERIES_COLORS[${i}]`, v])),
+  ...Object.fromEntries(Object.entries(C.OUTCOME_COLORS).map(([k, v]) => [`OUTCOME_COLORS.${k}`, v])),
+  'DIVERGING.better': C.DIVERGING.better, 'DIVERGING.worse': C.DIVERGING.worse,
+  'UI_COLORS.brush': C.UI_COLORS.brush, 'UI_COLORS.pitWindow': C.UI_COLORS.pitWindow,
+};
+const brandInfo = [];
+{
+  const accent = hex(col('var(--color-brand-accent)'));
+  for (const t of ['normal', 'protanopia', 'deuteranopia', 'tritanopia']) {
+    const sim = (c) => (t === 'normal' ? c : C.simulateCvd(c, t));
+    const near = Object.entries(DATA_COLOURS).map(([k, v]) => [k, v, C.deltaE2000(sim(accent), sim(v))])
+      .sort((a, b) => a[2] - b[2]).slice(0, 3);
+    brandInfo.push(`--color-brand-accent ${accent}, ${t}: nearest data colours ${near.map(([k, v, d]) => `${k} ${v} ${d.toFixed(1)}`).join(', ')}`);
+  }
+}
+
 // Before the repair, for the record (not gated): the PIT text blinked down to
 // opacity 0.5; the delta areas were a 22 % tint
 const info = [];
@@ -252,5 +327,6 @@ for (const r of rows) {
   console.log(`${r.ok ? 'OK  ' : 'FAIL'} ${r.r.toFixed(2)}:1 (needs ${r.need})  ${r.name}  fg ${r.fg} on ${r.bg}  [${r.src}]`);
 }
 for (const line of info) console.log(`INFO (before the repair, not gated) ${line}`);
+for (const line of brandInfo) console.log(`INFO (brand accent, CIEDE2000, not gated) ${line}`);
 console.log(`\n${fails.length} of ${rows.length} pairs under their threshold`);
 process.exitCode = fails.length ? 1 : 0;

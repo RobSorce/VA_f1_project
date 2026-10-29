@@ -5,7 +5,7 @@ import SessionMenu from './SessionMenu';
 import CommandBar from '../CommandPalette/CommandBar';
 import LayoutPresetBar from './LayoutPresetBar';
 import { TEXT_COLORS, withAlpha, UI_COLORS } from '../../utils/colors';
-import { APP_NAME } from '../../utils/brand';
+import Wordmark from './Wordmark';
 import { useDemoMode, DEMO_NOTE } from '../../utils/demoMode';
 
 /* ── Minimal line-style weather condition icons ── */
@@ -133,7 +133,7 @@ export default function WeatherBar() {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span className="wordmark weather-bar__wordmark">{APP_NAME}</span>
+          <Wordmark className="weather-bar__wordmark" />
           {/* The full name, or "GP" for "Grand Prix" up to 1440 px wide (CSS),
               where the 8vw box cut "Italian Grand Prix" by 15-22 px; a name
               still too long ends in an ellipsis, the full name in the title */}

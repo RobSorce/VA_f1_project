@@ -39,7 +39,7 @@ const LAYOUT_LANE = [
   ...['Header', 'Footer', 'BottomTabBar', 'LayoutPresetBar', 'LayoutDockPopover', 'DockCustomizePopover',
     'DockOverflowPopover', 'DockContextMenu', 'Panel', 'PanelToggleBar', 'SessionInfoBar', 'WeatherBar',
     'WeatherMini', 'TimelinePlayer', 'ToastStack', 'WelcomeToast', 'HelpOverlay', 'SessionSelectorScreen',
-    'SessionSelector'].map((n) => `components/ui/${n}.jsx`),
+    'SessionSelector', 'Wordmark'].map((n) => `components/ui/${n}.jsx`),
 ];
 const isLayoutLane = (rel) => LAYOUT_LANE.some((p) => rel.startsWith(p));
 
@@ -202,6 +202,17 @@ const REVIEWED = [
       ['components/visualizations/CircleOfDoom.jsx', /const small = clamp\(R \* 0\.075, MIN_CENTRE_FONT, 12\);/],
       ['components/visualizations/CircleOfDoom.jsx', /const tiny = MIN_CENTRE_NOTE;/],
       ['components/visualizations/CircleOfDoom.jsx', /const MIN_CENTRE_NOTE = 10;/]],
+  },
+  {
+    file: 'components/ui/Wordmark.jsx', raw: 'FONT_SIZE', floor: 11,
+    why: 'the name is drawn at FONT_SIZE user units in an SVG sized so that FONT_SIZE units are 1 em: it renders at 1 em of its place, whose CSS font-size (--font-size-base, -lg, -4xl) the CSS pass checks',
+    proof: [['components/ui/Wordmark.jsx', /fontSize=\{FONT_SIZE\}/],
+      ['components/ui/Wordmark.jsx', /width=\{`\$\{g\.width \/ FONT_SIZE\}em`\}/],
+      ['components/ui/Wordmark.jsx', /height=\{`\$\{g\.height \/ FONT_SIZE\}em`\}/],
+      ['components/ui/Wordmark.jsx', /viewBox=\{`0 \$\{g\.top\} \$\{g\.width\} \$\{g\.height\}`\}/],
+      ['styles/dashboard.css', /\.weather-bar__wordmark \{\s*font-size: var\(--font-size-base\);/],
+      ['styles/dashboard.css', /\.header-wordmark \{\s*font-size: var\(--font-size-lg\);/],
+      ['styles/dashboard.css', /\.session-screen__title \{[^}]*font-size: var\(--font-size-4xl\);/]],
   },
   {
     file: 'utils/circleLabelLayout.js', raw: 'fs', floor: 11,

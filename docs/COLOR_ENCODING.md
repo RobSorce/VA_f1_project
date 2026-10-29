@@ -119,6 +119,8 @@ In the Circle of Doom the pit-window line of the status text under the circle (`
 
 The F1 brand red #E10600 (`UI_COLORS.accent`, `--color-f1-red`; #FF6B63 as text, `--color-f1-red-text`) is chrome, never a data encoding.
 
+The brand accent #D5FD51 (`--color-brand-accent`; a dark lime of the same hue in the light theme) draws the line and the dot of the wordmark (`components/ui/Wordmark.jsx`) and the favicon, and nothing else: chrome, never a data encoding. It is the lime of the command UI (`--rh-accent`), not the brand red, because red is the soft tyre's, the red flag's and Ferrari's hue here; it is at least 3:1 on the weather bar, the header and the start screen in both themes (`contrast_pairs.txt`). The closest data colours are the speed channel yellow #F0E442 (CIEDE2000 11.1) and the podium class #fdea45 (12.3); under protanopia and deuteranopia it reads as those yellows (3.3 and 1.3 from the podium class), which does not matter where it is drawn, away from every chart and legend (`contrast_pairs.txt`, "brand accent").
+
 ## 8. Flags, race control, severity and Monte Carlo levels
 
 - Flags and track status (`FLAG_COLORS`, `TRACK_STATUS_STYLES`, tokens `--flag-*`): green #34D399 (the emerald of personal best, so green and red flags differ under deuteranopia), yellow #FACC15, safety car / VSC #F59E0B, red #F87171, blue #60A5FA, chequered #FFFFFF. Always with their label (GREEN, YELLOW FLAG, SAFETY CAR, VSC, RED FLAG): yellow / safety car are 7.3 apart under deuteranopia and safety car / red 9.0 under tritanopia (`cvd_check.txt`).
