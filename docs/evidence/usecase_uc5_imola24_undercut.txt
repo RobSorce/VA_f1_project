@@ -116,7 +116,7 @@ B.2 Pause at the first frame after PIA crosses the line at the end of L22 (frame
         8  PIA pits in 8: P5 → P6 (−3 vs now)   in-lap L31, rejoin P6 at the end of L32 P3 (−3 vs now; waiting costs 14.8 s)   stop when due: VER, LEC, SAI, HAM, STR, OCO, MAG
         9  PIA pits in 9: P5 → P7 (−4 vs now)   in-lap L32, rejoin P7 at the end of L33 P3 (−4 vs now; waiting costs 16.8 s)   stop when due: VER, LEC, SAI, HAM, STR, OCO, MAG
        10  PIA pits in 10: P5 → P7 (−4 vs now)  in-lap L33, rejoin P7 at the end of L34 P3 (−4 vs now; waiting costs 18.8 s)   stop when due: VER, LEC, SAI, HAM, STR, OCO, MAG
-   focus card, Rivals rows (store updateRivalContext at this clock, store clock 5136.61 s): P3 NOR -2.7s ↓ (opening) M 22L | P4 SAI -0.9s ↔ (stable) M 23L | P6 HAM +4.7s ↔ (stable) M 22L | P7 RUS +7.8s ↔ (stable) H 1L
+   focus card, Rivals rows (store updateRivalContext at this clock, store clock 5136.61 s): P3 NOR -2.7s ↑ (closing) M 22L | P4 SAI -0.9s ↔ (stable) M 23L | P6 HAM +4.7s ↔ (stable) M 22L | P7 RUS +7.8s ↔ (stable) H 1L
   [demo] first frame after PIA's L22 crossing: frame #2250, sessionNow 5136.61 s, replay lap 23; PIA laps completed 22 (P5), SAI laps completed 22 (P4); SAI's gap tag on the ring −0.9 s (exact −0.90 s; − = ahead of PIA)
    every readout below identical to the backend clock above
 

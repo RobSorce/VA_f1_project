@@ -1,0 +1,42 @@
+Race Trace check (frontend/scripts/race_trace_check.mjs) on the cached races
+cache: backend/data/processed_cache, 30 races
+gap: max |leader-reference y + GapToLeader| (s) over the rows with a Position, every row and outside the red-flag windows;
+  gap_out leaves out the red_rows, the rows with a red-flag window between the car's crossing and the first car's:
+  inside a red window the race clock is frozen by design (the gaps across a red flag stay the gaps the cars
+  restarted with), while GapToLeader keeps the time between the two crossings, so the two differ there
+rows: without Time / truncated;
+provisional / final(2): field-reference movement of a point from when it was drawn to the flag (s), max and p95
+
+race       laps  gap_max  at          gap_out  at_out      red_rows  no_Time  truncated  red_windows  prov_n  prov_max  prov_p95  final2_n  final2_max  final2_p95
+2024 R1      57    0.000  RUS L53       0.000  RUS L53            0        0          0            -     274     6.201     0.638      2423       1.040       0.363
+2024 R2      50    0.000  TSU L47       0.000  TSU L47            0        0          1            -     115    52.282     3.768      2290       1.017       0.366
+2024 R3      58    0.000  GAS L57       0.000  GAS L57            0        0          2            -     212    27.389     1.429      2283       0.924       0.324
+2024 R4      53   64.412  ZHO L1        0.000  HAM L41           17        0          2    3803-5459      74   129.031     1.066      2295       1.454       0.674
+2024 R5      56    0.000  RUS L56       0.000  RUS L56            0        0          2            -      84    42.401    20.728      2813       5.448       0.169
+2024 R6      57    0.000  ALB L45       0.000  ALB L45            0        0          1            -      56    42.424    16.997      3136       2.383       0.179
+2024 R7      63    0.000  RIC L62       0.000  RIC L62            0        0          0            -     380     6.320     1.146      2451       1.929       0.736
+2024 R8      78    0.000  RUS L70       0.000  RUS L70            0        0          4    3362-5755     216    57.567     3.068      2590       3.766       1.961
+2024 R9      70    0.000  GAS L62       0.000  GAS L62            0        0          2            -     194    50.927    24.509      3212       1.207       0.373
+2024 R10     66    0.000  PIA L62       0.000  PIA L62            0        0          0            -     268     6.046     0.941      2828       1.567       0.708
+2024 R11     71    0.000  RIC L71       0.000  RIC L71            0        0          0            -     395    15.396     1.999      2709       2.803       0.416
+2024 R12     52    0.000  TSU L50       0.000  TSU L50            0        0          1            -     145    40.081     6.304      2200      17.135       0.921
+2024 R13     70    0.000  ALO L61       0.000  ALO L61            0        0          0            -     343     7.640     1.348      2885       2.030       0.564
+2024 R14     44    0.000  ALB L43       0.000  ALB L43            0        0          0            -      50     6.558     0.651      2295       0.720       0.415
+2024 R15     72    0.000  VER L70       0.000  VER L70            0        0          0            -     360     8.523     0.938      2893       1.235       0.490
+2024 R16     53    0.000  ALB L49       0.000  ALB L49            0        0          0            -     206     6.091     0.895      2294       1.064       0.300
+2024 R17     51    0.000  ALO L44       0.000  ALO L44            0        0          2            -      54    33.800    33.698      2614       0.651       0.376
+2024 R18     62    0.000  SAI L48       0.000  SAI L48            0        0          0            -     258     8.825     0.709      2402       0.571       0.209
+2024 R19     56    0.000  HUL L49       0.000  HUL L49            0        0          1            -     159    51.592     0.929      2529       1.071       0.589
+2024 R20     71    0.000  HAM L59       0.000  HAM L59            0        0          2            -     255    31.118     0.902      2679       1.111       0.529
+2024 R21     69  1397.275  ZHO L32       0.000  GAS L36           17        0          2    7159-8638      75   104.197    30.607      3181       3.078       0.368
+2024 R22     50    0.000  ZHO L49       0.000  ZHO L49            0        0          0            -     152     8.681     0.594      2350       0.450       0.097
+2024 R23     57    0.000  ALO L54       0.000  ALO L54            0        0          4            -     112    53.061    21.342      2516       7.292       0.400
+2024 R24     58    0.000  GAS L54       0.000  GAS L54            0        0          2            -     247    14.861     0.591      2244       0.724       0.257
+2025 R1      57    0.000  PIA L44       0.000  PIA L44            0        0          6            -     119    39.508    28.746      2381      16.705       1.407
+2025 R6      57    0.000  GAS L57       0.000  GAS L57            0        0          3            -     169    31.046    26.751      2470       1.012       0.131
+2025 R8      78    0.000  ANT L68       0.000  ANT L68            0        0          1            -     230    20.666     7.024      2174       7.294       5.039
+2025 R16     53    0.000  BEA L27       0.000  BEA L27            0        0          1            -     199     5.826     0.410      2316       0.311       0.050
+2025 R21     71    0.000  STR L56       0.000  STR L56            0        0          2            -     181    35.495     0.985      3179       0.757       0.197
+2025 R24     58    0.000  SAI L53       0.000  SAI L53            0        0          0            -     201     7.266     0.460      2720       0.490       0.103
+
+all races: gap_max 1397.275 s, outside the red-flag windows 0.000 s; provisional points 5783, max 129.031 s, p95 4.113 s; final points of the newest two laps 77352, max 17.135 s, p95 0.514 s

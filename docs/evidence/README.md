@@ -18,6 +18,8 @@ How to run the scripts:
 | `battle_list_rules.txt` | `frontend/scripts/battle_list_rules.mjs` | `docs/analytics_provenance.md`, `docs/MASTER_LEDGER.md`, `frontend/src/utils/simulationClient.js` |
 | `c4_pit_in_k_monza.txt` | `frontend/scripts/c4_pit_in_k_monza.mjs` | `docs/analytics_provenance.md`, `frontend/src/utils/__tests__/undercut.cached.test.js` |
 | `cod_backtest.txt` | `frontend/scripts/cod_backtest.mjs` | `docs/analytics_provenance.md`, `frontend/src/utils/circleOfDoom.js` |
+| `cod_ring_check.txt` | `frontend/scripts/cod_ring_check.mjs` | `frontend/src/utils/circleOfDoom.js`, `frontend/src/utils/circlePitLane.js`, `frontend/src/utils/circleSectors.js`, `frontend/src/utils/circleGapList.js` |
+| `race_trace_check.txt` | `frontend/scripts/race_trace_check.mjs` | `frontend/src/utils/raceTrace.js`, `frontend/src/utils/chartHelp.js` |
 | `degradation_definition_monza.txt` | `frontend/scripts/degradation_definition.mjs` | `docs/analytics_provenance.md`, `docs/DEGRADATION_METHODOLOGY.md`, `frontend/src/utils/degradation.js`, `frontend/src/utils/chartHelp.js`, `frontend/src/utils/__tests__/degradation.test.js`, `backend/tests/test_degradation.py`, `backend/tests/test_analytics_consistency.py` |
 | `degradation_in_race.txt` | `frontend/scripts/degradation_in_race.mjs` | `docs/DEGRADATION_METHODOLOGY.md`, `docs/MASTER_LEDGER.md`, `docs/analytics_provenance.md`, `frontend/scripts/mc_benchmark.mjs` |
 | `lap_noise_subclock.txt` | `frontend/scripts/lap_noise_subclock.mjs` | (the script) |
