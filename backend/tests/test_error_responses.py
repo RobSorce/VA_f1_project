@@ -31,11 +31,16 @@ def failing(tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(main, "DISK_CACHE_DIR", tmp_path)
     for name in ("session_cache", "schedule_cache", "championship_cache"):
         monkeypatch.setattr(main, name, {})
-    monkeypatch.setattr(main, "raw_session_cache", {})
-    monkeypatch.setattr(main.app.state, "raw_session_cache", main.raw_session_cache)
+    # The raw session cache is one dict, main.raw_session_cache and
+    # app.state.raw_session_cache: emptied in place and refilled after, since
+    # pytest 9.2's monkeypatch does not see the values a Starlette State keeps
+    saved = dict(main.raw_session_cache)
+    main.raw_session_cache.clear()
     monkeypatch.setattr(main.extractor, "get_session", boom)
     monkeypatch.setattr(main.extractor, "get_event_schedule", boom)
-    return caplog
+    yield caplog
+    main.raw_session_cache.clear()
+    main.raw_session_cache.update(saved)
 
 
 def assert_generic(r, status, caplog):

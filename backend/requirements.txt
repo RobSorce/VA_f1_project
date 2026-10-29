@@ -3,10 +3,7 @@
 ## Backend Python Dependencies
 
 fastf1>=3.8.1  # older versions drop the 2026 car data (no DRS channel 45)
-# FastAPI and Starlette pinned to the versions the backend tests pass on: Starlette 1.10
-# no longer keeps the app.state values main.py sets at import (tests/test_error_responses.py)
-fastapi==0.143.0
-starlette==1.7.0
+fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 pandas>=2.1.0
 numpy>=1.26.0
