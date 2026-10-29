@@ -56,14 +56,17 @@ const realMeasure = haveFonts ? (text, size, weight = 700) => faceWidths(weight,
 // minmax(0, 1fr) minmax(0, 1fr) 280px, 1 px gaps) and the CSS (base.css root
 // font clamp(13px, 6.4px + 0.5vw, 16px); components.css .panel 1 px border,
 // header 0.5rem padding + the 22 px export button + 1 px border, content
-// padding 1rem). Checked against the browser: 1920x1080 -> 545 x 306,
-// 1680x1050 -> 427 x 299, 1440x900 -> 310 x 250, 1536x864 -> 357 x 236.
+// padding 0.5rem: the panel is .panel--dense). Checked against the browser
+// with the content padding of .panel (1rem): 1920x1080 -> 545 x 306,
+// 1680x1050 -> 427 x 299, 1440x900 -> 310 x 250, 1536x864 -> 357 x 236; the
+// dense panel adds 0.5rem a side, 1 rem to each of them (computed, not
+// measured: 561 x 322, 441.8 x 313.8, 323.6 x 263.6, 371.1 x 250.1).
 function pitWallSlot(vw, vh) {
   const rem = Math.min(16, Math.max(13, 6.4 + 0.005 * vw));
   const column = (vw - 480 - 1 - 280 - 2) / 2;
   return {
-    width: column - 2 - 2 * rem,
-    height: 0.35 * vh - 2 - (rem + 22 + 1) - 2 * rem,
+    width: column - 2 - rem,
+    height: 0.35 * vh - 2 - (rem + 22 + 1) - rem,
   };
 }
 
@@ -167,9 +170,15 @@ describe('the Pit Wall slot', () => {
     expect(layout).toContain("gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) 280px'");
     const base = fs.readFileSync(path.join(SRC, 'styles/base.css'), 'utf8');
     expect(base).toContain('font-size: clamp(13px, calc(6.4px + 0.5vw), 16px);');
-    // the slot sizes measured in the browser (2026-10-13), within 1.5 px
-    for (const [[vw, vh], [w, h]] of [[[1920, 1080], [545, 306]], [[1680, 1050], [427, 299]],
-      [[1440, 900], [310, 250]], [[1536, 864], [357, 236]]]) {
+    // the slot sizes measured in the browser (2026-10-13) with the content
+    // padding of .panel, plus the 1 rem the dense panel gives back (computed,
+    // to be measured again), within 1.5 px
+    const view = fs.readFileSync(path.join(SRC, 'components/visualizations/CircleOfDoom.jsx'), 'utf8');
+    expect(view.match(/<Panel title="Circle of Doom" className="panel--dense"/g)).toHaveLength(2);
+    const components = fs.readFileSync(path.join(SRC, 'styles/components.css'), 'utf8');
+    expect(components).toMatch(/\.panel--dense > \.panel-content \{\s*padding: var\(--spacing-sm\);/);
+    for (const [[vw, vh], [w, h]] of [[[1920, 1080], [561, 322]], [[1680, 1050], [441.8, 313.8]],
+      [[1440, 900], [323.6, 263.6]], [[1536, 864], [371.1, 250.1]]]) {
       const slot = pitWallSlot(vw, vh);
       expect(Math.abs(slot.width - w)).toBeLessThan(1.5);
       expect(Math.abs(slot.height - h)).toBeLessThan(1.5);
@@ -358,9 +367,10 @@ describe.skipIf(!haveFonts || !haveChina || !haveMonza)('sweep at the Pit Wall v
           centreUnder9: 0, notFits: 0, readoutOnCentre: 0, lapOrLossMissing: 0,
         });
         // labels: no overlap and nothing clamped into the slot, but in the
-        // 273 x 204 px slot of 1366x768 (ring radius 38), where a crowded field
-        // (20 labels and the rejoin label round a 55 px label circle) can leave
-        // one pair overlapping (measured: China 4 of 164 states, Monza 0)
+        // 286 x 217 px slot of 1366x768 (ring radius about 40), where a crowded
+        // field (20 labels and the rejoin label round a small label circle) can
+        // leave one pair overlapping (measured in the former 273 x 204 px slot,
+        // before the dense panel: China 4 of 164 states, Monza 0)
         if (vp === '1366x768') {
           expect(t.clamped / t.renders).toBeLessThan(0.05);
         } else {

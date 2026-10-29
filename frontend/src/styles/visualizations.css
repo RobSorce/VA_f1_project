@@ -2353,12 +2353,14 @@
   color: var(--color-worse);
 }
 
+/* No text selection: Shift-click on a car toggles the selection */
 .cod__svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  user-select: none;
 }
 
 .cod-defs {
@@ -2622,4 +2624,10 @@
 
 [data-theme="light"] .cod-gap-text {
   fill: #111827;
+}
+
+/* A lapped car is hollow: the panel's own surface inside its ring (the JSX
+   fill is the dark panel, SURFACES.panel) */
+[data-theme="light"] .cod-car__dot--hollow {
+  fill: var(--color-bg-secondary);
 }

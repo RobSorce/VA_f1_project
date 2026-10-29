@@ -351,17 +351,19 @@ describe.skipIf(!haveMonza)('Monza 2024: three replay moments, focus LEC', () =>
     const g = gapSeconds('LEC', 'SAI', st);
     expect(markup).toMatch(/data-gap="LEC-SAI"/);
     expect(markup).toMatch(/<path class="cod-gap-arc" d="M[^"]+"/);
-    expect(textOf(markup)).toContain(`${Math.abs(g).toFixed(1)} s`);
+    // signed as the labels: + behind the focus, − ahead of it
+    expect(textOf(markup)).toContain(`${signed(g)} s`);
     // the hovered car carries the highlight ring
     expect(markup).toMatch(/data-driver="SAI"[^>]*>(<circle[^>]*>(<\/circle>)?)*<circle class="cod-highlight-ring"/);
   });
 
-  it('a car selected in another view (no focus) anchors the hover gap too', () => {
+  it('a car selected in another view (no focus) anchors the hover gap too, its label tagged ref', () => {
     replayAt(monza, 4600, 15, { selectedDrivers: ['NOR'], highlightedDriver: 'VER' });
     const markup = html();
     expect(markup).toMatch(/data-gap="NOR-VER"/);
     const st = circleState(lapTimes, { sessionNow: 4600 });
-    expect(textOf(markup)).toContain(`${Math.abs(gapSeconds('NOR', 'VER', st)).toFixed(1)} s`);
+    expect(textOf(markup)).toContain(`${signed(gapSeconds('NOR', 'VER', st))} s`);
+    expect(markup).toMatch(/data-driver="NOR"[^>]*><tspan class="cod-label__code"[^>]*>NOR<\/tspan><tspan class="cod-label__gap"[^>]*>ref<\/tspan>/);
   });
 
   it('no focus: no pit window, a hint, no dimmed label', () => {
@@ -502,7 +504,7 @@ describe.skipIf(!haveMonza || !haveChina)('labels never overlap, stay in the slo
 });
 
 describe.skipIf(!haveMonza)('coordination with the Track Map: a selection made there is drawn on the circle', () => {
-  it('a selected car gets the red ring; without a focus the other labels are dimmed', () => {
+  it('a selected car gets the blue ring; without a focus the other labels are dimmed', () => {
     replayAt(monza, 4600, 15);
     const plain = html();
     replayAt(monza, 4600, 15, { selectedDrivers: ['HAM'] });

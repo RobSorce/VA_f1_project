@@ -7,7 +7,8 @@
 //     live at the viewport keeps overflow hidden and the shell at 100vh;
 //  2. the chrome rows (weather bar, timeline collapsed / expanded, dock) and
 //     the app body left to the panels;
-//  3. the Pit Wall cells (PitWallLayout.jsx), how many Timing Tower rows fit
+//  3. the Pit Wall cells (PitWallLayout.jsx), the Circle of Doom's slot in
+//     its cell (__tests__/helpers/pitWallMaps.js codSlotAt), how many Timing Tower rows fit
 //     with no focus driver and with the focus cards in their default and
 //     on-demand states (row height from TimingTower.jsx; card heights
 //     estimated from the CSS), the tower and Race Pace Grid table widths
@@ -28,6 +29,7 @@ teeToEvidence('layout_fit.txt');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const SRC = path.join(ROOT, 'frontend/src');
 const M = await import(pathToFileURL(path.join(SRC, '__tests__/helpers/layoutModel.js')).href);
+const PW = await import(pathToFileURL(path.join(SRC, '__tests__/helpers/pitWallMaps.js')).href);
 const { WINDOW_PRESETS } = await import(pathToFileURL(path.join(SRC, 'utils/windowPresets.js')).href);
 // utils/views/racePaceGrid.js imports modules without extensions (Vite), so
 // plain node cannot load it: its constants are read from the source and
@@ -102,6 +104,11 @@ for (const vp of M.VIEWPORTS) {
   const pw = M.pitWallAt(css, spec, vp);
   console.log(`  Pit Wall: timing column ${f(pw.sidebar)} x ${f(pw.body)}; main ${f(pw.mainW)} wide: session bar ${f(pw.info)}, pace grid ${f(pw.middle)}, map row ${f(pw.bottom)} (Track Map / Circle of Doom ${f(pw.mapW)} x ${f(pw.bottom)}, side column ${f(pw.side)})`);
   if (!(pw.middle > 0)) fail(`Pit Wall pace-grid row has no room (${f(pw.middle)} px)`);
+  // The circle's content box: the cell less the glass border, the header and
+  // the content padding (.panel--dense: half that of .panel)
+  const cod = PW.codSlotAt(css, SRC, vp);
+  console.log(`  Circle of Doom slot (.cod, the content box of its ${PW.circleIsDense(SRC) ? '.panel--dense' : '.panel'} panel): ${f(cod.width)} x ${f(cod.height)} in its ${f(cod.cell.width)} x ${f(cod.cell.height)} cell`);
+  if (!(cod.width > 0 && cod.height > 0)) fail(`Circle of Doom slot has no room (${f(cod.width)} x ${f(cod.height)})`);
   // Tower chrome: red header (8 + 7 px padding around a 16 px bar), column
   // header (4 + 4 px around one line of the tower's fixed 11 px type, 1.4) and
   // its rule, the legend under the rows (7 glyph items: 2 lines of label type

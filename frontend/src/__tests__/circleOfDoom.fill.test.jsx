@@ -197,7 +197,9 @@ describe.skipIf(!haveWebFont)('the Circle of Doom plot uses its Pit Wall cell at
     const byside = Object.values(radius).sort((a, b) => a.side - b.side);
     expect(byside).toHaveLength(4);
     for (let i = 1; i < byside.length; i += 1) expect(byside[i].R).toBeGreaterThanOrEqual(byside[i - 1].R);
-    // the 2048 px screen: about four times the ring of the 1536 px one
+    // the 2048 px screen: more than three times the ring of the 1536 px one
+    // (124.8 against 38.4 px in the dense panel; 117.3 against 31.4 px with
+    // the full content padding)
     expect(radius['2048x1100'].R).toBeGreaterThan(3 * radius['1536x750'].R);
   });
 });
