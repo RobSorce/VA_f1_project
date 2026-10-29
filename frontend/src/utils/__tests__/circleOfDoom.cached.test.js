@@ -397,9 +397,10 @@ describe.skipIf(!hasCachedSession(2024, 10) || !hasCachedSession(2024, 13))('lap
     expect(w.trafficOnly.map((x) => `${x.driver}:${x.laps}`).sort()).toEqual(drawnRing('RUS', st, w).trafficOnly);
   });
 
+  // The line anchor, as the case above: lapped traffic sits in this band only as the line draws it
   it('2024 R13 at 7372.9 s, PIA: the list is the drawn band, labels = lapOffset', () => {
     const lapTimes = loadCachedSession(2024, 13).lap_times;
-    const st = circleState(lapTimes, { sessionNow: 7372.9 });
+    const st = circleState(lapTimes, { sessionNow: 7372.9, outLapAnchor: 'line' });
     const w = pitWindow('PIA', st, estimatePitLoss(lapTimes, { sessionNow: 7372.9 }));
     expect(w.trafficOnly.map((x) => `${x.driver}:${x.laps}`).sort()).toEqual(drawnRing('PIA', st, w).trafficOnly);
     expect(w.trafficOnly.length).toBeGreaterThan(0);
