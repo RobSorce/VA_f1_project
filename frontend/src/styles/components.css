@@ -3,57 +3,53 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   Wordmark: the app's name (utils/brand.js APP_NAME), no image.
-   Drawn (Wordmark.jsx, utils/wordmark.js) in the weather bar, the header and
-   on the start screen: an inline SVG sized in em, so each place sets its size
-   with font-size; the word in the primary text, the line and the dot in the
-   brand accent. As text in the session menu and Settings > About (.wordmark),
-   in the same weight and tracking (utils/wordmark.js TRACKING_EM).
+   Wordmark: the logo of public/brand (Wordmark.jsx), named APP_NAME
+   (utils/brand.js). Each image is sized by its own style, in px, from its
+   file's view box: the letters 16 px tall at the header size (the top bar,
+   the session menu, Settings > About), 56 px on the start screen. Both theme
+   files are in the page; one is shown.
    -------------------------------------------------------------------------- */
 .wordmark {
-  font-family: var(--font-display);
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.14em;
-  text-transform: none;
-  line-height: 1;
-  white-space: nowrap;
-  color: var(--color-text-primary);
-}
-
-.wordmark-lockup {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
-  /* the box is the SVG's: no line box around it */
+  /* the box is the image's: no line box around it */
   line-height: 0;
 }
 
-.wordmark-svg {
+/* Clear space: half the letter height on each side. The hero file holds
+   its own (61 or more of its units around the 100-unit letters) */
+.wordmark--header {
+  margin: 0 8px;
+}
+
+.wordmark__logo {
   display: block;
-  overflow: visible;
 }
 
-.wordmark-svg__name {
-  font-family: var(--font-display);
-  font-weight: var(--font-weight-medium);
-  fill: var(--color-text-primary);
+.wordmark__img {
+  display: block;
+  user-select: none;
 }
 
-.wordmark-svg__line {
-  fill: none;
-  stroke: var(--color-brand-accent);
-  stroke-linecap: butt;
-  stroke-linejoin: round;
+/* The dark file (white letters) on the dark theme, the light file (navy
+   letters) on the light one */
+.wordmark__img--light {
+  display: none;
 }
 
-.wordmark-svg__dot {
-  fill: var(--color-brand-accent);
+[data-theme="light"] .wordmark__img--dark {
+  display: none;
 }
 
-/* The tagline under the hero wordmark (start screen) */
-.wordmark-lockup__tagline {
-  margin-top: 0.7em;
+[data-theme="light"] .wordmark__img--light {
+  display: block;
+}
+
+/* The tagline under the hero logo (start screen), right under the image:
+   the file's clear space (34 px at 56 px letters) is the gap */
+.wordmark__tagline {
   font-family: var(--font-primary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-normal);
@@ -762,10 +758,6 @@
   background: var(--color-f1-red);
   border-radius: 2px;
   flex-shrink: 0;
-}
-
-.session-menu__title-text {
-  font-size: var(--font-size-xl);
 }
 
 .session-menu__close-btn {

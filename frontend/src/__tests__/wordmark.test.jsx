@@ -1,160 +1,122 @@
-// The drawn wordmark (components/ui/Wordmark.jsx, utils/wordmark.js) as
-// rendered, at both sizes: the line ends where the word's text box ends
-// (textLength), the jog lies under the word (under the 3rd-4th letter) with
-// the dot at its bottom, no attribute is NaN; the advance table is the font
-// file's; the colours are the tokens, the accent >= 3:1 on the bars in both
-// themes.
+// The logo (components/ui/Wordmark.jsx) as rendered, at both sizes: one image
+// named APP_NAME holding the dark and the light file of its size, from
+// public/brand through the build's base (utils/publicAsset); the letters 16 px
+// tall at the header size (the brand kit's minimum) and 56 px on the start
+// screen, read from each file's view box; the CSS shows one file per theme
+// and keeps the clear space; the tagline only under the hero, outside the
+// image, so it stays text.
 import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Wordmark from '../components/ui/Wordmark.jsx';
+import Wordmark, { LETTER_PX, LETTER_UNITS, LOGO_FILES, logoBox, logoPath } from '../components/ui/Wordmark.jsx';
 import { APP_NAME, APP_TAGLINE } from '../utils/brand.js';
-import {
-  ADVANCE, CAP_HEIGHT_EM, FONT_SIZE, JOG_SHARE, TRACKING_EM, wordmarkGeometry,
-} from '../utils/wordmark.js';
-import { textWidth, haveWebFont } from './helpers/fontWidths.js';
-import {
-  listFiles, parseCssFile, rootTokens, resolveVars, parseColor, over, contrast, declOf,
-} from './helpers/layoutCss.js';
+import { publicAsset } from '../utils/publicAsset.js';
+import { logosIn, stylePx } from './helpers/logo.js';
+import { listFiles, parseCssFile, declOf } from './helpers/layoutCss.js';
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-
-/** The attributes of the first <tag ...> of the markup. */
-const attrs = (html, tag) => {
-  const m = html.match(new RegExp(`<${tag}\\b([^>]*)>`));
-  expect(m, `<${tag}>`).toBeTruthy();
-  return Object.fromEntries([...m[1].matchAll(/([\w:-]+)="([^"]*)"/g)].map((a) => [a[1], a[2]]));
+const PUBLIC = path.resolve(SRC, '../public');
+const BASE = import.meta.env.BASE_URL || '/';
+const viewBoxOf = (rel) => {
+  const m = fs.readFileSync(path.join(PUBLIC, rel), 'utf8').match(/<svg\b[^>]*\bviewBox="([^"]+)"/);
+  expect(m, rel).toBeTruthy();
+  return m[1].trim().split(/\s+/).map(Number);
 };
-const nums = (s) => (s.match(/-?[\d.]+(?:e-?\d+)?/g) || []).map(Number);
+const rules = listFiles(SRC, ['.css']).flatMap((f) => parseCssFile(f));
 
-describe.each(['header', 'hero'])('the %s wordmark as rendered', (size) => {
-  const html = renderToStaticMarkup(<Wordmark size={size} tagline />);
-  const svg = attrs(html, 'svg');
-  const text = attrs(html, 'text');
-  const line = attrs(html, 'path');
-  const dot = attrs(html, 'circle');
+describe.each(['header', 'hero'])('the %s logo as rendered', (size) => {
+  const [logo, ...more] = logosIn(renderToStaticMarkup(<Wordmark size={size} />));
 
-  it('no attribute is NaN, every number is finite', () => {
-    expect(html).not.toMatch(/NaN|Infinity|undefined/);
-    for (const a of [svg.viewBox, svg.width, svg.height, text.textLength, line.d, line['stroke-width'], dot.cx, dot.cy, dot.r]) {
-      expect(a, a).toBeTruthy();
-      for (const v of nums(a)) expect(Number.isFinite(v), a).toBe(true);
+  it('one image named APP_NAME, holding the dark and the light file of its size', () => {
+    expect(more).toEqual([]);
+    expect(logo.size).toBe(size);
+    expect(logo.image).toMatchObject({ role: 'img', 'aria-label': APP_NAME });
+    expect(logo.imgs.map((i) => i.src)).toEqual(['dark', 'light'].map((t) => publicAsset(logoPath(size, t))));
+    expect(logo.imgs.map((i) => i.class)).toEqual(['wordmark__img wordmark__img--dark', 'wordmark__img wordmark__img--light']);
+    for (const img of logo.imgs) {
+      // the image is the span: the files themselves say nothing to assistive
+      // technology and cannot be dragged out
+      expect(img).toMatchObject({ alt: '', 'aria-hidden': 'true', draggable: 'false' });
+    }
+    expect(LOGO_FILES[size].file).toBe(size === 'header' ? 'variante_primary' : 'variante_intro_primary');
+  });
+
+  it('every file it names is a file of public/, under the build\'s base', () => {
+    for (const img of logo.imgs) {
+      expect(img.src.startsWith(BASE), img.src).toBe(true);
+      expect(fs.existsSync(path.join(PUBLIC, img.src.slice(BASE.length))), img.src).toBe(true);
     }
   });
 
-  it('one image named APP_NAME; the word inside is APP_NAME, hidden from assistive technology', () => {
-    expect(svg.role).toBe('img');
-    expect(svg['aria-label']).toBe(APP_NAME);
-    expect(text['aria-hidden']).toBe('true');
-    expect(html).toContain(`>${APP_NAME}</text>`);
-  });
-
-  it('the line runs from the start of the text box to its end (textLength, lengthAdjust spacing)', () => {
-    const w = Number(text.textLength);
-    expect(text.lengthAdjust).toBe('spacing');
-    expect(Number(text.x)).toBe(0);
-    expect(line.d).toMatch(/^M0 /);
-    const end = line.d.match(/H([\d.]+)$/);
-    expect(end, line.d).toBeTruthy();
-    expect(Number(end[1])).toBe(w);
-    // the view box spans the text box's width: the SVG is as wide as the word
-    const [vx, , vw] = nums(svg.viewBox);
-    expect(vx).toBe(0);
-    expect(vw).toBe(w);
-    expect(parseFloat(svg.width)).toBeCloseTo(w / FONT_SIZE, 6);
-  });
-
-  it('the jog lies under the word, under its 3rd-4th letter, 8-10 % of its width, the dot at its bottom', () => {
-    const g = wordmarkGeometry(APP_NAME, size);
-    const w = Number(text.textLength);
-    const [, y0, x0, x1, y1, x2, x3, y3, xEnd] = nums(line.d);
-    expect([x0, x1, x2, x3, xEnd]).toEqual([g.line.x0, g.line.x1, g.line.x2, g.line.x3, w]);
-    expect(0 < x0 && x0 < x1 && x1 < x2 && x2 < x3 && x3 < w).toBe(true);
-    expect(y3).toBe(y0);
-    expect(y1).toBeGreaterThan(y0);
-    const share = (x3 - x0) / w;
-    expect(share).toBeGreaterThanOrEqual(0.08);
-    expect(share).toBeLessThanOrEqual(0.10 + 1e-9);
-    expect(share).toBeCloseTo(JOG_SHARE, 3);
-    // under the 3rd and 4th letters: its centre between the start of the 3rd
-    // and the end of the 4th (advances + tracking)
-    const adv = [...APP_NAME].map((ch) => ADVANCE[ch] * (FONT_SIZE / 1000));
-    const track = TRACKING_EM * FONT_SIZE;
-    const start3 = adv[0] + adv[1] + 2 * track;
-    const end4 = start3 + adv[2] + track + adv[3];
-    const centre = (x0 + x3) / 2;
-    expect(centre).toBeGreaterThan(start3);
-    expect(centre).toBeLessThan(end4);
-    // the dot sits on the flat bottom of the jog
-    expect(Number(dot.cy)).toBe(y1);
-    expect(Number(dot.cx)).toBeGreaterThanOrEqual(x1);
-    expect(Number(dot.cx)).toBeLessThanOrEqual(x2);
-    // everything is inside the view box
-    const [, vy, , vh] = nums(svg.viewBox);
-    expect(vy).toBeLessThanOrEqual(-CAP_HEIGHT_EM * FONT_SIZE + 1e-9);
-    expect(vy + vh).toBeGreaterThanOrEqual(Number(dot.cy) + Number(dot.r) - 1e-9);
-  });
-
-  it(size === 'header'
-    ? 'header: the view box is centred on the capitals (a centred row keeps the word where text sits)'
-    : 'hero: the tagline under the line', () => {
-    const [, vy, , vh] = nums(svg.viewBox);
-    if (size === 'header') {
-      expect(vy + vh / 2).toBeCloseTo(-(CAP_HEIGHT_EM * FONT_SIZE) / 2, 1);
-      expect(html).not.toContain(APP_TAGLINE);
-    } else {
-      expect(html).toMatch(new RegExp(`</svg><span class="wordmark-lockup__tagline">${APP_TAGLINE}</span>`));
+  it(`the letters are ${LETTER_PX[size]} px tall: the box follows each file's view box`, () => {
+    for (const theme of ['dark', 'light']) {
+      const [, , w, h] = viewBoxOf(logoPath(size, theme));
+      expect([w, h], theme).toEqual([LOGO_FILES[size].width, LOGO_FILES[size].height]);
+    }
+    for (const img of logo.imgs) {
+      const w = stylePx(img.style, 'width');
+      const h = stylePx(img.style, 'height');
+      expect({ width: w, height: h }).toEqual(logoBox(size));
+      const letters = (h * LETTER_UNITS) / LOGO_FILES[size].height;
+      expect(letters).toBeGreaterThanOrEqual(LETTER_PX[size]);
+      expect(letters).toBeLessThan(LETTER_PX[size] + 0.1);
+      // still LETTER_PX once a browser snaps the box down to its layout unit
+      // (1/64 px in Chromium, 1/60 in Firefox)
+      expect(((Math.floor(h * 60) / 60) * LETTER_UNITS) / LOGO_FILES[size].height).toBeGreaterThanOrEqual(LETTER_PX[size]);
+      expect(((Math.floor(h * 64) / 64) * LETTER_UNITS) / LOGO_FILES[size].height).toBeGreaterThanOrEqual(LETTER_PX[size]);
+      // the file's ratio, to rounding (0.01 px)
+      expect(Math.abs((w / h) / (LOGO_FILES[size].width / LOGO_FILES[size].height) - 1)).toBeLessThan(1e-3);
     }
   });
 });
 
-describe('the drawn wordmark and its type', () => {
-  it('the tagline only with the hero size and the prop', () => {
-    expect(renderToStaticMarkup(<Wordmark size="hero" />)).not.toContain(APP_TAGLINE);
+describe('the logo\'s sizes and tagline', () => {
+  it('16 px letters in the top bar (the brand kit\'s minimum), 56 px on the start screen', () => {
+    expect(LETTER_PX).toEqual({ header: 16, hero: 56 });
+    // header: 16 x 102.16 / 100 = 16.35 px of image, 16.4 rounded up;
+    // hero: 56 x 224.76 / 100 = 125.87, 125.9 rounded up
+    expect(logoBox('header')).toEqual({ width: 103.16, height: 16.4 });
+    expect(logoBox('hero')).toEqual({ width: 428.63, height: 125.9 });
+  });
+
+  it('the tagline only under the hero with the prop, after the image, as text', () => {
+    const hero = logosIn(renderToStaticMarkup(<Wordmark size="hero" tagline />))[0];
+    expect(hero.tagline).toBe(APP_TAGLINE);
+    expect(hero.image['aria-label']).toBe(APP_NAME);
+    expect(logosIn(renderToStaticMarkup(<Wordmark size="hero" />))[0].tagline).toBeNull();
+    expect(logosIn(renderToStaticMarkup(<Wordmark size="header" tagline />))[0].tagline).toBeNull();
     expect(renderToStaticMarkup(<Wordmark size="header" tagline />)).not.toContain(APP_TAGLINE);
   });
 
-  it.skipIf(!haveWebFont)('the advance table is Inter Medium\'s (the font file of public/fonts)', () => {
-    for (const [ch, units] of Object.entries(ADVANCE)) {
-      expect(Math.abs(textWidth(ch, 1000, 500) - units), ch).toBeLessThanOrEqual(0.5);
-    }
-  });
-
-  it('the text wordmark (session menu, Settings > About) has the drawn one\'s weight and tracking', () => {
-    const rules = listFiles(SRC, ['.css']).flatMap((f) => parseCssFile(f));
-    expect(declOf(rules, '.wordmark', 'letter-spacing')).toBe(`${TRACKING_EM}em`);
-    expect(declOf(rules, '.wordmark', 'font-weight')).toBe(declOf(rules, '.wordmark-svg__name', 'font-weight'));
-    expect(declOf(rules, '.wordmark-svg__name', 'font-weight')).toBe('var(--font-weight-medium)');
+  it('an unknown size is the header size; a class name joins the lockup\'s', () => {
+    const [logo] = logosIn(renderToStaticMarkup(<Wordmark size="huge" className="x-place" />));
+    expect(logo.size).toBe('header');
+    expect(logo.classes).toEqual(['wordmark', 'wordmark--header', 'x-place']);
   });
 });
 
-describe('the wordmark\'s colours', () => {
-  const rules = listFiles(SRC, ['.css']).flatMap((f) => parseCssFile(f));
-  const dark = rootTokens(rules);
-  const light = new Map(dark);
-  for (const r of rules) {
-    if (!r.media && r.selector.trim() === '[data-theme="light"]') {
-      for (const d of r.decls) if (d.prop.startsWith('--')) light.set(d.prop, d.value);
-    }
-  }
-  const col = (v, toks) => parseColor(resolveVars(String(v), toks));
-
-  it('the word is the primary text, the line and the dot the brand accent', () => {
-    expect(declOf(rules, '.wordmark-svg__name', 'fill')).toBe('var(--color-text-primary)');
-    expect(declOf(rules, '.wordmark-svg__line', 'stroke')).toBe('var(--color-brand-accent)');
-    expect(declOf(rules, '.wordmark-svg__dot', 'fill')).toBe('var(--color-brand-accent)');
-    expect(dark.get('--color-brand-accent')).not.toBe(light.get('--color-brand-accent'));
+describe('the logo\'s CSS', () => {
+  it('the dark file by default, the light file under [data-theme="light"]', () => {
+    expect(declOf(rules, '.wordmark__img', 'display')).toBe('block');
+    expect(declOf(rules, '.wordmark__img--light', 'display')).toBe('none');
+    expect(declOf(rules, '[data-theme="light"] .wordmark__img--dark', 'display')).toBe('none');
+    expect(declOf(rules, '[data-theme="light"] .wordmark__img--light', 'display')).toBe('block');
   });
 
-  it('the accent is >= 3:1 on the weather bar and the header in both themes (contrast_pairs.txt has every surface)', () => {
-    for (const [theme, toks, pre, page] of [['dark', dark, '', '#0f0f1e'], ['light', light, '[data-theme="light"] ', '#F7F6F3']]) {
-      const accent = col('var(--color-brand-accent)', toks);
-      for (const sel of ['.weather-bar', '.app-header']) {
-        const bg = over(col(declOf(rules, `${pre}${sel}`, 'background'), toks), parseColor(page));
-        expect(contrast(accent, bg), `${theme} ${sel}`).toBeGreaterThanOrEqual(3);
-      }
+  it('clear space of half the letter height: the header size\'s margin, the hero file\'s own view box', () => {
+    const margin = declOf(rules, '.wordmark--header', 'margin').split(/\s+/);
+    const side = margin[1] ?? margin[0];
+    expect(side).toMatch(/^[\d.]+px$/);
+    expect(parseFloat(side)).toBeGreaterThanOrEqual(LETTER_PX.header / 2);
+    // the primary file's view box is cut to the drawing: the intro file's
+    // view box leaves at least 50 units (half the letters) around it
+    const [dx, dy, dw, dh] = viewBoxOf(logoPath('header', 'dark'));
+    const [ix, iy, iw, ih] = viewBoxOf(logoPath('hero', 'dark'));
+    for (const room of [dx - ix, dy - iy, ix + iw - (dx + dw), iy + ih - (dy + dh)]) {
+      expect(room).toBeGreaterThanOrEqual(LETTER_UNITS / 2);
     }
   });
 });

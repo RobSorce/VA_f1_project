@@ -234,13 +234,18 @@ must(!(decl('.tower-row__battle-badge', 'animation') || '').includes('battle-pul
 add('tower battle glyph ⚔ (no animation) on the battle row tint', col(decl('.tower-row__battle-badge', 'color')),
   H.over(col(decl('.tower-row--battle', 'background').replace(/\s*!important/, '')), PANEL), 4.5, '.tower-row__battle-badge on .tower-row--battle');
 
-// 13. The drawn wordmark (Wordmark.jsx): the line and the dot in
-//     --color-brand-accent (a mark, 3:1), the word in --color-text-primary
-//     and the start screen's tagline in --color-text-secondary (text, 4.5:1), on
-//     the weather bar, the header and the start screen of each theme. A bar
-//     is its glass over the top of the app background; the start screen is
-//     each stop of its gradient, alone and under the centre of its glow.
-//     The favicon: its line and dot on its square.
+// 13. The logo (Wordmark.jsx): the files of public/brand, their colours read
+//     from the files and named by the intro files' own parts (class l: the
+//     letters, with the masked stroke of the past; k: the kerb; dot: the
+//     orange of now and the forecast; the rest of the forecast group: the
+//     cone). Each mark colour (letters, orange, kerb red) at 3:1, as a
+//     graphic, on the weather bar and the header (the primary file) and on
+//     the start screen (the intro file: each stop of its gradient, alone and
+//     under the centre of its glow), in each theme; a file that paints its
+//     own panel puts its marks on that panel. The cone is decorative: printed,
+//     not gated. The tagline is text, 4.5:1. The session menu and Settings >
+//     About show the primary file too: printed, not gated.
+//     The favicon: its marks on its own tile.
 const lightTokens = new Map(tokens);
 for (const r of rules) {
   if (!r.media && r.selector.trim() === '[data-theme="light"]') {
@@ -253,40 +258,111 @@ const colIn = (v, toks) => {
   return c;
 };
 const gradientColours = (v) => (String(v).match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g) || []);
+const wordmark = read('components/ui/Wordmark.jsx');
 must(/<Wordmark className="weather-bar__wordmark" \/>/.test(read('components/ui/WeatherBar.jsx'))
   && /<Wordmark className="header-wordmark" \/>/.test(read('components/ui/Header.jsx'))
-  && /<h1 className="session-screen__title"><Wordmark size="hero" tagline \/><\/h1>/.test(read('components/ui/SessionSelectorScreen.jsx')),
-'the wordmark is not drawn where this check measures it');
-must(decl('.wordmark-svg__line', 'stroke') === 'var(--color-brand-accent)' && decl('.wordmark-svg__dot', 'fill') === 'var(--color-brand-accent)'
-  && decl('.wordmark-svg__name', 'fill') === 'var(--color-text-primary)'
-  && decl('.wordmark-lockup__tagline', 'color') === 'var(--color-text-secondary)', 'wordmark colours changed');
+  && /<h1 className="session-screen__title"><Wordmark size="hero" tagline \/><\/h1>/.test(read('components/ui/SessionSelectorScreen.jsx'))
+  && /<Wordmark \/>/.test(read('components/ui/SessionMenu.jsx'))
+  && /<Wordmark \/>/.test(read('components/tabs/SettingsTabContent.jsx')),
+'the logo is not shown where this check measures it');
+must(/header: \{ file: 'variante_primary'/.test(wordmark) && /hero: \{ file: 'variante_intro_primary'/.test(wordmark)
+  && /brand\/\$\{LOGO_FILES\[size\]\.file\}_\$\{theme\}\.svg/.test(wordmark), 'Wordmark.jsx no longer shows these files');
+must(decl('.wordmark__img--light', 'display') === 'none' && decl('[data-theme="light"] .wordmark__img--dark', 'display') === 'none'
+  && decl('[data-theme="light"] .wordmark__img--light', 'display') === 'block', 'the theme files are no longer shown one per theme');
+must(decl('.wordmark__tagline', 'color') === 'var(--color-text-secondary)', 'tagline colour changed');
+const BRAND = path.join(ROOT, 'frontend/public/brand');
+const svgText = (f) => fs.readFileSync(path.join(BRAND, f), 'utf8').replace(/<defs>[\s\S]*?<\/defs>/g, '');
+const fillOf = (attrs) => ((attrs.match(/\bfill="(#[0-9a-fA-F]{6})"/) || [])[1] || '').toUpperCase();
+const viewBoxOf = (svg) => (svg.match(/viewBox="([^"]+)"/) || [])[1].trim().split(/\s+/).map(Number);
+/** The panel a file paints under its drawing: a rect over its whole view box. */
+function panelOf(svg) {
+  const vb = viewBoxOf(svg);
+  for (const m of svg.matchAll(/<rect\b([^>]*)>/g)) {
+    const a = (k) => Number((m[1].match(new RegExp(`\\b${k}="([-\\d.]+)"`)) || [])[1]);
+    if (['x', 'y', 'width', 'height'].every((k, i) => Math.abs(a(k) - vb[i]) < 0.01)) return fillOf(m[1]);
+  }
+  return null;
+}
+/** Colour -> role of an intro file, from its parts. */
+function introRoles(svg) {
+  const roles = new Map();
+  const set = (c, role) => {
+    must(c, `a ${role} part without a colour`);
+    must(!roles.has(c) || roles.get(c) === role, `${c} is both ${roles.get(c)} and ${role}`);
+    roles.set(c, role);
+  };
+  for (const m of svg.matchAll(/<path\b([^>]*)>/g)) {
+    const cls = (m[1].match(/\bclass="([^"]*)"/) || [])[1] || '';
+    if (/\bl\b/.test(cls) || /\bmask="url\(#mp\)"/.test(m[1])) set(fillOf(m[1]), 'letters');
+    else if (/\bk\b/.test(cls)) set(fillOf(m[1]), 'kerb red');
+    else if (/\bdot\b/.test(cls)) set(fillOf(m[1]), 'orange');
+  }
+  const forecast = (svg.match(/<g mask="url\(#mf\)">([\s\S]*?)<\/g>/) || [])[1] || '';
+  for (const m of forecast.matchAll(/<path\b([^>]*)>/g)) {
+    const c = fillOf(m[1]);
+    if (roles.get(c) !== 'orange') set(c, 'cone');
+  }
+  must(['letters', 'orange', 'kerb red', 'cone'].every((r) => [...roles.values()].includes(r)), 'a part of the logo not found');
+  return roles;
+}
+const logoInfo = [];
+const ROLE_ORDER = ['letters', 'orange', 'kerb red', 'cone'];
+const logoOf = (file, roles) => {
+  const svg = svgText(file);
+  const panel = panelOf(svg);
+  const colours = new Set([...svg.matchAll(/<(?:path|rect|circle|polygon)\b([^>]*)>/g)].map((m) => fillOf(m[1])).filter(Boolean));
+  if (panel) colours.delete(panel);
+  for (const c of colours) must(roles.has(c), `${file}: ${c} is no colour of the logo`);
+  const marks = [...colours].map((c) => [roles.get(c), c]).sort((a, b) => ROLE_ORDER.indexOf(a[0]) - ROLE_ORDER.indexOf(b[0]));
+  return { file, panel, marks };
+};
+const appBgOf = (theme, pre) => (theme === 'dark' ? gradientColours(decl('.app-container', 'background'))[0] : decl(`${pre}.app-container`, 'background'));
+const logoColours = new Map();
 for (const [theme, toks, pre] of [['dark', tokens, ''], ['light', lightTokens, '[data-theme="light"] ']]) {
-  const accent = colIn('var(--color-brand-accent)', toks);
-  const word = colIn('var(--color-text-primary)', toks);
+  const roles = introRoles(svgText(`variante_intro_primary_${theme}.svg`));
+  const primary = logoOf(`variante_primary_${theme}.svg`, roles);
+  const intro = logoOf(`variante_intro_primary_${theme}.svg`, roles);
+  for (const [role, c] of [...primary.marks, ...intro.marks]) logoColours.set(`${role} (${theme})`, c);
   const tagline = colIn('var(--color-text-secondary)', toks);
-  const appBg = theme === 'dark' ? gradientColours(decl('.app-container', 'background'))[0] : decl(`${pre}.app-container`, 'background');
-  const bars = [
-    ['weather bar', H.over(colIn(decl(`${pre}.weather-bar`, 'background'), toks), colIn(appBg, toks)), `${pre}.weather-bar over ${appBg}`],
-    ['header', H.over(colIn(decl(`${pre}.app-header`, 'background'), toks), colIn(appBg, toks)), `${pre}.app-header over ${appBg}`],
+  const appBg = appBgOf(theme, pre);
+  const app = colIn(appBg, toks);
+  const surfaces = [
+    ['weather bar', primary, H.over(colIn(decl(`${pre}.weather-bar`, 'background'), toks), app), `${pre}.weather-bar over ${appBg}`, true],
+    ['header', primary, H.over(colIn(decl(`${pre}.app-header`, 'background'), toks), app), `${pre}.app-header over ${appBg}`, true],
   ];
   const glow = gradientColours(decl(`${pre}.session-screen__glow`, 'background'))[0];
   for (const stop of gradientColours(decl(`${pre}.session-screen`, 'background'))) {
-    bars.push([`start screen ${stop}`, colIn(stop, toks), `${pre}.session-screen`]);
-    bars.push([`start screen ${stop} under the glow ${glow}`, H.over(colIn(glow, toks), colIn(stop, toks)), `${pre}.session-screen, .session-screen__glow`]);
+    surfaces.push([`start screen ${stop}`, intro, colIn(stop, toks), `${pre}.session-screen`, true]);
+    surfaces.push([`start screen ${stop} under the glow ${glow}`, intro, H.over(colIn(glow, toks), colIn(stop, toks)), `${pre}.session-screen, .session-screen__glow`, true]);
   }
-  for (const [where, bg, src] of bars) {
-    add(`wordmark line and dot (--color-brand-accent, ${theme}) on the ${where}`, accent, bg, 3, src);
-    add(`wordmark word (--color-text-primary, ${theme}) on the ${where}`, word, bg, 4.5, src);
-    if (where.startsWith('start screen')) add(`wordmark tagline (--color-text-secondary, ${theme}) on the ${where}`, tagline, bg, 4.5, src);
+  // the session menu: its glass over the open overlay over the app; Settings
+  // > About: its section over the panel
+  const overlay = decl(`${pre}.session-menu-overlay`, 'background');
+  surfaces.push(['session menu', primary, H.over(colIn(decl(`${pre}.session-menu`, 'background'), toks), H.over(colIn(overlay, toks), app)),
+    `${pre}.session-menu over ${pre}.session-menu-overlay over ${appBg}`, false]);
+  const panel = theme === 'dark' ? PANEL : H.over(colIn('var(--color-bg-panel)', toks), app);
+  surfaces.push(['Settings > About', primary, H.over(colIn(decl('.settings-tab__section', 'background'), toks), panel),
+    `.settings-tab__section over the ${theme === 'dark' ? 'panel' : '--color-bg-panel over the app'}`, false]);
+  for (const [where, logo, surface, src, gated] of surfaces) {
+    const bg = logo.panel ? col(logo.panel) : surface;
+    const on = logo.panel ? `${where}, on the file's own ${logo.panel} panel` : where;
+    for (const [role, c] of logo.marks) {
+      const what = `logo ${role} ${c} (${logo.file}) on the ${on}`;
+      if (gated && role !== 'cone') add(what, col(c), bg, 3, `${src}; public/brand/${logo.file}`);
+      else logoInfo.push(`${what}: ${H.contrast(col(c), bg).toFixed(2)}:1 [${src}]`);
+    }
+    if (logo.panel) logoInfo.push(`${logo.file} paints a ${logo.panel} panel over its whole view box: ${H.contrast(col(logo.panel), surface).toFixed(2)}:1 against the ${where} [${src}]`);
+    if (where.startsWith('start screen')) add(`tagline (--color-text-secondary, ${theme}) on the ${where}`, tagline, surface, 4.5, src);
   }
 }
-const favicon = fs.readFileSync(path.join(ROOT, 'frontend/public/fonts/favicon.svg'), 'utf8');
-const favSquare = (favicon.match(/<rect[^>]*fill="(#[0-9a-fA-F]{6})"/) || [])[1];
-const favMarks = [...favicon.matchAll(/(?:stroke|fill)="(#[0-9a-fA-F]{6})"/g)].map((m) => m[1]).filter((c) => c !== favSquare);
-must(favSquare && favMarks.length > 0, 'favicon colours not found');
-for (const c of new Set(favMarks)) add(`favicon mark ${c} on its square`, col(c), col(favSquare), 3, 'public/fonts/favicon.svg');
-// The accent is no data colour: its nearest data colours (CIEDE2000), for
-// the record (not gated: the wordmark is drawn away from every chart)
+const favicon = fs.readFileSync(path.join(ROOT, 'frontend/public/favicon.svg'), 'utf8');
+const favTile = (favicon.match(/<rect[^>]*fill="(#[0-9a-fA-F]{6})"/) || [])[1];
+const favMarks = [...favicon.matchAll(/(?:stroke|fill)="(#[0-9a-fA-F]{6})"/g)].map((m) => m[1]).filter((c) => c !== favTile);
+must(favTile && favMarks.length > 0, 'favicon colours not found');
+for (const c of new Set(favMarks)) add(`favicon mark ${c} on its own tile ${favTile}`, col(c), col(favTile), 3, 'public/favicon.svg');
+// The logo's two hues are no data colours: their nearest data colours
+// (CIEDE2000), for the record (not gated: the logo is drawn away from every
+// chart and legend; its letters are the neutral white or navy)
 const DATA_COLOURS = {
   ...Object.fromEntries(Object.entries(C.TYRE_COLORS).filter(([k]) => k !== 'UNKNOWN').map(([k, v]) => [`TYRE_COLORS.${k}`, v])),
   ...Object.fromEntries(Object.entries(C.FLAG_COLORS).map(([k, v]) => [`FLAG_COLORS.${k}`, v])),
@@ -299,13 +375,14 @@ const DATA_COLOURS = {
   'UI_COLORS.brush': C.UI_COLORS.brush, 'UI_COLORS.pitWindow': C.UI_COLORS.pitWindow,
 };
 const brandInfo = [];
-{
-  const accent = hex(col('var(--color-brand-accent)'));
+for (const role of ['orange', 'kerb red']) {
+  const c = logoColours.get(`${role} (dark)`);
+  must(c && c === logoColours.get(`${role} (light)`), `the logo ${role} differs between the themes`);
   for (const t of ['normal', 'protanopia', 'deuteranopia', 'tritanopia']) {
-    const sim = (c) => (t === 'normal' ? c : C.simulateCvd(c, t));
-    const near = Object.entries(DATA_COLOURS).map(([k, v]) => [k, v, C.deltaE2000(sim(accent), sim(v))])
+    const sim = (x) => (t === 'normal' ? x : C.simulateCvd(x, t));
+    const near = Object.entries(DATA_COLOURS).map(([k, v]) => [k, v, C.deltaE2000(sim(c), sim(v))])
       .sort((a, b) => a[2] - b[2]).slice(0, 3);
-    brandInfo.push(`--color-brand-accent ${accent}, ${t}: nearest data colours ${near.map(([k, v, d]) => `${k} ${v} ${d.toFixed(1)}`).join(', ')}`);
+    brandInfo.push(`logo ${role} ${c}, ${t}: nearest data colours ${near.map(([k, v, d]) => `${k} ${v} ${d.toFixed(1)}`).join(', ')}`);
   }
 }
 
@@ -327,6 +404,7 @@ for (const r of rows) {
   console.log(`${r.ok ? 'OK  ' : 'FAIL'} ${r.r.toFixed(2)}:1 (needs ${r.need})  ${r.name}  fg ${r.fg} on ${r.bg}  [${r.src}]`);
 }
 for (const line of info) console.log(`INFO (before the repair, not gated) ${line}`);
-for (const line of brandInfo) console.log(`INFO (brand accent, CIEDE2000, not gated) ${line}`);
+for (const line of logoInfo) console.log(`INFO (logo, not gated) ${line}`);
+for (const line of brandInfo) console.log(`INFO (logo colours, CIEDE2000, not gated) ${line}`);
 console.log(`\n${fails.length} of ${rows.length} pairs under their threshold`);
 process.exitCode = fails.length ? 1 : 0;

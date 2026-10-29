@@ -66,7 +66,7 @@ How to run the scripts:
 | File | Written by | Cited by (the file or its script) |
 |---|---|---|
 | `cvd_check.txt` | `frontend/scripts/cvd_check.mjs` | `docs/COLOR_ENCODING.md`, `frontend/src/utils/colors.js`, `frontend/src/utils/views/deltaHatch.js`, `frontend/src/utils/views/racePaceGrid.js`; the Track Map help names the script |
-| `contrast_pairs.txt` | `frontend/scripts/audit/contrast_pairs.mjs` | `docs/COLOR_ENCODING.md`, `docs/MASTER_LEDGER.md`, `frontend/src/utils/colors.js`, `frontend/src/components/visualizations/RacePaceGrid.jsx`, `frontend/src/styles/tokens.css`, `frontend/src/styles/components.css`, `frontend/src/styles/visualizations.css`, `frontend/src/__tests__/wordmark.test.jsx` |
+| `contrast_pairs.txt` | `frontend/scripts/audit/contrast_pairs.mjs` | `docs/COLOR_ENCODING.md`, `docs/MASTER_LEDGER.md`, `frontend/src/utils/colors.js`, `frontend/src/components/visualizations/RacePaceGrid.jsx`, `frontend/src/styles/tokens.css`, `frontend/src/styles/components.css`, `frontend/src/styles/visualizations.css` |
 | `token_contrast.txt` | `frontend/scripts/audit/token_contrast.mjs` | `frontend/src/styles/tokens.css` |
 | `chrome_contrast.txt` | `frontend/scripts/audit/chrome_contrast.mjs` | `frontend/src/__tests__/layout.contrast.test.js` |
 | `light_contrast.txt` | `frontend/scripts/audit/light_contrast.mjs` | `frontend/src/styles/visualizations.css`, `frontend/src/styles/tokens.css` |
@@ -149,3 +149,12 @@ The name is drawn as a wordmark (`frontend/src/components/ui/Wordmark.jsx`, `fro
 - `font_floor.mjs` resolves the SVG text size of the wordmark (drawn at 1 em of its place, whose CSS size the CSS pass checks) and counts `Wordmark.jsx` in the layout lane; `font_floor.txt` was rewritten.
 - `chrome_contrast.txt` (one chrome text colour less: the start screen's subtitle is now the wordmark's tagline, in `components.css`; every verdict the same), `overflow_inventory.txt` (new `dashboard.css` and `components.css` line numbers) and `color_doc_hex.txt` (the accent in `docs/COLOR_ENCODING.md`) were rewritten.
 - The other audits of `frontend/scripts/audit/` print the same and their files were kept, `layout_fit.txt` included (the weather bar's height is a token; the wordmark does not change it). `view_catalogue.txt` differs from a run on this code by two views added before this change (Field Pace, Race Trace); it was kept.
+
+## Logo (2026-10-29)
+
+The drawn wordmark gave way to the logo files of `frontend/public/brand`, shown by `frontend/src/components/ui/Wordmark.jsx` in the weather bar, the header, the start screen, the session menu and Settings > About; `frontend/src/utils/wordmark.js` and the `--color-brand-accent` token are gone, and the favicon is the set at the root of `frontend/public` (`favicon.svg`, `favicon.ico`, the PNGs).
+
+- `contrast_pairs.mjs` section 13 reads the logo's colours from the brand files and names them by the intro files' parts: the letters, the orange and the kerb red at 3:1 on the weather bar and the header (the primary file) and on every stop of the start screen, alone and under its glow (the intro file; the light one paints its own white panel, so its marks are measured on it), in both themes; the tagline at 4.5:1; the favicon's marks on its own tile. Printed, not gated: the cone, the session menu and Settings > About, the light intro file's panel against the start screen, and the data colours nearest to the orange and the kerb red (CIEDE2000, the four vision types). `contrast_pairs.txt` was rewritten: 125 pairs, 0 under their threshold.
+- `font_floor.mjs` no longer resolves the wordmark's SVG text size (the logo is an image); `font_floor.txt` was rewritten.
+- `chrome_contrast.txt` and `overflow_inventory.txt` (new `dashboard.css` and `components.css` line numbers; every verdict the same) and `color_doc_hex.txt` (the logo paragraph of `docs/COLOR_ENCODING.md`) were rewritten.
+- The other audits of `frontend/scripts/audit/` print the same and their files were kept, `layout_fit.txt` included (the bars' heights are tokens; the logo does not change them). `view_catalogue.txt` still differs from a run on this code by the views added before the wordmark (Field Pace, Race Trace) and the Circle of Doom's gap list; it was kept.

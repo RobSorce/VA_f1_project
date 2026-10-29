@@ -645,7 +645,7 @@ Defined in `hooks/useKeyboardShortcuts.js` and mirrored in `ShortcutCheatsheet/S
 
 | Family | Role | Usage |
 |---|---|---|
-| **Inter** 4.1 (400, 500, 600, 700, 800, 900) — `fonts/inter/` | Text and titles | The wordmark, titles, leaderboard, timing tower, tab headers, panel text, settings, the command palette (`--rh-font-sans`). |
+| **Inter** 4.1 (400, 500, 600, 700, 800, 900) — `fonts/inter/` | Text and titles | Titles, leaderboard, timing tower, tab headers, panel text, settings, the command palette (`--rh-font-sans`). |
 | **JetBrains Mono** 2.304 (400, 500, 600, 700; fallback: Fira Code, SF Mono, Cascadia Code) — `fonts/jetbrains-mono/` | Monospace | Numeric values, lap times, tyre life, telemetry tooltips, keyboard kbd chips, the command palette's keys, the status marks of the timing tower. |
 
 Numbers that change during the replay are drawn with tabular figures (`font-variant-numeric: tabular-nums`; JetBrains Mono's are tabular by design).
@@ -742,7 +742,7 @@ Timeline player band tints: SC, VSC and red flag 0.14 · yellow flag 0.08 (`Time
 ### 15.5 Accent
 - F1 red: `#e10600` (brand), `#b80500` (dark).
 - Robinhood-Legend palette accent (command palette): `#D5FD51`.
-- Brand accent (`--color-brand-accent`): the same lime `#D5FD51`, for the line and the dot of the drawn wordmark (`components/ui/Wordmark.jsx`) and the favicon; a dark lime of the same hue in the light theme. No data encoding uses it (`docs/COLOR_ENCODING.md` §7).
+- Logo (`components/ui/Wordmark.jsx`, the files of `frontend/public/brand`) and favicon (`frontend/public/favicon.svg`, `.ico`, PNGs): their own colours (navy or white letters, forecast orange, its cone, kerb red), read from the files and used nowhere else; no data encoding uses them (`docs/COLOR_ENCODING.md` §7).
 
 ### 15.6 Country flags
 3-letter IOC/FIFA codes (FastF1 format) → ISO-3166-1 alpha-2 → flag emoji via `String.fromCodePoint(0x1F1E6 + offset)`. Table covers 35 countries.

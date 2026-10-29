@@ -61,10 +61,6 @@
   flex: 0 0 auto;
 }
 
-.header-wordmark {
-  font-size: var(--font-size-lg);
-}
-
 .session-selector {
   display: flex;
   align-items: center;
@@ -1500,12 +1496,11 @@
   gap: 8px;
 }
 
-/* The h1 of the start screen holds the hero wordmark (Wordmark.jsx) and its
-   tagline: a flex box, so no line box adds height around the SVG */
+/* The h1 of the start screen holds the hero logo (Wordmark.jsx) and its
+   tagline: a flex box, so no line box adds height around the image */
 .session-screen__title {
   display: flex;
   justify-content: center;
-  font-size: var(--font-size-4xl);
   margin: 0;
 }
 
@@ -1724,11 +1719,6 @@
 .weather-bar__menu-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--color-text-primary);
-}
-
-.weather-bar__wordmark {
-  font-size: var(--font-size-base);
-  flex-shrink: 0;
 }
 
 .weather-bar__event {
@@ -5145,9 +5135,16 @@
   margin-bottom: 12px;
 }
 
+/* The logo (Wordmark.jsx) over the tagline: 8 px of clear space above and
+   under it; on the left, the section's padding (14 px) is its clear space,
+   so it lines up with the tagline */
 .settings-tab__about-title {
-  font-size: 18px;
-  margin: 0;
+  display: flex;
+  margin: 4px 0 8px;
+}
+
+.settings-tab__about-title .wordmark {
+  margin-left: 0;
 }
 
 .settings-tab__about-subtitle {

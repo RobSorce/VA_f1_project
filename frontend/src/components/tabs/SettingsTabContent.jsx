@@ -3,7 +3,8 @@ import { useF1Store } from '../../store/useF1Store';
 import { yearOptions } from '../../utils/seasons';
 import { SLOT_OPTIONS, CATEGORY_ORDER, CATEGORY_LABELS } from '../../utils/slotOptions';
 import { CHART_HELP_LIST } from '../../utils/chartHelp';
-import { APP_NAME, APP_TAGLINE, TRADEMARK_NOTICE } from '../../utils/brand';
+import { APP_TAGLINE, TRADEMARK_NOTICE } from '../../utils/brand';
+import Wordmark from '../ui/Wordmark';
 import { PLAYBACK_SPEEDS } from '../../utils/playbackSpeed';
 
 const SESSION_TYPES = [
@@ -356,7 +357,7 @@ export default function SettingsTabContent() {
           <div className="settings-tab__section-body">
             <div className="settings-tab__about-header">
               <div>
-                <h2 className="wordmark settings-tab__about-title">{APP_NAME}</h2>
+                <h2 className="settings-tab__about-title"><Wordmark /></h2>
                 <p className="settings-tab__about-subtitle">{APP_TAGLINE}</p>
               </div>
             </div>

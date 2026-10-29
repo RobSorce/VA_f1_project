@@ -1,6 +1,11 @@
-# VARIANTE
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/variante_primary_dark.svg" />
+    <img src="frontend/public/brand/variante_primary_light.svg" alt="VARIANTE" width="320" />
+  </picture>
+</h1>
 
-Race strategy intelligence.
+Visual Analytics Racing Intelligence.
 
 Interactive visual analytics platform for Formula 1 race strategy analysis.
 

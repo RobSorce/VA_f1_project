@@ -4,7 +4,7 @@ import * as api from '../../utils/apiClient';
 import { yearOptions } from '../../utils/seasons';
 import { sessionSwitchMessage } from '../../utils/sessionSwitchWarning';
 import { useBackendOnlyText } from '../../utils/demoMode';
-import { APP_NAME } from '../../utils/brand';
+import Wordmark from './Wordmark';
 import { useEscapeLayer } from '../../hooks/useEscapeLayer';
 
 const SESSION_TYPES = [
@@ -204,7 +204,7 @@ export default function SessionMenu({ isOpen, onClose }) {
         <div className="session-menu__header">
           <div className="session-menu__title">
             <span className="session-menu__title-accent" />
-            <span className="wordmark session-menu__title-text">{APP_NAME}</span>
+            <Wordmark />
           </div>
           <button
             className="session-menu__close-btn"

@@ -131,13 +131,6 @@
   --color-accent-warning: #ffd700;
   --color-accent-danger: var(--flag-red);
   --color-accent-info: #4cc9f0;
-  /* Brand accent: the line and the dot of the drawn wordmark (Wordmark.jsx)
-     and of the favicon. The lime of the command UI (--rh-accent), which no
-     data encoding uses (the F1 red above is the soft tyre's, the red flag's
-     and Ferrari's hue; CIEDE2000 >= 11.1 from every data colour); >= 14.5:1
-     on the weather bar, the header and the start screen
-     (docs/evidence/contrast_pairs.txt, docs/COLOR_ENCODING.md section 7) */
-  --color-brand-accent: #D5FD51;
 
   /* F1 Team Colors - 2024 Official */
   --team-redbull: #3671C6;
@@ -385,10 +378,6 @@
   /* F1 red for text on the light surfaces (6.35:1 on #F7F6F3, 5.91:1 on
      #EFEEE9; docs/evidence/token_contrast.txt) */
   --color-f1-red-text: #B80500;
-  /* Brand accent on the light surfaces: a dark lime of the same hue, 4.95:1
-     on the weather bar, >= 3.5:1 on every stop of the start screen under its
-     glow (docs/evidence/contrast_pairs.txt) */
-  --color-brand-accent: #5A7A00;
 
   /* Borders — visible but refined */
   --color-border: rgba(0, 0, 0, 0.12);
