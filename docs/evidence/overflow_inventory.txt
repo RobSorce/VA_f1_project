@@ -19,7 +19,7 @@ JUSTIFIED   frontend/src/styles/dashboard.css:4909  `dashboard.css .settings-tab
 JUSTIFIED   frontend/src/styles/dashboard.css:6977  `dashboard.css .timing-sheet__body`  overflow-y: auto !important  -> row "Lap Times timing sheet"
 JUSTIFIED   frontend/src/styles/dashboard.css:7141  `dashboard.css .layout-builder`  overflow-y: auto  -> row "Layout builder"
 JUSTIFIED   frontend/src/styles/dashboard.css:7281  `dashboard.css .layout-dock-popover`  overflow-y: auto  -> row "Dock layouts popover"
-JUSTIFIED   frontend/src/components/visualizations/LapTimeChart.jsx:375  `LapTimeChart.jsx:LapTimeChart#1`  overflowY: 'auto'  -> row "Lap Times timing sheet"
+JUSTIFIED   frontend/src/components/visualizations/LapTimeChart.jsx:376  `LapTimeChart.jsx:LapTimeChart#1`  overflowY: 'auto'  -> row "Lap Times timing sheet"
 JUSTIFIED   frontend/src/components/visualizations/TimingTower.jsx:94  `TimingTower.jsx:bodyStyle#1`  overflowY: 'auto'  -> row "Timing Tower rows (Pit Wall)"
 
 Total 20 scroll areas (18 CSS, 2 inline/D3); justified 20; unjustified 0; stale rows 0

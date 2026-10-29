@@ -27,7 +27,7 @@ const { act } = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { useF1Store } = await import('../store/useF1Store.js');
 const { default: LapTimeChart } = await import('../components/visualizations/LapTimeChart.jsx');
-const { UI_COLORS } = await import('../utils/colors.js');
+const { UI_COLORS, TEXT_COLORS } = await import('../utils/colors.js');
 
 const INITIAL = useF1Store.getState();
 const LAPS = 20;
@@ -114,6 +114,45 @@ describe('the Timing Sheet lap-range bar and brushLapRange', () => {
     expect(s.brushLapRange).toBeNull();
     expect(s.selectedLapRange).toBeNull();
     expect(selection()).toBeNull();
+  });
+});
+
+// The bar says how it is used: the col-resize cursor over it (the body's
+// only while a drag runs) and the hint beside its title
+describe('the lap-range bar: cursor and hint', () => {
+  const hint = () => host.querySelector('.lap-range-brush__hint');
+
+  it('the bar has the col-resize cursor; a drag sets it on the body until the mouse is up', async () => {
+    const el = bar();
+    expect(el.style.cursor).toBe('col-resize');
+    dom.setRect(el, { left: 10, top: 400, width: 380, height: 16 });
+    await act(async () => {
+      dom.mouse(el, 'mousedown', { clientX: 10 + xOf(4, 380), clientY: 408, button: 0 });
+    });
+    expect(dom.document.body.style.cursor).toBe('col-resize');
+    await act(async () => {
+      dom.mouse(dom.window, 'mousemove', { clientX: 10 + xOf(9, 380), clientY: 408 });
+      dom.mouse(dom.window, 'mouseup', { clientX: 10 + xOf(9, 380), clientY: 408 });
+    });
+    expect(dom.document.body.style.cursor).toBe('');
+    expect(useF1Store.getState().brushLapRange).toEqual([4, 9]);
+    expect(bar().style.cursor).toBe('col-resize');
+  });
+
+  it('the hint: the range and how to clear it once set; how to drag with no range', async () => {
+    expect(hint().textContent).toBe('laps 4–9 selected · click the plot to clear');
+    await act(async () => { useF1Store.getState().setBrushLapRange(null); });
+    expect(hint().textContent).toBe('Drag across laps to select a range');
+    // the label type and the muted colour; an ellipsis and the full text in
+    // its title where the row is too narrow (never cut silently)
+    expect(hint().style.fontSize).toMatch(/font-size-label/);
+    expect(hint().style.color).toBe(TEXT_COLORS.muted);
+    expect(hint().style.textOverflow).toBe('ellipsis');
+    expect(hint().style.whiteSpace).toBe('nowrap');
+    expect(hint().getAttribute('title')).toBe(hint().textContent);
+    await act(async () => { useF1Store.getState().setBrushLapRange([2, 15]); });
+    expect(hint().textContent).toBe('laps 2–15 selected · click the plot to clear');
+    await act(async () => { useF1Store.getState().setBrushLapRange(null); });
   });
 });
 

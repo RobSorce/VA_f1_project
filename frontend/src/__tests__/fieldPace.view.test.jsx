@@ -29,7 +29,7 @@ const { createRoot } = await import('react-dom/client');
 const { useF1Store } = await import('../store/useF1Store.js');
 const { computeSessionTimeOffset } = await import('../utils/raceTime.js');
 const { causalKey } = await import('../utils/strategyViews.js');
-const { setSessionDriverColors } = await import('../utils/colors.js');
+const { setSessionDriverColors, TEXT_COLORS } = await import('../utils/colors.js');
 const { fieldPace, gapLine } = await import('../utils/fieldPace.js');
 const {
   FIELD_PACE_MIN, FIELD_PACE_ROW_PX, paceRowsFit, paceAnswerOnly, markLabelLayout, paceAxisH,
@@ -161,6 +161,44 @@ describe('rows and marks', () => {
     expect(rowsOf(host).map((r) => r.querySelector('.fp-gap')?.textContent ?? '')).toEqual(pace.teams.map((t) => gapLine(t.gap)));
     await fire(chip, 'click');
     expect(useF1Store.getState().brushLapRange).toBe(null);
+  });
+});
+
+describe('where the lap range comes from', () => {
+  const note = (host) => host.querySelector('.fp-range-note');
+
+  it('no range: a muted note in the chip\'s place says every lap counts and where a range is dragged', async () => {
+    state();
+    const { host } = await mount({ width: 640, height: 260 });
+    expect(host.querySelector('.fp-range')).toBeFalsy();
+    expect(note(host).textContent).toBe('All laps · drag on Race Trace or Lap Times to pick a range');
+    // one line, in the label type and the muted colour, in the header controls
+    expect(note(host).style.whiteSpace).toBe('nowrap');
+    expect(note(host).style.fontSize).toMatch(/font-size-label/);
+    expect(note(host).style.color).toBe(TEXT_COLORS.muted);
+    expect(note(host).parentNode.className).toBe('panel-controls');
+  });
+
+  it('a range: the chip as before, no note; cleared: the note again', async () => {
+    state(MONZA, { brushLapRange: [20, 35], selectedLapRange: [20, 35] });
+    const { host } = await mount({ width: 640, height: 260 });
+    expect(note(host)).toBeFalsy();
+    const chip = host.querySelector('.fp-range');
+    expect(chip.textContent).toBe('laps 20–35 ×');
+    expect(chip.parentNode.className).toBe('panel-controls');
+    await fire(chip, 'click');
+    expect(host.querySelector('.fp-range')).toBeFalsy();
+    expect(note(host).textContent).toBe('All laps · drag on Race Trace or Lap Times to pick a range');
+  });
+
+  it('the answer line alone, or a session that is not a race: no note (no controls)', async () => {
+    state();
+    let { host } = await mount({ width: 500, height: 260 });
+    expect(note(host)).toBeFalsy();
+    await view.unmount();
+    state(MONZA, { loadedSessionType: 'Q', sessionType: 'R' });
+    ({ host } = await mount({ width: 640, height: 260 }));
+    expect(note(host)).toBeFalsy();
   });
 });
 

@@ -32,6 +32,9 @@ const { useF1Store } = await import('../store/useF1Store.js');
 const { computeSessionTimeOffset } = await import('../utils/raceTime.js');
 const { setSessionDriverColors, FONT_FLOOR_PX } = await import('../utils/colors.js');
 const { default: FieldPace } = await import('../components/visualizations/FieldPace.jsx');
+const { FIELD_PACE_MIN } = await import('../utils/views/fieldPaceChart.js');
+const { LAP_RANGE_ALL_LAPS } = await import('../utils/views/lapRangeHint.js');
+const { loadCss, px } = await import('./helpers/layoutModel.js');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, '..');
@@ -109,6 +112,33 @@ describe.skipIf(!INTER)('driver labels in their row', () => {
         }
       }
       expect(labels).toBeGreaterThan(40);
+    });
+  }
+});
+
+// The header of the narrowest Race Pace that has controls (FIELD_PACE_MIN
+// wide: under it the answer line alone, no controls) holds the title, the
+// note "All laps · …" in the chip's place, the pager and the export button on
+// one line, measured in Inter at the target viewports: the note never wraps
+// (no added height) and never pushes the header past the panel.
+describe.skipIf(!INTER)('the header: the lap-range note on one line', () => {
+  const css = loadCss(SRC);
+  for (const vp of [{ W: 1536, H: 750 }, { W: 1536, H: 864 }, { W: 2048, H: 1152 }]) {
+    it(`${vp.W} x ${vp.H}: title, note, pager and export inside a ${FIELD_PACE_MIN.width} px view`, () => {
+      const at = (expr) => px(css, expr, vp);
+      const label = Math.max(FONT_FLOOR_PX.label, at('var(--font-size-label)'));
+      // .panel-header: padding --spacing-sm --spacing-md; the dense content: --spacing-sm
+      const inner = FIELD_PACE_MIN.width + 2 * at('var(--spacing-sm)') - 2 * at('var(--spacing-md)');
+      // .panel-title: --font-size-sm, bold, uppercase, 0.05 em
+      const title = INTER.width('Race Pace', at('var(--font-size-sm)'), 700, { letterSpacingEm: 0.05, upper: true });
+      // .pos-chart-toggle: 3 px 7 px padding, 1 px border, the label size bold, 0.06 em
+      const toggle = (g) => 2 * 7 + 2 + INTER.width(g, label, 700, { letterSpacingEm: 0.06, upper: true });
+      const pager = toggle('◀') + INTER.width('1/2', label, 400) + toggle('▶');
+      // .panel-controls: 6 px between the note, the three pager items and the 22 px export button
+      for (const text of [LAP_RANGE_ALL_LAPS, 'laps 20–35 ×']) {
+        const need = title + INTER.width(text, label, text === LAP_RANGE_ALL_LAPS ? 400 : 700) + pager + 22 + 4 * 6;
+        expect(need, `${text}: ${need.toFixed(1)} px of ${inner.toFixed(1)}`).toBeLessThanOrEqual(inner);
+      }
     });
   }
 });

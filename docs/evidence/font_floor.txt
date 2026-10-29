@@ -7,7 +7,7 @@ Root font-size (base.css html): 1536x750 14.08px, 1366x768 13.23px, 1920x1080 16
 
 CSS: 374 font-size declarations; FAIL 0; UNEVALUATED 0; INHERIT 0; INACTIVE 0
 
-JS/JSX literal font sizes: 518; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN 437
+JS/JSX literal font sizes: 521; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN 440
   components/visualizations/CircleOfDoom.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 6
      DYNAMIC  :1469  fs0
      DYNAMIC  :1500  fs0
@@ -16,9 +16,9 @@ JS/JSX literal font sizes: 518; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN
      DYNAMIC  :2254  fs
      DYNAMIC  :2274  l.size
   components/visualizations/LapTimeChart.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 3
-     DYNAMIC  :278  rowFontSize
-     DYNAMIC  :438  rowLapFontSize
-     DYNAMIC  :532  rowLapFontSize
+     DYNAMIC  :279  rowFontSize
+     DYNAMIC  :439  rowLapFontSize
+     DYNAMIC  :533  rowLapFontSize
   components/visualizations/TimingTower.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 11
      DYNAMIC  :79  TOWER_FONT
      DYNAMIC  :174  TOWER_FONT

@@ -13,9 +13,10 @@
  * median. On the right the team-mate gap with its interval: "decisive" only
  * when the interval, as printed, excludes 0.
  *
- * Reads the brushed lap range (a chip "laps 20–35 ×" clears it), causal at
- * the dashboard's clock. Race and sprint sessions only (the loaded session's
- * type, utils/strategyViews.js viewSessionType). 21 px rows, up to 10 a page,
+ * Reads the brushed lap range (a chip "laps 20–35 ×" clears it; without
+ * one, a muted note in its place says every lap counts and where a range is
+ * dragged), causal at the dashboard's clock. Race and sprint sessions only
+ * (the loaded session's type, utils/strategyViews.js viewSessionType). 21 px rows, up to 10 a page,
  * a pager in the header for the rest (utils/views/fieldPaceChart.js
  * FIELD_PACE_MIN: 222 px hold ten rows at every viewport); under 560 px of
  * width the answer line only. Nothing scrolls.
@@ -34,6 +35,7 @@ import {
   FIELD_PACE_ROW_PX, paceRowsFit, pacePage, paceDomain, markShape, diamondPath, paceAnswer,
   markLabelLayout, paceAnswerOnly, paceAxisH,
 } from '../../utils/views/fieldPaceChart';
+import { LAP_RANGE_ALL_LAPS } from '../../utils/views/lapRangeHint';
 import Panel from '../ui/Panel';
 import { useChartBox } from '../../utils/views/chartBox';
 
@@ -263,10 +265,14 @@ export default function FieldPace() {
 
   const controls = answerOnly || !race ? null : (
     <>
-      {brushLapRange && (
+      {brushLapRange ? (
         <button type="button" className="pos-chart-clear-brush fp-range" onClick={() => setBrushLapRange(null)} title="Clear the lap range (every view)">
           laps {brushLapRange[0]}–{brushLapRange[1]} ×
         </button>
+      ) : (
+        <span className="fp-range-note" style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, whiteSpace: 'nowrap' }}>
+          {LAP_RANGE_ALL_LAPS}
+        </span>
       )}
       {fit.paged && (
         <>

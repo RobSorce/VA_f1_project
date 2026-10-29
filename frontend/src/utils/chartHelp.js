@@ -48,6 +48,7 @@ import {
   RED_RESTART_LAPS,
 } from './fieldPace';
 import { FIELD_PACE_MIN, FIELD_PACE_ROW_PX, FIELD_PACE_MAX_ROWS } from './views/fieldPaceChart';
+import { LAP_RANGE_DRAG_HINT, LAP_RANGE_ALL_LAPS } from './views/lapRangeHint';
 
 const PIT_LOSS_METHOD = 'Pit loss is measured from this race\'s green-flag stops: '
   + 'in-lap + out-lap minus twice the driver\'s green-flag median lap; the median over stops is used.';
@@ -125,7 +126,7 @@ export const CHART_HELP = {
     howToRead: [
       'One row per driver in running order: the three sector times and the lap time of the driver\'s latest lap (during a replay the lap in progress, its sectors filled in as they are completed), the gap to the fastest lap, the tyre and its laps.',
       `Purple with ${STATUS_GLYPHS.overallBest} = session best, green with ${STATUS_GLYPHS.personalBest} = personal best (F1 timing convention; the glyph repeats the colour). The legend above the sheet lists every colour with its glyph.`,
-      'Lap-range bar under the sheet: drag to pick a lap range, click to clear it. It is the same brushed range as the Position Tracker\'s, so a range set in either view is drawn in both: the sheet then shows each driver\'s latest lap inside the range and the title names it, the Tyre Degradation panel fits it for the focus driver (else the first selected one) and the Strategy Timeline shades it.',
+      `Lap-range bar under the sheet: drag across the laps on it to select a range (the cursor there is the column-resize arrow, and the line above the bar reads "${LAP_RANGE_DRAG_HINT}"); click the bar or its chip to clear it. It is the same brushed range as the Position Tracker's, so a range set in either view is drawn in both; a drag on the Race Trace sets it too. With a range the sheet shows each driver's latest lap inside it and the title names it; the range is shared by Race Pace (only its laps count), Tyre Degradation (fitted for the focus driver, else the first selected one) and the Strategy Timeline (a shaded band).`,
       'Click a row to select the driver; hover a row to highlight the driver in the other views.',
       `Double-click a driver's row: that driver becomes the focus and gets the forecast of the next ${FORECAST_LAPS} laps (amber rows at their target laps, named by the method that made it; see Race Prediction).`,
     ],
@@ -671,8 +672,9 @@ export const CHART_HELP = {
       'The bracket at the right margin hangs one pit loss below the focus car\'s gap (the leader\'s without a focus): the cars inside it are within one stop, they would be ahead if that car pitted now.',
       PIT_LOSS_METHOD,
       PIT_LOSS_FALLBACK,
-      'Hover a line to highlight the driver, click to select it, double-click to focus it; drag along the laps to set the lap range of every view; click an SC band for its laps; in a replay, click a stop chip to rewind to the lap before the in-lap (the decision).',
-      `From ${RACE_TRACE_FIT.full.width} x ${RACE_TRACE_FIT.full.height} px the end labels and the full legend; smaller, the labels on hover only and the legend's short labels (every row kept); under ${RACE_TRACE_FIT.answer.width} x ${RACE_TRACE_FIT.answer.height} px the answer line only (the focus car's gap, lap and place). The provenance line under the chart names the source, the lap, the reference and its car count.`,
+      `Lap range: drag across the laps on the plot to select a range (the cursor there is the column-resize arrow, and the title line reads "${LAP_RANGE_DRAG_HINT}"), or click an SC / VSC / red band for its laps; click the plot's background to clear it (the title line then reads "laps a–b selected · click the plot to clear"). It is the one lap range of every view: shared by Race Pace (only its laps count), Tyre Degradation (fitted for the focus driver, else the first selected one) and the Strategy Timeline (a shaded band), and drawn on the Lap Times bar.`,
+      'Hover a line to highlight the driver, click to select it, double-click to focus it; in a replay, click a stop chip to rewind to the lap before the in-lap (the decision).',
+      `From ${RACE_TRACE_FIT.full.width} x ${RACE_TRACE_FIT.full.height} px the end labels and the full legend; smaller, the labels on hover only and the legend's short labels (every row kept); under ${RACE_TRACE_FIT.answer.width} x ${RACE_TRACE_FIT.answer.height} px the answer line only (the focus car's gap, lap and place). The lap-range hint of the title line is left out where it does not fit whole. The provenance line under the chart names the source, the lap, the reference and its car count.`,
     ],
     limitations: [
       `A wet race (more than ${Math.round(WET_ROW_SHARE * 100)} % of the laps on intermediates or wets): the field reference is unreliable while the field changes tyres together; the provenance line says so.`,
@@ -696,7 +698,8 @@ export const CHART_HELP = {
       `Two marks a row in the team colour: a circle for the first driver, a diamond for the second (the shape tells team-mates apart), each at the driver's median with its ${Math.round(PACE_INTERVAL * 100)} % interval, the driver code and the laps counted (n). Hollow with LOW DATA under ${PACE_LOW_DATA_LAPS} laps. A label shortens where its row has no room (LOW DATA, then the lap count, dropped), so it never covers the team name or the gap. Rows sorted by the team median (both drivers' laps).`,
       `The interval: a moving-block bootstrap, blocks of ${PACE_BLOCK_LAPS} consecutive laps of the driver, ${NUMBER(PACE_BOOTSTRAP_RUNS)} resamples with a fixed seed (the same laps always give the same interval). A car's laps are correlated (tyre age, traffic), so resampling single laps would give intervals too narrow.`,
       `Right: the team-mate gap, the faster driver's median minus the slower's, with its interval: "decisive" only when the interval, as printed (two decimals), excludes 0, "not decisive" otherwise, "low data" when a driver has under ${PACE_LOW_DATA_LAPS} laps.`,
-      'The lap range (dragged on the Race Trace, the Position Tracker or the Lap Times bar) keeps its laps only; the chip "laps a–b ×" clears it. Hover a mark for its driver (a row elsewhere: the faster team-mate, as the store holds one highlighted driver), click a row to select both drivers, double-click a mark to focus the driver.',
+      `Lap range: drag across the laps on the Race Trace or on the Lap Times bar (or brush the Position Tracker) to select one; only its laps count here, and the chip "laps a–b ×" in the header clears it. Without a range every lap counts and the header reads "${LAP_RANGE_ALL_LAPS}". The same range is shared by Tyre Degradation (its fit) and the Strategy Timeline (a shaded band).`,
+      'Hover a mark for its driver (a row elsewhere: the faster team-mate, as the store holds one highlighted driver), click a row to select both drivers, double-click a mark to focus the driver.',
       `Rows of ${FIELD_PACE_ROW_PX} px, ${FIELD_PACE_MAX_ROWS} a page; a pager in the header for the rest (a box under ${FIELD_PACE_MIN.height} px high holds fewer); under ${FIELD_PACE_MIN.width} px wide the answer line only.`,
     ],
     limitations: [

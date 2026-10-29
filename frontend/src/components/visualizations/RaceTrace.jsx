@@ -14,6 +14,12 @@
  * margin a bracket one pit loss long under the focus car's gap: the cars
  * inside it are within one stop.
  *
+ * A drag along x over the plot sets the lap range of every view: there the
+ * cursor is col-resize (the pointer on the clickable marks), and the title
+ * line says so ("Drag across laps to select a range"; with a range, "laps
+ * a–b selected · click the plot to clear"), left out where it does not fit
+ * whole between the y title and the now label.
+ *
  * Causal: everything is read at the dashboard's clock (useSessionNow).
  *
  * Fit (utils/views/raceTraceChart.js RACE_TRACE_FIT): from 420 x 200 the end
@@ -39,6 +45,7 @@ import {
   raceTraceMode, defineBandPatterns, BAND_STYLE, pitLossLabel, provenanceLine, raceTraceLegend,
   placeEndLabels, gapText, traceLineStyle,
 } from '../../utils/views/raceTraceChart';
+import { lapRangeHint } from '../../utils/views/lapRangeHint';
 import Panel from '../ui/Panel';
 import Legend from '../ui/Legend';
 import { useChartBox, chartSize } from '../../utils/views/chartBox';
@@ -232,7 +239,7 @@ export default function RaceTrace() {
       a.select('.domain').attr('stroke', GRID_COLORS.axis);
       a.selectAll('text').attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.data);
     }
-    g.append('text').attr('class', 'rt-axis-title')
+    const yTitle = g.append('text').attr('class', 'rt-axis-title')
       .attr('x', -margin.left + 2).attr('y', -Math.ceil(labelPx * 0.5))
       .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label).attr('font-weight', 600)
       .text('+ ahead (s)');
@@ -250,7 +257,13 @@ export default function RaceTrace() {
       if (x(v) + w / 2 > innerW - titleW - 4) t.remove();
     });
 
-    const plot = g.append('g').attr('clip-path', `url(#${ids}-clip)`);
+    // The plot: a drag along x sets a lap range, so the cursor is col-resize
+    // over it (the area under the marks catches the pointer); the clickable
+    // marks (bands, line hits, stop chips) keep their own cursor
+    const plot = g.append('g').attr('class', 'rt-plot').attr('clip-path', `url(#${ids}-clip)`)
+      .style('cursor', 'col-resize');
+    plot.append('rect').attr('class', 'rt-plot-area')
+      .attr('width', innerW).attr('height', innerH).attr('fill', 'transparent');
 
     // Brushed lap range (the one lap range of every view): a tint with edges
     if (selectedLapRange) {
@@ -411,11 +424,25 @@ export default function RaceTrace() {
     g.append('line').attr('class', 'rt-now')
       .attr('x1', lapX(trace.lastLap)).attr('x2', lapX(trace.lastLap)).attr('y1', 0).attr('y2', innerH)
       .attr('stroke', GRID_COLORS.rule).attr('stroke-dasharray', '3,3');
-    g.append('text').attr('class', 'rt-now-label')
+    const nowLabel = g.append('text').attr('class', 'rt-now-label')
       .attr('x', lapX(trace.lastLap)).attr('y', -Math.ceil(labelPx * 0.5))
       .attr('text-anchor', 'end')
       .attr('fill', TEXT_COLORS.secondary).style('font-size', CHART_FONT.label).attr('font-weight', 700)
       .text(raceOver ? `final · L${trace.lastLap}` : `now · L${trace.lastLap + 1}`);
+
+    // The lap-range hint on the title line, centred between the y title and
+    // the now label (one label em clear of each): how to drag a range, or the
+    // range set and how to clear it. Left out where it does not fit whole
+    const textW = (t) => t.node().getComputedTextLength() || 0.6 * labelPx * t.text().length;
+    const hint = g.append('text').attr('class', 'rt-hint')
+      .attr('y', -Math.ceil(labelPx * 0.5)).attr('text-anchor', 'middle')
+      .attr('fill', TEXT_COLORS.muted).style('font-size', CHART_FONT.label)
+      .style('pointer-events', 'none')
+      .text(lapRangeHint(selectedLapRange));
+    const hintLo = -margin.left + 2 + textW(yTitle) + labelPx;
+    const hintHi = lapX(trace.lastLap) - textW(nowLabel) - labelPx;
+    if (hintHi - hintLo < textW(hint)) hint.remove();
+    else hint.attr('x', (hintLo + hintHi) / 2);
 
     // Pit-loss bracket at the right margin, anchored at the focus car's gap
     // (else the leader's): one pit loss long, the cars inside are within one stop

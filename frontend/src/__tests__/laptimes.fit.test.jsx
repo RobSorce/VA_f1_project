@@ -11,6 +11,8 @@
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import { installMiniDom } from './helpers/miniDom.js';
 import { haveWebFont, textWidth } from './helpers/fontWidths.js';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
 if (typeof globalThis.localStorage === 'undefined') {
@@ -34,7 +36,11 @@ const {
   TIMING_COLUMNS, timingColumnFloors, fitTimingColumns, TIMING_GAP, TIMING_PAD_X, TIMING_DROP_ORDER,
 } = await import('../utils/views/lapTimeChart.js');
 const { default: LapTimeChart } = await import('../components/visualizations/LapTimeChart.jsx');
+const { lapRangeHint } = await import('../utils/views/lapRangeHint.js');
+const { loadCss, px, dockedPanesAt } = await import('./helpers/layoutModel.js');
+const { WINDOW_PRESETS } = await import('../utils/windowPresets.js');
 
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ro = installResizeObserverMock();
 const INITIAL = useF1Store.getState();
 const DEFAULTS = TIMING_COLUMNS.map((c) => c.defaultW);
@@ -178,4 +184,42 @@ describe('mounted: the grid follows the rows\' box', () => {
       await v.unmount();
     }
   });
+});
+
+// The lap-range bar's title row (LapTimeChart.jsx LapRangeBrush, 4 px 6 px
+// padding): "LAP RANGE", the hint and, with a range, the chip "La–Lb ✕", 8 px
+// apart, measured in Inter at the target viewports. The hint ends in an
+// ellipsis (its full text in its title) where the row is too narrow: never at
+// a docked pane; with a range, in a floating window at its minimum (390 px of
+// content) at 2048 x 1152 only, where the row needs about 17 px more.
+describe.skipIf(!haveWebFont)('the lap-range bar\'s hint row', () => {
+  const css = loadCss(SRC);
+  const VPS = [{ W: 1536, H: 750 }, { W: 1536, H: 864 }, { W: 2048, H: 1152 }];
+  const FLOATING_MIN = 390;
+  const rowAt = (vp) => {
+    const label = Math.max(10, px(css, 'var(--font-size-label)', vp));
+    const title = textWidth('Lap Range', label, 700, { letterSpacingEm: 0.05, upper: true });
+    // the chip: 1 px 6 px padding, 1 px border
+    const chip = 2 * 6 + 2 + textWidth('L20–L35 ✕', label, 400);
+    return {
+      none: title + 8 + textWidth(lapRangeHint(null), label, 400),
+      range: title + 8 + textWidth(lapRangeHint([20, 35]), label, 400) + 8 + chip,
+    };
+  };
+  // the panel content of each docked Lap Times pane (the pane less its 2 px
+  // of border and 2 x --spacing-md), less the row's 2 x 6 px padding
+  const dockedRows = (vp) => Object.values(WINDOW_PRESETS).flatMap((p) => dockedPanesAt(css, p.dockedLayout, vp))
+    .filter((p) => p.tabs.includes('laptimes'))
+    .map((p) => p.width - 2 - 2 * px(css, 'var(--spacing-md)', vp) - 12);
+
+  for (const vp of VPS) {
+    it(`${vp.W} x ${vp.H}: whole in every docked pane, with or without a range; whole without one in a floating window at its minimum`, () => {
+      const row = rowAt(vp);
+      const docked = dockedRows(vp);
+      expect(docked.length).toBeGreaterThan(0);
+      expect(row.range, `range row ${row.range.toFixed(1)} px`).toBeLessThanOrEqual(Math.min(...docked));
+      expect(row.none, `no-range row ${row.none.toFixed(1)} px`).toBeLessThanOrEqual(FLOATING_MIN - 12);
+      if (vp.W === 1536) expect(row.range, `range row ${row.range.toFixed(1)} px`).toBeLessThanOrEqual(FLOATING_MIN - 12);
+    });
+  }
 });

@@ -9,6 +9,7 @@ import { CHART_HELP } from '../utils/chartHelp.js';
 import { FIRST_SEASON_WITHOUT_DRS } from '../utils/seasons.js';
 import { UNDERCUT_SWEEP_LAPS, STINT_FEASIBLE_QUANTILE } from '../utils/undercut.js';
 import { STATUS_GLYPHS } from '../utils/colors.js';
+import { LAP_RANGE_DRAG_HINT, LAP_RANGE_ALL_LAPS, lapRangeHint } from '../utils/views/lapRangeHint.js';
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
@@ -113,6 +114,28 @@ describe('help texts that match the code', () => {
     const panel = read('components/visualizations/LapTimeChart.jsx');
     expect(panel).toMatch(/setBrushLapRange\(next\.brushLapRange\)/);
     expect(read('components/visualizations/PositionByLap.jsx')).toMatch(/brush\.move, \[xScale\(brushLapRange\[0\]\), xScale\(brushLapRange\[1\]\)\]/);
+  });
+
+  it('Lap Times, Race Trace and Race Pace say how a lap range is selected, with the views\' own words, and who shares it', () => {
+    const lt = all(CHART_HELP.laptimes);
+    const rt = all(CHART_HELP.racetrace);
+    const fp = all(CHART_HELP.teampace);
+    // how: a drag across the laps, the cursor and the hint the view shows
+    for (const text of [lt, rt]) {
+      expect(text).toMatch(/drag across the laps on (it|the plot) to select a range \(the cursor there is the column-resize arrow/);
+      expect(text).toContain(`"${LAP_RANGE_DRAG_HINT}"`);
+    }
+    expect(rt).toContain(`"${lapRangeHint([1, 2]).replace('1–2', 'a–b')}"`);
+    expect(fp).toMatch(/drag across the laps on the Race Trace or on the Lap Times bar/);
+    expect(fp).toContain(`"${LAP_RANGE_ALL_LAPS}"`);
+    expect(fp).toContain('the chip "laps a–b ×" in the header clears it');
+    // who shares it: Race Pace, Tyre Degradation and the Strategy Timeline
+    for (const text of [lt, rt]) expect(text).toMatch(/shared by Race Pace \(only its laps count\), Tyre Degradation \([^)]*\) and the Strategy Timeline/);
+    expect(fp).toMatch(/shared by Tyre Degradation \(its fit\) and the Strategy Timeline/);
+    // the readers do read the store's one range
+    expect(read('components/visualizations/FieldPace.jsx')).toMatch(/useF1Store\(\(s\) => s\.brushLapRange\)/);
+    expect(read('components/visualizations/TireDegradation.jsx')).toMatch(/const activeRange = brushLapRange \|\| selectedLapRange;/);
+    expect(read('components/visualizations/StrategyTimeline.jsx')).toMatch(/useF1Store\(\(s\) => s\.selectedLapRange\)/);
   });
 
   it('the timing colours are named with the glyph the sheet draws next to them', () => {

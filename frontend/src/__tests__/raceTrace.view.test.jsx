@@ -13,6 +13,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { installMiniDom } from './helpers/miniDom.js';
+import { loadFaces } from '../../scripts/audit/fontMetrics.mjs';
 
 vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
 if (typeof globalThis.localStorage === 'undefined') {
@@ -31,7 +32,9 @@ const { act } = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { useF1Store } = await import('../store/useF1Store.js');
 const { computeSessionTimeOffset, resolveSessionNow } = await import('../utils/raceTime.js');
-const { setSessionDriverColors } = await import('../utils/colors.js');
+const {
+  setSessionDriverColors, TEXT_COLORS, SURFACES, contrastRatio, FONT_FLOOR_PX,
+} = await import('../utils/colors.js');
 const { traceStops, buildRaceTrace } = await import('../utils/raceTrace.js');
 const { RACE_TRACE_FIT, raceTraceMode, placeEndLabels, traceLineStyle, LINE_WIDTHS } = await import('../utils/views/raceTraceChart.js');
 const { screenTexts, underFloor } = await import('./helpers/screenFont.js');
@@ -345,5 +348,118 @@ describe('store settings and helpers', () => {
     const { host } = await mount({ width: 800, height: 400 });
     expect(host.querySelector('.rt-provenance').textContent)
       .toContain('wet race: the reference is unreliable while the field changes tyres together');
+  });
+});
+
+// The lap-range drag says itself: a col-resize cursor over the plot (the
+// pointer on the clickable marks, never a style of the body) and the hint on
+// the title line, between the y title and the now label, left out where it
+// does not fit whole
+describe('the lap-range drag: cursor and hint', () => {
+  beforeEach(() => state());
+  const hintOf = (host) => chartSvg(host).querySelector('.rt-hint');
+
+  it('the plot area has the col-resize cursor; bands, line hits and stop chips keep the pointer', async () => {
+    const { host } = await mount({ width: 800, height: 400 });
+    const svg = chartSvg(host);
+    const plot = svg.querySelector('.rt-plot');
+    expect(plot.style.cursor).toBe('col-resize');
+    // the area under the marks catches the pointer over the whole plot
+    const area = plot.querySelector('.rt-plot-area');
+    const clip = svg.querySelector('clipPath rect');
+    expect(area.getAttribute('width')).toBe(clip.getAttribute('width'));
+    expect(area.getAttribute('height')).toBe(clip.getAttribute('height'));
+    expect(area.getAttribute('fill')).toBe('transparent');
+    expect(plot.firstChild).toBe(area);
+    for (const sel of ['.rt-band', '.rt-hit', '.rt-chip']) {
+      const marks = svg.querySelectorAll(sel);
+      expect(marks.length, sel).toBeGreaterThan(0);
+      expect(marks.every((m) => m.style.cursor === 'pointer'), sel).toBe(true);
+    }
+    // a drag leaves the body's cursor alone
+    const g = svg.querySelector('g');
+    const a = dom.toClient(g, 2, 40);
+    const b = dom.toClient(g, Number(clip.getAttribute('width')) / 2, 40);
+    await fire(svg, 'mousedown', a);
+    await fire(svg, 'mousemove', b);
+    expect(dom.document.body.style.cursor || '').toBe('');
+    await fire(svg, 'mouseup', b);
+    expect(dom.document.body.style.cursor || '').toBe('');
+  });
+
+  it('the hint: how to drag with no range; the range and how to clear it once set; back after a clear', async () => {
+    const { host } = await mount({ width: 800, height: 400 });
+    expect(hintOf(host).textContent).toBe('Drag across laps to select a range');
+    // in the label type and the muted colour, at its floor
+    expect(hintOf(host).style['font-size']).toMatch(/font-size-label/);
+    expect(hintOf(host).getAttribute('fill')).toBe(TEXT_COLORS.muted);
+    expect(contrastRatio(TEXT_COLORS.muted, SURFACES.panel)).toBeGreaterThanOrEqual(4.5);
+    const svg = chartSvg(host);
+    const g = svg.querySelector('g');
+    const innerW = Number(svg.querySelector('clipPath rect').getAttribute('width'));
+    const a = dom.toClient(g, 2, 40);
+    const b = dom.toClient(g, innerW / 2, 40);
+    await fire(svg, 'mousedown', a);
+    await fire(svg, 'mousemove', b);
+    await fire(svg, 'mouseup', b);
+    const [lo, hi] = useF1Store.getState().brushLapRange;
+    expect(hintOf(host).textContent).toBe(`laps ${lo}–${hi} selected · click the plot to clear`);
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    await fire(chartSvg(host), 'click');
+    expect(useF1Store.getState().brushLapRange).toBe(null);
+    expect(hintOf(host).textContent).toBe('Drag across laps to select a range');
+    // a range set in another view (Lap Times, a band click) reads the same
+    await act(async () => { useF1Store.getState().setBrushLapRange([20, 35]); });
+    expect(hintOf(host).textContent).toBe('laps 20–35 selected · click the plot to clear');
+  });
+
+  it('clear of the y title and the now label; left out where it does not fit whole, the chart kept', async () => {
+    for (const size of [{ width: 593, height: 211 }, { width: 1209, height: 502 }, { width: 400, height: 190 }]) {
+      const { host } = await mount(size);
+      const svg = chartSvg(host);
+      const hint = svg.querySelector('.rt-hint');
+      const w = (t) => t.getComputedTextLength();
+      const title = svg.querySelectorAll('.rt-axis-title').find((t) => t.textContent === '+ ahead (s)');
+      const now = svg.querySelector('.rt-now-label');
+      const x = Number(hint.getAttribute('x'));
+      expect(x - w(hint) / 2, `${size.width} x ${size.height}`).toBeGreaterThanOrEqual(Number(title.getAttribute('x')) + w(title));
+      expect(x + w(hint) / 2, `${size.width} x ${size.height}`).toBeLessThanOrEqual(Number(now.getAttribute('x')) - w(now));
+      expect(underFloor(svg, VP)).toEqual([]);
+    }
+    // a compact box too narrow for it: no hint, every other mark drawn
+    const { host } = await mount({ width: 330, height: 190 });
+    expect(raceTraceMode({ width: 330, height: 190 })).toBe('compact');
+    const svg = chartSvg(host);
+    expect(svg.querySelector('.rt-hint')).toBeFalsy();
+    expect(svg.querySelectorAll('.rt-line').length).toBeGreaterThan(0);
+    expect(svg.querySelector('.rt-now-label')).toBeTruthy();
+    expect(svg.querySelector('.rt-plot').style.cursor).toBe('col-resize');
+  });
+
+  it('the quarter dock pane at 1536 x 750 (593 x 211), measured in Inter at the floors: both hints whole, clear of the title line\'s other texts', async () => {
+    const INTER = loadFaces('Inter');
+    if (!INTER) return;
+    const sizeOf = (el) => (/font-size-label/.test(el.style['font-size'] || '') ? FONT_FLOOR_PX.label : FONT_FLOOR_PX.data);
+    const widthOf = (el) => INTER.width(el.textContent, sizeOf(el), Number(el.getAttribute('font-weight') || 400));
+    const proto = Object.getPrototypeOf(dom.document.createElement('div'));
+    const base = proto.getComputedTextLength;
+    proto.getComputedTextLength = function measured() { return widthOf(this); };
+    try {
+      for (const range of [null, [20, 35]]) {
+        if (view) await view.unmount();
+        state({ brushLapRange: range, selectedLapRange: range, focusDriver: 'VER' });
+        const { host } = await mount({ width: 593, height: 211 });
+        const svg = chartSvg(host);
+        const hint = svg.querySelector('.rt-hint');
+        expect(hint, String(range)).toBeTruthy();
+        const title = svg.querySelectorAll('.rt-axis-title').find((t) => t.textContent === '+ ahead (s)');
+        const now = svg.querySelector('.rt-now-label');
+        const x = Number(hint.getAttribute('x'));
+        expect(x - widthOf(hint) / 2).toBeGreaterThanOrEqual(Number(title.getAttribute('x')) + widthOf(title));
+        expect(x + widthOf(hint) / 2).toBeLessThanOrEqual(Number(now.getAttribute('x')) - widthOf(now));
+      }
+    } finally {
+      proto.getComputedTextLength = base;
+    }
   });
 });

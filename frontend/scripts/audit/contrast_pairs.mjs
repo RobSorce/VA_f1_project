@@ -360,6 +360,20 @@ const favTile = (favicon.match(/<rect[^>]*fill="(#[0-9a-fA-F]{6})"/) || [])[1];
 const favMarks = [...favicon.matchAll(/(?:stroke|fill)="(#[0-9a-fA-F]{6})"/g)].map((m) => m[1]).filter((c) => c !== favTile);
 must(favTile && favMarks.length > 0, 'favicon colours not found');
 for (const c of new Set(favMarks)) add(`favicon mark ${c} on its own tile ${favTile}`, col(c), col(favTile), 3, 'public/favicon.svg');
+
+// 14. The lap-range hints (utils/views/lapRangeHint.js), label text in the
+//     muted colour read from each component: the Race Trace's on its title
+//     line (the panel), the Lap Times bar's on the bar's strip (its
+//     background over the panel), the Race Pace note on the panel header
+const MUTED = col(C.TEXT_COLORS.muted);
+const sheetJsx = read('components/visualizations/LapTimeChart.jsx');
+const stripBg = (sheetJsx.match(/className="lap-range-brush" style=\{\{[^}]*background: '([^']+)'/) || [])[1];
+must(/attr\('class', 'rt-hint'\)[^;]*attr\('fill', TEXT_COLORS\.muted\)/.test(read('components/visualizations/RaceTrace.jsx')), 'Race Trace hint colour changed');
+must(/className="lap-range-brush__hint"[^>]*color: TEXT_COLORS\.muted/.test(sheetJsx) && stripBg, 'Lap Times hint colour or strip changed');
+must(/className="fp-range-note" style=\{\{[^}]*color: TEXT_COLORS\.muted/.test(read('components/visualizations/FieldPace.jsx')), 'Race Pace note colour changed');
+add('Race Trace lap-range hint (muted) on the panel', MUTED, PANEL, 4.5, 'RaceTrace.jsx .rt-hint');
+add('Lap Times lap-range hint (muted) on the bar strip', MUTED, H.over(col(stripBg), PANEL), 4.5, 'LapTimeChart.jsx .lap-range-brush__hint');
+add('Race Pace lap-range note (muted) on the panel header', MUTED, headerBg, 4.5, 'FieldPace.jsx .fp-range-note');
 // The logo's two hues are no data colours: their nearest data colours
 // (CIEDE2000), for the record (not gated: the logo is drawn away from every
 // chart and legend; its letters are the neutral white or navy)

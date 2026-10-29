@@ -158,3 +158,11 @@ The drawn wordmark gave way to the logo files of `frontend/public/brand`, shown 
 - `font_floor.mjs` no longer resolves the wordmark's SVG text size (the logo is an image); `font_floor.txt` was rewritten.
 - `chrome_contrast.txt` and `overflow_inventory.txt` (new `dashboard.css` and `components.css` line numbers; every verdict the same) and `color_doc_hex.txt` (the logo paragraph of `docs/COLOR_ENCODING.md`) were rewritten.
 - The other audits of `frontend/scripts/audit/` print the same and their files were kept, `layout_fit.txt` included (the bars' heights are tokens; the logo does not change them). `view_catalogue.txt` still differs from a run on this code by the views added before the wordmark (Field Pace, Race Trace) and the Circle of Doom's gap list; it was kept.
+
+## Lap-range hints (2026-10-29)
+
+The views say how the one lap range of every view is set (`frontend/src/utils/views/lapRangeHint.js`): the Race Trace's plot has the col-resize cursor and a hint on its title line, the Lap Times bar the same cursor and a hint beside its title, and Race Pace a note in the chip's place while no range is set.
+
+- `contrast_pairs.mjs` section 14 measures the three, in the muted text colour read from each component, on the surface each is drawn on (the panel, the bar's strip, the panel header). `contrast_pairs.txt` was rewritten: 128 pairs, 0 under their threshold.
+- `font_floor.txt` (three more sizes from the label token, none under its floor; new `LapTimeChart.jsx` line numbers) and `overflow_inventory.txt` (a new `LapTimeChart.jsx` line number; every verdict the same) were rewritten.
+- The other audits of `frontend/scripts/audit/` print the same and their files were kept, `layout_fit.txt` included: the hints take no height (one line each, on the Race Trace's title line, in the Lap Times bar's title row and in the Race Pace header). `view_catalogue.txt` still differs from a run on this code by the views added before the wordmark; it was kept.

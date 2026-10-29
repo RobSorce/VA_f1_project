@@ -18,6 +18,7 @@ import {
   focusForecast, forecastPoints, forecastMethodLabel, forecastMethodText, forecastPit, forecastHeldOutMae,
   forecastOriginFeature, FORECAST_LAPS,
 } from '../../utils/forecast';
+import { lapRangeHint } from '../../utils/views/lapRangeHint';
 import Panel from '../ui/Panel';
 import { useChartBox, chartSize, useBoxSize } from '../../utils/views/chartBox';
 import Legend from '../ui/Legend';
@@ -765,7 +766,10 @@ export default function LapTimeChart() {
   );
 }
 
-/* ── Lap Range Brush: compact bar for selecting a lap window ──── */
+/* ── Lap Range Brush: compact bar for selecting a lap window. The
+   cursor over it is col-resize, before and during a drag; the hint beside
+   its title says how to drag a range, or the range set and how to clear it
+   (an ellipsis and the full text in its title where the row is too narrow) ── */
 function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
   const barRef = useRef(null);
 
@@ -807,7 +811,7 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
       if (hi - lo < 1) onRangeChange(null); // click = clear
     };
 
-    document.body.style.cursor = 'crosshair';
+    document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -821,6 +825,7 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
   const selLeft = selectedRange ? lapToX(selectedRange[0]) : 0;
   const selWidth = selectedRange ? lapToX(selectedRange[1]) - selLeft : 0;
   const currentX = lapToX(currentLap);
+  const hint = lapRangeHint(selectedRange);
 
   return (
     <div className="lap-range-brush" style={{
@@ -828,17 +833,22 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
       borderTop: '1px solid rgba(255,255,255,0.06)',
       background: 'rgba(15,15,35,0.6)',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-        <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+        <span style={{ fontSize: CHART_FONT.label, color: TEXT_COLORS.muted, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, flexShrink: 0 }}>
           Lap Range
         </span>
+        <span className="lap-range-brush__hint" title={hint} style={{
+          flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          fontSize: CHART_FONT.label, color: TEXT_COLORS.muted,
+        }}
+        >{hint}</span>
         {selectedRange && (
           <button
             onClick={() => onRangeChange(null)}
             style={{
               background: 'rgba(255,255,255,0.06)', border: `1px solid ${UI_COLORS.brush}`,
               borderRadius: 3, padding: '1px 6px', fontSize: CHART_FONT.label, color: TEXT_COLORS.secondary,
-              cursor: 'pointer',
+              cursor: 'pointer', flexShrink: 0,
             }}
           >
             L{selectedRange[0]}–L{selectedRange[1]} ✕
@@ -851,7 +861,7 @@ function LapRangeBrush({ maxLap, currentLap, selectedRange, onRangeChange }) {
         className="lap-range-brush__bar"
         style={{
           position: 'relative', height: 16, borderRadius: 3,
-          background: 'rgba(255,255,255,0.04)', cursor: 'crosshair',
+          background: 'rgba(255,255,255,0.04)', cursor: 'col-resize',
           overflow: 'hidden',
         }}
       >
