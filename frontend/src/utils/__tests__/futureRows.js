@@ -3,13 +3,18 @@
 // on the perturbed rows.
 //
 // Known at `now` (R3, R6): every field of a completed row; on a lap in
-// progress, its start, a pit entry or a pit exit already passed, and the tyre
-// fields (Compound, Stint, TyreLife) of a row that opened a visible stint (its
-// pit exit has passed, or it is the driver's first lap: the set on the grid).
-// Fabricated pit times are put after `now`, so nothing in the past changes.
+// progress, its start, a pit entry or a pit exit already passed, the sectors
+// already run (Sector{k}SessionTime <= now: that time and Sector{k}Time /
+// Sector{k}TimeSeconds), and the tyre fields (Compound, Stint, TyreLife) of a
+// row that opened a visible stint (its pit exit has passed, or it is the
+// driver's first lap: the set on the grid).
+// Fabricated pit and sector times are put after `now`, so nothing in the past
+// changes.
 import {
   isLapCompleted, lapStartTime, pitInSeconds, pitOutSeconds,
 } from '../raceTime.js';
+
+const num = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 
 export function perturbFuture(lapTimes, now) {
   const firstLap = new Map();
@@ -41,6 +46,14 @@ export function perturbFuture(lapTimes, now) {
       const fake = pitOut != null ? null : later;
       out.PitOutTimeSeconds = fake;
       out.PitOutTime = fake;
+    }
+    for (const k of [1, 2, 3]) {
+      const at = num(lt[`Sector${k}SessionTime`]);
+      if (at != null && at <= now) continue;
+      const fake = (num(lt[`Sector${k}TimeSeconds`]) ?? num(lt[`Sector${k}Time`]) ?? 30) + 11;
+      out[`Sector${k}SessionTime`] = later + k;
+      out[`Sector${k}Time`] = fake;
+      out[`Sector${k}TimeSeconds`] = fake;
     }
     const tyresKnown = started && (exited || Number(lt.LapNumber) === firstLap.get(lt.Driver));
     if (!tyresKnown) {

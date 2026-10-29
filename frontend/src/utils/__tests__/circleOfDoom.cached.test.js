@@ -8,6 +8,9 @@ import { estimatePitLoss } from '../pitLoss.js';
 import { leaderLapEndTime } from '../raceTime.js';
 import { perturbFuture } from './futureRows.js';
 import { hasCachedSession, loadCachedSession, CACHE_DIR } from '../../__tests__/helpers/cachedSession.js';
+import { pitStatus, laneStats } from '../circlePitLane.js';
+import { sectorFractions } from '../circleSectors.js';
+import { gapRows } from '../circleGapList.js';
 
 const row = (lapTimes, d, n) => lapTimes.find((r) => r.Driver === d && r.LapNumber === n);
 
@@ -659,5 +662,164 @@ describe.skipIf(!MEMO_RACES.length)('memoisation: the memo key changes on events
         + `${n.checks} frame checks, ${n.differ} differ from a fresh computation, traffic flag or share moved within a key in `
         + `${n.trafficMoved}, band's lapped traffic moved within a key in ${n.bandMoved}`);
     }, 120000);
+  }
+});
+
+// Out-lap anchor, pit lane, sector marks and gap list on the races
+// (circleOfDoom.js header, circlePitLane.js, circleSectors.js, circleGapList.js)
+const BAND_KEYS = ['focusPhase', 'rejoinPhase', 'rejoinArc', 'trafficOnly', 'bandSeconds'];
+const withoutBand = (w) => Object.fromEntries(Object.entries(w).filter(([k]) => !BAND_KEYS.includes(k)));
+
+describe.skipIf(!hasCachedSession(2024, 16))('Monza 2024 (R16): LEC stops on lap 15', () => {
+  // pit entry 4628.772, in-lap 15 ends inside the lane at 4632.468, pit exit
+  // 4653.191 (on lap 16), out-lap 16 ends at 4737.356
+  let lapTimes;
+  beforeAll(() => {
+    lapTimes = loadCachedSession(2024, 16).lap_times;
+  });
+
+  it('in the pit lane 4628.772-4653.191 s (24.42 s); laneStats counts the stop from its exit only', () => {
+    expect(pitStatus(lapTimes, 'LEC', 4628)).toMatchObject({ status: null, inLane: false });
+    expect(pitStatus(lapTimes, 'LEC', 4640)).toEqual({
+      status: 'lane', pitInTime: 4628.772, pitOutTime: null, inLane: true,
+    });
+    const out = pitStatus(lapTimes, 'LEC', 4654);
+    expect(out).toMatchObject({ status: 'out', pitInTime: 4628.772, pitOutTime: 4653.191, inLane: false });
+    expect(out.pitOutTime - out.pitInTime).toBeCloseTo(24.42, 2);
+    expect(pitStatus(lapTimes, 'LEC', 4737.4).status).toBeNull();
+    // LEC's is the only pit exit between 4640 and 4654 s
+    expect(lapTimes.filter((r) => r.PitOutTimeSeconds > 4640 && r.PitOutTimeSeconds <= 4654).map((r) => r.Driver))
+      .toEqual(['LEC']);
+    const before = laneStats(lapTimes, 4640);
+    const after = laneStats(lapTimes, 4654);
+    expect(before.median).not.toBeNull();
+    expect(after.n).toBe(before.n + 1);
+  });
+
+  it('pit-exit anchor at 4680 s: LEC drawn from its exit, its rejoin marker between NOR and OCO', () => {
+    const est = estimatePitLoss(lapTimes, { sessionNow: 4680 });
+    const st = circleState(lapTimes, { sessionNow: 4680, outLapAnchor: 'pitExit' });
+    const lec = st.cars.find((c) => c.driver === 'LEC');
+    expect(lec).toMatchObject({
+      lastCrossingTime: 4632.468, anchorTime: 4653.191, pitExitTime: 4653.191, inPitLane: false,
+    });
+    expect(lec.phase).toBeCloseTo((4680 - 4653.191) / st.refLap.seconds, 9);
+    expect(lec.linePhase).toBeCloseTo((4680 - 4632.468) / st.refLap.seconds, 9);
+    const w = pitWindow('LEC', st, est);
+    expect(w).toMatchObject({ available: true, ongoingStop: true, stage: 'out-lap' });
+    // the nearest cars drawn ahead of and behind the marker on the ring
+    const ring = st.cars
+      .filter((c) => c.driver !== 'LEC' && !c.inPitLane && !c.finished)
+      .map((c) => ({ driver: c.driver, ahead: wrapPhase(c.phase - w.rejoinPhase) }))
+      .sort((a, b) => a.ahead - b.ahead);
+    expect(ring[0].driver).toBe('NOR');
+    expect(ring[ring.length - 1].driver).toBe('OCO');
+    // the rank's neighbours at the predicted crossing are the same two cars
+    const ahead = w.rivalCrossings.filter((r) => r.time < w.predictedCrossing);
+    const behind = w.rivalCrossings.filter((r) => r.time >= w.predictedCrossing);
+    expect(ahead[ahead.length - 1].driver).toBe('NOR');
+    expect(behind[0].driver).toBe('OCO');
+    // the line anchor: the same marker and the same rank; only the drawn car moves
+    const line = pitWindow('LEC', circleState(lapTimes, { sessionNow: 4680, outLapAnchor: 'line' }), est);
+    expect(line.rejoinPhase).toBeCloseTo(w.rejoinPhase, 12);
+    expect(withoutBand(line)).toEqual(withoutBand(w));
+    expect(line.focusPhase - w.focusPhase).toBeCloseTo((4653.191 - 4632.468) / st.refLap.seconds, 9);
+  });
+
+  it('causal: every row not known at 4640 / 4680 s changed, the same stop, marks and gap rows', () => {
+    for (const now of [4640, 4680]) {
+      const future = perturbFuture(lapTimes, now);
+      for (const d of ['LEC', 'NOR', 'OCO', 'PIA', 'MAG']) expect(pitStatus(future, d, now)).toEqual(pitStatus(lapTimes, d, now));
+      expect(laneStats(future, now)).toEqual(laneStats(lapTimes, now));
+      const ref = referenceLap(lapTimes, { sessionNow: now });
+      expect(sectorFractions(future, referenceLap(future, { sessionNow: now }), now)).toEqual(sectorFractions(lapTimes, ref, now));
+      const a = circleState(lapTimes, { sessionNow: now, outLapAnchor: 'pitExit' });
+      const b = circleState(future, { sessionNow: now, outLapAnchor: 'pitExit' });
+      const opts = { focus: 'LEC', selected: ['NOR', 'OCO', 'PIA'] };
+      expect(gapRows(b, future, now, opts)).toEqual(gapRows(a, lapTimes, now, opts));
+      // at 4640 s LEC is in the lane after the line: only driverStateAt's inPitLane
+      // reads the out-lap's PitOutTime there (circleOfDoom.test.js, causality)
+      const fields = (st) => st.cars.map(({ inPitLane, ...c }) => c);
+      expect(fields(b)).toEqual(fields(a));
+    }
+  });
+});
+
+// Arrival on the line at the end of the out-lap of the driver's first green
+// stop: the pit-exit anchor's phase just before the crossing (the line anchor
+// holds the car at 0.999 there)
+const ARRIVALS = [[2024, 16, 'LEC', 0.985], [2024, 5, 'VER', 0.961], [2024, 7, 'VER', 0.943]];
+
+describe.skipIf(!ARRIVALS.some(([y, r]) => hasCachedSession(y, r)))('arrival phase on the line at the end of the out-lap', () => {
+  for (const [year, round, driver, expected] of ARRIVALS) {
+    it.skipIf(!hasCachedSession(year, round))(`${year} R${round} ${driver}: about ${expected}`, () => {
+      const lapTimes = loadCachedSession(year, round).lap_times;
+      const first = estimatePitLoss(lapTimes).samples.filter((s) => s.driver === driver).sort((a, b) => a.inLap - b.inLap)[0];
+      const outLap = row(lapTimes, driver, first.inLap + 1);
+      const t = outLap.Time - 1e-3;
+      const exit = circleState(lapTimes, { sessionNow: t, outLapAnchor: 'pitExit' }).cars.find((c) => c.driver === driver);
+      const line = circleState(lapTimes, { sessionNow: t, outLapAnchor: 'line' }).cars.find((c) => c.driver === driver);
+      expect(exit.anchorTime).toBe(outLap.PitOutTimeSeconds);
+      expect(exit.phase).toBeCloseTo(expected, 2);
+      expect(exit.saturated).toBe(false);
+      expect(line).toMatchObject({ phase: PHASE_MAX, saturated: true });
+    });
+  }
+});
+
+// Sector boundaries as shares of the lap time, after the leader's laps 5 and 20 and at the end
+const SPLITS = [[2024, 16, 0.326, 0.668], [2024, 5, 0.266, 0.568]];
+
+describe.skipIf(!SPLITS.some(([y, r]) => hasCachedSession(y, r)))('sector fractions', () => {
+  for (const [year, round, f1, f12] of SPLITS) {
+    it.skipIf(!hasCachedSession(year, round))(`${year} R${round}: within 0.005 of ${f1} / ${f12}; none on lap 1`, () => {
+      const lapTimes = loadCachedSession(year, round).lap_times;
+      for (const now of [leaderLapEndTime(lapTimes, 5) + 1, leaderLapEndTime(lapTimes, 20) + 1, Infinity]) {
+        const f = sectorFractions(lapTimes, referenceLap(lapTimes, { sessionNow: now }), now);
+        expect(f.n).toBeGreaterThanOrEqual(10);
+        expect(Math.abs(f.f1 - f1)).toBeLessThan(0.005);
+        expect(Math.abs(f.f12 - f12)).toBeLessThan(0.005);
+      }
+      const start = Math.min(...lapTimes.filter((r) => r.LapNumber === 1).map((r) => r.LapStartTime));
+      for (const now of [start + 30, leaderLapEndTime(lapTimes, 1) + 1]) {
+        expect(sectorFractions(lapTimes, referenceLap(lapTimes, { sessionNow: now }), now)).toBeNull();
+      }
+    });
+  }
+});
+
+describe.skipIf(!SWEEP.length)('sweep: the out-lap anchor moves the drawn phases only', () => {
+  for (const [year, round] of SWEEP) {
+    it(`${year} R${round}`, () => {
+      const lapTimes = loadCachedSession(year, round).lap_times;
+      const last = Math.max(...lapTimes.map((r) => r.LapNumber));
+      const flag = leaderLapEndTime(lapTimes, last);
+      const start = Math.min(...lapTimes.filter((r) => r.LapNumber === 1).map((r) => r.LapStartTime));
+      const n = {
+        windows: 0, anchored: 0, order: 0, window: 0, marker: 0,
+      };
+      for (let now = start + 200; now < flag; now += 120) {
+        const a = circleState(lapTimes, { sessionNow: now, outLapAnchor: 'line' });
+        const b = circleState(lapTimes, { sessionNow: now, outLapAnchor: 'pitExit' });
+        const order = (st) => st.cars.map((c) => `${c.driver}:${c.position}:${c.lapsCompleted}:${c.lapOffsetToLeader}`).join();
+        if (order(a) !== order(b)) n.order += 1;
+        const est = estimatePitLoss(lapTimes, { sessionNow: now });
+        for (const car of b.cars) {
+          if (car.anchorTime !== car.lastCrossingTime) n.anchored += 1;
+          const wa = pitWindow(car.driver, a, est, { totalLaps: last });
+          const wb = pitWindow(car.driver, b, est, { totalLaps: last });
+          if (!wa.available) continue;
+          n.windows += 1;
+          if (JSON.stringify(withoutBand(wa)) !== JSON.stringify(withoutBand(wb))) n.window += 1;
+          // a stop under way: one rejoin marker whatever the anchor
+          if (wa.ongoingStop && Math.abs(wrapPhase(wa.rejoinPhase - wb.rejoinPhase + 0.5) - 0.5) > 1e-9) n.marker += 1;
+        }
+      }
+      expect(n.windows).toBeGreaterThan(300);
+      expect(n.anchored).toBeGreaterThan(0);
+      expect({ ...n, windows: 0, anchored: 0 }).toEqual({
+        windows: 0, anchored: 0, order: 0, window: 0, marker: 0,
+      });
+    }, 60000);
   }
 });
