@@ -17,25 +17,26 @@
  * Analytics never use the clamped value: gaps and ranks come from crossing
  * times.
  *
- * Out-lap anchor (opts.outLapAnchor). A stopping car crosses the line inside
- * the pit lane: its in-lap ends there and its out-lap starts there, well
- * before the pit exit. With the default 'line' anchor (anchorTime =
- * lastCrossingTime) the out-lap phase counts from that crossing, so the car
- * leaves the pit lane drawn a fraction of a lap ahead of where it is, and
- * then waits at 0.999 for the line while its slow out-lap ends. With
- * 'pitExit', a car whose last completed lap is an in-lap and whose out-lap
- * PitOutTime <= sessionNow (the out-lap has started but is not complete) is
- * anchored at its pit exit: it leaves the pit lane at the line (phase 0) and
- * then runs at the reference lap; no estimator of where the exit is on the
- * lap. A row without a PitOutTime (live feed) keeps the line anchor. Only the
+ * Out-lap anchor. A stopping car crosses the line inside the pit lane: its
+ * in-lap ends there and its out-lap starts there, well before the pit exit.
+ * A car whose last completed lap is an in-lap and whose out-lap PitOutTime <=
+ * sessionNow (the out-lap has started but is not complete) is anchored at its
+ * pit exit: it leaves the pit lane at the line (phase 0) and then runs at the
+ * reference lap; no estimator of where the exit is on the lap. A row without a
+ * PitOutTime (live feed) keeps the line anchor. opts.outLapAnchor 'line'
+ * anchors the out-lap at that crossing instead (anchorTime =
+ * lastCrossingTime): the car then leaves the pit lane drawn a fraction of a
+ * lap ahead of where it is, and waits at 0.999 for the line while its slow
+ * out-lap ends. It is kept for the comparison of the two anchors in
+ * frontend/scripts/cod_ring_check.mjs; the default is 'pitExit'. Only the
  * drawn ring moves with the anchor (the phases, and the pit window's band read
  * off it: focusPhase, bandSeconds, trafficOnly): the race order (the car keeps
  * its place until it crosses the line), gaps, ranks, the window's projections,
  * lists and rejoin point, and circleStateKey all use lastCrossingTime. Every
- * row also carries elapsed (seconds since the line) and pitExitTime (that pit
- * exit, or null); with an explicit outLapAnchor it also carries sincePitExit
- * (seconds since that pit exit) and linePhase = wrap(elapsed / refLap),
- * unclamped: where the car is on the ring by its line time.
+ * row also carries elapsed (seconds since the line), pitExitTime (that pit
+ * exit, or null), sincePitExit (seconds since that pit exit) and linePhase =
+ * wrap(elapsed / refLap), unclamped: where the car is on the ring by its line
+ * time.
  *
  * Clock. Every time is SESSION seconds (raceTime.js header): lap Time (lap
  * end), LapStartTime, PitInTime / PitOutTime, and sessionNow = replay frame.t
@@ -181,8 +182,8 @@
  * moves it.
  *
  * Lapped traffic in the band (trafficOnly) is read off the ring as the view
- * draws it: phases clamped at 0.999, cars in the pit lane (inner arc) and
- * finished cars left out. Ring seconds from car b forward to car a: the
+ * draws it: phases clamped at 0.999, cars in the pit lane (drawn on the
+ * pit-lane segment inside the ring) and finished cars left out. Ring seconds from car b forward to car a: the
  * difference of their anchors while both move, else of their drawn
  * positions (phase x refLap) when one sits at 0.999. ringRelations(win, state)
  * recomputes it (and the phases of the band) for the cars of any frame;
@@ -389,15 +390,15 @@ function refSecondsOf(refLap) {
   return s != null && s > 0 ? s : null;
 }
 
-/** Out-lap anchors of phases(): the line crossing (default) or the pit exit (module header). */
+/** Out-lap anchors of phases(): the line crossing or the pit exit (the default; module header). */
 export const OUT_LAP_ANCHORS = Object.freeze(['line', 'pitExit']);
 
 /**
  * Phase and angle of one car at sessionNow (cheap: for per-frame updates of a
  * memoised circleState). Finished cars and sessionNow = Infinity sit at 0.
  * The phase counts from car.anchorTime (lastCrossingTime when absent). On a
- * row that carries linePhase (phases() with an explicit outLapAnchor) it also
- * refreshes linePhase and sincePitExit.
+ * row that carries linePhase (every phases() row) it also refreshes linePhase
+ * and sincePitExit.
  *
  * @param {{lastCrossingTime: number, anchorTime?: number, pitExitTime?: number|null,
  *   finished?: boolean}} car - a phases() row
@@ -522,10 +523,11 @@ function compareLapOne(a, b) {
  * null when the data leave the place open. Retired cars
  * (driverStateAt.retired: known once the final row has ended or the car has
  * entered the pits for good) are dropped. inPitLane (driverStateAt: pit entry
- * passed, pit exit not yet) asks the view for the inner arc. finished = took
+ * passed, pit exit not yet) marks a car in the pit lane (the view draws the
+ * cars in the lane on its pit-lane segment). finished = took
  * the chequered flag (crossed the line after the leader completed the race's
  * last lap): phase 0. anchorTime = where the phase counts from (module header:
- * the pit exit of an out-lap under way with outLapAnchor 'pitExit', else
+ * the pit exit of an out-lap under way, unless outLapAnchor is 'line', else
  * lastCrossingTime); pitExitTime = that pit exit whatever the anchor, or null.
  *
  * @param {Array<Object>} lapTimes - sessionData.lap_times (full race)
@@ -539,21 +541,20 @@ function compareLapOne(a, b) {
  * @param {boolean} [opts.isLiveMode=false] - live feed rows: retirements from the feed's dnfMap
  *   only (driverState.js nonFinisherMap), and no chequered flag (the rows' latest lap is
  *   not the race's last one), so no car is `finished`
- * @param {'line'|'pitExit'} [opts.outLapAnchor] - where an out-lap's phase counts from
- *   (module header); omitted = 'line'. Given (either value), the rows also carry linePhase
- *   and sincePitExit
+ * @param {'line'|'pitExit'} [opts.outLapAnchor='pitExit'] - where an out-lap's phase counts
+ *   from (module header); 'line' only for the ring check's comparison
  * @returns {Array<{driver: string, position: number|null, lapsCompleted: number,
  *   lastCrossingTime: number, anchorTime: number, pitExitTime: number|null, elapsed: number,
  *   phase: number|null, angle: number|null, saturated: boolean, inPitLane: boolean,
  *   retired: boolean, finished: boolean, lapOffsetToLeader: number,
- *   linePhase?: number|null, sincePitExit?: number|null}>} times in session seconds,
+ *   linePhase: number|null, sincePitExit: number|null}>} times in session seconds,
  *   elapsed / sincePitExit in seconds, angle in radians
  */
 export function phases(lapTimes, {
   sessionNow = Infinity, refLap, dnfMap, gridPositions, includeRetired = false, isLiveMode = false,
-  outLapAnchor,
+  outLapAnchor = 'pitExit',
 } = {}) {
-  if (outLapAnchor !== undefined && !OUT_LAP_ANCHORS.includes(outLapAnchor)) {
+  if (!OUT_LAP_ANCHORS.includes(outLapAnchor)) {
     throw new Error(`phases: outLapAnchor must be one of ${OUT_LAP_ANCHORS.join(', ')}`);
   }
   const atPitExit = outLapAnchor === 'pitExit';
@@ -590,8 +591,8 @@ export function phases(lapTimes, {
       retired: st.retired,
       finished,
       lapOffsetToLeader: 0,
+      linePhase: null,
     };
-    if (outLapAnchor !== undefined) car.linePhase = null;
     Object.assign(car, phaseAt(car, now, ref));
     if (!car.lapsCompleted) lapOne.set(driver, lapOneKey(byLap.get(1), gridPositions?.[driver], now));
     (st.retired ? retired : running).push(car);
@@ -633,7 +634,7 @@ export function phases(lapTimes, {
  * @param {Object} [opts.gridPositions] - { driver: grid slot } (phases)
  * @param {number|Object} [opts.refLap] - seconds or a referenceLap result; computed when omitted
  * @param {boolean} [opts.isLiveMode=false] - live feed rows (phases)
- * @param {'line'|'pitExit'} [opts.outLapAnchor] - out-lap anchor of the drawn phases (phases)
+ * @param {'line'|'pitExit'} [opts.outLapAnchor='pitExit'] - out-lap anchor of the drawn phases (phases)
  * @returns {{sessionNow: number, refLap: Object, cars: Array<Object>, lapTimes: Array<Object>}}
  */
 export function circleState(lapTimes, {

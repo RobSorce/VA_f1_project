@@ -254,7 +254,7 @@ function drawnRing(focus, st, w) {
   const ring = st.cars.filter((c) => c.driver !== focus && !c.inPitLane && !c.finished);
   const band = ring.filter((c) => {
     const behind = wrapPhase(f.phase - c.phase);
-    return behind > 0 && behind <= w.rejoinOffset;
+    return behind > 0 && behind <= w.bandSeconds / w.refLap;
   });
   const trafficOnly = band
     .map((c) => {
@@ -388,7 +388,8 @@ describe.skipIf(!hasCachedSession(2024, 10))('Spain 2024 (R10) at 8670 s: a riva
 describe.skipIf(!hasCachedSession(2024, 10) || !hasCachedSession(2024, 13))('lapped traffic read off the drawn band (saturated focus)', () => {
   it('2024 R10 at 6437.1 s, RUS on its out-lap: SAR (same lap, outside the drawn band) is not listed', () => {
     const lapTimes = loadCachedSession(2024, 10).lap_times;
-    const st = circleState(lapTimes, { sessionNow: 6437.1 });
+    // the line anchor (the ring check's comparison) holds RUS at 0.999 on its out-lap
+    const st = circleState(lapTimes, { sessionNow: 6437.1, outLapAnchor: 'line' });
     const w = pitWindow('RUS', st, estimatePitLoss(lapTimes, { sessionNow: 6437.1 }));
     expect(st.cars.find((c) => c.driver === 'RUS').saturated).toBe(true);
     expect(lapOffset('RUS', 'SAR', st)).toBe(0);
