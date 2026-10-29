@@ -122,12 +122,12 @@ function translateOf(attr) {
   return m ? [Number(m[1]), Number(m[2])] : null;
 }
 
-/** Ring geometry from the markup: centre and radius of the ring and pit lane. */
+/** Ring geometry from the markup: centre and radius of the ring, radius and span of the pit-lane segment. */
 function ringOf(markup) {
   const ring = attrsOf(markup, /<circle class="cod-ring"[^>]*>/);
-  const pit = attrsOf(markup, /<circle class="cod-pitlane"[^>]*>/);
+  const pit = attrsOf(markup, /<path class="cod-pitlane"[^>]*>/);
   return {
-    cx: Number(ring.cx), cy: Number(ring.cy), R: Number(ring.r), rPit: Number(pit.r),
+    cx: Number(ring.cx), cy: Number(ring.cy), R: Number(ring.r), rPit: Number(pit['data-r']), theta: Number(pit['data-span']),
   };
 }
 
@@ -328,20 +328,34 @@ describe.skipIf(!haveMonza)('Monza 2024: three replay moments, focus LEC', () =>
     expect(labelProblems(markup, FALLBACK)).toEqual({ overlaps: 0, outside: 0, onRing: 0 });
   });
 
-  it('a car in the pit lane is drawn on the inner arc (LEC between pit entry and exit)', () => {
-    // LEC pit entry 4628.772, pit exit 4653.191
+  it('a car in the pit lane is drawn on the pit-lane segment (LEC between pit entry and exit)', () => {
+    // LEC pit entry 4628.772, line crossed in the lane 4632.468, pit exit 4653.191
     replayAt(monza, 4640, 16, { focusDriver: 'LEC' });
     const markup = html();
-    const { cx, cy, R, rPit } = ringOf(markup);
+    const {
+      cx, cy, R, rPit, theta,
+    } = ringOf(markup);
     expect(rPit).toBeLessThan(R);
+    // the segment: from -θ to the timing line, θ = 3 car slots at rPit within [20°, 60°]
+    expect(theta).toBeGreaterThanOrEqual(Math.PI / 9 - 1e-4);
+    expect(theta).toBeLessThanOrEqual(Math.PI / 3 + 1e-4);
     const car = attrsOf(markup, /<g class="cod-car[^"]*" data-driver="LEC"[^>]*>/);
     expect(car['data-pit']).toBe('true');
+    expect(car['data-stop']).toBe('lane');
     const [x, y] = translateOf(car.transform);
-    expect(Math.hypot(x - cx, y - cy)).toBeCloseTo(rPit, 6);
+    expect(Math.hypot(x - cx, y - cy)).toBeCloseTo(rPit, 1);
+    const angle = Math.atan2(x - cx, cy - y);
+    expect(angle).toBeGreaterThanOrEqual(-theta - 1e-6);
+    expect(angle).toBeLessThanOrEqual(1e-6);
     const other = translateOf(attrsOf(markup, /<g class="cod-car[^"]*" data-driver="PIA"[^>]*>/).transform);
     expect(Math.hypot(other[0] - cx, other[1] - cy)).toBeCloseTo(R, 6);
-    // the focus is already stopping: its stop is projected
+    // its label: PIT and the whole seconds since the pit entry (11 s), never a gap
+    expect(textOf(markup)).toContain('LEC PIT 11');
+    // the focus is already stopping: its stop is projected; the band runs from the car as drawn
     expect(textOf(markup)).toMatch(/LEC stopping → P\d+/);
+    const band = attrsOf(markup, /<path class="cod-pit-window"[^>]*>/);
+    expect(band).not.toBeNull();
+    expect(Number(band['data-to'])).toBeCloseTo(angle + 2 * Math.PI * (angle < 0 ? 1 : 0), 3);
   });
 
   it('hovering a second car while one is focused shows the time gap between the two', () => {
@@ -358,12 +372,21 @@ describe.skipIf(!haveMonza)('Monza 2024: three replay moments, focus LEC', () =>
   });
 
   it('a car selected in another view (no focus) anchors the hover gap too, its label tagged ref', () => {
+    replayAt(monza, 4600, 15, { selectedDrivers: ['SAI'], highlightedDriver: 'VER' });
+    const markup = html();
+    expect(markup).toMatch(/data-gap="SAI-VER"/);
+    const st = circleState(lapTimes, { sessionNow: 4600 });
+    expect(textOf(markup)).toContain(`${signed(gapSeconds('SAI', 'VER', st))} s`);
+    expect(markup).toMatch(/data-driver="SAI"[^>]*><tspan class="cod-label__code"[^>]*>SAI<\/tspan><tspan class="cod-label__gap"[^>]*>ref<\/tspan>/);
+  });
+
+  it('a selected reference on its out-lap (NOR at 4600 s): its tag reads OUT, no readout, the gap in the tooltip only', () => {
+    // NOR pit exit 4567.48, out-lap not completed at 4600
     replayAt(monza, 4600, 15, { selectedDrivers: ['NOR'], highlightedDriver: 'VER' });
     const markup = html();
-    expect(markup).toMatch(/data-gap="NOR-VER"/);
-    const st = circleState(lapTimes, { sessionNow: 4600 });
-    expect(textOf(markup)).toContain(`${signed(gapSeconds('NOR', 'VER', st))} s`);
-    expect(markup).toMatch(/data-driver="NOR"[^>]*><tspan class="cod-label__code"[^>]*>NOR<\/tspan><tspan class="cod-label__gap"[^>]*>ref<\/tspan>/);
+    expect(markup).not.toContain('cod-gap-layer');
+    expect(markup).toMatch(/data-driver="NOR"[^>]*><tspan class="cod-label__code"[^>]*>NOR<\/tspan><tspan class="cod-label__gap cod-label__stop"[^>]*>OUT<\/tspan>/);
+    expect(attrsOf(markup, /<g class="cod-car[^"]*" data-driver="NOR"[^>]*>/)['data-stop']).toBe('out');
   });
 
   it('no focus: no pit window, a hint, no dimmed label', () => {
@@ -631,9 +654,25 @@ const PIT_WALL_1680 = { width: 427, height: 239 };
 
 describe.skipIf(!haveMonza || !haveChina)('inside the pit lane: the hover gap readout never covers the centre text', () => {
   it('China 2024 at 4726.2 s, lap 14, focus VER, hovering NOR, PER and LEC (the reported case)', () => {
+    // VER (pit exit 4658.092) and PER (4667.189) are on their out-laps: under the
+    // stop rule no readout is drawn, the gap is in the hovered car's tooltip
     for (const hover of ['NOR', 'PER', 'LEC']) {
       for (const size of [PIT_WALL_1680, PIT_WALL, FALLBACK, DOCKED]) {
         replayAt(china, 4726.2, 14, { focusDriver: 'VER', highlightedDriver: hover });
+        const markup = htmlAt(size);
+        expect(markup).not.toContain('cod-gap-layer');
+        expect(innerOf(markup).gap).toBeNull();
+        expect(innerProblems(markup, size)).toEqual({
+          gapOnCentre: 0, outsideRoom: 0, pitCarOnText: 0, centreClamped: 0,
+        });
+      }
+    }
+  });
+
+  it('China 2024 at 4800 s, lap 15, focus VER (back on the ring), hovering NOR and LEC', () => {
+    for (const hover of ['NOR', 'LEC']) {
+      for (const size of [PIT_WALL_1680, PIT_WALL, FALLBACK, DOCKED]) {
+        replayAt(china, 4800, 15, { focusDriver: 'VER', highlightedDriver: hover });
         const markup = htmlAt(size);
         expect(markup).toMatch(new RegExp(`data-gap="VER-${hover}"`));
         const inner = innerOf(markup);

@@ -122,6 +122,8 @@ function readRender(markup) {
   const statusLines = (markup.match(/class="cod-status__line"/g) || []).length;
   const plotStyle = markup.match(/<div class="cod__plot" style="flex:none;width:([\d.]+)px;height:([\d.]+)px"/);
   const legend = markup.match(/<div class="chart-legend cod-legend( cod-legend--side)?" style="grid-template-columns:repeat\((\d+), max-content\)"/);
+  // under the plot with "gaps" on, the gap grid takes the legend's box (its rows)
+  const gapGrid = markup.match(/<div class="cod-gaps cod-gaps--grid"[^>]*data-rows="(\d+)"/);
   const gap = markup.match(/<text class="cod-gap-text"[^>]*font-size="([^"]+)" data-inner-box="([^"]+)"/);
   const labels = [...markup.matchAll(/data-box="([^"]+)"/g)].map((m) => m[1].split(',').map(Number));
   return {
@@ -138,7 +140,8 @@ function readRender(markup) {
     statusText: status ? textOf(status[1]).trim() : '',
     statusLines,
     plot: plotStyle ? { width: Number(plotStyle[1]), height: Number(plotStyle[2]) } : null,
-    legend: legend ? { side: !!legend[1], cols: Number(legend[2]) } : null,
+    legend: legend ? { side: !!legend[1], cols: Number(legend[2]), rows: Math.ceil(9 / Number(legend[2])) }
+      : gapGrid && { side: false, cols: null, rows: Number(gapGrid[1]) },
     gap: gap ? { size: Number(gap[1]), box: gap[2].split(',').map(Number) } : null,
     labels,
   };
@@ -209,7 +212,7 @@ describe.skipIf(!haveFonts || !SCENARIOS.length)('centre text at the Pit Wall vi
         const lapText = `LAP ${sc.lap}/${maxLapOf(sc.session)}`;
         const labelOverlaps = r.labels.reduce((n, a, i) => n + r.labels.slice(i + 1).filter((b) => overlaps(a, b)).length, 0);
         console.log(`${vp} ${sc.name}: label overlaps ${labelOverlaps}; slot ${slot.width.toFixed(0)}x${slot.height.toFixed(0)}, plot ${r.width.toFixed(0)}x${r.height.toFixed(0)}, `
-          + `legend ${r.legend.side ? 'side' : 'under'} ${r.legend.cols} col, R ${r.R.toFixed(0)}, layout ${r.layout}; `
+          + `legend ${r.legend.side ? 'side' : 'under'} ${r.legend.cols ?? 'gap grid'} col, R ${r.R.toFixed(0)}, layout ${r.layout}; `
           + `centre [${r.centre.map((l) => `${l.text}@${l.size.toFixed(1)}`).join(' | ')}]; legend line [${r.statusText}]`
           + `${r.gap ? `; gap readout @${r.gap.size.toFixed(1)}` : ''}`);
         // never below 10 px (the label floor), every line inside the room clear of the pit-lane cars
@@ -242,7 +245,7 @@ describe.skipIf(!haveFonts || !SCENARIOS.length)('centre text at the Pit Wall vi
         if (r.legend.side) {
           expect(r.width + 2).toBeLessThanOrEqual(slot.width);
         } else {
-          const rows = Math.ceil(9 / r.legend.cols);
+          const rows = r.legend.rows;
           const used = r.height + (r.statusLines ? 2 + 13 * r.statusLines : 0) + 2 + rows * 14 + (rows - 1);
           expect(used).toBeLessThanOrEqual(slot.height + 0.5);
           expect(r.width).toBeLessThanOrEqual(slot.width + 0.5);
@@ -283,14 +286,15 @@ describe.skipIf(!haveFonts || !SCENARIOS.length)('pit in k laps at the Pit Wall 
           if (vp !== '1366x768') expect({ labelOverlaps, layout: r.layout }).toEqual({ labelOverlaps: 0, layout: 'fits' });
           if (ghost) {
             expect(markup).toMatch(/<text class="cod-rejoin-label"[^>]*data-of="ghost"/);
-            expect(markup).toContain('title="rejoin: now · in k laps"');
+            // (the legend's entry, when the legend is drawn: not under the gap grid)
+            if (r.legend.cols != null) expect(markup).toContain('title="rejoin: now · in k laps"');
             // the focus line: in the centre, on the legend line or (no room) in the tooltip
             if (shown.includes('pits in')) expect(shown).toMatch(/pits in \d+: P\d+ → P\d+ \((= now|[+−]\d+ vs now)\)/);
           }
           if (r.legend.side) {
             expect(r.width + 2).toBeLessThanOrEqual(slot.width);
           } else {
-            const rows = Math.ceil(9 / r.legend.cols);
+            const rows = r.legend.rows;
             const used = r.height + (r.statusLines ? 2 + 13 * r.statusLines : 0) + 2 + rows * 14 + (rows - 1);
             expect(used).toBeLessThanOrEqual(slot.height + 0.5);
             expect(r.width).toBeLessThanOrEqual(slot.width + 0.5);

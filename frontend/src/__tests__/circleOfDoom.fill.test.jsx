@@ -112,15 +112,20 @@ async function resizeSlot(slot, { notify = true } = {}) {
   }
 }
 
-/** What the view laid out: the plot, the legend grid, the legend line, the ring. */
+/**
+ * What the view laid out: the plot, the legend grid (or, under the plot with
+ * "gaps" on, the gap grid in its box: the legend's rows, data-rows), the
+ * legend line, the ring.
+ */
 function laidOut() {
   const wrap = view.wrap();
   const plot = wrap.querySelector('.cod__plot');
   const svg = plot.querySelector('svg.cod__svg');
   const legend = wrap.querySelector('.cod-legend');
-  const cols = Number(/repeat\((\d+)/.exec(legend.style.gridTemplateColumns)[1]);
-  const items = legend.querySelectorAll('.cod-legend__item').length;
-  const rows = Math.ceil(items / cols);
+  const gapGrid = wrap.querySelector('.cod-gaps--grid');
+  const rows = legend
+    ? Math.ceil(legend.querySelectorAll('.cod-legend__item').length / Number(/repeat\((\d+)/.exec(legend.style.gridTemplateColumns)[1]))
+    : Number(gapGrid.getAttribute('data-rows'));
   return {
     side: /\bcod--side\b/.test(wrap.getAttribute('class')),
     plotW: parseFloat(plot.style.width),

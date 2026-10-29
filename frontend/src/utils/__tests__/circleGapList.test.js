@@ -101,6 +101,10 @@ describe('gapRows: gaps and trend', () => {
     expect(by.L7.toRef).toBeCloseTo(gapOn('L2', 'L7', 9), 9);
     expect(by.L7.toRef).toBeCloseTo(105, 9);
     expect(by.L7).toMatchObject({ toRefLaps: 1, toPrevLaps: 1, status: null });
+    // the lap each gap was read on: the latest lap both completed
+    expect(by.L2).toMatchObject({ toRefAtLap: null, toPrevAtLap: null });
+    expect(by.L3).toMatchObject({ toRefAtLap: 10, toPrevAtLap: 10 });
+    expect(by.L7).toMatchObject({ toRefAtLap: 9, toPrevAtLap: 9 });
   });
 
   it(`trend: |gap| on lap L against lap L - ${TREND_LAPS}, closing / opening at ${TREND_THRESHOLD_S} s`, () => {

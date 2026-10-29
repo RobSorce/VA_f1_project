@@ -103,8 +103,28 @@ must(/fill=\{c\.dim \? TEXT_COLORS\.muted : c\.text\}/.test(codJsx), 'Circle dim
 must(!/<text[^>]*opacity=\{[^}]*dim/.test(codJsx), 'a Circle label is faded');
 add('CircleOfDoom context ring label code (muted)', col(C.TEXT_COLORS.muted), PANEL, 4.5, 'CircleOfDoom.jsx cod-label__code');
 add('CircleOfDoom ring label gap tag (secondary)', col(decl('.cod-label__gap', 'fill')), PANEL, 4.5, 'visualizations.css .cod-label__gap');
-add('CircleOfDoom pit-lane arc (--status-pit, no opacity)', col(decl('.cod-pitlane', 'stroke')), PANEL, 3, `visualizations.css .cod-pitlane (opacity ${decl('.cod-pitlane', 'opacity') ?? 'none'})`);
-must(decl('.cod-pitlane', 'opacity') == null, 'pit-lane arc has an opacity');
+// The pit-lane segment: the pit colour at full strength, 2 px, dashed; the
+// pit state is also told by place and the PIT / OUT label (never the colour alone)
+must(decl('.cod-pitlane', 'stroke-width') === '2' && decl('.cod-pitlane', 'stroke-dasharray') != null, 'pit-lane segment is not a 2 px dashed stroke');
+must(/<path className="cod-pitlane" d=\{pitPath\} data-r=/.test(codJsx), 'pit-lane segment path changed');
+add('CircleOfDoom pit-lane segment (--status-pit, 2 px dashed, no opacity)', col(decl('.cod-pitlane', 'stroke')), PANEL, 3, `visualizations.css .cod-pitlane (opacity ${decl('.cod-pitlane', 'opacity') ?? 'none'})`);
+must(decl('.cod-pitlane', 'opacity') == null, 'pit-lane segment has an opacity');
+// Sector marks: the 1 px ticks (a mark, neutral), the S1 / S2 / S3 / PIT labels (text, neutral)
+must(decl('.cod-sector-tick', 'stroke-width') === '1' && decl('.cod-sector-tick', 'opacity') == null, 'sector tick changed');
+add('CircleOfDoom sector tick (1 px, no opacity)', col(decl('.cod-sector-tick', 'stroke')), PANEL, 3, 'visualizations.css .cod-sector-tick');
+add('CircleOfDoom sector mark label S1 / S2 / S3 / PIT', col(decl('.cod-sector-mark', 'fill')), PANEL, 4.5, 'visualizations.css .cod-sector-mark');
+// Gap list (CircleGapList.jsx): header and hint (label text), the numbers (data
+// text), the clear button's glyph; the driver code is textColor(team, panel) (>= 4.5:1 by construction)
+must(/'--cod-gaps-code': textColor\(getDriverColor\(row\.driver\), SURFACES\.panel\)/.test(read('components/visualizations/CircleGapList.jsx')), 'gap list code colour changed');
+add('CircleOfDoom gap list header / hint (muted)', col(decl('.cod-gaps__hint', 'color')), PANEL, 4.5, 'visualizations.css .cod-gaps__head, .cod-gaps__hint');
+add('CircleOfDoom gap list gap to the reference (primary)', col(decl('.cod-gaps__ref', 'color')), PANEL, 4.5, 'visualizations.css .cod-gaps__ref');
+add('CircleOfDoom gap list gap to the row above, trend glyph (secondary)', col(decl('.cod-gaps__prev', 'color')), PANEL, 4.5, 'visualizations.css .cod-gaps__prev, .cod-gaps__trend');
+add('CircleOfDoom gap list row hover (white 0.06), its numbers (secondary)', col(decl('.cod-gaps__prev', 'color')), H.over(col('rgba(255, 255, 255, 0.06)'), PANEL), 4.5, 'visualizations.css .cod-gaps__row:hover');
+add('CircleOfDoom gap list clear button glyph (primary) on its fill', col(decl('.cod-gaps__clear', 'color')), H.over(col(decl('.cod-gaps__clear', 'background')), PANEL), 4.5, 'visualizations.css .cod-gaps__clear');
+// The header toggle "gaps", on (pressed) and off, on the panel header over the panel glass
+add('CircleOfDoom "gaps" toggle text, off', col(decl('.cod-gaps-toggle', 'color')), H.over(col(decl('.cod-gaps-toggle', 'background')), headerBg), 4.5, 'visualizations.css .cod-gaps-toggle');
+add('CircleOfDoom "gaps" toggle text, on', col(decl('.cod-gaps-toggle', 'color')), H.over(col(decl('.cod-gaps-toggle[aria-pressed="true"]', 'background')), headerBg), 4.5, 'visualizations.css .cod-gaps-toggle[aria-pressed="true"]');
+add('CircleOfDoom "gaps" toggle border, off (a control boundary)', H.over(col(decl('.cod-gaps-toggle', 'border').split(' solid ')[1]), headerBg), headerBg, 3, 'visualizations.css .cod-gaps-toggle');
 // A car lapped by the leader is hollow: the panel inside a ring of the car's
 // mark colour (markColor(getDriverColor) on the panel: the team colour, the
 // teammate tint for the second car, lifted toward white where it is under

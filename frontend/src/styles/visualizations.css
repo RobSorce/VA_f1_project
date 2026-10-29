@@ -2288,6 +2288,53 @@
   flex-direction: row;
 }
 
+/* Header toggle "gaps" (the legend under the plot): the size of the "rivals"
+   button beside it, its colours from the theme's tokens */
+.cod-gaps-toggle {
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  line-height: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cod-gaps-toggle[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--color-text-primary);
+}
+
+[data-theme="light"] .cod-gaps-toggle {
+  border-color: rgba(17, 24, 39, 0.4);
+  background: rgba(17, 24, 39, 0.04);
+}
+
+[data-theme="light"] .cod-gaps-toggle[aria-pressed="true"] {
+  background: rgba(17, 24, 39, 0.12);
+  border-color: var(--color-text-primary);
+}
+
+/* Beside the plot: the legend, top-aligned, and the gap list under it, in a
+   column as wide as the legend (CircleOfDoom.jsx sets the width) */
+.cod__side {
+  flex: none;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.cod__side .cod-legend {
+  align-content: start;
+  justify-content: start;
+}
+
 .cod__main {
   flex: 1 1 auto;
   min-width: 0;
@@ -2411,10 +2458,11 @@
 
 .cod-pitlane {
   fill: none;
-  /* the pit colour of every view (STATUS_COLORS.pit), full strength: a mark
-     >= 3:1 on the panel; dashed, so it never reads as the ring */
+  /* the pit-lane segment: the pit colour of every view (STATUS_COLORS.pit),
+     full strength, a mark >= 3:1 on the panel; dashed, so it never reads as
+     the ring. Place and the PIT label tell the pit state, not the colour */
   stroke: var(--status-pit);
-  stroke-width: 1;
+  stroke-width: 2;
   stroke-dasharray: 3 3;
 }
 
@@ -2423,15 +2471,43 @@
   stroke-width: 2;
 }
 
+/* Ends of sectors 1 and 2: a neutral 1 px tick (muted text, 7.63:1 on the
+   panel), its title on an invisible 8 px hit line */
+.cod-sector-tick {
+  stroke: var(--color-text-muted);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.cod-sector-hit {
+  stroke: transparent;
+  stroke-width: 8;
+  pointer-events: stroke;
+  cursor: help;
+}
+
+/* S1 / S2 / S3 / PIT inside the ring: neutral text, never the sector colours */
+.cod-sector-mark {
+  fill: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+/* The band and the p10-p90 arc take no pointer: the sector ticks' titles under them stay reachable */
 .cod-pit-window {
   fill: color-mix(in srgb, var(--color-pit-window) 26%, transparent);
   stroke: var(--color-pit-window);
   stroke-width: 0.8;
+  pointer-events: none;
 }
 
 .cod-uncertainty {
   stroke: var(--color-pit-window);
   stroke-width: 0.8;
+  pointer-events: none;
 }
 
 .cod-rejoin {
@@ -2612,6 +2688,12 @@
   fill: #111827;
 }
 
+/* a step darker on the light panel (7.56:1 on white, light_contrast.txt), so
+   the 1 px tick stands off the ring where it crosses it */
+[data-theme="light"] .cod-sector-tick {
+  stroke: var(--color-text-secondary);
+}
+
 [data-theme="light"] .cod-leader {
   stroke: rgba(17, 24, 39, 0.3);
 }
@@ -2624,6 +2706,124 @@
 
 [data-theme="light"] .cod-gap-text {
   fill: #111827;
+}
+
+/* Gap list (CircleGapList.jsx): under the side legend (rows of 15 px, the
+   view's GAP_ROW_PX) or in the box of the legend under the plot (its 14 px
+   rows); numbers at the data type, tabular figures */
+.cod-gaps {
+  flex: none;
+  min-height: 0;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+.cod-gaps--grid {
+  display: grid;
+  grid-auto-rows: 14px;
+  row-gap: 1px;
+  column-gap: 4px;
+  align-content: start;
+}
+
+.cod-gaps__head,
+.cod-gaps__hint,
+.cod-gaps__row,
+.cod-gaps__more {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  height: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cod-gaps--grid .cod-gaps__head,
+.cod-gaps--grid .cod-gaps__hint,
+.cod-gaps--grid .cod-gaps__row,
+.cod-gaps--grid .cod-gaps__more {
+  height: 14px;
+}
+
+.cod-gaps--grid .cod-gaps__head,
+.cod-gaps--grid .cod-gaps__hint {
+  grid-column: 1 / -1;
+}
+
+.cod-gaps__head,
+.cod-gaps__hint,
+.cod-gaps__more {
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
+}
+
+.cod-gaps__hint {
+  font-style: italic;
+}
+
+.cod-gaps__head-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cod-gaps__clear {
+  flex: none;
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  line-height: 12px;
+  cursor: pointer;
+}
+
+.cod-gaps__row {
+  font-size: var(--font-size-data);
+  cursor: default;
+}
+
+.cod-gaps__row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* the ring label's colour (CircleGapList.jsx: textColor on the panel, >= 4.5:1) */
+.cod-gaps__code {
+  font-weight: 700;
+  color: var(--cod-gaps-code, var(--color-text-primary));
+}
+
+.cod-gaps__ref {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.cod-gaps__ref--stop {
+  font-weight: 700;
+}
+
+.cod-gaps__prev,
+.cod-gaps__trend {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+/* on the light panel the code is the primary text, as the Timing Tower's names */
+[data-theme="light"] .cod-gaps__code {
+  color: var(--color-text-primary);
+}
+
+[data-theme="light"] .cod-gaps__row:hover {
+  background: rgba(17, 24, 39, 0.06);
+}
+
+[data-theme="light"] .cod-gaps__clear {
+  border-color: rgba(17, 24, 39, 0.4);
+  background: rgba(17, 24, 39, 0.04);
 }
 
 /* A lapped car is hollow: the panel's own surface inside its ring (the JSX

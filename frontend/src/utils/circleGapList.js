@@ -16,7 +16,8 @@
  * Gaps. toRef = gapSeconds(reference, car) and toPrev = gapSeconds(previous
  * listed car, car), with toRefLaps / toPrevLaps = lapOffset (circleOfDoom.js:
  * the gap on the latest lap both cars completed, holding the whole laps of a
- * lapped car; positive = behind). A car in the middle of its stop (pitStatus
+ * lapped car; positive = behind) and toRefAtLap / toPrevAtLap = that lap. A
+ * car in the middle of its stop (pitStatus
  * 'lane' or 'out', circlePitLane.js) gets its status and laneSeconds (whole
  * seconds since its pit entry) and no gap at all, nor does a gap to it: the
  * gap on the latest lap both completed does not hold its stop yet
@@ -109,6 +110,18 @@ function byDriverLap(lapTimes) {
   return by;
 }
 
+/** The latest lap both cars have completed (the lap of gapSeconds), or null. */
+function commonLap(state, a, b) {
+  const by = byDriverLap(state.lapTimes);
+  const A = state.cars.find((c) => c.driver === a);
+  const B = state.cars.find((c) => c.driver === b);
+  if (!A || !B) return null;
+  for (let n = Math.min(A.lapsCompleted, B.lapsCompleted); n >= 1; n--) {
+    if (lapEndTime(by.get(a)?.get(n)) != null && lapEndTime(by.get(b)?.get(n)) != null) return n;
+  }
+  return null;
+}
+
 /** A lap that can carry a trend: green, neither an in-lap nor an out-lap. */
 function trendLap(row) {
   return !!row && isGreenLap(row) && !hasPitIn(row) && !hasPitOut(row) && lapEndTime(row) != null;
@@ -164,12 +177,13 @@ function listedDrivers(cars, focus, sel, capacity) {
  * @param {Array<string>|Set<string>} [opts.selected] - selected drivers
  * @param {number} [opts.capacity=Infinity] - rows that fit
  * @returns {{reference: string|null, rows: Array<{driver: string, position: number|null,
- *   toRef: number|null, toRefLaps: number|null, toPrev: number|null, toPrevLaps: number|null,
+ *   toRef: number|null, toRefLaps: number|null, toRefAtLap: number|null, toPrev: number|null,
+ *   toPrevLaps: number|null, toPrevAtLap: number|null,
  *   status: 'lane'|'out'|null, laneSeconds: number|null, pitInTime: number|null,
  *   trend: 'closing'|'opening'|'stable'|null, trendDelta: number|null}>,
  *   overflow: Array<{driver: string, position: number|null}>}}
- *   gaps in seconds (positive: behind), laps = lapOffset; the reference row has toRef 0,
- *   the first row toPrev null
+ *   gaps in seconds (positive: behind), laps = lapOffset, atLap = the lap the gap is read on;
+ *   the reference row has toRef 0 (toRefAtLap null), the first row toPrev null
  */
 export function gapRows(state, lapTimes, sessionNow, { focus = null, selected = [], capacity = Infinity } = {}) {
   const cars = Array.isArray(state?.cars) ? state.cars : [];
@@ -198,8 +212,10 @@ export function gapRows(state, lapTimes, sessionNow, { focus = null, selected = 
       position: car?.position ?? null,
       toRef: null,
       toRefLaps: null,
+      toRefAtLap: null,
       toPrev: null,
       toPrevLaps: null,
+      toPrevAtLap: null,
       status: stop.status,
       laneSeconds: stop.status ? laneSecondsAt(stop.pitInTime, sessionNow) : null,
       pitInTime: stop.status ? stop.pitInTime : null,
@@ -213,11 +229,13 @@ export function gapRows(state, lapTimes, sessionNow, { focus = null, selected = 
     } else if (reference != null && !refStopping) {
       row.toRef = gapSeconds(reference, d, state);
       row.toRefLaps = row.toRef == null ? null : lapOffset(reference, d, state);
+      row.toRefAtLap = row.toRef == null ? null : commonLap(state, reference, d);
       Object.assign(row, trendOf(state, reference, d) || {});
     }
     if (prev != null && !stopping(prev)) {
       row.toPrev = gapSeconds(prev, d, state);
       row.toPrevLaps = row.toPrev == null ? null : lapOffset(prev, d, state);
+      row.toPrevAtLap = row.toPrev == null ? null : commonLap(state, prev, d);
     }
     return row;
   });

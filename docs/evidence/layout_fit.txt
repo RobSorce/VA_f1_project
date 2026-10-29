@@ -1,4 +1,4 @@
-Layout fit at the V13 target viewports, CSS + components of the working tree, 2026-10-28
+Layout fit at the V13 target viewports, CSS + components of the working tree, 2026-10-29
 Pit Wall grid (PitWallLayout.jsx): columns "480px 1fr", rows "44px 1fr 35vh", map row "minmax(0, 1fr) minmax(0, 1fr) 280px"
 Timing Tower (TimingTower.jsx): rows 18-24 px (fitRows), column widths (COL) sum 476 px, drawn as percentages (table-layout fixed)
 Race Pace Grid (utils/views/racePaceGrid.js): lap column 34 px + 20 drivers x 36-78 px cells (paceColumns), header 30 px, rows 18-26 px (fitRows), laps that do not fit paged
