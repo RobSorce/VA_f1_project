@@ -66,7 +66,7 @@ How to run the scripts:
 | File | Written by | Cited by (the file or its script) |
 |---|---|---|
 | `cvd_check.txt` | `frontend/scripts/cvd_check.mjs` | `docs/COLOR_ENCODING.md`, `frontend/src/utils/colors.js`, `frontend/src/utils/views/deltaHatch.js`, `frontend/src/utils/views/racePaceGrid.js`; the Track Map help names the script |
-| `contrast_pairs.txt` | `frontend/scripts/audit/contrast_pairs.mjs` | `docs/COLOR_ENCODING.md`, `docs/MASTER_LEDGER.md`, `frontend/src/utils/colors.js`, `frontend/src/components/visualizations/RacePaceGrid.jsx`, `frontend/src/styles/tokens.css`, `frontend/src/styles/visualizations.css` |
+| `contrast_pairs.txt` | `frontend/scripts/audit/contrast_pairs.mjs` | `docs/COLOR_ENCODING.md`, `docs/MASTER_LEDGER.md`, `frontend/src/utils/colors.js`, `frontend/src/components/visualizations/RacePaceGrid.jsx`, `frontend/src/styles/tokens.css`, `frontend/src/styles/components.css`, `frontend/src/styles/visualizations.css`, `frontend/src/__tests__/wordmark.test.jsx` |
 | `token_contrast.txt` | `frontend/scripts/audit/token_contrast.mjs` | `frontend/src/styles/tokens.css` |
 | `chrome_contrast.txt` | `frontend/scripts/audit/chrome_contrast.mjs` | `frontend/src/__tests__/layout.contrast.test.js` |
 | `light_contrast.txt` | `frontend/scripts/audit/light_contrast.mjs` | `frontend/src/styles/visualizations.css`, `frontend/src/styles/tokens.css` |
@@ -140,3 +140,12 @@ The PCA label placement, the move to the self-hosted Inter and JetBrains Mono an
 - `color_doc_check.mjs`, `cvd_check.mjs`, `pca_outcome_palette.mjs`, `shortcuts_table.mjs --write` and `coordination_matrix.mjs` print the same; `color_doc_hex.txt`, `cvd_check.txt`, `pca_outcome_palette.txt`, `shortcuts_table.txt` and the generated blocks of `docs/SHORTCUTS.md` and `docs/COORDINATION_GRAPH.md` were kept.
 - `usecase_uc1_monza24_strategy.txt` and `usecase_uc4_china24_sc.txt`: run without the race cache, the scripts print every line that reads the demo files as before; the lines that compare with the race cache need it, so both files were kept.
 - The scripts that need the race cache were not run (no cache in this run).
+
+## Wordmark (2026-10-29)
+
+The name is drawn as a wordmark (`frontend/src/components/ui/Wordmark.jsx`, `frontend/src/utils/wordmark.js`) in the weather bar, the header and on the start screen, with a new token, `--color-brand-accent`, for its line and dot and for the favicon.
+
+- `contrast_pairs.mjs` now also measures the wordmark's line and dot (3:1), its word and the start screen's tagline (4.5:1) on the weather bar, the header and every stop of the start screen's gradient, alone and under its glow, in both themes; the favicon's mark on its square; and prints, not gated, the data colours nearest to the accent (CIEDE2000, the four vision types). `contrast_pairs.txt` was rewritten: 98 pairs, 0 under their threshold.
+- `font_floor.mjs` resolves the SVG text size of the wordmark (drawn at 1 em of its place, whose CSS size the CSS pass checks) and counts `Wordmark.jsx` in the layout lane; `font_floor.txt` was rewritten.
+- `chrome_contrast.txt` (one chrome text colour less: the start screen's subtitle is now the wordmark's tagline, in `components.css`; every verdict the same), `overflow_inventory.txt` (new `dashboard.css` and `components.css` line numbers) and `color_doc_hex.txt` (the accent in `docs/COLOR_ENCODING.md`) were rewritten.
+- The other audits of `frontend/scripts/audit/` print the same and their files were kept, `layout_fit.txt` included (the weather bar's height is a token; the wordmark does not change it). `view_catalogue.txt` differs from a run on this code by two views added before this change (Field Pace, Race Trace); it was kept.

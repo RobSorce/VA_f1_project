@@ -7,7 +7,9 @@ Root font-size (base.css html): 1536x750 14.08px, 1366x768 13.23px, 1920x1080 16
 
 CSS: 374 font-size declarations; FAIL 0; UNEVALUATED 0; INHERIT 0; INACTIVE 0
 
-JS/JSX literal font sizes: 518; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN 437
+JS/JSX literal font sizes: 519; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 52; TOKEN 437
+  components/ui/Wordmark.jsx [layout lane]: FAIL 0, CHECK 0, DYNAMIC 1
+     DYNAMIC  :31  FONT_SIZE
   components/visualizations/CircleOfDoom.jsx [other lane]: FAIL 0, CHECK 0, DYNAMIC 6
      DYNAMIC  :1316  fs0
      DYNAMIC  :1345  fs0
@@ -74,7 +76,8 @@ JS/JSX literal font sizes: 518; FAIL (<10) 0; CHECK (10-11) 0; DYNAMIC 51; TOKEN
 
 Floors of the computed (DYNAMIC) sizes: 2 font-like bounds; FAIL (<10) 0; CHECK (10-11) 0
 
-DYNAMIC sizes resolved: 51; UNSET 8, TOKEN 17, CALLER 18, FLOOR 8, UNRESOLVED 0; floor under 10 px 0
+DYNAMIC sizes resolved: 52; UNSET 8, TOKEN 17, CALLER 18, FLOOR 9, UNRESOLVED 0; floor under 10 px 0
+  FLOOR      components/ui/Wordmark.jsx:31  FONT_SIZE >= 11 px  (the name is drawn at FONT_SIZE user units in an SVG sized so that FONT_SIZE units are 1 em: it renders at 1 em of its place, whose CSS font-size (--font-size-base, -lg, -4xl) the CSS pass checks)
   FLOOR      components/visualizations/CircleOfDoom.jsx:1316  fs0 >= 11 px  (ring label size = chartFontPx("data"), the data token never under 11 px)
   FLOOR      components/visualizations/CircleOfDoom.jsx:1345  fs0 >= 11 px  (ring label size = chartFontPx("data"), the data token never under 11 px)
   FLOOR      components/visualizations/CircleOfDoom.jsx:1837  gapMark.size >= 11 px  (hover gap readout = Math.max(MIN_CENTRE_FONT, fs + 1), MIN_CENTRE_FONT = 11)

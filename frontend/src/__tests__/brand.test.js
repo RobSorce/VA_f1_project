@@ -1,14 +1,41 @@
 // The product's name, its trade-mark notice and its fonts: the name is one
-// constant (utils/brand.js) that index.html's <title> repeats; the notice is
-// on the start screen, in Settings > About and in the README word for word;
-// the fonts are self-hosted (no font service is asked), each with its
+// constant (utils/brand.js) that index.html's <title> repeats, drawn by the
+// Wordmark (components/ui/Wordmark.jsx) on the start screen and in the top
+// bar, written as text in the session menu and Settings > About; the notice
+// is on the start screen, in Settings > About and in the README word for
+// word; the fonts are self-hosted (no font service is asked), each with its
 // licence; no Formula 1 font or logo file is shipped.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import React from 'react';
+import { renderToString } from 'react-dom/server';
 import { APP_NAME, TRADEMARK_NOTICE } from '../utils/brand.js';
 import { listFiles } from './helpers/layoutCss.js';
+
+// Server rendering reads getServerState: point it at the live state
+vi.mock('zustand', async (importOriginal) => {
+  const orig = await importOriginal();
+  const bind = (createState) => {
+    const api = orig.createStore(createState);
+    api.getServerState = api.getState;
+    const useBound = (selector, equalityFn) => orig.useStore(api, selector, equalityFn);
+    Object.assign(useBound, api);
+    return useBound;
+  };
+  return { ...orig, create: (createState) => (createState ? bind(createState) : bind) };
+});
+vi.mock('../utils/liveWebSocket', () => ({ liveWS: { connect: vi.fn(), disconnect: vi.fn() } }));
+if (typeof globalThis.localStorage === 'undefined') {
+  const mem = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => { mem.set(k, String(v)); },
+    removeItem: (k) => { mem.delete(k); },
+    clear: () => { mem.clear(); },
+  };
+}
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND = path.resolve(SRC, '..');
@@ -27,9 +54,34 @@ describe('the name', () => {
       .filter((f) => read(f).includes(APP_NAME))
       .map((f) => path.relative(SRC, f));
     expect(offenders).toEqual([]);
-    for (const f of ['components/ui/WeatherBar.jsx', 'components/ui/SessionMenu.jsx',
-      'components/ui/SessionSelectorScreen.jsx', 'components/tabs/SettingsTabContent.jsx']) {
+    for (const f of ['components/ui/Wordmark.jsx', 'components/ui/SessionMenu.jsx', 'components/tabs/SettingsTabContent.jsx']) {
       expect(read(path.join(SRC, f)), f).toMatch(/\{APP_NAME\}/);
+    }
+  });
+
+  it('the Wordmark draws APP_NAME and names its image APP_NAME', () => {
+    const src = read(path.join(SRC, 'components/ui/Wordmark.jsx'));
+    expect(src).toMatch(/aria-label=\{APP_NAME\}/);
+    expect(src).toMatch(/>\s*\{APP_NAME\}\s*<\/text>/);
+  });
+
+  it('the start screen, the weather bar and the header render the Wordmark, an image named APP_NAME', async () => {
+    const image = new RegExp(`<svg class="wordmark-svg" role="img" aria-label="${APP_NAME}"[^>]*>`);
+    const { default: Wordmark } = await import('../components/ui/Wordmark.jsx');
+    const { default: SessionSelectorScreen } = await import('../components/ui/SessionSelectorScreen.jsx');
+    const { default: WeatherBar } = await import('../components/ui/WeatherBar.jsx');
+    const { default: Header } = await import('../components/ui/Header.jsx');
+    expect(renderToString(React.createElement(Wordmark))).toMatch(image);
+    // start screen: the h1 holds the hero wordmark with its tagline (the
+    // document's one h1, named by the image and the tagline)
+    const start = renderToString(React.createElement(SessionSelectorScreen));
+    expect(start).toMatch(new RegExp(`<h1 class="session-screen__title"><span class="wordmark-lockup wordmark-lockup--hero">${image.source}`));
+    expect(start.match(/<h1\b/g)).toHaveLength(1);
+    expect(start).toContain('wordmark-lockup__tagline');
+    for (const [name, Comp, cls] of [['WeatherBar', WeatherBar, 'weather-bar__wordmark'], ['Header', Header, 'header-wordmark']]) {
+      const html = renderToString(React.createElement(Comp));
+      expect(html, name).toMatch(new RegExp(`<span class="wordmark-lockup wordmark-lockup--header ${cls}">${image.source}`));
+      expect(html, name).not.toContain('wordmark-lockup__tagline');
     }
   });
 });

@@ -1,13 +1,14 @@
 /**
  * The product's name and its trade-mark notice, defined here only.
  *
- * APP_NAME is the text wordmark of the weather bar and the header, the
- * session menu's title, the start screen's title and the Settings > About
- * title; frontend/index.html repeats it in <title> (brand.test.js keeps the
- * two equal). Renaming the app is this line and that <title>.
+ * APP_NAME is drawn by the wordmark (components/ui/Wordmark.jsx) in the
+ * weather bar, the header and on the start screen, and written as text in
+ * the session menu's title and the Settings > About title;
+ * frontend/index.html repeats it in <title> (brand.test.js keeps the two
+ * equal). Renaming the app is this line and that <title>.
  *
- * APP_TAGLINE is the line under the name on the start screen and in
- * Settings > About.
+ * APP_TAGLINE is the line under the name on the start screen (the hero
+ * wordmark's tagline) and in Settings > About.
  *
  * TRADEMARK_NOTICE is shown on the start screen and in Settings > About;
  * README.md quotes it word for word (brand.test.js).

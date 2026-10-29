@@ -41,22 +41,23 @@ code: literals of frontend/src/utils/colors.js and the dark-theme tokens (:root)
 #8AB4F8  line 115  x1  UI_COLORS.brush, --color-brush
 #E10600  line 120  x1  UI_COLORS.accent, --color-f1-red, --color-accent-primary
 #FF6B63  line 120  x2  TRACK_COLORS.north, --color-f1-red-text
-#FACC15  line 124  x1  FLAG_COLORS.yellow, --flag-yellow
-#F59E0B  line 124  x1  FLAG_COLORS.safetyCar, --flag-sc
-#F87171  line 124  x1  FLAG_COLORS.red, --flag-red
-#60A5FA  line 124  x1  FLAG_COLORS.blue
-#CC79A7  line 125  x3  SERIES_COLORS
-#F0E442  line 132  x3  CHANNEL_COLORS.speed, SERIES_COLORS
-#56B4E9  line 132  x3  CHANNEL_COLORS.throttle, SERIES_COLORS, --channel-throttle
-#E69F00  line 132  x2  CHANNEL_COLORS.brake, SERIES_COLORS, --channel-brake
-#5C6677  line 132  x1  CHANNEL_RAMP_LOW
-#4A5568  line 135  x1  TRACK_COLORS.surface
-#FDEA45  line 136  x1  OUTCOME_COLORS.podium
-#61636F  line 136  x1  OUTCOME_COLORS.none
-#13B1CE  line 136  x1  OUTCOME_COLORS.points
-#FFD700  line 137  x1  MEDAL_COLORS.1, --color-accent-warning, --medal-gold
-#C0C0C0  line 137  x1  MEDAL_COLORS.2
-#CD7F32  line 137  x1  MEDAL_COLORS.3
+#D5FD51  line 122  x1  --color-brand-accent, --rh-accent
+#F0E442  line 122  x4  CHANNEL_COLORS.speed, SERIES_COLORS
+#FDEA45  line 122  x2  OUTCOME_COLORS.podium
+#FACC15  line 126  x1  FLAG_COLORS.yellow, --flag-yellow
+#F59E0B  line 126  x1  FLAG_COLORS.safetyCar, --flag-sc
+#F87171  line 126  x1  FLAG_COLORS.red, --flag-red
+#60A5FA  line 126  x1  FLAG_COLORS.blue
+#CC79A7  line 127  x3  SERIES_COLORS
+#56B4E9  line 134  x3  CHANNEL_COLORS.throttle, SERIES_COLORS, --channel-throttle
+#E69F00  line 134  x2  CHANNEL_COLORS.brake, SERIES_COLORS, --channel-brake
+#5C6677  line 134  x1  CHANNEL_RAMP_LOW
+#4A5568  line 137  x1  TRACK_COLORS.surface
+#61636F  line 138  x1  OUTCOME_COLORS.none
+#13B1CE  line 138  x1  OUTCOME_COLORS.points
+#FFD700  line 139  x1  MEDAL_COLORS.1, --color-accent-warning, --medal-gold
+#C0C0C0  line 139  x1  MEDAL_COLORS.2
+#CD7F32  line 139  x1  MEDAL_COLORS.3
 
-56 distinct hex colours in the document, 0 not in the code
+57 distinct hex colours in the document, 0 not in the code
 RESULT: PASS

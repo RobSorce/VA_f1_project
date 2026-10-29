@@ -742,6 +742,7 @@ Timeline player band tints: SC, VSC and red flag 0.14 · yellow flag 0.08 (`Time
 ### 15.5 Accent
 - F1 red: `#e10600` (brand), `#b80500` (dark).
 - Robinhood-Legend palette accent (command palette): `#D5FD51`.
+- Brand accent (`--color-brand-accent`): the same lime `#D5FD51`, for the line and the dot of the drawn wordmark (`components/ui/Wordmark.jsx`) and the favicon; a dark lime of the same hue in the light theme. No data encoding uses it (`docs/COLOR_ENCODING.md` §7).
 
 ### 15.6 Country flags
 3-letter IOC/FIFA codes (FastF1 format) → ISO-3166-1 alpha-2 → flag emoji via `String.fromCodePoint(0x1F1E6 + offset)`. Table covers 35 countries.
