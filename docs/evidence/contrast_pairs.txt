@@ -1,4 +1,4 @@
-Repair contrast check (WCAG 2.1), 53 pairs read from the working tree, 2026-10-28
+Repair contrast check (WCAG 2.1), 63 pairs read from the working tree, 2026-10-29
 OK   5.67:1 (needs 4.5)  dock fixed buttons Layouts / Cmd K / Settings (label text), opacity 1  fg #A3A7B7 on #2C2C3F  [dashboard.css .bottom-tab-bar__tab--fixed (opacity none)]
 OK   5.67:1 (needs 3)  dock overflow button ⋯ (the only way to the hidden items), opacity 1  fg #A3A7B7 on #2C2C3F  [dashboard.css .bottom-tab-bar__tab--overflow (opacity none)]
 OK   6.54:1 (needs 4.5)  shortcut hint key (shown; after 5 s hidden whole: opacity 0, visibility hidden)  fg #A6A6A6 on #222222  [ShortcutHints.css .shortcut-hint-key]
@@ -10,7 +10,17 @@ OK   6.05:1 (needs 4.5)  RacePaceGrid context header, secondary text on the team
 OK   7.63:1 (needs 4.5)  RacePaceGrid context cell (muted text, no opacity)  fg #A3A7B7 on #131326  [RacePaceGrid.jsx PaceCell]
 OK   7.63:1 (needs 4.5)  CircleOfDoom context ring label code (muted)  fg #A3A7B7 on #131326  [CircleOfDoom.jsx cod-label__code]
 OK   11.40:1 (needs 4.5)  CircleOfDoom ring label gap tag (secondary)  fg #C9CCD6 on #131326  [visualizations.css .cod-label__gap]
-OK   6.90:1 (needs 3)  CircleOfDoom pit-lane arc (--status-pit, no opacity)  fg #F472B6 on #131326  [visualizations.css .cod-pitlane (opacity none)]
+OK   6.90:1 (needs 3)  CircleOfDoom pit-lane segment (--status-pit, 2 px dashed, no opacity)  fg #F472B6 on #131326  [visualizations.css .cod-pitlane (opacity none)]
+OK   7.63:1 (needs 3)  CircleOfDoom sector tick (1 px, no opacity)  fg #A3A7B7 on #131326  [visualizations.css .cod-sector-tick]
+OK   11.40:1 (needs 4.5)  CircleOfDoom sector mark label S1 / S2 / S3 / PIT  fg #C9CCD6 on #131326  [visualizations.css .cod-sector-mark]
+OK   7.63:1 (needs 4.5)  CircleOfDoom gap list header / hint (muted)  fg #A3A7B7 on #131326  [visualizations.css .cod-gaps__head, .cod-gaps__hint]
+OK   18.28:1 (needs 4.5)  CircleOfDoom gap list gap to the reference (primary)  fg #FFFFFF on #131326  [visualizations.css .cod-gaps__ref]
+OK   11.40:1 (needs 4.5)  CircleOfDoom gap list gap to the row above, trend glyph (secondary)  fg #C9CCD6 on #131326  [visualizations.css .cod-gaps__prev, .cod-gaps__trend]
+OK   9.83:1 (needs 4.5)  CircleOfDoom gap list row hover (white 0.06), its numbers (secondary)  fg #C9CCD6 on #212133  [visualizations.css .cod-gaps__row:hover]
+OK   15.76:1 (needs 4.5)  CircleOfDoom gap list clear button glyph (primary) on its fill  fg #FFFFFF on #212133  [visualizations.css .cod-gaps__clear]
+OK   16.21:1 (needs 4.5)  CircleOfDoom "gaps" toggle text, off  fg #FFFFFF on #1F1F2F  [visualizations.css .cod-gaps-toggle]
+OK   10.90:1 (needs 4.5)  CircleOfDoom "gaps" toggle text, on  fg #FFFFFF on #3C3C49  [visualizations.css .cod-gaps-toggle[aria-pressed="true"]]
+OK   4.51:1 (needs 3)  CircleOfDoom "gaps" toggle border, off (a control boundary)  fg #7C7C85 on #111122  [visualizations.css .cod-gaps-toggle]
 OK   3.42:1 (needs 3)  CircleOfDoom hollow lapped car ring, Red Bull Racing, the worst of its 1st / 2nd / 3rd car: 3.77 / 8.31 / 3.42 (markColor lifted #162D4F at 1.33:1)  fg #5C6C84 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
 OK   3.41:1 (needs 3)  CircleOfDoom hollow lapped car ring, Ferrari, the worst of its 1st / 2nd / 3rd car: 3.89 / 6.62 / 3.41 (markColor lifted #5D0012 at 1.28:1)  fg #965965 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
 OK   5.04:1 (needs 3)  CircleOfDoom hollow lapped car ring, Mercedes, the worst of its 1st / 2nd / 3rd car: 13.02 / 5.04 / 8.21  fg #189782 on #131326  [CircleOfDoom.jsx cod-car__dot--hollow stroke]
@@ -56,4 +66,4 @@ INFO (before the repair, not gated) tower PIT value text at the former pit-blink
 INFO (before the repair, not gated) delta area as the former 22 % tint (better) on the raised surface: 1.48:1
 INFO (before the repair, not gated) delta area as the former 22 % tint (worse) on the raised surface: 1.45:1
 
-0 of 53 pairs under their threshold
+0 of 63 pairs under their threshold
