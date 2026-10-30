@@ -78,8 +78,8 @@ describe('the logo\'s sizes and tagline', () => {
     expect(LETTER_PX).toEqual({ header: 16, hero: 56 });
     // header: 16 x 102.16 / 100 = 16.35 px of image, 16.4 rounded up;
     // hero: 56 x 224.76 / 100 = 125.87, 125.9 rounded up
-    expect(logoBox('header')).toEqual({ width: 103.16, height: 16.4 });
-    expect(logoBox('hero')).toEqual({ width: 428.63, height: 125.9 });
+    expect(logoBox('header')).toEqual({ width: 109.28, height: 16.4 });
+    expect(logoBox('hero')).toEqual({ width: 449.99, height: 125.9 });
   });
 
   it('the tagline only under the hero with the prop, after the image, as text', () => {

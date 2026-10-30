@@ -11,8 +11,8 @@ import { publicAsset } from '../../utils/publicAsset';
  * animation needs.
  */
 export const LOGO_FILES = {
-  header: { file: 'variante_primary', width: 642.62, height: 102.16 },
-  hero: { file: 'variante_intro_primary', width: 765.21, height: 224.76 },
+  header: { file: 'variante_primary', width: 680.74, height: 102.16 },
+  hero: { file: 'variante_intro_primary', width: 803.34, height: 224.76 },
 };
 export const LETTER_UNITS = 100;
 
